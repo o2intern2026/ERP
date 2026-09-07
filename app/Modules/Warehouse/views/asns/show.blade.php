@@ -14,15 +14,21 @@
             @if ($asn->status === 'booked')
                 <form method="post" action="{{ route('warehouse.asns.arrive', $asn) }}" class="inline">@csrf<button type="submit" class="secondary">{{ __('warehouse.asns.arrive') }}</button></form>
             @endif
+            @if (in_array($asn->status, ['putaway', 'closed'], true) && $asn->lines->contains(fn ($l) => $l->order_line_id === null && $l->received_cartons > 0))
+                <form method="post" action="{{ route('warehouse.asns.generate_orders', $asn) }}" class="inline">@csrf<button type="submit">{{ __('warehouse.asns.generate_orders') }}</button></form>
+            @endif
             @if ($asn->unplanned && ! $asn->unplanned_confirmed)
                 <form method="post" action="{{ route('warehouse.asns.confirm_unplanned', $asn) }}" class="inline">@csrf<button type="submit" class="secondary">{{ __('warehouse.asns.confirm_unplanned') }}</button></form>
             @endif
             @role('admin|warehouse_supervisor|warehouse_operator')
                 <a role="button" class="secondary" href="{{ route('warehouse.tasks.create', ['asn_id' => $asn->id]) }}">{{ __('warehouse.asns.new_task') }}</a>
-                 ($asn->lines->contains(fn ($l) => $l->stockUnits->isNotEmpty()))<a role="button" class="secondary outline" target="_blank" href="{{ route('warehouse.labels.asn', $asn) }}">{{ __('warehouse.labels.units') }}</a>
+                @if ($asn->lines->contains(fn ($l) => $l->stockUnits->isNotEmpty()))<a role="button" class="secondary outline" target="_blank" href="{{ route('warehouse.labels.asn', $asn) }}">{{ __('warehouse.labels.units') }}</a>@endif
             @endrole
         </div>
     @endrole
+    @if (session('blocked'))
+        <ul>@foreach (session('blocked') as $b)<li><mark>{{ $b['consignment_mark'] ?: '—' }}</mark> · {{ __('warehouse.asns.blocked_reasons.'.$b['reason']) }} ({{ count($b['asn_line_ids']) }})</li>@endforeach</ul>
+    @endif
 
     @if ($asn->containers->isNotEmpty())
         <h2>{{ __('warehouse.asns.containers') }}</h2>

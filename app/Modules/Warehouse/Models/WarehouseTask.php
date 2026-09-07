@@ -17,7 +17,7 @@ class WarehouseTask extends Model
 
     protected $fillable = [
         'task_no', 'task_type', 'job_id', 'client_id', 'warehouse_id', 'source_type', 'source_id', 'order_id',
-        'fulfilment_id', 'asn_id', 'container_id', 'priority', 'assigned_user_id', 'status', 'exception_reason',
+        'fulfilment_id', 'wave_id', 'asn_id', 'container_id', 'priority', 'assigned_user_id', 'status', 'exception_reason',
         'cancel_reason', 'billable_qty', 'billable_uom', 'hours_business', 'hours_after_hours', 'notes',
         'started_at', 'completed_at', 'completed_by', 'billable_event_id',
     ];

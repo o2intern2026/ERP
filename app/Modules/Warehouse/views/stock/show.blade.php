@@ -23,46 +23,46 @@
             </article>
         @endif
     </div>
-     ($unit->condition !== 'good')
+    @if ($unit->condition !== 'good')
         <p><strong>{{ __('warehouse.moves.condition_reason') }}:</strong> {{ $unit->condition_reason }} <small class="text-muted">{{ $unit->condition_changed_at?->format('Y-m-d H:i') }}</small></p>
-    
+    @endif
     <p><a href="{{ route('warehouse.labels.units', ['ids' => [$unit->id]]) }}" target="_blank">{{ __('warehouse.labels.units') }}</a></p>
 
-    ('admin|warehouse_supervisor|warehouse_operator')
+    @role('admin|warehouse_supervisor|warehouse_operator')
         <div class="grid">
             <article>
                 <header>{{ __('warehouse.moves.title') }}</header>
                 <form method="post" action="{{ route('warehouse.stock.move', $unit) }}">
-                    
+                    @csrf
                     <input type="text" name="location_code" class="scan" placeholder="{{ __('warehouse.moves.to') }}" required>
                     <input type="text" name="reason" placeholder="{{ __('warehouse.moves.reason') }}">
                     <button type="submit" class="secondary">{{ __('warehouse.moves.do') }}</button>
                 </form>
             </article>
-             ($unit->condition === 'good')
+            @if ($unit->condition === 'good')
                 <article>
                     <header>{{ __('warehouse.moves.quarantine_title') }}</header>
                     <form method="post" action="{{ route('warehouse.stock.quarantine', $unit) }}" enctype="multipart/form-data">
-                        
+                        @csrf
                         <select name="condition"><option value="damaged">{{ __('warehouse.conditions.damaged') }}</option><option value="quarantine">{{ __('warehouse.conditions.quarantine') }}</option></select>
                         <input type="text" name="reason" placeholder="{{ __('warehouse.moves.quarantine_reason') }}" required>
                         <label>{{ __('warehouse.moves.photos') }}<input type="file" name="photos[]" accept="image/*" multiple capture="environment"></label>
                         <button type="submit" class="secondary">{{ __('warehouse.moves.quarantine_do') }}</button>
                     </form>
                 </article>
-            
+            @else
                 <article>
                     <header>{{ __('warehouse.moves.restore_title') }}</header>
                     <form method="post" action="{{ route('warehouse.stock.restore', $unit) }}">
-                        
+                        @csrf
                         <input type="text" name="location_code" class="scan" placeholder="{{ __('warehouse.moves.to') }}" required>
                         <input type="text" name="reason" placeholder="{{ __('warehouse.moves.quarantine_reason') }}" required>
                         <button type="submit" class="secondary">{{ __('warehouse.moves.restore_do') }}</button>
                     </form>
                 </article>
-            
+            @endif
         </div>
-    
+    @endrole
 
     <h2>{{ __('warehouse.stock.ledger') }}</h2>
     <div class="overflow-auto"><table class="dense">

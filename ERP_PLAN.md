@@ -875,15 +875,15 @@ VAS:   拆柜 / 缠膜打带(进库 / 出库)/ 序列号扫描(逐个存 scan_re
 | B1 | ✅ M2 · 库存核心:stock_units(客户 + 货物行 + 包装单元 + 库位)+ ledger + 对账命令 | A0, A27 | CartonCloud 隔离(原样)· Extensiv 流水(原样) |
 | B2 | ✅ M2 · 入库:ASN 挂 Job + 可选 containers(基础字段)+ 收货差异 → 异常 + 托盘实测与来源 + 卸货托盘数 + 上架校验 + 无预报临时收货单 | B1 | 柜为 ASN 下可选对象(只取概念,不做柜级生命周期) |
 | B2b | ✅ M2 · ASN Excel 导入:真实清单 → 货物行(含收件人字段);与 OMS 共用解析器;导入记录进导入历史 | B2 | CartonCloud 乱格式接入 |
-| B2c | 从 ASN 生成订单:上架后按唛头分组调 OMS 的 OrderService 建单;记录 asn_line ↔ order_line 对应;防重复生成 | B2b, A3 | CartonCloud 单据链(入库单 → 出库单) |
+| B2c | ✅ M4 · 从 ASN 生成订单:上架后按唛头分组调 OMS 的 OrderService 建单;记录 asn_line ↔ order_line 对应;防重复生成 | B2b, A3 | CartonCloud 单据链(入库单 → 出库单) |
 | B4a | ✅ M2 · 分配与预留:消费 order.confirmed、写预留、失败回报、取消/减量自动释放 | B1, A3 | Extensiv · CartonCloud 预留独立步骤(原样) |
-| B4 | 出库:波次 + 拣货任务(warehouse_tasks.pick + 明细行)+ Pick Short 异常 + 复核打包(打箱标;事件逐行带单箱重量)+ packed/dispatched 交接(记装车托盘数) | B4a | Microlistics 任务化(简化)· Logiwa 波次(只取概念) |
+| B4 | ✅ M4 · 出库:波次 + 拣货任务(warehouse_tasks.pick + 明细行)+ Pick Short 异常 + 复核打包(打箱标;事件逐行带单箱重量)+ packed/dispatched 交接(记装车托盘数) | B4a | Microlistics 任务化(简化)· Logiwa 波次(只取概念) |
 | B10a | 每日快照 job(托盘类型 / 托盘来源 / pickface 占用) | B1 | Extensiv 快照计费(采用,周期改为周) |
 | B10b | 盘点 / 移库 / 损坏隔离(带照片) | B1 | CartonCloud 库内管理 |
 | B14 | 多仓支持(切换、跨仓移库) | B1 | Extensiv 多仓 |
 | B11 | 扫码作业:箱标与库位条码打印;扫码枪输入(所有表单)+ 手机摄像头扫码页;收货/上架/拣货/盘点四处接入 | B2, B4 | CartonCloud 移动优先(原样,核心范围) |
-| B12 | warehouse_tasks:VAS 任务(拆柜 / 缠膜打带 / 序列号扫描 + scan_records / 人工时班内班外 / 废弃物 CBM)下发、完成、发 task.completed 事件 | B1 | Microlistics 任务化(简化采用) |
-| B13 | 退货收货与验收:return_receipts、去向判定、事件 return.received / return.inspected | B1, A11 | CartonCloud · Extensiv 退货验收 |
+| B12 | ✅ M4 · warehouse_tasks:VAS 任务(拆柜 / 缠膜打带 / 序列号扫描 + scan_records / 人工时班内班外 / 废弃物 CBM)下发、完成、发 task.completed 事件 | B1 | Microlistics 任务化(简化采用) |
+| B13 | ✅ M4 · 退货收货与验收:return_receipts、去向判定、事件 return.received / return.inspected | B1, A11 | CartonCloud · Extensiv 退货验收 |
 
 ## 4.6 每个任务满足哪条需求
 

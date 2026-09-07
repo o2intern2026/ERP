@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Platform;
 
+use App\Modules\Orders\Services\AsnOrderService;
+use App\Modules\Orders\Services\SpreadsheetManifestParser;
 use App\Modules\Platform\Services\DatabaseOutboxPublisher;
 use App\Support\Contracts\JobService;
 use App\Support\Contracts\ManifestParser;
@@ -25,11 +27,11 @@ class FakeServicesTest extends TestCase
     {
         $this->assertTrue(config('erp.use_fake_services'));
         $this->assertInstanceOf(\App\Modules\Warehouse\Services\StockService::class, app(StockService::class)); // real since M2
-        $this->assertInstanceOf(FakeOrderService::class, app(OrderService::class));
+        $this->assertInstanceOf(AsnOrderService::class, app(OrderService::class)); // real since M3
         $this->assertInstanceOf(FakeTransportOptionService::class, app(TransportOptionService::class));
         $this->assertInstanceOf(FakeRateService::class, app(RateService::class));
         $this->assertInstanceOf(\App\Modules\Platform\Services\JobService::class, app(JobService::class)); // real since M1
-        $this->assertInstanceOf(FakeManifestParser::class, app(ManifestParser::class));
+        $this->assertInstanceOf(SpreadsheetManifestParser::class, app(ManifestParser::class)); // real since M3
         $this->assertInstanceOf(DatabaseOutboxPublisher::class, app(OutboxPublisher::class)); // real since M1
     }
 
@@ -115,11 +117,11 @@ class FakeServicesTest extends TestCase
 
     public function test_order_service_and_manifest_parser_return_contract_shapes(): void
     {
-        $result = app(OrderService::class)->createFromAsn(42);
+        $result = (new FakeOrderService)->createFromAsn(42);
         $this->assertSame('ORD-FAKE-000042-0001', $result['orders'][0]['order_no']);
         $this->assertSame([], $result['blocked']);
 
-        $parsed = app(ManifestParser::class)->parse('/dev/null');
+        $parsed = (new FakeManifestParser)->parse('/dev/null');
         $this->assertCount(2, $parsed['rows']);
         $this->assertSame([], $parsed['errors']);
         $this->assertSame('FAKE-MARK-01', $parsed['rows'][0]['consignment_mark']);

@@ -5,13 +5,13 @@ Cross-module **synchronous** reads and writes go only through these interfaces (
 | Interface (`App\Support\Contracts\…`) | Owner / seat | Real implementation | Fake (M0) |
 |---|---|---|---|
 | `StockService` | Warehouse / C | **M2 ✓** `App\Modules\Warehouse\Services\StockService` | retired in M2 (`FakeStockService` remains for unit tests) |
-| `OrderService` | Orders / X1 | M3 | `FakeOrderService` — one order per ASN, `ORD-FAKE-<asn>-0001` |
+| `OrderService` | Orders / X1 | **M3 ✓** `App\Modules\Orders\Services\AsnOrderService` | retired in M4 integration (`FakeOrderService` remains for unit tests) |
 | `TransportOptionService` | Transport / X2 | M5 | `FakeTransportOptionService` — own_fleet $75, transdirect / eiz at cost × 1.20 |
 | `RateService` | Billing / C | M6 | `FakeRateService` — Edward card v1 for every client; `missing_rate` for codes without a row; `withRate()` for tests |
 | `JobService` | Platform / C | **M1 ✓** `App\Modules\Platform\Services\JobService` | retired in M1 (`FakeJobService` remains for unit tests only) |
 | `ExceptionService` | Platform / C | **M1 ✓** `App\Modules\Platform\Services\ExceptionService` | — |
 | `DocumentService` | Platform / C | **M1 ✓** `attach()`; Document Centre pages M6 | — |
-| `ManifestParser` | Orders / X1, shared with Warehouse B2b | M3 | `FakeManifestParser` — two fixed rows |
+| `ManifestParser` | Orders / X1, shared with Warehouse B2b | **M3 ✓** `App\Modules\Orders\Services\SpreadsheetManifestParser` | retired in M4 integration (`FakeManifestParser` remains for unit tests) |
 
 ## Conventions
 - ids are `int`; money is integer cents (`App\Support\Money` at the edges); dimensions mm; weights kg; timestamps ISO-8601 strings with offset. Phase 1 uses typed arrays (shapes in PHPDoc) rather than DTO classes.
