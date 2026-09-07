@@ -16,5 +16,12 @@ interface ExceptionService
      */
     public function raise(string $type, string $sourceModule, array $attributes = []): int;
 
+    /** Resolving a hold releases it (released_by/at, release_reason = note). */
     public function resolve(int $exceptionId, int $resolvedBy, ?string $note = null): void;
+
+    /**
+     * Is there an unresolved hold of this type for the client (and, when given, this order or a client-wide hold)?
+     * Transport / Orders call this before booking or dispatch: only an active `financial` hold blocks them (§3.4 OMS-11).
+     */
+    public function hasActiveHold(string $holdType, ?int $clientId = null, ?int $orderId = null): bool;
 }

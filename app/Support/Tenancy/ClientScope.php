@@ -9,10 +9,10 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Global client scope — multi-tenancy lives in the data layer, not in page checks (ERP_PLAN §0.2, AGENTS.md).
  *
- * M0 skeleton: holds the "current client" for the request and applies nothing.
- * M1/A1 resolves it from the authenticated user (role `client` → that user's client_id; staff → null)
- * and BelongsToClient then constrains every scoped query. Cost / margin fields are hidden for client
- * users server side (resource classes), also in M1.
+ * For a client-role user the middleware sets the current client id (their users.client_id); every model using
+ * BelongsToClient then only sees rows with that client_id, and the request may only reach /portal/** and /logout
+ * (contracts/routes.md). Staff users have no current client and see everything. Cost / margin fields are removed
+ * for client users by the services that produce them (e.g. JobService::summarize).
  */
 final class ClientScope
 {
@@ -28,10 +28,33 @@ final class ClientScope
         self::$clientId = $clientId;
     }
 
+    public static function isClientRequest(): bool
+    {
+        return self::$clientId !== null;
+    }
+
     public function handle(Request $request, Closure $next): Response
     {
-        self::set(null); // M1/A1: derive from $request->user()
+        $user = $request->user();
+
+        if ($user === null || ! $user->isClientUser()) {
+            self::set(null);
+
+            return $next($request);
+        }
+
+        // A client-role user without a client would otherwise see everything: refuse instead.
+        abort_if($user->client_id === null, 403);
+
+        self::set((int) $user->client_id);
+
+        abort_unless($request->is('portal', 'portal/*', 'logout'), 403);
 
         return $next($request);
+    }
+
+    public function terminate(): void
+    {
+        self::set(null);
     }
 }

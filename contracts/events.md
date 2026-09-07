@@ -14,7 +14,7 @@ Every state change another module reacts to travels as an event through the tran
 | `payload` | the object below |
 
 ## Outbox / Inbox rules (A31 builds them in M1; M0 binds a logging no-op)
-1. Publish inside the business transaction; the row starts `pending`. A cron-driven `queue:work --stop-when-empty` (local: `queue:listen`) dispatches `pending` rows to consumers and marks `published`.
+1. Publish inside the business transaction; the row starts `pending`. `php artisan outbox:dispatch` (scheduled every minute — cron `schedule:run` in production, `schedule:work` locally) delivers due `pending` / `failed` rows to their consumers and marks them `published`. Publishing outside a transaction throws (`DatabaseOutboxPublisher`).
 2. Consumers record `(event_id, consumer)` in `consumed_events` inside their own transaction; a duplicate delivery is a no-op.
 3. Failure → `attempts + 1`, `last_error`, `available_at` backs off (1 min, 5 min, 30 min, 2 h, 12 h); after 5 attempts → `dead`, listed in the failed-event queue with an alert (Integration Monitor).
 4. Ordering is per outbox row order but **not guaranteed** across events; consumers must tolerate `stock.released` arriving before `stock.reserved` for a cancelled order (check state, don't assume sequence).
@@ -175,3 +175,13 @@ decided_by, decided_at, note
 
 ## Billing trigger summary (`charge_rules.trigger_event`)
 `asn.putaway_completed` → putaway / inbound label / pallet purchase · `task.completed` → devanning (only here), unload, load-out, wrap, scan, labour, waste · `outbound.packed` → order processing (urgent by cut-off), picks, outbound labels · `shipment.quote_confirmed` → freight, tailgate, remote, cartage (only here) · `delivery.extra_charge` → waiting / redelivery / failed · `snapshot.weekly` → storage, pallet rental, pickface · `return.financial_decision` → credit note. `shipment.booked` and `delivery.pod_captured` create **no** charge.
+
+## Consuming events in code (shipped in M1/A31)
+- Implement `App\Support\Outbox\EventConsumer` (`handle(array $envelope): void`) in your module's `Services/` (or a `Consumers/` folder inside it). Read only `$envelope['payload']` fields listed above plus the envelope keys.
+- Register it in your module's `ServiceProvider::boot()`:
+  `$this->app->make(\App\Support\Outbox\ConsumerRegistry::class)->register('order.confirmed', ReserveStockConsumer::class);`
+- The dispatcher runs each consumer inside a DB savepoint together with its `consumed_events` row, so a consumer is applied **at most once** per event even if the process crashes half-way. Throw to have the delivery retried with the backoff above; return normally to acknowledge. Never catch-and-swallow a failure you cannot recover from.
+- Publishing from inside a consumer is fine (you are already inside a transaction) and is how event chains form; keep `correlation_id` by passing the incoming envelope's value into your `DomainEvent`.
+- To emit an event: extend `App\Support\Events\DomainEvent` in your module's `Events/`, build the payload exactly as listed here, and call `app(OutboxPublisher::class)->publish($event)` **inside** the `DB::transaction()` that performs the business write.
+- Test helpers for every seat: `Tests\Support\Outbox\TestEvent` (any name + payload), `RecordingConsumer`, `FailingConsumer`; see `tests/Feature/Platform/OutboxTest.php` for the patterns (publish → `app(OutboxDispatcher::class)->dispatchDue()` → assert).
+- Ops: `/admin/integration` (admin) lists events by status with a retry button for `failed` / `dead`; a `dead` event also raises an `integration_failed` exception linked to the Job.

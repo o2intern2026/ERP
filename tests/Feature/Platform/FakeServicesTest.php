@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Platform;
 
+use App\Modules\Platform\Services\DatabaseOutboxPublisher;
 use App\Support\Contracts\JobService;
 use App\Support\Contracts\ManifestParser;
 use App\Support\Contracts\OrderService;
@@ -14,7 +15,6 @@ use App\Support\Fakes\FakeOrderService;
 use App\Support\Fakes\FakeRateService;
 use App\Support\Fakes\FakeStockService;
 use App\Support\Fakes\FakeTransportOptionService;
-use App\Support\Outbox\LogOutboxPublisher;
 use App\Support\Outbox\OutboxPublisher;
 use Tests\TestCase;
 
@@ -28,9 +28,9 @@ class FakeServicesTest extends TestCase
         $this->assertInstanceOf(FakeOrderService::class, app(OrderService::class));
         $this->assertInstanceOf(FakeTransportOptionService::class, app(TransportOptionService::class));
         $this->assertInstanceOf(FakeRateService::class, app(RateService::class));
-        $this->assertInstanceOf(FakeJobService::class, app(JobService::class));
+        $this->assertInstanceOf(\App\Modules\Platform\Services\JobService::class, app(JobService::class)); // real since M1
         $this->assertInstanceOf(FakeManifestParser::class, app(ManifestParser::class));
-        $this->assertInstanceOf(LogOutboxPublisher::class, app(OutboxPublisher::class));
+        $this->assertInstanceOf(DatabaseOutboxPublisher::class, app(OutboxPublisher::class)); // real since M1
     }
 
     public function test_rate_service_prices_the_edward_card_and_never_returns_zero_for_missing_rates(): void
@@ -101,9 +101,9 @@ class FakeServicesTest extends TestCase
         $this->assertSame(7200, $quotes->firstWhere('source', 'transdirect')['customer_price_cents']);
     }
 
-    public function test_job_service_numbers_jobs_and_summarizes(): void
+    public function test_fake_job_service_numbers_jobs_and_summarizes(): void
     {
-        $jobs = app(JobService::class);
+        $jobs = new FakeJobService;
 
         $job = $jobs->create(1, 'container');
         $this->assertMatchesRegularExpression('/^JOB-\d{8}-0001$/', $job['job_no']);

@@ -8,9 +8,9 @@ Cross-module **synchronous** reads and writes go only through these interfaces (
 | `OrderService` | Orders / X1 | M3 | `FakeOrderService` — one order per ASN, `ORD-FAKE-<asn>-0001` |
 | `TransportOptionService` | Transport / X2 | M5 | `FakeTransportOptionService` — own_fleet $75, transdirect / eiz at cost × 1.20 |
 | `RateService` | Billing / C | M6 | `FakeRateService` — Edward card v1 for every client; `missing_rate` for codes without a row; `withRate()` for tests |
-| `JobService` | Platform / C | M1 | `FakeJobService` — `JOB-YYYYMMDD-NNNN` |
-| `ExceptionService` | Platform / C | M1 | — (real one ships before any consumer exists) |
-| `DocumentService` | Platform / C | M1 skeleton, M6 full | — |
+| `JobService` | Platform / C | **M1 ✓** `App\Modules\Platform\Services\JobService` | retired in M1 (`FakeJobService` remains for unit tests only) |
+| `ExceptionService` | Platform / C | **M1 ✓** `App\Modules\Platform\Services\ExceptionService` | — |
+| `DocumentService` | Platform / C | **M1 ✓** `attach()`; Document Centre pages M6 | — |
 | `ManifestParser` | Orders / X1, shared with Warehouse B2b | M3 | `FakeManifestParser` — two fixed rows |
 
 ## Conventions
@@ -64,12 +64,16 @@ summarize(int $jobId): array{job_id, job_no, client_id, job_type, operational_st
 ```
 - The only way to create a Job (`jobs` is a shared platform table). `job_no` = `JOB-YYYYMMDD-NNNN`. `attributes`: `reference`, `notes`.
 - `summarize` derives the three statuses from child records and recomputes the cached money (§1.6): revenue from `charges` / `invoices` / `payments`, cost from `carrier_costs`; `margin_is_estimate` until `cost_status = confirmed`. Cost and margin are never returned to client-role callers (server-side, M1).
+- **Client-role callers** (global client scope active) receive the summary **without** `estimated_cost_cents`, `actual_cost_cents`, `margin_cents`, `margin_is_estimate` — the cost / margin rule is enforced in the service, not in views (M1).
+- Job numbers are `JOB-YYYYMMDD-NNNN`, sequence per day, allocated under a row lock (M1).
 
 ## 6. `ExceptionService` (Platform, C) — §2.4 A28, §3.3 holds
 ```php
 raise(string $type, string $sourceModule, array $attributes = []): int
 resolve(int $exceptionId, int $resolvedBy, ?string $note = null): void
+hasActiveHold(string $holdType, ?int $clientId = null, ?int $orderId = null): bool      // added M1
 ```
+- `hasActiveHold` (M1): is there an unresolved hold of this type for the client — either on this order or client-wide (`order_id` null)? Transport / Orders call it before booking or dispatch; only an active `financial` hold blocks them (§3.4 OMS-11). Reads the shared table for you so no seat touches `exceptions` directly.
 - The only writer of `exceptions`. `type` / `source_module` from `enums.md`; `attributes`: `job_id, client_id, source_type, source_id, order_id, hold_type, message, owner_id, created_by`.
 - Order holds are `type = hold` + `hold_type`; releasing a hold = `resolve` (records `released_by/at`, `release_reason` = note). Only an active `financial` hold blocks booking / dispatch.
 
