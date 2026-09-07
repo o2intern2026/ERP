@@ -24,7 +24,7 @@ class FakeServicesTest extends TestCase
     public function test_fakes_are_bound_when_the_flag_is_on(): void
     {
         $this->assertTrue(config('erp.use_fake_services'));
-        $this->assertInstanceOf(FakeStockService::class, app(StockService::class));
+        $this->assertInstanceOf(\App\Modules\Warehouse\Services\StockService::class, app(StockService::class)); // real since M2
         $this->assertInstanceOf(FakeOrderService::class, app(OrderService::class));
         $this->assertInstanceOf(FakeTransportOptionService::class, app(TransportOptionService::class));
         $this->assertInstanceOf(FakeRateService::class, app(RateService::class));
@@ -75,9 +75,9 @@ class FakeServicesTest extends TestCase
         $this->assertNull($rates->suggestPalletClass(1, 2600, 1200, 1400, 500));
     }
 
-    public function test_stock_service_reserves_partially_and_releases(): void
+    public function test_fake_stock_service_reserves_partially_and_releases(): void
     {
-        $stock = app(StockService::class);
+        $stock = new FakeStockService;
         $stock->seed(1, 10, 30);
 
         [$line] = $stock->reserve(1, 500, [['order_line_id' => 1, 'asn_line_id' => 10, 'qty' => 40]]);

@@ -38,5 +38,33 @@ final class Enums
 
     public const MASTER_STATUSES = ['active', 'inactive'];
 
+    public const INBOUND_TYPES = ['container', 'loose_truck', 'parcel'];
+
+    public const ASN_STATUSES = ['booked', 'arrived', 'receiving', 'putaway', 'closed'];
+
+    public const CONTAINER_SIZES = ['20', '40'];
+
+    public const UNPACK_MODES = ['pallet', 'loose', 'mixed'];
+
+    public const LOCATION_TYPES = ['receiving', 'storage', 'pickface', 'packing', 'staging', 'quarantine'];
+
+    public const UNIT_TYPES = ['pallet', 'carton'];
+
+    public const PALLET_CLASSES = ['standard', 'oversize_wide', 'oversize_high', 'overweight', 'pickface'];
+
+    public const PALLET_SOURCES = ['client_own', 'warehouse_plain', 'chep', 'loscam'];
+
+    public const CONDITIONS = ['good', 'quarantine', 'damaged'];
+
+    public const TASK_TYPES = ['receiving', 'putaway', 'move', 'pick', 'pack', 'load', 'count', 'return_inspection', 'devanning', 'wrap', 'scanning', 'labour', 'waste', 'vas_other'];
+
+    public const TASK_SOURCE_TYPES = ['order', 'fulfilment', 'asn', 'container', 'stocktake', 'wave'];
+
+    public const TASK_STATUSES = ['pending', 'in_progress', 'done', 'cancelled', 'exception'];
+
+    public const BILLABLE_UOMS = ['container', 'pallet', 'carton', 'scan', 'man_hour', 'cbm', 'label'];
+
+    public const MOVEMENT_TYPES = ['receipt', 'putaway', 'pick', 'transfer', 'adjust', 'release', 'return', 'split', 'merge'];
+
     public const STATES = ['VIC', 'NSW', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'];
 }

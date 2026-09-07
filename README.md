@@ -56,6 +56,10 @@ git push origin block/<your-current-block>
 
 One user per role, password `password` (override with `SEED_DEMO_PASSWORD` in `.env`): `admin@erp.local`, `customer-service@erp.local`, `dispatcher@erp.local`, `warehouse-supervisor@erp.local`, `warehouse-operator@erp.local`, `transport-operator@erp.local`, `finance@erp.local`, `client@erp.local` (bound to client `EDWARD`; sees only /portal). Admin-only pages: /admin/users, /admin/integration. Master data (/admin/clients|suppliers|carriers): admin, customer service, finance.
 
+## Inbound demo flow (M2)
+
+`/warehouse/asns` → 新建 ASN(整柜填柜号)→ 导入清单或手工加货物行 → 每行「收货」(实收 / 破损 / 托盘尺寸重量 / 托盘来源;差异自动进异常)→ `/warehouse/putaway` 扫库位码上架 → `/warehouse` 查库存与流水。拆柜 / 人工时等作业在 `/warehouse/tasks` 建任务并完成,完成即发 `task.completed` 给计费。`php artisan stock:reconcile` 校验流水与余额。
+
 ## Layout
 
 ```
