@@ -1,6 +1,6 @@
 # Project: Logistics ERP
 
-Laravel 11 + Blade SSR + MySQL 8. Eventual production target is a plain virtual server (cron only, no daemons, no Redis, no Docker, no Node); until it is bought, everything runs locally on free software under the same constraints.
+Laravel 12 + Blade SSR + MySQL 8 (Laravel 11 is past security support — contracts/CHANGE_REQUESTS.md #1). Eventual production target is a plain virtual server (cron only, no daemons, no Redis, no Docker, no Node); until it is bought, everything runs locally on free software under the same constraints.
 Three seats build this in parallel on different machines, synchronised only through Git: **C** (Claude Code, Claude Max), **X1** and **X2** (Codex). This file is the single rulebook for all three; `CLAUDE.md` imports it. Operating plan: `COLLAB_PLAN.md`. Business plan and task list: `ERP_PLAN.md`.
 
 ## Who you are
@@ -76,7 +76,7 @@ Local dev only: `php artisan schedule:work` and `php artisan queue:listen` stand
 
 ## Stack (do not substitute)
 
-PHP 8.2, Laravel 11, MySQL 8 (local dev too — never SQLite), Blade + Pico.css, `QUEUE_CONNECTION=database` driven by cron `queue:work --stop-when-empty`, Laravel Scheduler via cron `schedule:run`, `barryvdh/laravel-dompdf`, `picqer/php-barcode-generator`, `spatie/laravel-permission`, `spatie/laravel-activitylog`.
+PHP 8.2 (composer platform lock; 8.2–8.4 locally), Laravel 12, MySQL 8 (local dev too — never SQLite), Blade + Pico.css, `QUEUE_CONNECTION=database` driven by cron `queue:work --stop-when-empty`, Laravel Scheduler via cron `schedule:run`, `barryvdh/laravel-dompdf`, `picqer/php-barcode-generator`, `spatie/laravel-permission`, `spatie/laravel-activitylog`.
 
 ## Never
 
