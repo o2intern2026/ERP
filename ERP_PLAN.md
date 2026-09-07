@@ -1160,7 +1160,7 @@ WMS 事件 outbound.packed(带包裹实测重量/尺寸/件数)
 
 | # | 任务 | 依赖 | 对标与取舍 |
 |---|---|---|---|
-| B5 | shipment 结构 + 状态机 + transport_quotes 表 + consignment note | B4 | MachShip 报价先于执行(采用) |
+| B5 | ✅ 2026-09-07 · shipment 结构 + 状态机 + transport_quotes 表 + consignment note | B4 | MachShip 报价先于执行(采用) |
 | B5e | ✅ 2026-09-07 · **Vendor API Discovery(Go / No-Go 门槛)**:Transdirect 有公开 API 文档(tracking / POD / label);EIZ 的外部 Partner API 能力未经公开证实。逐项验证报价字段、预订、tracking(webhook 或轮询)、POD 文件回传、waybill 格式、沙箱;产出接口契约。任一平台 No-Go 时该平台不进一期,Manual fallback 保证流程不阻塞 | — | MachShip(验证前不承诺能力) |
 | B5c | ✅ 2026-09-07 · TransportOptionService + `CarrierAdapter`:Transdirect(报价 / 预订 / 追踪 / label)+ Manual 兜底 + own_fleet 固定费率方案;EIZ 按 B5e 结论一期 No-Go;无可用方案进 Manual Transport Exception | B5e, B5, A5 | MachShip 经 TD/EIZ 落地(采用);舍自建直连 |
 | B5d | ✅ 2026-09-07 · 方案选择:Recommended / Cheapest / Fastest 标记规则;客户门户确认或改选;Coordinator 代选 | B5c | Shippit 服务等级驱动(采用) |
