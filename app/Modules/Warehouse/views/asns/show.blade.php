@@ -19,6 +19,7 @@
             @endif
             @role('admin|warehouse_supervisor|warehouse_operator')
                 <a role="button" class="secondary" href="{{ route('warehouse.tasks.create', ['asn_id' => $asn->id]) }}">{{ __('warehouse.asns.new_task') }}</a>
+                 ($asn->lines->contains(fn ($l) => $l->stockUnits->isNotEmpty()))<a role="button" class="secondary outline" target="_blank" href="{{ route('warehouse.labels.asn', $asn) }}">{{ __('warehouse.labels.units') }}</a>
             @endrole
         </div>
     @endrole

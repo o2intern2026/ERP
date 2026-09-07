@@ -11,6 +11,7 @@ use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Modules\Warehouse\Services\AsnImportService;
 use App\Modules\Warehouse\Services\AsnService;
+use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -28,6 +29,7 @@ class AsnController extends Controller
             'asns' => Asn::query()->with(['client', 'warehouse', 'job'])->withCount(['containers', 'lines'])
                 ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
                 ->when($filters['client_id'] ?? null, fn ($q, $v) => $q->where('client_id', $v))
+                ->when(WarehouseContext::currentId(), fn ($q, $v) => $q->where('warehouse_id', $v))
                 ->orderByDesc('id')->paginate(30)->withQueryString(),
             'filters' => $filters,
             'clients' => Client::query()->orderBy('name')->get(['id', 'name']),
