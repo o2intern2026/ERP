@@ -28,6 +28,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // Transdirect carrier API (contracts/carriers.md, B5e). Key lives in .env / the team vault only — never in the repo.
+    'transdirect' => [
+        'api_key' => env('TRANSDIRECT_API_KEY'),
+        'base_url' => env('TRANSDIRECT_BASE_URL', 'https://www.transdirect.com.au/api'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

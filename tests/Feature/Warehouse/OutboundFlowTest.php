@@ -6,6 +6,7 @@ use App\Modules\Platform\Models\OutboxEvent;
 use App\Modules\Warehouse\Models\OutboundDispatch;
 use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Modules\Warehouse\Services\OutboundService;
+use App\Support\Contracts\ExceptionService;
 use App\Support\Contracts\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -87,5 +88,34 @@ class OutboundFlowTest extends TestCase
         $dispatched = OutboxEvent::query()->where('event_name', 'outbound.dispatched')->firstOrFail();
         $this->assertSame(['carrier', 1, 2], [$dispatched->payload['handed_to'], $dispatched->payload['pallet_count'], $dispatched->payload['package_count']]);
         $this->assertSame(3, WarehouseTask::query()->where('fulfilment_id', $fulfilment->id)->count()); // pick, pack, load
+    }
+
+    /** §3.8 #7: a financial hold lets the order be picked and packed, but dispatch is refused until Finance releases it. */
+    public function test_dispatch_is_refused_while_a_financial_hold_is_active(): void
+    {
+        $client = $this->client();
+        $warehouse = $this->warehouse();
+        $finance = $this->staff('finance');
+        ['asn' => $asn, 'lines' => $asnLines] = $this->stockedAsn($client, $warehouse, [['mark' => 'HOLD1', 'cartons' => 4]]);
+        $order = $this->confirmedOrder($client, $asn->job_id, [['asn_line_id' => $asnLines[0]->id, 'qty' => 2]]);
+        $fulfilment = DB::table('fulfilments')->where('order_id', $order->id)->value('id');
+        $service = app(OutboundService::class);
+        $holdId = app(ExceptionService::class)->raise('hold', 'orders', ['hold_type' => 'financial', 'job_id' => $asn->job_id, 'client_id' => $client->id, 'order_id' => $order->id, 'message' => 'awaiting payment', 'created_by' => $finance->id]);
+
+        ['tasks' => $tasks] = $service->releaseWave($warehouse->id, ['order_ids' => [$order->id]], $finance->id);
+        $service->confirmPick($tasks->first()->lines->first(), 2, $finance->id);
+        $service->pack($fulfilment, [['package_type' => 'carton', 'weight_kg' => 8]], $finance->id); // picking and packing are allowed under the hold
+
+        try {
+            $service->dispatch($fulfilment, 0, 'carrier', null, $finance->id);
+            $this->fail('dispatch must be refused while the financial hold is active');
+        } catch (InvalidArgumentException $e) {
+            $this->assertStringContainsString('financial hold', $e->getMessage());
+        }
+        $this->assertDatabaseMissing('outbound_dispatches', ['fulfilment_id' => $fulfilment]);
+
+        app(ExceptionService::class)->resolve($holdId, $finance->id, 'paid');
+        $service->dispatch($fulfilment, 0, 'carrier', null, $finance->id);
+        $this->assertDatabaseHas('outbound_dispatches', ['fulfilment_id' => $fulfilment]);
     }
 }

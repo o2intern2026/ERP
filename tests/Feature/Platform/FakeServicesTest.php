@@ -28,7 +28,7 @@ class FakeServicesTest extends TestCase
         $this->assertTrue(config('erp.use_fake_services'));
         $this->assertInstanceOf(\App\Modules\Warehouse\Services\StockService::class, app(StockService::class)); // real since M2
         $this->assertInstanceOf(AsnOrderService::class, app(OrderService::class)); // real since M3
-        $this->assertInstanceOf(FakeTransportOptionService::class, app(TransportOptionService::class));
+        $this->assertInstanceOf(\App\Modules\Transport\Services\TransportOptionService::class, app(TransportOptionService::class)); // real since M5
         $this->assertInstanceOf(FakeRateService::class, app(RateService::class));
         $this->assertInstanceOf(\App\Modules\Platform\Services\JobService::class, app(JobService::class)); // real since M1
         $this->assertInstanceOf(SpreadsheetManifestParser::class, app(ManifestParser::class)); // real since M3
@@ -94,7 +94,7 @@ class FakeServicesTest extends TestCase
 
     public function test_transport_options_flag_cheapest_fastest_and_recommended(): void
     {
-        $quotes = collect(app(TransportOptionService::class)->quote(7, 'final'));
+        $quotes = collect((new FakeTransportOptionService)->quote(7, 'final'));
 
         $this->assertCount(3, $quotes);
         $this->assertSame('eiz', $quotes->firstWhere('is_cheapest', true)['source']);
