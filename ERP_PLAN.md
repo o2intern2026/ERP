@@ -480,19 +480,19 @@ PRD 写的是给客户看的 6 步:`Received → Confirmed → In warehouse → 
 
 | # | 任务 | 依赖 | 对标 |
 |---|---|---|---|
-| A3 | 订单模型 + 状态机 + 列表/详情/时间线 + 手工建单 | A2 | Magaya 时间线 · CargoWise 单据主线 |
-| A4 | Excel 导入(唛头分组、行级报错、去重) | A3 | CartonCloud 乱格式接入 |
+| A3 | ✅ M3 · 订单模型 + 状态机 + 列表/详情/时间线 + 手工建单 | A2 | Magaya 时间线 · CargoWise 单据主线 |
+| A4 | ✅ M3 · Excel 导入(唛头分组、行级报错、去重) | A3 | CartonCloud 乱格式接入 |
 | A4b | 订单 API 接入(接口预留) | A3 | Extensiv 统一接入 |
-| A7 | 在库校验(按货物行)+ 自动拆出可发部分 + 履约批次(记仓库) | A3, B1 | Extensiv 客户规则 |
+| A7 | ✅ M3 · 在库校验(按货物行)+ 自动拆出可发部分 + 履约批次(记仓库) | A3, B1 | Extensiv 客户规则 |
 | A7b | 客户报价单(customer_quotes)+ 初步估价:调 TransportOptionService 出初步方案与服务费预估,明细行存单 | A3, A5, B5c | CargoWise 报价 · Shippit 服务等级 |
 | A11 | 改单/取消权限 + 退货全链路(申请 → 运输 → 验收 → 财务决定) | A3, B1, B13 | CartonCloud 改单权限 · 退货验收 |
-| A11b | 纯运输订单 | A3 | CartonCloud 订单类型分离 |
+| A11b | ✅ M3 · 纯运输订单 | A3 | CartonCloud 订单类型分离 |
 | A9-p | 门户下单 + 门户查单 | A3, A1 | CargoWise Neo 客户工作台 |
 | A13 | 财务锁 / 放行(holds 记录;仅 Finance / Coordinator 人工置锁与放行,原因必填;锁预订 / 发运;不按收款状态自动触发) | A3 | 货代"付款后放货"(只取人工锁) |
-| A14 | 入库批次关联 | A3, B2 | CargoWise Job 归集 |
-| A15 | Coordinator 队列 | A3 | CartonCloud live queue |
-| A16 | 尾板车自动判定 | A3, A5 | TransVirtual · MachShip |
-| A17 | 客户收件地址簿 | A3 | CargoWise Neo · Magaya |
+| A14 | ✅ M3 · 入库批次关联 | A3, B2 | CargoWise Job 归集 |
+| A15 | ✅ M3 · Coordinator 队列 | A3 | CartonCloud live queue |
+| A16 | ✅ M3 · 尾板车自动判定 | A3, A5 | TransVirtual · MachShip |
+| A17 | ✅ M3 · 客户收件地址簿 | A3 | CargoWise Neo · Magaya |
 | A12 | PDF/邮件读单 | A3 | CartonCloud 自动录单 |
 
 ### 3.7.2 每个任务满足哪条需求
