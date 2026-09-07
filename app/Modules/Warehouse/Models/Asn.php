@@ -1,0 +1,63 @@
+<?php
+
+namespace App\Modules\Warehouse\Models;
+
+use App\Modules\MasterData\Models\Client;
+use App\Modules\Platform\Models\Job;
+use App\Support\Tenancy\BelongsToClient;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+/** Inbound master document (ERP_PLAN §4.2): booked → arrived → receiving → putaway → closed. */
+class Asn extends Model
+{
+    use BelongsToClient;
+
+    protected $fillable = [
+        'asn_no', 'job_id', 'client_id', 'warehouse_id', 'expected_date', 'inbound_type', 'status', 'created_by_type',
+        'created_by', 'unplanned', 'unplanned_confirmed', 'arrived_at', 'putaway_completed_at', 'closed_at', 'notes',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'expected_date' => 'date',
+            'unplanned' => 'boolean',
+            'unplanned_confirmed' => 'boolean',
+            'arrived_at' => 'datetime',
+            'putaway_completed_at' => 'datetime',
+            'closed_at' => 'datetime',
+        ];
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    public function job(): BelongsTo
+    {
+        return $this->belongsTo(Job::class);
+    }
+
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    public function containers(): HasMany
+    {
+        return $this->hasMany(Container::class);
+    }
+
+    public function lines(): HasMany
+    {
+        return $this->hasMany(AsnLine::class);
+    }
+
+    public function isContainer(): bool
+    {
+        return $this->inbound_type === 'container';
+    }
+}
