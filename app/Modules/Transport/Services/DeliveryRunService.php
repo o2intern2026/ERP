@@ -13,6 +13,8 @@ use Illuminate\Support\Str;
 
 final class DeliveryRunService
 {
+    public function __construct(private readonly ShipmentBookingService $bookings) {}
+
     public function create(string $runDate, int $driverId, string $vehicle): DeliveryRun
     {
         $driver = User::query()->find($driverId);
@@ -77,6 +79,9 @@ final class DeliveryRunService
             ]);
 
             $lockedShipment->update(['delivery_run_id' => $lockedRun->id]);
+            if ($lockedShipment->status === 'quote_confirmed') {
+                $this->bookings->book($lockedShipment->refresh());
+            }
 
             return $stop->refresh();
         });

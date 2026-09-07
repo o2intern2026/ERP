@@ -59,8 +59,10 @@ final class OwnFleetCarrierAdapter implements CarrierAdapter
 
     public function book(array $request, string $serviceCode, array $options = []): array
     {
+        $bookingRef = trim((string) ($options['quote_ref'] ?? ''));
+
         return [
-            'booking_ref' => (string) ($options['quote_ref'] ?? 'OWN-'.Str::upper(Str::random(12))),
+            'booking_ref' => $bookingRef !== '' ? $bookingRef : 'OWN-'.Str::upper(Str::random(12)),
             'tracking_number' => null,
             'label_path' => null,
             'status' => 'confirmed',

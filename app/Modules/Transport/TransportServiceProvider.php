@@ -55,6 +55,14 @@ class TransportServiceProvider extends ServiceProvider
             $app->make(OutboxPublisher::class),
         ));
 
+        $this->app->singleton(Services\ShipmentBookingService::class, fn ($app) => new Services\ShipmentBookingService(
+            $app->tagged('transport.carrier-adapters'),
+            $app->make(Services\ShipmentQuoteRequestFactory::class),
+            $app->make(ExceptionService::class),
+            $app->make(Services\CarrierCostService::class),
+            $app->make(OutboxPublisher::class),
+        ));
+
         if (! config('erp.use_fake_services')) {
             $this->app->singleton(
                 TransportOptionServiceContract::class,

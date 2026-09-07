@@ -68,8 +68,14 @@ class B5cTransportOptionServiceTest extends TestCase
         $this->assertSame(['own_fleet', 'transdirect'], array_column($quotes, 'source'));
         $this->assertSame(7500, $quotes[0]['customer_price_cents']);
         $this->assertSame(12000, $quotes[1]['customer_price_cents']);
-        $this->assertSame(20.0, (float) TransportQuote::query()->where('source', 'transdirect')->latest('id')->value('markup_percent'));
-        $this->assertSame('TD-100', TransportQuote::query()->where('source', 'transdirect')->latest('id')->first()->raw_response['booking_id']);
+        $savedTransdirect = TransportQuote::query()->where('source', 'transdirect')->latest('id')->firstOrFail();
+        $this->assertSame(20.0, (float) $savedTransdirect->markup_percent);
+        $this->assertSame('TD-100', $savedTransdirect->raw_response['booking_id']);
+        $this->assertEqualsCanonicalizing([
+            'service_code' => 'toll_priority',
+            'quote_ref' => 'TD-100',
+            'pickup_dates' => ['2026-09-08'],
+        ], $savedTransdirect->raw_response['_booking']);
         $this->assertSame('requoted', $old->fresh()->status);
         $this->assertSame('quoted', $shipment->fresh()->status);
     }

@@ -18,6 +18,9 @@
                     <th>{{ __('transport.shipments.carrier') }}</th>
                     <th>{{ __('transport.shipments.service_level') }}</th>
                     <th>{{ __('transport.shipments.tracking_number') }}</th>
+                    <th class="num">{{ __('transport.costs.revenue') }}</th>
+                    <th class="num">{{ __('transport.costs.payable') }}</th>
+                    <th class="num">{{ __('transport.costs.margin') }}</th>
                     <th class="num">{{ __('transport.shipments.quote_count') }}</th>
                 </tr>
             </thead>
@@ -31,6 +34,9 @@
                         <td>{{ $shipment->carrier?->name ?? __('transport.not_selected') }}</td>
                         <td>{{ $shipment->service_level ? __('transport.service_levels.'.$shipment->service_level) : __('transport.not_selected') }}</td>
                         <td>{{ $shipment->tracking_number ?: __('transport.not_selected') }}</td>
+                        <td class="num">{{ \App\Support\Money::cents($margins[$shipment->id]['revenue_cents'])->format() }}</td>
+                        <td class="num">{{ $margins[$shipment->id]['payable_cost_cents'] === null ? __('transport.costs.pending') : \App\Support\Money::cents($margins[$shipment->id]['payable_cost_cents'])->format() }}</td>
+                        <td class="num">{{ $margins[$shipment->id]['margin_cents'] === null ? __('transport.costs.pending') : \App\Support\Money::cents($margins[$shipment->id]['margin_cents'])->format() }}</td>
                         <td class="num">{{ $shipment->quotes_count }}</td>
                     </tr>
                 @endforeach

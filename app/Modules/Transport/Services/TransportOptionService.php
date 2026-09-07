@@ -158,9 +158,15 @@ final class TransportOptionService implements TransportOptionServiceContract
             'markup_percent' => $markupPercent,
             'eta_days' => $option['eta_days'] ?? $service->default_eta_days,
             'raw_response' => array_replace($option['raw'], [
+                '_booking' => [
+                    'service_code' => (string) $option['service_code'],
+                    'quote_ref' => (string) ($option['raw']['booking_id'] ?? ''),
+                    'pickup_dates' => array_values($option['pickup_dates'] ?? []),
+                ],
                 '_quote_request' => [
                     'zone' => $request['zone'] ?? '',
                     'items' => $request['items'] ?? [],
+                    'receiver' => $request['receiver'] ?? [],
                 ],
             ]),
         ];

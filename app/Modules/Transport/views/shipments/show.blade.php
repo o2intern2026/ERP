@@ -12,7 +12,7 @@
         <dt>{{ __('transport.shipments.client') }}</dt>
         <dd>{{ $shipment->client->name }}</dd>
         <dt>{{ __('transport.shipments.order') }}</dt>
-        <dd>{{ $shipment->order_id }}</dd>
+        <dd><a href="{{ route('transport.orders.margin', $shipment->order_id) }}">{{ $shipment->order_id }}</a></dd>
         <dt>{{ __('transport.shipments.type') }}</dt>
         <dd>{{ __('transport.shipment_types.'.$shipment->shipment_type) }}</dd>
         <dt>{{ __('transport.shipments.status') }}</dt>
@@ -20,6 +20,56 @@
         <dt>{{ __('transport.shipments.tracking_number') }}</dt>
         <dd>{{ $shipment->tracking_number ?: __('transport.not_selected') }}</dd>
     </dl>
+
+    @if ($shipment->status === 'quote_confirmed' && $shipment->selectedQuote !== null)
+        <details open>
+            <summary>{{ __('transport.booking.title') }}</summary>
+            <form method="post" action="{{ route('transport.shipments.book', $shipment) }}">
+                @csrf
+                @if ($shipment->selectedQuote->source === 'manual')
+                    <label>{{ __('transport.booking.reference') }}<input name="booking_reference" value="{{ old('booking_reference') }}" required></label>
+                    <label>{{ __('transport.booking.tracking_number') }}<input name="tracking_number" value="{{ old('tracking_number') }}"></label>
+                @elseif ($shipment->selectedQuote->source === 'transdirect')
+                    <label>{{ __('transport.booking.pickup_date') }}<input type="date" name="pickup_date" value="{{ old('pickup_date') }}"></label>
+                @endif
+                <button type="submit">{{ __('transport.booking.submit') }}</button>
+            </form>
+            <small>{{ __('transport.booking.hold_hint') }}</small>
+        </details>
+    @endif
+
+    <h2>{{ __('transport.costs.title') }}</h2>
+    @if ($margin['cost_status'] === 'missing')
+        <p>{{ __('transport.costs.missing') }}</p>
+    @else
+        <p>
+            <strong>{{ __('transport.costs.formula') }}:</strong>
+            {{ \App\Support\Money::cents($margin['revenue_cents'])->format() }} −
+            {{ \App\Support\Money::cents($margin['payable_cost_cents'])->format() }} =
+            {{ \App\Support\Money::cents($margin['margin_cents'])->format() }}
+            <span class="badge" data-tone="{{ $margin['margin_is_estimate'] ? 'warn' : 'ok' }}">
+                {{ __('transport.costs.statuses.'.$margin['cost_status']) }}
+            </span>
+        </p>
+    @endif
+
+    @if ($shipment->selectedQuote?->source === 'own_fleet' && in_array($shipment->status, ['booked', 'dispatched', 'in_transit', 'delivered', 'failed'], true))
+        <details>
+            <summary>{{ __('transport.costs.enter_own_fleet') }}</summary>
+            <form method="post" action="{{ route('transport.shipments.own-fleet-cost.store', $shipment) }}">
+                @csrf
+                <label>
+                    {{ __('transport.costs.actual_cost_cents') }}
+                    <input type="number" name="cost_cents" min="0" step="1" value="{{ old('cost_cents', $shipment->carrierCost?->actual_cost_cents) }}" required>
+                </label>
+                <label>
+                    {{ __('transport.costs.note') }}
+                    <textarea name="note" maxlength="1000" required>{{ old('note', $shipment->carrierCost?->note) }}</textarea>
+                </label>
+                <button type="submit">{{ __('transport.costs.save') }}</button>
+            </form>
+        </details>
+    @endif
 
     <p>
         <a role="button" href="{{ route('transport.shipments.consignment-note', $shipment) }}">

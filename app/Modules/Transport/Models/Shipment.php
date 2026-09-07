@@ -11,6 +11,7 @@ use App\Support\Tenancy\BelongsToClient;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use InvalidArgumentException;
 
 class Shipment extends Model
@@ -78,6 +79,11 @@ class Shipment extends Model
     public function trackingEvents(): HasMany
     {
         return $this->hasMany(TrackingEvent::class)->orderBy('occurred_at')->orderBy('id');
+    }
+
+    public function carrierCost(): HasOne
+    {
+        return $this->hasOne(CarrierCost::class);
     }
 
     public function selectedQuote(): BelongsTo

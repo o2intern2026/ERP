@@ -6,9 +6,12 @@ use App\Modules\Transport\Http\Controllers\DeliveryRunController;
 use App\Modules\Transport\Http\Controllers\DriverController;
 use App\Modules\Transport\Http\Controllers\ExtraChargeController;
 use App\Modules\Transport\Http\Controllers\IndexController;
+use App\Modules\Transport\Http\Controllers\OrderMarginController;
+use App\Modules\Transport\Http\Controllers\OwnFleetCostController;
 use App\Modules\Transport\Http\Controllers\QuoteSelectionController;
 use App\Modules\Transport\Http\Controllers\RedeliveryController;
 use App\Modules\Transport\Http\Controllers\RunStopController;
+use App\Modules\Transport\Http\Controllers\ShipmentBookingController;
 use App\Modules\Transport\Http\Controllers\ShipmentController;
 use App\Modules\Transport\Http\Controllers\ShipmentLabelController;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +25,9 @@ Route::prefix('transport')->name('transport.')->group(function () {
     Route::get('/runs/{deliveryRun}', [DeliveryRunController::class, 'show'])
         ->whereNumber('deliveryRun')
         ->name('runs.show');
+    Route::get('/orders/{orderId}/margin', OrderMarginController::class)
+        ->whereNumber('orderId')
+        ->name('orders.margin');
     Route::post('/runs/{deliveryRun}/stops', [RunStopController::class, 'store'])
         ->whereNumber('deliveryRun')
         ->name('runs.stops.store');
@@ -40,6 +46,12 @@ Route::prefix('transport')->name('transport.')->group(function () {
     Route::post('/{shipment}/extra-charges', ExtraChargeController::class)
         ->whereNumber('shipment')
         ->name('shipments.extra-charges.store');
+    Route::post('/{shipment}/book', ShipmentBookingController::class)
+        ->whereNumber('shipment')
+        ->name('shipments.book');
+    Route::post('/{shipment}/own-fleet-cost', OwnFleetCostController::class)
+        ->whereNumber('shipment')
+        ->name('shipments.own-fleet-cost.store');
     Route::post('/{shipment}/redelivery', RedeliveryController::class)
         ->whereNumber('shipment')
         ->name('shipments.redelivery.store');
