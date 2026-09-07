@@ -27,15 +27,15 @@ class FakeServicesTest extends TestCase
         $this->assertInstanceOf(\App\Modules\Warehouse\Services\StockService::class, app(StockService::class)); // real since M2
         $this->assertInstanceOf(FakeOrderService::class, app(OrderService::class));
         $this->assertInstanceOf(FakeTransportOptionService::class, app(TransportOptionService::class));
-        $this->assertInstanceOf(FakeRateService::class, app(RateService::class));
+        $this->assertInstanceOf(\App\Modules\Billing\Services\RateService::class, app(RateService::class)); // real since the billing block
         $this->assertInstanceOf(\App\Modules\Platform\Services\JobService::class, app(JobService::class)); // real since M1
         $this->assertInstanceOf(FakeManifestParser::class, app(ManifestParser::class));
         $this->assertInstanceOf(DatabaseOutboxPublisher::class, app(OutboxPublisher::class)); // real since M1
     }
 
-    public function test_rate_service_prices_the_edward_card_and_never_returns_zero_for_missing_rates(): void
+    public function test_fake_rate_service_prices_the_edward_card_and_never_returns_zero_for_missing_rates(): void
     {
-        $rates = app(RateService::class);
+        $rates = new FakeRateService;
 
         $putaway = $rates->price(1, 'WH-PUTAWAY-PLT', 3);
         $this->assertSame(1350, $putaway['amount_cents']);
@@ -61,9 +61,9 @@ class FakeServicesTest extends TestCase
         $this->assertSame(1.0, $waste['qty']);
     }
 
-    public function test_rate_service_exposes_thresholds_and_suggests_pallet_class_per_plan_4_8(): void
+    public function test_fake_rate_service_exposes_thresholds_and_suggests_pallet_class_per_plan_4_8(): void
     {
-        $rates = app(RateService::class);
+        $rates = new FakeRateService;
 
         $this->assertSame(25, $rates->thresholds(1, 'TR-TAILGATE')['tailgate_weight_kg']);
         $this->assertNull($rates->thresholds(1, 'WH-PUTAWAY-PLT'));

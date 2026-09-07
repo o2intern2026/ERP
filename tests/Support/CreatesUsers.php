@@ -3,6 +3,8 @@
 namespace Tests\Support;
 
 use App\Models\User;
+use App\Modules\Billing\Models\RateCard;
+use App\Modules\Billing\Seeders\BillingSeeder;
 use App\Modules\MasterData\Models\Client;
 use App\Support\Enums;
 use Illuminate\Support\Str;
@@ -46,7 +48,13 @@ trait CreatesUsers
 
     protected function client(array $attributes = []): Client
     {
+        if (! RateCard::query()->where('is_standard', true)->exists()) {
+            $this->seed(BillingSeeder::class); // real Edward rates for every module's tests
+        }
+        $standardCardId = RateCard::query()->where('is_standard', true)->where('status', 'active')->value('id');
+
         return Client::query()->withoutGlobalScopes()->create($attributes + [
+            'standard_rate_card_id' => $standardCardId,
             'code' => 'C-'.Str::upper(Str::random(6)),
             'name' => 'Client '.Str::random(4),
             'leg_type' => 'both',

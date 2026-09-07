@@ -72,5 +72,31 @@ final class Enums
 
     public const WEBHOOK_DELIVERY_STATUSES = ['pending', 'delivered', 'failed', 'dead'];
 
+    public const CHARGE_CATEGORIES = ['warehouse', 'vas', 'transport', 'storage', 'other'];
+
+    public const BILLING_UOMS = ['container_20', 'container_40', 'pallet', 'pallet_week', 'pickface_week', 'carton', 'carton_week', 'cbm_week', 'order', 'label', 'scan', 'cbm', 'man_hour', 'delivery'];
+
+    public const TAX_TREATMENTS = ['gst_10', 'gst_free', 'out_of_scope'];
+
+    public const RATE_CARD_STATUSES = ['draft', 'active', 'superseded'];
+
+    public const PRICING_MODES = ['fixed', 'cost_plus', 'percent'];
+
+    public const CHARGE_STATUSES = ['pending', 'needs_review', 'approved', 'invoiced', 'disputed', 'reversed'];
+
+    public const INVOICE_TYPES = ['service', 'storage', 'supplementary', 'monthly'];
+
+    public const INVOICE_STATUSES = ['draft', 'issued', 'part_paid', 'paid', 'void'];
+
+    public const CREDIT_NOTE_STATUSES = ['draft', 'approved', 'issued', 'cancelled'];
+
+    public const QUOTE_STAGES = ['preliminary', 'final'];
+
+    public const QUOTE_STATUSES = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
+
+    public const TRIGGER_EVENTS = ['task.completed', 'asn.putaway_completed', 'outbound.packed', 'shipment.quote_confirmed', 'delivery.extra_charge', 'snapshot.weekly', 'return.financial_decision', 'manual'];
+
+    public const QUANTITY_SOURCES = ['billable_qty', 'pallets', 'pallets_warehouse_plain', 'labels', 'orders', 'cartons', 'scans', 'hours_business', 'hours_after_hours', 'cbm', 'weeks', 'pickface_slots', 'one'];
+
     public const STATES = ['VIC', 'NSW', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'];
 }

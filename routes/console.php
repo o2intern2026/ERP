@@ -7,3 +7,4 @@ use Illuminate\Support\Facades\Schedule;
 Schedule::command('outbox:dispatch')->everyMinute()->withoutOverlapping();
 Schedule::command('stock:reconcile')->dailyAt('02:00'); // ledger vs balances (ERP_PLAN §4.3 rule 9)
 Schedule::command('webhooks:retry')->everyFiveMinutes()->withoutOverlapping(); // A23 per-endpoint retries
+Schedule::command('billing:storage-weekly')->weeklyOn(1, '01:00'); // weekly storage from snapshots (ERP_PLAN §6.7 A6b)
