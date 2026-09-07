@@ -2,6 +2,7 @@
 
 namespace App\Modules\Orders\Services;
 
+use App\Modules\Orders\Exceptions\OrderRuleViolation;
 use App\Modules\Orders\Models\Fulfilment;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderEvent;
@@ -11,12 +12,20 @@ use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
- * A7: turns Warehouse reservation results into Orders-owned fulfilment batches and derived progress.
- * Warehouse remains the only stock writer; Orders stores only the commercial fulfilment view.
+ * A7 + block 2: turns Warehouse / Transport events into Orders-owned fulfilment batches and derived progress.
+ * Warehouse remains the only stock writer; Orders stores only the commercial fulfilment view. The order's
+ * operational status follows the slowest batch (picking when any batch is picked, packed / dispatched only when
+ * every batch is, delivered only when every ordered carton is delivered — §3.8 #8) and never moves backwards.
  */
 final class FulfilmentService
 {
-    public function __construct(private readonly StockService $stock) {}
+    /** fulfilments.status in progress order (contracts/enums.md §3). */
+    public const BATCH_RANK = ['allocated' => 0, 'picking' => 1, 'packed' => 2, 'dispatched' => 3, 'delivered' => 4];
+
+    /** The operational path a from_stock order walks after confirmation. */
+    private const OPERATIONAL_PATH = ['confirmed', 'allocated', 'picking', 'packed', 'dispatched', 'delivered'];
+
+    public function __construct(private readonly StockService $stock, private readonly OrderStatusService $statuses) {}
 
     /**
      * @return list<array{line:OrderLine,allocated_qty:int,remaining_qty:int,qty_on_hand:?int,qty_reserved:?int,qty_available:?int,allocatable_qty:int,status:string}>
@@ -75,7 +84,7 @@ final class FulfilmentService
             $this->assertPayloadMatches($order, $payload);
 
             // A late reservation reply must not resurrect work already cancelled or completed.
-            if (in_array($order->operational_status, ['cancelled', 'returned', 'delivered'], true)) {
+            if (in_array($order->operational_status, OrderStatusService::TERMINAL, true)) {
                 return $order;
             }
 
@@ -104,7 +113,7 @@ final class FulfilmentService
 
         $orders = Order::query()->withoutGlobalScopes()
             ->where('client_id', $clientId)
-            ->whereNotIn('operational_status', ['cancelled', 'returned', 'delivered'])
+            ->whereNotIn('operational_status', OrderStatusService::TERMINAL)
             ->whereHas('lines', fn ($query) => $query->whereIn('asn_line_id', $asnLineIds)->where('qty_backordered', '>', 0))
             ->with(['lines' => fn ($query) => $query->whereIn('asn_line_id', $asnLineIds)->where('qty_backordered', '>', 0)])
             ->orderBy('id')
@@ -138,27 +147,97 @@ final class FulfilmentService
         }
     }
 
-    /** @param array<string, mixed> $payload */
+    /**
+     * `task.completed` with task_type = pick: the batch is being picked; the order enters `picking` from `allocated`.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function markPicking(array $payload): ?Order
+    {
+        if (($payload['task_type'] ?? null) !== 'pick' || empty($payload['order_id'])) {
+            return null;
+        }
+
+        return $this->advanceBatch($payload, 'picking', 'orders.fulfilments.timeline.picking');
+    }
+
+    /**
+     * `outbound.packed`: the batch is packed; the order is `packed` only when every batch is (partial orders stay).
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function markPacked(array $payload): Order
+    {
+        return $this->advanceBatch($payload, 'packed', 'orders.fulfilments.timeline.packed');
+    }
+
+    /**
+     * `outbound.dispatched`: the batch left the warehouse (shipment_id stored when the handover was against a booking).
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function markDispatched(array $payload): Order
+    {
+        return $this->advanceBatch($payload, 'dispatched', 'orders.fulfilments.timeline.dispatched', array_filter(['shipment_id' => $payload['shipment_id'] ?? null]));
+    }
+
+    /**
+     * `delivery.pod_captured`: each POD closes one batch; the order closes only after every ordered carton is delivered.
+     *
+     * @param  array<string, mixed>  $payload
+     */
     public function markDelivered(array $payload): Order
     {
-        return DB::transaction(function () use ($payload): Order {
+        return $this->advanceBatch($payload, 'delivered', 'orders.fulfilments.timeline.delivered', array_filter(['shipment_id' => $payload['shipment_id'] ?? null]));
+    }
+
+    /** Re-derive the operational status from the batches, e.g. after a financial hold that blocked `dispatched` is released. */
+    public function resyncOperationalStatus(Order $order): Order
+    {
+        return DB::transaction(function () use ($order): Order {
+            $locked = Order::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($order->id);
+            if (in_array($locked->operational_status, OrderStatusService::TERMINAL, true)) {
+                return $locked;
+            }
+            $this->refreshDerivedProgress($locked, __('orders.fulfilments.timeline.resynced'));
+
+            return $locked->refresh();
+        });
+    }
+
+    /**
+     * Shared handler for the warehouse / transport progress events: monotonic on the batch, derived on the order,
+     * replay-tolerant (same state → no-op) and never touching terminal orders.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $extra  additional fulfilment columns (shipment_id)
+     */
+    private function advanceBatch(array $payload, string $status, string $noteKey, array $extra = []): Order
+    {
+        return DB::transaction(function () use ($payload, $status, $noteKey, $extra): Order {
             $order = Order::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail((int) $payload['order_id']);
             $this->assertPayloadMatches($order, $payload);
 
-            if ($order->operational_status === 'cancelled') {
+            if (in_array($order->operational_status, OrderStatusService::TERMINAL, true)) {
                 return $order;
             }
 
-            $fulfilment = Fulfilment::query()
-                ->where('order_id', $order->id)
-                ->lockForUpdate()
-                ->findOrFail((int) $payload['fulfilment_id']);
-            $fulfilment->update([
-                'status' => 'delivered',
-                'shipment_id' => (int) $payload['shipment_id'],
-            ]);
+            $fulfilment = null;
+            if (! empty($payload['fulfilment_id'])) {
+                $fulfilment = Fulfilment::query()->where('order_id', $order->id)->lockForUpdate()->findOrFail((int) $payload['fulfilment_id']);
+                if (self::BATCH_RANK[$fulfilment->status] < self::BATCH_RANK[$status]) {
+                    $fulfilment->update(['status' => $status] + $extra);
+                } elseif (isset($extra['shipment_id']) && $fulfilment->shipment_id === null) {
+                    $fulfilment->update(['shipment_id' => $extra['shipment_id']]);
+                }
+            } elseif ($order->order_type === 'pickup_deliver' && in_array($status, ['dispatched', 'delivered'], true)) {
+                // A11b: a pure transport order has no warehouse batch — the POD (or handover) moves the order itself.
+                $this->stepOperational($order, $status, __($noteKey, ['seq' => '—']));
 
-            $this->refreshDerivedProgress($order, __('orders.fulfilments.timeline.delivered'));
+                return $order->refresh();
+            }
+
+            $this->refreshDerivedProgress($order, __($noteKey, ['seq' => $fulfilment?->seq ?? '—']));
 
             return $order->refresh()->load('lines', 'fulfilments.lines');
         });
@@ -168,7 +247,7 @@ final class FulfilmentService
     private function assertPayloadMatches(Order $order, array $payload): void
     {
         if ((int) ($payload['client_id'] ?? 0) !== $order->client_id || (int) ($payload['job_id'] ?? 0) !== $order->job_id) {
-            throw new InvalidArgumentException('Stock or delivery event does not match the order client and Job.');
+            throw new InvalidArgumentException('Stock, warehouse or delivery event does not match the order client and Job.');
         }
     }
 
@@ -226,21 +305,22 @@ final class FulfilmentService
         $order->load(['lines', 'fulfilments.lines']);
         $allocatedByLine = $order->fulfilments->flatMap->lines->groupBy('order_line_id')
             ->map(fn ($lines) => (int) $lines->sum('qty'));
+        $shippedByLine = $order->fulfilments->filter(fn (Fulfilment $f) => self::BATCH_RANK[$f->status] >= self::BATCH_RANK['dispatched'])
+            ->flatMap->lines->groupBy('order_line_id')->map(fn ($lines) => (int) $lines->sum('qty'));
         $deliveredByLine = $order->fulfilments->where('status', 'delivered')->flatMap->lines->groupBy('order_line_id')
             ->map(fn ($lines) => (int) $lines->sum('qty'));
 
         foreach ($order->lines as $line) {
             $allocated = min($line->carton_qty, (int) ($allocatedByLine[$line->id] ?? 0));
-            $delivered = min($line->carton_qty, (int) ($deliveredByLine[$line->id] ?? 0));
+            $shipped = min($line->carton_qty, (int) ($shippedByLine[$line->id] ?? 0));
             $line->update([
-                'qty_shipped' => $delivered,
+                'qty_shipped' => $shipped,
                 'qty_backordered' => max(0, $line->carton_qty - $allocated),
             ]);
         }
 
         $orderedTotal = (int) $order->lines->sum('carton_qty');
         $allocatedTotal = min($orderedTotal, (int) $allocatedByLine->sum());
-        $deliveredTotal = min($orderedTotal, (int) $deliveredByLine->sum());
         $allDelivered = $orderedTotal > 0 && $order->lines->every(
             fn (OrderLine $line) => (int) ($deliveredByLine[$line->id] ?? 0) >= $line->carton_qty,
         );
@@ -250,28 +330,73 @@ final class FulfilmentService
             default => 'unfulfilled',
         };
 
-        $this->updateDimension($order, 'fulfilment', 'fulfilment_status', $fulfilmentStatus, $note);
-
-        $operationalStatus = match (true) {
-            $fulfilmentStatus === 'fulfilled' => 'delivered',
-            $deliveredTotal > 0 && ! in_array($order->operational_status, ['dispatched', 'delivered'], true) => 'dispatched',
-            $allocatedTotal > 0 && $order->operational_status === 'confirmed' => 'allocated',
-            default => $order->operational_status,
-        };
-        $this->updateDimension($order, 'operational', 'operational_status', $operationalStatus, $note);
+        $this->updateFulfilmentDimension($order, $fulfilmentStatus, $note);
+        $this->stepOperational($order, $this->derivedOperationalTarget($order, $fulfilmentStatus), $note);
     }
 
-    private function updateDimension(Order $order, string $dimension, string $column, string $toStatus, string $note): void
+    /** The operational status the batches imply, or null when the order already is there (or further). */
+    private function derivedOperationalTarget(Order $order, string $fulfilmentStatus): ?string
     {
-        $fromStatus = $order->{$column};
+        $current = array_search($order->operational_status, self::OPERATIONAL_PATH, true);
+        if ($current === false || $order->fulfilments->isEmpty()) {
+            return null;
+        }
+
+        $ranks = $order->fulfilments->map(fn (Fulfilment $f) => self::BATCH_RANK[$f->status]);
+        $target = match (true) {
+            $fulfilmentStatus === 'fulfilled' => 'delivered',
+            $ranks->min() >= self::BATCH_RANK['dispatched'] => 'dispatched',
+            $ranks->min() >= self::BATCH_RANK['packed'] => 'packed',
+            $ranks->max() >= self::BATCH_RANK['picking'] => 'picking',
+            default => 'allocated',
+        };
+
+        return array_search($target, self::OPERATIONAL_PATH, true) > $current ? $target : null;
+    }
+
+    /**
+     * Walk the order forward step by step so the timeline shows every implied stage (events may arrive out of order).
+     * A financial hold stops the walk in front of `dispatched`; the release re-runs it (resyncOperationalStatus).
+     */
+    private function stepOperational(Order $order, ?string $target, string $note): void
+    {
+        if ($target === null) {
+            return;
+        }
+        $from = array_search($order->operational_status, self::OPERATIONAL_PATH, true);
+        $to = array_search($target, self::OPERATIONAL_PATH, true);
+        if ($from === false || $to === false || $to <= $from) {
+            return;
+        }
+
+        $steps = array_slice(self::OPERATIONAL_PATH, $from + 1, $to - $from);
+        if ($order->order_type === 'pickup_deliver') {
+            $steps = array_values(array_intersect($steps, ['dispatched', 'delivered']));
+        }
+
+        foreach ($steps as $status) {
+            try {
+                $this->statuses->transitionOperational($order, $status, null, $note);
+            } catch (OrderRuleViolation $blocked) {
+                $this->statuses->note($order, null, $blocked->getMessage());
+
+                break;
+            }
+            $order->refresh();
+        }
+    }
+
+    private function updateFulfilmentDimension(Order $order, string $toStatus, string $note): void
+    {
+        $fromStatus = $order->fulfilment_status;
         if ($fromStatus === $toStatus) {
             return;
         }
 
-        $order->update([$column => $toStatus]);
+        $order->update(['fulfilment_status' => $toStatus]);
         OrderEvent::query()->create([
             'order_id' => $order->id,
-            'dimension' => $dimension,
+            'dimension' => 'fulfilment',
             'from_status' => $fromStatus,
             'to_status' => $toStatus,
             'actor_type' => 'system',

@@ -68,7 +68,9 @@
                             <td>{{ $order->consignment_mark ?: __('orders.not_provided') }}</td>
                             <td>{{ $order->deliver_to_suburb }}, {{ $order->deliver_to_state }}</td>
                             <td>{{ $order->requested_date->format('Y-m-d') }}</td>
-                            <td>{{ __('orders.statuses.operational.'.$order->operational_status) }}</td>
+                            <td>{{ __('orders.statuses.operational.'.$order->operational_status) }}
+                                @if (in_array('financial', $holdTypes[$order->id] ?? [], true))<span class="badge" data-tone="danger">{{ __('orders.holds.financial_badge') }}</span>@endif
+                            </td>
                             <td>{{ __('orders.statuses.billing.'.$order->billing_status) }}</td>
                         </tr>
                     @endforeach

@@ -4,12 +4,14 @@ namespace App\Modules\Orders\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Orders\Exceptions\OrderRuleViolation;
 use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderEvent;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\FulfilmentService;
 use App\Modules\Orders\Services\OrderBatchService;
+use App\Modules\Orders\Services\OrderChangeService;
 use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Orders\Services\OrderHoldService;
 use App\Modules\Orders\Services\OrderStatusService;
@@ -19,12 +21,13 @@ use App\Support\Enums;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 final class OrderController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, OrderHoldService $holds): View
     {
         $filters = $request->validate([
             'client_id' => ['nullable', 'integer'],
@@ -46,6 +49,7 @@ final class OrderController extends Controller
 
         return view('orders::index', [
             'orders' => $orders,
+            'holdTypes' => $holds->activeTypesFor($orders->getCollection()), // A13: locked orders are highlighted in the list
             'filters' => $filters,
             'clients' => Client::query()->where('status', 'active')->orderBy('name')->get(['id', 'name']),
             'statuses' => OrderEnums::OPERATIONAL_STATUSES,
@@ -83,9 +87,9 @@ final class OrderController extends Controller
             ->with('status', __('orders.messages.created', ['order_no' => $order->order_no]));
     }
 
-    public function show(Order $order, FulfilmentService $fulfilments, OrderHoldService $holds, OrderBatchService $batches, TailgateRule $tailgate): View
+    public function show(Order $order, FulfilmentService $fulfilments, OrderHoldService $holds, OrderBatchService $batches, TailgateRule $tailgate, OrderChangeService $changes): View
     {
-        $order->load(['client', 'job', 'creator', 'lines.fulfilmentLines', 'declaredPackages', 'fulfilments.lines.orderLine', 'events.actor']);
+        $order->load(['client', 'job', 'creator', 'lines.fulfilmentLines', 'declaredPackages', 'fulfilments.lines.orderLine', 'events.actor', 'originalOrder', 'returnOrders', 'returnDecider']);
 
         return view('orders::show', [
             'order' => $order,
@@ -94,6 +98,9 @@ final class OrderController extends Controller
             'holdTypes' => Enums::HOLD_TYPES,
             'asnRefs' => $batches->asnRefsFor($order),
             'tailgate' => $tailgate->evaluate($order),
+            'canChange' => $changes->canChange($order, auth()->user()),        // A11: stage + role rule decided server side
+            'requiresReason' => $changes->requiresReason($order),
+            'canRequestReturn' => $order->acceptsReturnRequest() && auth()->user()->hasAnyRole(OrderChangeService::COORDINATOR_ROLES),
         ]);
     }
 
@@ -133,11 +140,14 @@ final class OrderController extends Controller
         return back()->with('status', __('orders.messages.confirmed'));
     }
 
-    /** A3 establishes the picking lock invariant; A11 later adds supervised overrides and cancellation. */
-    public function update(Request $request, Order $order): RedirectResponse
+    /** A3 picking lock + A11 stage rules: free before picking, supervisor + reason from picking on, never after dispatch. */
+    public function update(Request $request, Order $order, OrderChangeService $changes): RedirectResponse
     {
-        $this->authorizeOrderEntry();
-        abort_unless($order->isEditable(), 403, __('orders.messages.locked'));
+        try {
+            $changes->authorizeChange($order, $request->user());
+        } catch (OrderRuleViolation $e) {
+            abort(403, $e->getMessage());
+        }
 
         $data = $request->validate([
             'deliver_to_name' => ['required', 'string', 'max:255'],
@@ -148,9 +158,14 @@ final class OrderController extends Controller
             'deliver_to_postcode' => ['required', 'string', 'max:10'],
             'delivery_instructions' => ['nullable', 'string', 'max:2000'],
             'requested_date' => ['required', 'date'],
+            'reason' => [$changes->requiresReason($order) ? 'required' : 'nullable', 'string', 'max:255'],
         ]);
 
-        DB::transaction(fn () => $order->update($data));
+        try {
+            $changes->updateDelivery($order, Arr::except($data, ['reason']), $request->user(), $data['reason'] ?? null);
+        } catch (OrderRuleViolation $e) {
+            return back()->withErrors(['change' => $e->getMessage()]);
+        }
 
         return redirect()->route('orders.show', $order)->with('status', __('orders.messages.updated'));
     }

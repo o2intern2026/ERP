@@ -65,10 +65,12 @@ class FulfilmentAllocationTest extends TestCase
         $this->publishPod($order, $first->id, 9001);
         app(OutboxDispatcher::class)->dispatchDue();
 
+        // Block 2: the order follows its slowest batch — F1 delivered, F2 still allocated → the order is at most picking.
         $order = $order->fresh()->load('lines', 'fulfilments');
-        $this->assertSame('dispatched', $order->operational_status);
+        $this->assertSame('picking', $order->operational_status);
         $this->assertSame('partial', $order->fulfilment_status);
         $this->assertSame(5, $order->lines->first()->qty_shipped);
+        $this->assertSame(['delivered', 'allocated'], $order->fulfilments->pluck('status')->all());
 
         $this->publishPod($order, $second->id, 9002);
         app(OutboxDispatcher::class)->dispatchDue();

@@ -6,7 +6,11 @@
     <p><a href="{{ route('orders.index') }}">← {{ __('orders.actions.back') }}</a></p>
     <header>
         <h1>{{ $order->order_no }}</h1>
-        <p>{{ $order->client->name }} · <a href="{{ route('platform.jobs.show', $order->job) }}">{{ $order->job->job_no }}</a></p>
+        <p>{{ $order->client->name }} · <a href="{{ route('platform.jobs.show', $order->job) }}">{{ $order->job->job_no }}</a>
+            @if ($order->order_type === 'return' && $order->originalOrder)
+                · {{ __('orders.returns.original_order') }}: <a href="{{ route('orders.show', $order->originalOrder) }}">{{ $order->originalOrder->order_no }}</a>
+            @endif
+        </p>
     </header>
 
     <div class="grid">
@@ -50,12 +54,16 @@
         {{ $order->deliver_to_address }}, {{ $order->deliver_to_suburb }} {{ $order->deliver_to_state }} {{ $order->deliver_to_postcode }}
     </p>
 
-    @if ($order->isEditable())
+    @if ($canChange)
+        <p class="text-muted"><small>{{ __($requiresReason ? 'orders.changes.hint_supervised' : 'orders.changes.hint_free') }}</small></p>
         <details>
             <summary>{{ __('orders.actions.edit_delivery') }}</summary>
             <form method="post" action="{{ route('orders.update', $order) }}">
                 @csrf
                 @method('PATCH')
+                @if ($requiresReason)
+                    <label>{{ __('orders.changes.reason') }}<input name="reason" required></label>
+                @endif
                 <div class="grid">
                     <label>{{ __('orders.fields.deliver_to_name') }}<input name="deliver_to_name" value="{{ $order->deliver_to_name }}" required></label>
                     <label>{{ __('orders.fields.deliver_to_phone') }}<input name="deliver_to_phone" value="{{ $order->deliver_to_phone }}"></label>
@@ -73,8 +81,20 @@
                 <button type="submit">{{ __('orders.actions.save_changes') }}</button>
             </form>
         </details>
-    @else
+    @elseif ($order->isShipped())
+        <p><strong>{{ __('orders.changes.hint_shipped') }}</strong></p>
+    @elseif ($order->isEditableWithApproval())
+        <p><strong>{{ __('orders.changes.hint_supervised') }}</strong></p>
+    @elseif (! in_array($order->operational_status, ['returned', 'cancelled'], true))
         <p><strong>{{ __('orders.messages.locked') }}</strong></p>
+    @endif
+
+    @if ($order->order_type === 'return')
+        <h2>{{ __('orders.returns.pickup_title') }}</h2>
+        @if ($order->pickup_address)
+            <p>{{ $order->pickup_address['name'] ?? '' }}@if ($order->pickup_address['phone'] ?? null) · {{ $order->pickup_address['phone'] }}@endif<br>
+                {{ $order->pickup_address['address'] ?? '' }}, {{ $order->pickup_address['suburb'] ?? '' }} {{ $order->pickup_address['state'] ?? '' }} {{ $order->pickup_address['postcode'] ?? '' }}</p>
+        @endif
     @endif
 
     @if ($order->order_type === 'pickup_deliver')
@@ -126,7 +146,7 @@
                     <span class="badge" data-tone="{{ $hold->hold_type === 'financial' ? 'danger' : 'warn' }}">{{ __('orders.holds.types.'.$hold->hold_type) }}</span>
                     @if ($hold->order_id === null)<small class="text-muted">{{ __('orders.holds.client_wide') }}</small>@endif
                     {{ $hold->message }} <small class="text-muted">{{ __('orders.holds.since') }} {{ \Carbon\Carbon::parse($hold->created_at)->format('m-d H:i') }}</small>
-                    @if ($hold->order_id !== null && auth()->user()->hasAnyRole($hold->hold_type === 'financial' ? ['admin', 'finance'] : ['admin', 'customer_service', 'dispatcher', 'finance']))
+                    @if ($hold->order_id !== null && auth()->user()->hasAnyRole(\App\Modules\Orders\Services\OrderHoldService::rolesFor($hold->hold_type, true)))
                         <form method="post" action="{{ route('orders.holds.release', [$order, $hold->id]) }}" class="inline">
                             @csrf
                             <input type="text" name="note" placeholder="{{ __('orders.holds.release_note') }}" required style="width:12rem">
@@ -142,7 +162,7 @@
                     @csrf
                     <select name="hold_type">
                         @foreach ($holdTypes as $type)
-                            <option value="{{ $type }}" @disabled($type === 'financial' && ! auth()->user()->hasAnyRole(['admin', 'finance']))>{{ __('orders.holds.types.'.$type) }}</option>
+                            <option value="{{ $type }}" @disabled(! auth()->user()->hasAnyRole(\App\Modules\Orders\Services\OrderHoldService::rolesFor($type)))>{{ __('orders.holds.types.'.$type) }}</option>
                         @endforeach
                     </select>
                     <input type="text" name="reason" placeholder="{{ __('orders.holds.reason') }}" required>
@@ -187,6 +207,95 @@
             </tbody>
         </table>
     </div>
+
+    @if ($canChange)
+        <article>
+            <header>{{ __('orders.changes.title') }}</header>
+            <div class="grid">
+                <details>
+                    <summary>{{ __('orders.changes.reduce_title') }}</summary>
+                    <p class="text-muted"><small>{{ __('orders.changes.reduce_hint') }}</small></p>
+                    <form method="post" action="{{ route('orders.reduce', $order) }}">
+                        @csrf
+                        @foreach ($order->lines as $line)
+                            <label>{{ $line->description_cn ?: $line->description_en }} · {{ __('orders.changes.new_qty') }}
+                                <input type="number" name="quantities[{{ $line->id }}]" min="0" max="{{ $line->carton_qty }}" value="{{ $line->carton_qty }}" required>
+                            </label>
+                        @endforeach
+                        <input type="text" name="reason" placeholder="{{ __('orders.changes.reason') }}" required>
+                        <button type="submit" class="secondary">{{ __('orders.changes.reduce') }}</button>
+                    </form>
+                </details>
+                <details>
+                    <summary>{{ __('orders.changes.cancel_title') }}</summary>
+                    <form method="post" action="{{ route('orders.cancel', $order) }}" onsubmit="return confirm(this.dataset.confirm)" data-confirm="{{ __('orders.changes.confirm_cancel') }}">
+                        @csrf
+                        <input type="text" name="reason" placeholder="{{ __('orders.changes.reason') }}" required>
+                        <button type="submit" class="contrast">{{ __('orders.changes.cancel') }}</button>
+                    </form>
+                </details>
+            </div>
+        </article>
+    @endif
+
+    @if ($order->order_type === 'return')
+        <article>
+            <header>{{ __('orders.returns.chain_title') }}</header>
+            <p class="text-muted"><small>{{ __('orders.returns.chain_hint') }}</small></p>
+            <p>
+                @if ($order->return_inspected_at)
+                    <span class="badge" data-tone="ok">{{ __('orders.returns.inspected_at', ['at' => $order->return_inspected_at->format('Y-m-d H:i')]) }}</span>
+                @else
+                    <span class="badge" data-tone="warn">{{ __('orders.returns.inspection_pending') }}</span>
+                @endif
+            </p>
+            <h3>{{ __('orders.returns.decision_title') }}</h3>
+            @if ($order->return_decision)
+                <p><strong>{{ __('orders.returns.decided', ['decision' => __('orders.returns.decisions.'.$order->return_decision), 'by' => $order->returnDecider?->name ?? __('orders.timeline.system'), 'at' => $order->return_decided_at?->format('Y-m-d H:i')]) }}</strong><br>{{ $order->return_decision_note }}</p>
+            @elseif ($order->return_inspected_at && auth()->user()->hasAnyRole(\App\Modules\Orders\Services\ReturnRequestService::FINANCE_ROLES))
+                <p class="text-muted"><small>{{ __('orders.returns.decision_hint') }}</small></p>
+                <form method="post" action="{{ route('orders.returns.decide', $order) }}" class="grid">
+                    @csrf
+                    <select name="decision" aria-label="{{ __('orders.returns.decision') }}">
+                        @foreach (\App\Modules\Orders\Services\ReturnRequestService::DECISIONS as $decision)
+                            <option value="{{ $decision }}">{{ __('orders.returns.decisions.'.$decision) }}</option>
+                        @endforeach
+                    </select>
+                    <input type="text" name="note" placeholder="{{ __('orders.returns.decision_note') }}" required>
+                    <button type="submit">{{ __('orders.returns.record_decision') }}</button>
+                </form>
+            @else
+                <p class="text-muted">{{ __('orders.returns.decision_hint') }}</p>
+            @endif
+        </article>
+    @else
+        <h2>{{ __('orders.returns.title') }}</h2>
+        @if ($order->returnOrders->isNotEmpty())
+            <p>{{ __('orders.returns.return_orders') }}:
+                @foreach ($order->returnOrders as $return)
+                    <a href="{{ route('orders.show', $return) }}">{{ $return->order_no }}</a> <small class="text-muted">({{ __('orders.statuses.operational.'.$return->operational_status) }})</small>
+                @endforeach
+            </p>
+        @endif
+        @if ($canRequestReturn)
+            <details>
+                <summary>{{ __('orders.returns.request_title') }}</summary>
+                <p class="text-muted"><small>{{ __('orders.returns.hint') }}</small></p>
+                <form method="post" action="{{ route('orders.returns.store', $order) }}">
+                    @csrf
+                    @foreach ($order->lines as $line)
+                        <label>{{ $line->description_cn ?: $line->description_en }} · {{ __('orders.returns.shipped_qty') }} {{ $line->qty_shipped ?: $line->carton_qty }} · {{ __('orders.returns.return_qty') }}
+                            <input type="number" name="quantities[{{ $line->id }}]" min="0" max="{{ $line->qty_shipped ?: $line->carton_qty }}" value="{{ $line->qty_shipped ?: $line->carton_qty }}">
+                        </label>
+                    @endforeach
+                    <input type="text" name="reason" placeholder="{{ __('orders.returns.reason') }}" required>
+                    <button type="submit" class="secondary">{{ __('orders.returns.submit') }}</button>
+                </form>
+            </details>
+        @elseif (! $order->isShipped())
+            <p class="text-muted"><small>{{ __('orders.returns.messages.not_shipped') }}</small></p>
+        @endif
+    @endif
 
     @if ($order->order_type === 'from_stock')
         <h2>{{ __('orders.fulfilments.availability_title') }}</h2>

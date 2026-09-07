@@ -11,13 +11,13 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
-/** Holds on an order (ERP_PLAN §3.3): financial holds are Finance / admin only (OMS-11); the others are Coordinator tools. */
+/** Holds on an order (ERP_PLAN §3.3, A13): financial holds are placed by Finance / admin and released by Finance / admin / dispatcher (OMS-11). */
 final class HoldController extends Controller
 {
     public function store(Request $request, Order $order, OrderHoldService $holds): RedirectResponse
     {
         $data = $request->validate(['hold_type' => ['required', Rule::in(Enums::HOLD_TYPES)], 'reason' => ['required', 'string', 'max:255']]);
-        $this->authorizeHold($data['hold_type']);
+        $this->authorizeHold($data['hold_type'], false);
 
         $holds->place($order, $data['hold_type'], $data['reason'], $request->user()?->id);
 
@@ -29,7 +29,7 @@ final class HoldController extends Controller
         $data = $request->validate(['note' => ['required', 'string', 'max:255']]);
         $hold = $holds->activeFor($order)->firstWhere('id', $exception);
         abort_if($hold === null, 404);
-        $this->authorizeHold($hold->hold_type);
+        $this->authorizeHold($hold->hold_type, true);
 
         try {
             $holds->release($order, $exception, $data['note'], $request->user()->id);
@@ -40,9 +40,10 @@ final class HoldController extends Controller
         return back()->with('status', __('orders.holds.messages.released'));
     }
 
-    private function authorizeHold(string $holdType): void
+    /** A13: Finance / admin place a financial hold, Finance / admin / dispatcher release it; other holds are Coordinator tools. */
+    private function authorizeHold(string $holdType, bool $release): void
     {
-        $roles = $holdType === 'financial' ? OrderHoldService::FINANCE_ROLES : ['admin', 'customer_service', 'dispatcher', 'finance'];
-        abort_unless(auth()->user()?->hasAnyRole($roles), 403, __('orders.holds.messages.finance_only'));
+        $roles = OrderHoldService::rolesFor($holdType, $release);
+        abort_unless(auth()->user()?->hasAnyRole($roles), 403, __($release ? 'orders.holds.messages.release_roles' : 'orders.holds.messages.finance_only'));
     }
 }

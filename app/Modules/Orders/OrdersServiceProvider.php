@@ -4,8 +4,12 @@ namespace App\Modules\Orders;
 
 use App\Modules\Orders\Consumers\AsnPutawayCompletedConsumer;
 use App\Modules\Orders\Consumers\DeliveryPodCapturedConsumer;
+use App\Modules\Orders\Consumers\OutboundDispatchedConsumer;
+use App\Modules\Orders\Consumers\OutboundPackedConsumer;
+use App\Modules\Orders\Consumers\ReturnInspectedConsumer;
 use App\Modules\Orders\Consumers\StockReservationFailedConsumer;
 use App\Modules\Orders\Consumers\StockReservedConsumer;
+use App\Modules\Orders\Consumers\TaskCompletedConsumer;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Services\AsnOrderService;
 use App\Modules\Orders\Services\SpreadsheetManifestParser;
@@ -34,6 +38,11 @@ class OrdersServiceProvider extends ServiceProvider
         $registry->register('stock.reservation_failed', StockReservationFailedConsumer::class);
         $registry->register('asn.putaway_completed', AsnPutawayCompletedConsumer::class);
         $registry->register('delivery.pod_captured', DeliveryPodCapturedConsumer::class);
+        // Block 2: Warehouse / Transport progress and the return chain drive the order status (§4.3 rule 6, enums.md §3 rules).
+        $registry->register('task.completed', TaskCompletedConsumer::class);
+        $registry->register('outbound.packed', OutboundPackedConsumer::class);
+        $registry->register('outbound.dispatched', OutboundDispatchedConsumer::class);
+        $registry->register('return.inspected', ReturnInspectedConsumer::class);
 
         $this->app->make(SearchRegistry::class)->register('orders', fn (string $q): array => Order::query()->with('client')
             ->where(fn ($w) => $w->where('order_no', 'like', "%{$q}%")->orWhere('external_ref', 'like', "%{$q}%")->orWhere('consignment_mark', 'like', "%{$q}%")->orWhere('fba_reference', 'like', "%{$q}%"))

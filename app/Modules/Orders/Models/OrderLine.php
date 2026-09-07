@@ -12,7 +12,7 @@ class OrderLine extends Model
         'order_id', 'description_cn', 'description_en', 'hs_code', 'material', 'usage', 'brand',
         'package_type', 'carton_qty', 'unit_qty', 'unit_price_cents', 'total_price_cents',
         'actual_weight_kg', 'length_mm', 'width_mm', 'height_mm', 'cbm', 'qty_shipped',
-        'qty_backordered', 'asn_line_id', 'stock_unit_ref',
+        'qty_backordered', 'asn_line_id', 'stock_unit_ref', 'original_order_line_id',
     ];
 
     protected function casts(): array
@@ -40,5 +40,11 @@ class OrderLine extends Model
     public function fulfilmentLines(): HasMany
     {
         return $this->hasMany(FulfilmentLine::class);
+    }
+
+    /** A11: the goods line of the original order this return line refers to. */
+    public function originalLine(): BelongsTo
+    {
+        return $this->belongsTo(OrderLine::class, 'original_order_line_id');
     }
 }

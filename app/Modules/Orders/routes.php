@@ -4,9 +4,11 @@ use App\Modules\Orders\Http\Controllers\BatchController;
 use App\Modules\Orders\Http\Controllers\ClientAddressController;
 use App\Modules\Orders\Http\Controllers\FulfilmentController;
 use App\Modules\Orders\Http\Controllers\HoldController;
+use App\Modules\Orders\Http\Controllers\OrderChangeController;
 use App\Modules\Orders\Http\Controllers\OrderController;
 use App\Modules\Orders\Http\Controllers\OrderImportController;
 use App\Modules\Orders\Http\Controllers\QueueController;
+use App\Modules\Orders\Http\Controllers\ReturnController;
 use Illuminate\Support\Facades\Route;
 
 // contracts/routes.md — every Orders route lives under /orders with the "orders." name prefix.
@@ -31,6 +33,10 @@ Route::prefix('orders')->name('orders.')->group(function () {
     Route::post('/{order}/tailgate', [OrderController::class, 'tailgate'])->name('tailgate');
     Route::post('/{order}/holds', [HoldController::class, 'store'])->name('holds.store');
     Route::post('/{order}/holds/{exception}/release', [HoldController::class, 'release'])->name('holds.release');
+    Route::post('/{order}/cancel', [OrderChangeController::class, 'cancel'])->name('cancel');
+    Route::post('/{order}/reduce', [OrderChangeController::class, 'reduce'])->name('reduce');
+    Route::post('/{order}/returns', [ReturnController::class, 'store'])->name('returns.store');
+    Route::post('/{order}/return-decision', [ReturnController::class, 'decide'])->name('returns.decide');
     Route::get('/{order}/fulfilments', [FulfilmentController::class, 'index'])->name('fulfilments.index');
     Route::get('/{order}', [OrderController::class, 'show'])->name('show');
     Route::patch('/{order}', [OrderController::class, 'update'])->name('update');
