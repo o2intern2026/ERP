@@ -1165,7 +1165,7 @@ WMS 事件 outbound.packed(带包裹实测重量/尺寸/件数)
 | B5c | ✅ 2026-09-07 · TransportOptionService + `CarrierAdapter`:Transdirect(报价 / 预订 / 追踪 / label)+ Manual 兜底 + own_fleet 固定费率方案;EIZ 按 B5e 结论一期 No-Go;无可用方案进 Manual Transport Exception | B5e, B5, A5 | MachShip 经 TD/EIZ 落地(采用);舍自建直连 |
 | B5d | ✅ 2026-09-07 · 方案选择:Recommended / Cheapest / Fastest 标记规则;客户门户确认或改选;Coordinator 代选 | B5c | Shippit 服务等级驱动(采用) |
 | B5b | ✅ 2026-09-07 · 班次编排(自派:有序停靠点、指派司机与车辆) | B5 | TransVirtual run = 车 + 停靠点 |
-| B6 | 自有 label 打印(自派用;第三方用平台 waybill) | B5 | TransVirtual 标签 |
+| B6 | ✅ 2026-09-07 · 自有 label 打印(每包裹一页 4×6 Code 128 标签);第三方打印并归档平台 waybill | B5 | TransVirtual 标签 |
 | B7 | 司机网页表单 + POD(签名 / 拍照 / 失败原因) | B5b | TransVirtual · CartonCloud 签收即闭环 |
 | B8 | 状态回写(API 自动 + 司机页)+ 异常列表 + POD 邮件 + `delivery.extra_charge` 事件 | B5c, B7 | TransVirtual 闭环 · MachShip 追踪 |
 | B9a | 成本记录:第三方自动取报价成本,自派人工填;每票毛利 | B5c | CargoWise Job 利润 |

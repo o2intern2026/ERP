@@ -7,6 +7,7 @@ use App\Modules\Transport\Http\Controllers\IndexController;
 use App\Modules\Transport\Http\Controllers\QuoteSelectionController;
 use App\Modules\Transport\Http\Controllers\RunStopController;
 use App\Modules\Transport\Http\Controllers\ShipmentController;
+use App\Modules\Transport\Http\Controllers\ShipmentLabelController;
 use Illuminate\Support\Facades\Route;
 
 // contracts/routes.md — Transport owns /transport/** and /driver/** (name prefix "transport.").
@@ -27,6 +28,9 @@ Route::prefix('transport')->name('transport.')->group(function () {
     Route::get('/{shipment}/consignment-note', ConsignmentNoteController::class)
         ->whereNumber('shipment')
         ->name('shipments.consignment-note');
+    Route::get('/{shipment}/label', ShipmentLabelController::class)
+        ->whereNumber('shipment')
+        ->name('shipments.label');
     Route::post('/{shipment}/quotes/{quote}/select', QuoteSelectionController::class)
         ->whereNumber(['shipment', 'quote'])
         ->name('shipments.quotes.select');

@@ -23,6 +23,13 @@
         <a role="button" href="{{ route('transport.shipments.consignment-note', $shipment) }}">
             {{ __('transport.consignment_note.download') }}
         </a>
+        @if ($shipment->selectedQuote !== null)
+            <a role="button" href="{{ route('transport.shipments.label', $shipment) }}">
+                {{ $shipment->selectedQuote->source === 'own_fleet'
+                    ? __('transport.labels.print_own')
+                    : __('transport.labels.print_waybill') }}
+            </a>
+        @endif
     </p>
 
     <h2>{{ __('transport.quotes.title') }}</h2>

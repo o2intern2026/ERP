@@ -6,6 +6,7 @@ use App\Modules\Transport\Adapters\ManualCarrierAdapter;
 use App\Modules\Transport\Adapters\OwnFleetCarrierAdapter;
 use App\Modules\Transport\Adapters\TransdirectAdapter;
 use App\Modules\Transport\Services\TransportOptionService;
+use App\Support\Contracts\DocumentService;
 use App\Support\Contracts\ExceptionService;
 use App\Support\Contracts\RateService;
 use App\Support\Contracts\TransportOptionService as TransportOptionServiceContract;
@@ -35,6 +36,13 @@ class TransportServiceProvider extends ServiceProvider
             $app->make(RateService::class),
             $app->make(ExceptionService::class),
             $app->make(Services\QuoteSelectionService::class),
+        ));
+
+        $this->app->singleton(Services\ShipmentLabelService::class, fn ($app) => new Services\ShipmentLabelService(
+            $app->make(Services\PackageManifest::class),
+            $app->make(Services\OwnFleetLabelPdf::class),
+            $app->make(DocumentService::class),
+            $app->tagged('transport.carrier-adapters'),
         ));
 
         if (! config('erp.use_fake_services')) {
