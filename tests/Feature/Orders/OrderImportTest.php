@@ -126,7 +126,7 @@ class OrderImportTest extends TestCase
         $this->actingAs($user)->post(route('orders.imports.confirm', $second), ['groups' => [$duplicate['key']]])->assertRedirect();
         $this->assertSame(1, Order::query()->count());
         $this->actingAs($user)->get(route('orders.imports.errors', $second))
-            ->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8')->assertSee('重复订单');
+            ->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8')->assertSee('已有相同订单');
     }
 
     private function manifest(): string

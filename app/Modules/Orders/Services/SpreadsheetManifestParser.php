@@ -159,10 +159,11 @@ final class SpreadsheetManifestParser implements ManifestParser
         foreach ($sheet->children($namespace)->sheetData->row as $row) {
             $values = [];
             foreach ($row->children($namespace)->c as $cell) {
-                $reference = (string) $cell['r'];
+                $attributes = $cell->attributes();
+                $reference = (string) $attributes->r;
                 preg_match('/^[A-Z]+/', $reference, $match);
                 $index = $this->columnIndex($match[0] ?? 'A');
-                $type = (string) $cell['t'];
+                $type = (string) $attributes->t;
 
                 if ($type === 'inlineStr') {
                     $parts = $cell->xpath('.//*[local-name()="t"]') ?: [];
