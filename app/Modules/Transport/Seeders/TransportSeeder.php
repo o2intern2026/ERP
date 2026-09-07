@@ -15,6 +15,7 @@ class TransportSeeder extends Seeder
                 ['source' => 'own_fleet', 'service_level' => 'standard', 'default_eta_days' => 1],
             ],
             'TRANSDIRECT' => [
+                ['source' => 'manual', 'service_level' => 'standard', 'default_eta_days' => 3],
                 ['source' => 'transdirect', 'service_level' => 'standard', 'default_eta_days' => 3],
                 ['source' => 'transdirect', 'service_level' => 'express', 'default_eta_days' => 1],
                 ['source' => 'transdirect', 'service_level' => 'same_day', 'default_eta_days' => 0],

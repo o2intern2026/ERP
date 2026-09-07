@@ -1,11 +1,13 @@
 <?php
 
+use App\Modules\Transport\Http\Controllers\CarrierInvoiceController;
 use App\Modules\Transport\Http\Controllers\CarrierPodController;
 use App\Modules\Transport\Http\Controllers\ConsignmentNoteController;
 use App\Modules\Transport\Http\Controllers\DeliveryRunController;
 use App\Modules\Transport\Http\Controllers\DriverController;
 use App\Modules\Transport\Http\Controllers\ExtraChargeController;
 use App\Modules\Transport\Http\Controllers\IndexController;
+use App\Modules\Transport\Http\Controllers\ManualQuoteController;
 use App\Modules\Transport\Http\Controllers\OrderMarginController;
 use App\Modules\Transport\Http\Controllers\OwnFleetCostController;
 use App\Modules\Transport\Http\Controllers\QuoteSelectionController;
@@ -20,6 +22,14 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('transport')->name('transport.')->group(function () {
     Route::get('/', IndexController::class)->name('index');
     Route::get('/runs', [DeliveryRunController::class, 'index'])->name('runs.index');
+    Route::get('/carrier-invoices', [CarrierInvoiceController::class, 'index'])->name('carrier-invoices.index');
+    Route::post('/carrier-invoices', [CarrierInvoiceController::class, 'store'])->name('carrier-invoices.store');
+    Route::get('/carrier-invoices/{carrierInvoice}', [CarrierInvoiceController::class, 'show'])
+        ->whereNumber('carrierInvoice')
+        ->name('carrier-invoices.show');
+    Route::get('/carrier-invoices/{carrierInvoice}/differences.csv', [CarrierInvoiceController::class, 'exportDifferences'])
+        ->whereNumber('carrierInvoice')
+        ->name('carrier-invoices.differences');
     Route::get('/runs/create', [DeliveryRunController::class, 'create'])->name('runs.create');
     Route::post('/runs', [DeliveryRunController::class, 'store'])->name('runs.store');
     Route::get('/runs/{deliveryRun}', [DeliveryRunController::class, 'show'])
@@ -49,6 +59,9 @@ Route::prefix('transport')->name('transport.')->group(function () {
     Route::post('/{shipment}/book', ShipmentBookingController::class)
         ->whereNumber('shipment')
         ->name('shipments.book');
+    Route::post('/{shipment}/quotes/manual', ManualQuoteController::class)
+        ->whereNumber('shipment')
+        ->name('shipments.quotes.manual');
     Route::post('/{shipment}/own-fleet-cost', OwnFleetCostController::class)
         ->whereNumber('shipment')
         ->name('shipments.own-fleet-cost.store');

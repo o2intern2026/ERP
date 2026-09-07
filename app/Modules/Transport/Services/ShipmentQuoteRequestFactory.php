@@ -95,7 +95,7 @@ class ShipmentQuoteRequestFactory
             'type' => 'business',
         ];
 
-        return $this->completeParty($sender) ? $sender : null;
+        return trim((string) $sender['address']) !== '' && trim((string) $sender['state']) !== '' ? $sender : null;
     }
 
     /** @return list<array{description:string, qty:int, weight_kg:float, length_mm:int, width_mm:int, height_mm:int}> */

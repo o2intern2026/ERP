@@ -53,6 +53,35 @@
         </p>
     @endif
 
+    @if (in_array($shipment->status, ['quoting', 'quoted'], true) && $manualServices->isNotEmpty())
+        <details open>
+            <summary>{{ __('transport.manual_quote.title') }}</summary>
+            <form method="post" action="{{ route('transport.shipments.quotes.manual', $shipment) }}">
+                @csrf
+                <label>
+                    {{ __('transport.manual_quote.carrier_service') }}
+                    <select name="carrier_service_id" required>
+                        @foreach ($manualServices as $service)
+                            <option value="{{ $service->id }}">{{ $service->carrier->name }} — {{ __('transport.service_levels.'.$service->service_level) }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label>
+                    {{ __('transport.manual_quote.stage') }}
+                    <select name="quote_stage" required>
+                        @foreach (['preliminary', 'final'] as $stage)
+                            <option value="{{ $stage }}" @selected(old('quote_stage', 'final') === $stage)>{{ __('transport.quote_stages.'.$stage) }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label>{{ __('transport.manual_quote.cost_cents') }}<input type="number" name="cost_cents" min="1" step="1" value="{{ old('cost_cents') }}" required></label>
+                <label>{{ __('transport.manual_quote.customer_price_cents') }}<input type="number" name="customer_price_cents" min="1" step="1" value="{{ old('customer_price_cents') }}" required></label>
+                <label>{{ __('transport.manual_quote.eta_days') }}<input type="number" name="eta_days" min="0" step="1" value="{{ old('eta_days', 3) }}" required></label>
+                <button type="submit">{{ __('transport.manual_quote.submit') }}</button>
+            </form>
+        </details>
+    @endif
+
     @if ($shipment->selectedQuote?->source === 'own_fleet' && in_array($shipment->status, ['booked', 'dispatched', 'in_transit', 'delivered', 'failed'], true))
         <details>
             <summary>{{ __('transport.costs.enter_own_fleet') }}</summary>

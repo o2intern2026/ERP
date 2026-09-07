@@ -32,6 +32,8 @@ final class TransportEnums
 
     public const TRACKING_SOURCES = ['api', 'driver', 'manual'];
 
+    public const CARRIER_INVOICE_STATUSES = ['received', 'matched', 'disputed', 'paid'];
+
     /** @return list<string> */
     public static function shipmentStatuses(string $shipmentType): array
     {

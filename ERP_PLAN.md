@@ -1169,7 +1169,7 @@ WMS 事件 outbound.packed(带包裹实测重量/尺寸/件数)
 | B7 | ✅ 2026-09-07 · 司机手机网页显示今日停靠点与尾板提示;签名 + 照片生成并归档 POD PDF;失败原因按尝试记录;发布 `delivery.pod_captured` / `delivery.failed` | B5b | TransVirtual · CartonCloud 签收即闭环 |
 | B8 | ✅ 2026-09-07 · Transdirect 每 30 分钟轮询并幂等记录轨迹;API / 司机页推进状态;失败与延误进入统一异常中心并可创建重派 shipment;自派与第三方 POD 邮件;`delivery.extra_charge` 事件 | B5c, B7 | TransVirtual 闭环 · MachShip 追踪 |
 | B9a | ✅ 2026-09-07 · `carrier_costs` + 最终方案预订:第三方自动锁定报价成本,自有车队编入班次即预订并由员工填写实际成本;运输单与订单运输利润页显示“收 − 付 = 毛利”;客户端在数据层不可查询成本 | B5c | CargoWise Job 利润 |
-| B9b | 承运商账单对账(导入 + 与报价成本比对) | B9a | MachShip 运费对账 |
+| B9b | ✅ 2026-09-07 · 承运商账单 CSV 导入，按 tracking number 与报价成本逐票比对，更新实际成本并导出差异 | B9a | MachShip 运费对账 |
 
 ## 5.6 每个任务满足哪条需求
 
