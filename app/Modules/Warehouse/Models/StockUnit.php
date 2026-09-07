@@ -6,6 +6,8 @@ use App\Support\Tenancy\BelongsToClient;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
  * Stock unit = client + goods line + packaging unit + location (ERP_PLAN §4.2). Quantities are cartons; a pallet unit
@@ -15,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class StockUnit extends Model
 {
     use BelongsToClient;
+    use LogsActivity;
 
     protected $fillable = [
         'client_id', 'job_id', 'asn_line_id', 'warehouse_id', 'unit_type', 'label_code', 'location_id',
@@ -64,5 +67,10 @@ class StockUnit extends Model
     public function isAllocatable(): bool
     {
         return $this->putaway_completed && $this->condition === 'good';
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()->logOnly(['condition', 'condition_reason', 'location_id', 'pallet_class', 'pallet_source', 'warehouse_id'])->logOnlyDirty()->dontSubmitEmptyLogs();
     }
 }

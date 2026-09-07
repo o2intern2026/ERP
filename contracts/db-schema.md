@@ -20,6 +20,10 @@ Conventions: `job_id` on every business record (§0.2 rule 1); `client_id` on ev
 | `documents` | id, type, related_type, related_id, job_id, client_id, client_visible (bool), storage_path, original_name, mime, size_bytes, uploaded_by, timestamps (§2.4 A29) |
 | `outbox_events` | id, event_id (uuid, unique), event_name, event_version, correlation_id, job_id, client_id, payload (json), status, attempts, available_at, published_at, last_error, created_at (§0.2 rule 4, A31) |
 | `consumed_events` | id, event_id, consumer, consumed_at; unique (event_id, consumer) |
+| `approvals` | id, type (contracts/enums.md approvals.type), subject_type, subject_id, client_id, job_id, requested_by, request_note, payload (json), status (pending | approved | rejected | cancelled), decided_by, decided_at, decision_note, timestamps — A19, added M6-prep |
+| `webhook_endpoints` | id, name, url, secret, events (json list or ["*"]), active, created_by, timestamps — A23 |
+| `webhook_deliveries` | id, endpoint_id, event_id, event_name, status (pending | delivered | failed), attempts, response_code, last_error, delivered_at, created_at; unique (endpoint_id, event_id) — A23 |
+| `activity_log` | spatie/laravel-activitylog default schema (log_name, description, subject, event, causer, properties json, batch_uuid) — A20; written automatically by models using LogsActivity |
 
 ## 2. MasterData (owner C) — §2.3 A2, §6.2, §3.3
 | table | columns |

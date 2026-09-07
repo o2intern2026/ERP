@@ -7,9 +7,13 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Client extends Model
 {
+    use LogsActivity;
+
     public const PAYMENT_TERMS_PATTERN = '/^(prepaid|eom|net_\d{1,3})$/';
 
     protected $fillable = [
@@ -51,5 +55,10 @@ class Client extends Model
     public function billsPerJob(): bool
     {
         return $this->invoice_mode === 'per_job';
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()->logFillable()->logOnlyDirty()->dontSubmitEmptyLogs();
     }
 }

@@ -203,15 +203,15 @@ jobs
 | A1 | ✅ M1 · 认证 + 8 角色 + 客户数据隔离 + 用户管理 | A0 | CartonCloud 隔离做在数据层(原样) |
 | A2 | ✅ M1 · 主数据:客户(ABN / 类型 / invoice_mode(per_job / monthly)/ payment_terms(prepaid / eom / net_N)/ default_markup_percent / dispatch_cutoff_time / standard_rate_card_id)、供应商、承运商主数据(仓库 / 库位归 WMS,在 Warehouse 模块维护) | A1 | CargoWise 主数据一处维护 |
 | A27 | ✅ M1 · Job 主线:jobs 表 + JobService + 各模块 job_id 外键 + Job 工作台骨架 | A2 | CargoWise Job(原样) |
-| A28 | 异常中心:统一 exceptions 表与列表;各模块异常接入 | A27 | CargoWise 异常统一入口 |
-| A29 | 文档中心:统一 documents 表、上传组件、客户可见性 | A27 | CargoWise 单据管理 |
-| A30 | 全局搜索(Job / 订单 / 唛头 / 柜号 / tracking / 发票) | A27 | — |
+| A28 | ✅ c5 · 异常中心:统一 exceptions 表与列表;各模块异常接入 | A27 | CargoWise 异常统一入口 |
+| A29 | ✅ c5 · 文档中心:统一 documents 表、上传组件、客户可见性 | A27 | CargoWise 单据管理 |
+| A30 | ✅ c5 · 全局搜索(Job / 订单 / 唛头 / 柜号 / tracking / 发票) | A27 | — |
 | A31 | ✅ M1 · 集成监控与事件可靠性:event_id / inbox / 幂等 / 重试 / 失败队列 / 告警(与 B3 共建) | A0, B3 | Extensiv Integration Manager |
-| A19 | 审批中心(统一入口) | A1 | Extensiv 审批 |
-| A20 | 审计日志(activitylog + 查询页) | A1 | CargoWise 留痕 |
+| A19 | ✅ c5 · 审批中心(统一入口) | A1 | Extensiv 审批 |
+| A20 | ✅ c5 · 审计日志(activitylog + 查询页) | A1 | CargoWise 留痕 |
 | A21 | 报表:老板视角 + 客户视角 | 多数 | MachShip 绩效 · Extensiv 货主视角(舍报表构建器) |
 | A22 | 定时客户报表(邮件) | A21 | Extensiv 定时报表 |
-| A23 | Webhooks 事件推送 | A0 | Extensiv 集成接口(留接口不做市场) |
+| A23 | ✅ c5 · Webhooks 事件推送 | A0 | Extensiv 集成接口(留接口不做市场) |
 
 > 门户(PLT-3)的订单部分在 §3 的 A9-p;库存与账单部分复用 WMS/Billing 页面的客户视图。
 
@@ -480,19 +480,19 @@ PRD 写的是给客户看的 6 步:`Received → Confirmed → In warehouse → 
 
 | # | 任务 | 依赖 | 对标 |
 |---|---|---|---|
-| A3 | 订单模型 + 状态机 + 列表/详情/时间线 + 手工建单 | A2 | Magaya 时间线 · CargoWise 单据主线 |
-| A4 | Excel 导入(唛头分组、行级报错、去重) | A3 | CartonCloud 乱格式接入 |
+| A3 | ✅ M3 · 订单模型 + 状态机 + 列表/详情/时间线 + 手工建单 | A2 | Magaya 时间线 · CargoWise 单据主线 |
+| A4 | ✅ M3 · Excel 导入(唛头分组、行级报错、去重) | A3 | CartonCloud 乱格式接入 |
 | A4b | 订单 API 接入(接口预留) | A3 | Extensiv 统一接入 |
-| A7 | 在库校验(按货物行)+ 自动拆出可发部分 + 履约批次(记仓库) | A3, B1 | Extensiv 客户规则 |
+| A7 | ✅ M3 · 在库校验(按货物行)+ 自动拆出可发部分 + 履约批次(记仓库) | A3, B1 | Extensiv 客户规则 |
 | A7b | 客户报价单(customer_quotes)+ 初步估价:调 TransportOptionService 出初步方案与服务费预估,明细行存单 | A3, A5, B5c | CargoWise 报价 · Shippit 服务等级 |
 | A11 | 改单/取消权限 + 退货全链路(申请 → 运输 → 验收 → 财务决定) | A3, B1, B13 | CartonCloud 改单权限 · 退货验收 |
-| A11b | 纯运输订单 | A3 | CartonCloud 订单类型分离 |
+| A11b | ✅ M3 · 纯运输订单 | A3 | CartonCloud 订单类型分离 |
 | A9-p | 门户下单 + 门户查单 | A3, A1 | CargoWise Neo 客户工作台 |
 | A13 | 财务锁 / 放行(holds 记录;仅 Finance / Coordinator 人工置锁与放行,原因必填;锁预订 / 发运;不按收款状态自动触发) | A3 | 货代"付款后放货"(只取人工锁) |
-| A14 | 入库批次关联 | A3, B2 | CargoWise Job 归集 |
-| A15 | Coordinator 队列 | A3 | CartonCloud live queue |
-| A16 | 尾板车自动判定 | A3, A5 | TransVirtual · MachShip |
-| A17 | 客户收件地址簿 | A3 | CargoWise Neo · Magaya |
+| A14 | ✅ M3 · 入库批次关联 | A3, B2 | CargoWise Job 归集 |
+| A15 | ✅ M3 · Coordinator 队列 | A3 | CartonCloud live queue |
+| A16 | ✅ M3 · 尾板车自动判定 | A3, A5 | TransVirtual · MachShip |
+| A17 | ✅ M3 · 客户收件地址簿 | A3 | CargoWise Neo · Magaya |
 | A12 | PDF/邮件读单 | A3 | CartonCloud 自动录单 |
 
 ### 3.7.2 每个任务满足哪条需求
