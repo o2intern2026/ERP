@@ -1,11 +1,14 @@
 name: ci
+
 on:
   pull_request:
   push:
     branches: [main, 'block/**', 'fix/**']
+
 jobs:
   test:
     runs-on: ubuntu-latest
+
     services:
       mysql:
         image: mysql:8.0
@@ -16,21 +19,42 @@ jobs:
         options: >-
           --health-cmd "mysqladmin ping -proot"
           --health-interval 10s --health-timeout 5s --health-retries 10
+
+    env:
+      # Real environment variables win over .env (Dotenv is immutable), so .env.example placeholders are harmless.
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: erp_test
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      USE_FAKE_SERVICES: 'true'
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: mbstring, pdo_mysql, gd, zip
-      - name: Skip until Block 0 lands
-        id: check
-        run: |
-          if [ -f composer.json ]; then echo "has_app=true" >> "$GITHUB_OUTPUT"; else echo "has_app=false" >> "$GITHUB_OUTPUT"; fi
-      - if: steps.check.outputs.has_app == 'true'
-        run: composer install --no-interaction --prefer-dist
-      - if: steps.check.outputs.has_app == 'true'
-        run: cp .env.example .env && php artisan key:generate
-        env: { DB_HOST: 127.0.0.1, DB_DATABASE: erp_test, DB_USERNAME: root, DB_PASSWORD: root }
-      - if: steps.check.outputs.has_app == 'true'
-        run: php artisan migrate:fresh --seed --force && ./vendor/bin/pint --test && php artisan test
-        env: { DB_HOST: 127.0.0.1, DB_DATABASE: erp_test, DB_USERNAME: root, DB_PASSWORD: root }
+          extensions: mbstring, pdo_mysql, bcmath, gd, zip, intl
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+
+      - run: cp .env.example .env && php artisan key:generate
+
+      - name: Migrate and seed (MySQL 8, never SQLite)
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Code style
+        run: ./vendor/bin/pint --test
+
+      - name: Tests
+        run: php artisan test

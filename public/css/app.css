@@ -1,0 +1,38 @@
+/* Logistics ERP — the only project stylesheet (≤ 100 lines, ERP_PLAN §8.1). Pico.css does the rest. */
+:root {
+    --pico-font-size: 95%;
+    --erp-ok: #2e7d32;
+    --erp-warn: #ed6c02;
+    --erp-danger: #c62828;
+    --erp-muted: #6b7280;
+}
+
+nav.container ul li a { padding-inline: .5rem; }
+
+main.container { padding-block: 1rem 3rem; }
+
+/* Dense tables for lists (orders, stock, tasks, charges). */
+table.dense th, table.dense td { padding: .3rem .5rem; font-size: .9rem; white-space: nowrap; }
+table.dense td.num, table.dense th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Status badges: colour comes from a data-status attribute, never from hardcoded text. */
+.badge {
+    display: inline-block; padding: .1rem .5rem; border-radius: 999px;
+    font-size: .8rem; line-height: 1.4; background: var(--pico-muted-border-color); color: inherit;
+}
+.badge[data-tone="ok"] { background: var(--erp-ok); color: #fff; }
+.badge[data-tone="warn"] { background: var(--erp-warn); color: #fff; }
+.badge[data-tone="danger"] { background: var(--erp-danger); color: #fff; }
+.badge[data-tone="muted"] { background: var(--erp-muted); color: #fff; }
+
+/* Scan-gun friendly inputs: big, always visible, autofocus target (AGENTS.md "Every warehouse form accepts scan-gun input"). */
+input.scan { font-size: 1.25rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .05em; }
+
+/* Mobile driver / scanning pages. */
+@media (max-width: 640px) {
+    main.container { padding-inline: .75rem; }
+    button, [role="button"] { min-height: 3rem; }
+}
+
+.text-muted { color: var(--erp-muted); }
+.text-danger { color: var(--erp-danger); }

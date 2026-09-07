@@ -1,0 +1,92 @@
+# contracts/services.md — public Application Service signatures (law)
+
+Cross-module **synchronous** reads and writes go only through these interfaces (ERP_PLAN §0.2 rule 3); state changes still travel through events (`events.md`). The PHP interfaces in the frozen zone `app/Support/Contracts/` are the authoritative signatures; this file gives the semantics. Real implementations live in the owner module's `Services/` and are bound in that module's ServiceProvider at the checkpoint shown; until then `App\Support\Fakes\*` (bound by `FakeServicesProvider` when `USE_FAKE_SERVICES=true`) implements the same interface.
+
+| Interface (`App\Support\Contracts\…`) | Owner / seat | Real implementation | Fake (M0) |
+|---|---|---|---|
+| `StockService` | Warehouse / C | M2 | `FakeStockService` — unseeded asn_line = 100 cartons on hand; `seed()` for tests |
+| `OrderService` | Orders / X1 | M3 | `FakeOrderService` — one order per ASN, `ORD-FAKE-<asn>-0001` |
+| `TransportOptionService` | Transport / X2 | M5 | `FakeTransportOptionService` — own_fleet $75, transdirect / eiz at cost × 1.20 |
+| `RateService` | Billing / C | M6 | `FakeRateService` — Edward card v1 for every client; `missing_rate` for codes without a row; `withRate()` for tests |
+| `JobService` | Platform / C | M1 | `FakeJobService` — `JOB-YYYYMMDD-NNNN` |
+| `ExceptionService` | Platform / C | M1 | — (real one ships before any consumer exists) |
+| `DocumentService` | Platform / C | M1 skeleton, M6 full | — |
+| `ManifestParser` | Orders / X1, shared with Warehouse B2b | M3 | `FakeManifestParser` — two fixed rows |
+
+## Conventions
+- ids are `int`; money is integer cents (`App\Support\Money` at the edges); dimensions mm; weights kg; timestamps ISO-8601 strings with offset. Phase 1 uses typed arrays (shapes in PHPDoc) rather than DTO classes.
+- Business outcomes are **returned, never thrown**: shortfall, missing rate, POA, blocked groups. Throw only for programmer errors (unknown id → `ModelNotFoundException`, bad enum → `InvalidArgumentException`).
+- Every method that writes runs inside its own `DB::transaction()` and publishes its events through `OutboxPublisher` in that transaction.
+- Changing a signature is a contract change (`CHANGE_REQUESTS.md`). Seat C may add optional trailing parameters or additive array keys at a checkpoint; nothing is removed or renamed inside a phase.
+
+## 1. `StockService` (Warehouse, C) — ERP_PLAN §4.3 rules 1, 2, 4, 10; §8.2
+```php
+onHand(int $clientId, int $asnLineId): array{qty_on_hand:int, qty_reserved:int, qty_available:int}
+reserve(int $clientId, int $orderId, array $lines): array   // lines: list<{order_line_id, asn_line_id, qty}>
+release(int $orderId, ?int $orderLineId = null, string $reason = 'order_cancelled'): int
+```
+- Quantities are cartons; a pallet unit counts the cartons it holds. Only `putaway`-completed, `condition = good` stock is on hand; `qty_available = qty_on_hand − qty_reserved`.
+- `reserve` row-locks the candidate `stock_units` (FIFO by `received_at`), writes `stock_reservations`, and returns per line `{order_line_id, asn_line_id, requested_qty, reserved_qty, shortfall_qty, reservation_ids}`. Partial reservation is normal, not an error. Emits `stock.reserved` when every line is fully reserved, otherwise `stock.reservation_failed` (with the shortfalls).
+- `release` marks active reservations `released`, writes `stock_ledger` (`movement_type = release`) and emits `stock.released`; returns cartons released.
+
+## 2. `OrderService` (Orders, X1) — §3.7.2 A4, §4.6 B2c
+```php
+createFromAsn(int $asnId, string $groupingKey = 'mark_address_fba'): array{orders: list<{order_id, order_no, asn_line_ids}>, blocked: list<{consignment_mark, reason, asn_line_ids}>}
+```
+- Groups the ASN's received lines by consignment_mark + deliver_to (name, address, state, postcode) + fba_reference; one `from_stock` order per group, `source = manual` (creator is the coordinator), joined to the ASN's Job; order lines point at `asn_line_id` and quantities use received (not expected) cartons.
+- Lines already generated (`asn_lines.order_line_id` set) are skipped. A group whose lines disagree on address or FBA reference is not created and is returned in `blocked`.
+- Same code path as manual / Excel / portal / API creation; the only public entry point for creating orders from other modules.
+
+## 3. `TransportOptionService` (Transport, X2) — §5.3, §5.6 B5c/B5d
+```php
+quote(int $shipmentId, string $stage): list<{transport_quote_id, carrier_id, source, service_level, cost_cents, customer_price_cents, eta_days, is_recommended, is_cheapest, is_fastest, quoted_at, expires_at}>
+```
+- `stage = preliminary` prices declared packages at order confirmation; `stage = final` prices measured packages after `outbound.packed` (pure-transport orders: declared packages are final).
+- Asks every active `CarrierAdapter` (`own_fleet`, `transdirect`, `eiz`, `manual`), writes `transport_quotes` rows (`quote_stage`, `status = quoted`) and returns them. Customer price: own_fleet = fixed rate item; third party = `cost × (1 + markup)` where markup comes from the client's rate item (carrier × service level override) else `clients.default_markup_percent`.
+- Flags (§5.6 B5d): cheapest = lowest customer price; fastest = lowest eta; recommended = cheapest among options meeting the requested date, with the `own_fleet_preference_percent` tie-break. Final vs preliminary variance above `variance_tolerance_percent` (default 10) returns quotes but leaves the shipment in `quoted` awaiting re-confirmation.
+- Selection and confirmation are Transport pages, not this service; confirmation emits `shipment.quote_confirmed`.
+
+## 4. `RateService` (Billing, C) — §6.3, §6.4, §6.7 A5/A6a
+```php
+price(int $clientId, string $chargeCode, float $qty, array $context = [], ?DateTimeInterface $at = null): array
+thresholds(int $clientId, string $chargeCode): ?array
+suggestPalletClass(int $clientId, int $lengthMm, int $widthMm, int $heightMm, float $weightKg): ?string
+```
+- `price` returns `{charge_code, rate_item_id, rate_card_id, rate_card_version, uom, qty, rate_cents, amount_cents, min_charge_applied, is_poa, missing_rate, calculation_snapshot}`. Lookup: client's active card at `$at` (default now) → the client's bound standard card → `missing_rate = true` (amount null, **never 0**). `is_poa = true` when the rate item is POA or a threshold is exceeded (`max_gross_weight_kg`, `max_line_count`). `min_billable_qty` floors the quantity and sets `min_charge_applied`; `min_charge_cents` floors the amount. `cost_plus` items need `context.cost_cents`.
+- `context` keys: `pallet_class, weight_kg, zone, carrier_id, service_level, cost_cents, container_size, unpack_mode, line_count, gross_weight_kg, pallet_source, is_urgent` (`charge-codes.md` says which code reads which).
+- `thresholds` returns the effective rate item's `threshold_json` (client card → standard card), e.g. `TR-TAILGATE → {tailgate_weight_kg: 25}` for Orders' tailgate rule and `WH-DEVAN-20-LOOSE → {max_line_count: 20}` for Warehouse.
+- `suggestPalletClass` implements §4.8 from the client's storage items: standard → oversize_high → oversize_wide; `weight ≥ min_weight_kg` → `overweight`; `null` = beyond every band (POA, `needs_review`). The receiver may override with a reason.
+
+## 5. `JobService` (Platform, C) — §1.6, §2.4 A27
+```php
+create(int $clientId, string $jobType, array $attributes = []): array{job_id:int, job_no:string}
+summarize(int $jobId): array{job_id, job_no, client_id, job_type, operational_status, revenue_status, cost_status, estimated_revenue_cents, actual_revenue_cents, estimated_cost_cents, actual_cost_cents, margin_cents, margin_is_estimate}
+```
+- The only way to create a Job (`jobs` is a shared platform table). `job_no` = `JOB-YYYYMMDD-NNNN`. `attributes`: `reference`, `notes`.
+- `summarize` derives the three statuses from child records and recomputes the cached money (§1.6): revenue from `charges` / `invoices` / `payments`, cost from `carrier_costs`; `margin_is_estimate` until `cost_status = confirmed`. Cost and margin are never returned to client-role callers (server-side, M1).
+
+## 6. `ExceptionService` (Platform, C) — §2.4 A28, §3.3 holds
+```php
+raise(string $type, string $sourceModule, array $attributes = []): int
+resolve(int $exceptionId, int $resolvedBy, ?string $note = null): void
+```
+- The only writer of `exceptions`. `type` / `source_module` from `enums.md`; `attributes`: `job_id, client_id, source_type, source_id, order_id, hold_type, message, owner_id, created_by`.
+- Order holds are `type = hold` + `hold_type`; releasing a hold = `resolve` (records `released_by/at`, `release_reason` = note). Only an active `financial` hold blocks booking / dispatch.
+
+## 7. `DocumentService` (Platform, C) — §2.4 A29
+```php
+attach(string $type, string $relatedType, int $relatedId, string $storagePath, array $attributes = []): int
+```
+- The only writer of `documents`. `type` from `enums.md`; `relatedType` is the owning record (`shipment`, `order`, `asn`, `invoice`, `return_receipt`, …); `attributes`: `job_id, client_id, client_visible, original_name, mime, size_bytes, uploaded_by`. Portal visibility is decided here (`client_visible`), never in a view.
+
+## 8. `ManifestParser` (Orders, X1; used by Warehouse B2b) — §3.6, §3.7.2 A4, §4.6 B2b
+```php
+parse(string $path): array{rows: list<Row>, errors: list<{row, column, message}>, warnings: list<{row, column, message}>}
+```
+- One `Row` per goods line of the real 《需派送货物清单》: `row, consignment_mark, description_cn, description_en, hs_code, material, usage, brand, package_type, carton_qty, unit_qty, unit_price_cents, total_price_cents, actual_weight_kg, length_mm, width_mm, height_mm, cbm, deliver_to_name, deliver_to_phone, deliver_to_address, deliver_to_state, deliver_to_postcode, fba_reference`.
+- Hard errors (missing mark, non-numeric quantity) exclude the row; the pre-check "same consignment_mark, different deliver_to / fba_reference" is a **warning** (B2b lets the forwarder fix the list before the container lands; A4 blocks the group at order creation). Import bookkeeping (`asn_imports` / `order_imports`) belongs to the caller, not the parser.
+
+## Fakes: rules of use
+- `USE_FAKE_SERVICES=true` in `phpunit.xml` and CI; a seat turns it on locally while its dependency block is unmerged. The flag must be `false` in production.
+- Fakes hold state in memory per process; they are singletons for a request / test. Never write a test that depends on a Fake behaving like the database.
+- When the real implementation lands, its Feature tests must pass the same contract assertions as `tests/Feature/Platform/FakeServicesTest.php`.
