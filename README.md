@@ -52,6 +52,10 @@ git push origin block/<your-current-block>
 
 `USE_FAKE_SERVICES=true` in `.env` binds `app/Support/Fakes` (contracts/services.md) while the block you depend on is unmerged; tests and CI always run with it on.
 
+## Demo logins (after `migrate:fresh --seed`, local only)
+
+One user per role, password `password` (override with `SEED_DEMO_PASSWORD` in `.env`): `admin@erp.local`, `customer-service@erp.local`, `dispatcher@erp.local`, `warehouse-supervisor@erp.local`, `warehouse-operator@erp.local`, `transport-operator@erp.local`, `finance@erp.local`, `client@erp.local` (bound to client `EDWARD`; sees only /portal). Admin-only pages: /admin/users, /admin/integration. Master data (/admin/clients|suppliers|carriers): admin, customer service, finance.
+
 ## Layout
 
 ```

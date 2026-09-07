@@ -11,6 +11,7 @@
 <body>
     @include('layouts.nav')
     <main class="container">
+        @include('layouts.partials.flash')
         @yield('content')
     </main>
     @stack('scripts')

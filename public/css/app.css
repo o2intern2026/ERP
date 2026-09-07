@@ -36,3 +36,11 @@ input.scan { font-size: 1.25rem; font-family: ui-monospace, SFMono-Regular, Menl
 
 .text-muted { color: var(--erp-muted); }
 .text-danger { color: var(--erp-danger); }
+
+/* Flash messages and inline forms (nav logout). */
+.flash { padding: .6rem 1rem; margin-bottom: 1rem; border-left: 4px solid var(--erp-ok); }
+.flash-error { border-left-color: var(--erp-danger); }
+.flash ul { margin: 0; padding-left: 1.2rem; }
+form.inline { display: inline; margin: 0; }
+form.inline button { padding: .2rem .7rem; margin: 0; width: auto; }
+.login-card { max-width: 26rem; margin: 3rem auto; }

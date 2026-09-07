@@ -19,9 +19,9 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([
+        $this->call([MasterDataSeeder::class, // C (clients first: Platform demo users reference them)
+
             PlatformSeeder::class,     // C
-            MasterDataSeeder::class, // C
             WarehouseSeeder::class,   // C
             BillingSeeder::class,       // C
             OrdersSeeder::class,         // X1
