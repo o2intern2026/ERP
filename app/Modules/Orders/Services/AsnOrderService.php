@@ -42,6 +42,7 @@ final class AsnOrderService implements OrderService
                     'reason' => $mark === '' ? 'missing_consignment_mark' : ($signatures->count() > 1 ? 'inconsistent_delivery_or_fba' : 'incomplete_delivery'),
                     'asn_line_ids' => $ids,
                 ];
+
                 continue;
             }
 

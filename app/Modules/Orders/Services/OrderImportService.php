@@ -102,6 +102,7 @@ final class OrderImportService
                     foreach ($group['row_numbers'] as $row) {
                         $issues[] = ['row' => $row, 'column' => 'consignment_mark', 'message' => $group['message']];
                     }
+
                     continue;
                 }
 
