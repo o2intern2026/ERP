@@ -1,0 +1,85 @@
+<?php
+
+namespace App\Modules\Orders\Services;
+
+use App\Modules\Orders\Models\Order;
+use App\Modules\Orders\Models\OrderEvent;
+use App\Modules\Platform\Models\Job;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
+
+final class OrderCreationService
+{
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    public function createManual(array $attributes, ?int $actorId): Order
+    {
+        $job = Job::query()->findOrFail((int) $attributes['job_id']);
+
+        if ((int) $job->client_id !== (int) $attributes['client_id']) {
+            throw new InvalidArgumentException('The selected Job does not belong to the selected client.');
+        }
+
+        return DB::transaction(function () use ($attributes, $actorId): Order {
+            $order = Order::query()->create([
+                ...Arr::only($attributes, [
+                    'client_id', 'job_id', 'order_type', 'external_ref', 'consignment_mark', 'fba_reference',
+                    'pickup_address', 'deliver_to_name', 'deliver_to_phone', 'deliver_to_address',
+                    'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'deliver_to_address_type',
+                    'requested_date', 'service_level',
+                ]),
+                'order_no' => $this->nextOrderNo(),
+                'source' => 'manual',
+                'operational_status' => 'received',
+                'fulfilment_status' => 'unfulfilled',
+                'billing_status' => 'unbilled',
+                'tailgate_required' => false,
+                'created_by' => $actorId,
+            ]);
+
+            foreach ($attributes['lines'] as $line) {
+                $order->lines()->create(Arr::only($line, [
+                    'description_cn', 'description_en', 'hs_code', 'material', 'usage', 'brand', 'package_type',
+                    'carton_qty', 'unit_qty', 'unit_price_cents', 'total_price_cents', 'actual_weight_kg',
+                    'length_mm', 'width_mm', 'height_mm', 'cbm', 'asn_line_id', 'stock_unit_ref',
+                ]));
+            }
+
+            foreach ($attributes['declared_packages'] ?? [] as $package) {
+                $order->declaredPackages()->create(Arr::only($package, [
+                    'package_type', 'qty', 'weight_kg', 'length_mm', 'width_mm', 'height_mm',
+                ]));
+            }
+
+            OrderEvent::query()->create([
+                'order_id' => $order->id,
+                'dimension' => 'operational',
+                'from_status' => null,
+                'to_status' => 'received',
+                'actor_type' => $actorId === null ? 'system' : 'user',
+                'actor_id' => $actorId,
+                'note' => null,
+                'created_at' => now(),
+            ]);
+
+            return $order->load('lines', 'declaredPackages', 'events');
+        });
+    }
+
+    /** ORD-YYYYMMDD-NNNN, sequence per day under the same transaction as creation. */
+    private function nextOrderNo(): string
+    {
+        $prefix = 'ORD-'.now()->format('Ymd').'-';
+        $last = Order::query()->withoutGlobalScopes()
+            ->where('order_no', 'like', $prefix.'%')
+            ->lockForUpdate()
+            ->orderByDesc('order_no')
+            ->value('order_no');
+
+        $sequence = $last ? ((int) substr((string) $last, -4)) + 1 : 1;
+
+        return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+    }
+}
