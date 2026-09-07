@@ -2,8 +2,10 @@
 
 namespace App\Modules\Billing\Models;
 
+use App\Modules\MasterData\Models\Client;
 use App\Support\Tenancy\BelongsToClient;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /** A18 / FIN-6: a customer quote (preliminary or final) built from charge codes; X1's A7b shares it. */
@@ -21,5 +23,10 @@ class CustomerQuote extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(CustomerQuoteLine::class);
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
     }
 }

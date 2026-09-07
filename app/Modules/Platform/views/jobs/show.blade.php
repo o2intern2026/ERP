@@ -44,4 +44,20 @@
         <p>{{ $job->notes }}</p>
     @endif
     <p class="text-muted">{{ __('platform.jobs.created_at') }}: {{ $job->created_at->format('Y-m-d H:i') }} · {{ $job->creator?->name }}</p>
+    @role('admin|finance|customer_service|dispatcher')
+        @php($jobCharges = \App\Modules\Billing\Models\Charge::query()->with('chargeCode')->where('job_id', $job->id)->where('status', '!=', 'reversed')->orderBy('id')->get())
+        @if ($jobCharges->isNotEmpty())
+            <h2>{{ __('billing.job_panel.title') }}</h2>
+            <table class="dense">
+                <thead><tr><th>{{ __('billing.charges.date') }}</th><th>{{ __('billing.charges.code') }}</th><th class="num">{{ __('billing.charges.qty') }}</th><th class="num">{{ __('billing.charges.amount') }}</th><th>{{ __('billing.charges.status') }}</th></tr></thead>
+                <tbody>
+                @foreach ($jobCharges as $c)
+                    <tr><td>{{ $c->charge_date->format('Y-m-d') }}</td><td><code>{{ $c->chargeCode->code }}</code> <small class="text-muted">{{ $c->chargeCode->customer_description }}</small></td><td class="num">{{ rtrim(rtrim(number_format($c->qty, 3), '0'), '.') }}</td><td class="num">{{ number_format($c->amount_cents / 100, 2) }}</td><td>{{ __('billing.charge_statuses.'.$c->status) }}</td></tr>
+                @endforeach
+                </tbody>
+                <tfoot><tr><td colspan="3"><strong>{{ __('billing.job_panel.revenue') }}</strong> · <small class="text-muted">{{ __('billing.job_panel.pending_cost') }}</small></td><td class="num"><strong>{{ number_format($jobCharges->sum('amount_cents') / 100, 2) }}</strong></td><td><a href="{{ route('billing.index', ['job_no' => $job->job_no]) }}">{{ __('billing.job_panel.open') }}</a></td></tr></tfoot>
+            </table>
+        @endif
+    @endrole
+
 @endsection

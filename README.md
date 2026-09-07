@@ -60,6 +60,10 @@ One user per role, password `password` (override with `SEED_DEMO_PASSWORD` in `.
 
 `/warehouse/asns` → 新建 ASN(整柜填柜号)→ 导入清单或手工加货物行 → 每行「收货」(实收 / 破损 / 托盘尺寸重量 / 托盘来源;差异自动进异常)→ `/warehouse/putaway` 扫库位码上架 → `/warehouse` 查库存与流水。拆柜 / 人工时等作业在 `/warehouse/tasks` 建任务并完成,完成即发 `task.completed` 给计费。`php artisan stock:reconcile` 校验流水与余额。
 
+## Billing demo flow (c4)
+
+`php artisan db:seed` loads the 44 charge codes, their trigger rules and Edward's standard rate card (34 rows, ex GST) and binds every client to it. Warehouse events (devanning / putaway / tasks) create charges automatically; `/billing` lists them, `/billing/unbilled` drafts invoices per Job, per month or per storage week, `/billing/invoices/{id}` issues them (PDF, GST, due date from the client's payment terms) and records payments; `/billing/receivables` shows open balances; `/billing/rate-cards` versions prices (second-person approval); `/billing/quotes` prices one-off work. Cron: `billing:storage-weekly` (Mon 01:00), `billing:flag-overdue` (daily).
+
 ## Layout
 
 ```

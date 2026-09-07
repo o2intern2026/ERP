@@ -29,7 +29,7 @@ final class CreditNoteService
 
         return DB::transaction(function () use ($invoice, $lines, $reason, $by, $total): CreditNote {
             $note = CreditNote::query()->create([
-                'credit_note_no' => 'DRAFT-CN-'.now()->format('YmdHis').'-'.$invoice->id,
+                'credit_note_no' => 'DCN-'.now()->format('ymdHis').'-'.$invoice->id,
                 'invoice_id' => $invoice->id, 'job_id' => $invoice->jobs()->count() === 1 ? $invoice->jobs()->first()->id : null, 'client_id' => $invoice->client_id,
                 'reason' => $reason, 'amount_cents' => 0, 'gst_cents' => 0, 'status' => 'draft', 'created_by' => $by->id,
             ]);

@@ -157,7 +157,7 @@ final class InvoiceService
         return DB::transaction(function () use ($charges, $type, $from, $to): Invoice {
             $client = Client::query()->withoutGlobalScopes()->findOrFail($charges->first()->client_id);
             $invoice = Invoice::query()->create([
-                'invoice_no' => 'DRAFT-'.now()->format('YmdHis').'-'.$client->id,
+                'invoice_no' => 'DR-'.now()->format('ymdHis').'-'.$client->id,
                 'client_id' => $client->id, 'invoice_type' => $type,
                 'period_from' => $from?->toDateString(), 'period_to' => $to?->toDateString(),
                 'bill_to_name' => $client->name, 'bill_to_abn' => $client->abn, 'status' => 'draft', 'created_by' => auth()->id(),
