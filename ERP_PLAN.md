@@ -1589,7 +1589,7 @@ customer_quote_lines       charge_code, qty, uom, amount_cents, assumptions(拆�
 
 | 项 | 选择 | 理由 |
 |---|---|---|
-| 语言 / 框架 | **PHP 8.2 + Laravel 11** | 虚拟主机兼容性最好,零运维,生态完整 |
+| 语言 / 框架 | **PHP 8.2 + Laravel 12** | 虚拟主机兼容性最好,零运维,生态完整 |
 | 数据库 | **MySQL 8**(本地开发同样用 MySQL,不用 SQLite) | 与生产一致,避免方言差异;行锁与事务是库存预留与 Outbox 的前提 |
 | 前端 | **Blade 服务端渲染,无构建步骤** | 简洁、快、不做 UI;禁止 Vue / React / 打包器 |
 | CSS | **Pico.css(classless,CDN)+ 一个 ≤100 行的 app.css** | 表格表单自动有样式 |
@@ -1712,7 +1712,7 @@ php artisan test                                     # 绿了再开工
 ## 8.7 CLAUDE.md 模板(仓库根,英文)
 
 ```markdown
-# Project: Logistics ERP (Laravel 11 + Blade SSR + MySQL; virtual-server target: cron only, no daemons)
+# Project: Logistics ERP (Laravel 12 + Blade SSR + MySQL; virtual-server target: cron only, no daemons)
 
 ## Read first
 - ERP_PLAN.md is the single plan. Read §0 (rules, object hierarchy), §8 (stack, ownership, collaboration), then ONLY the module section for your task (§4 WMS, §5 TMS, §6 Billing, §2 Platform, §3 OMS). Skip the benchmark-research paragraphs (“优势 / 取舍”) — they explain why, not what to build.

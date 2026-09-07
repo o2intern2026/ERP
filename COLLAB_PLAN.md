@@ -14,7 +14,7 @@
 | 开发席位 | 2 个 Claude 账号(A 前段 / B 后段) | **3 个席位**:C = Claude Max(Claude Code);X1、X2 = 两个 Codex 账号(ChatGPT Plus 档) |
 | 同步方式 | GitHub 私有仓库 | 不变 |
 | 生产环境 | 后续购买 cPanel 虚拟服务器 | **暂不买**;全部在各自电脑本地跑,免费软件 |
-| 技术栈 | PHP 8.2 + Laravel 11 + MySQL 8 + Blade | **不变**(全部免费开源;本地跑没有任何付费依赖) |
+| 技术栈 | PHP 8.2 + Laravel 12 + MySQL 8 + Blade | **不变**(全部免费开源;本地跑没有任何付费依赖) |
 | 部署约束 | 无常驻进程 / cron / MySQL / SMTP | **保留**。虽然现在没有服务器,代码仍按虚拟主机约束写,以后买了服务器零改造 |
 | 指令文件 | `CLAUDE.md` | `AGENTS.md`(Codex 读)为主本,`CLAUDE.md` 引用它 |
 | 合并负责人 | Integrator sub-agent(任一账号) | **固定由 C 执行**,X1 / X2 只开 PR |
