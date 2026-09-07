@@ -191,6 +191,10 @@ final class OutboundService
             throw new InvalidArgumentException('This fulfilment was already dispatched.');
         }
         $first = $packages->first();
+        if ($this->exceptions->hasActiveHold('financial', $first->client_id, $first->order_id)) {
+            // §3.8 #7: a financial hold lets the order be picked and packed, but nothing leaves the warehouse until Finance releases it.
+            throw new InvalidArgumentException('This order is under a financial hold — release it before dispatch.');
+        }
         $task = WarehouseTask::query()->withoutGlobalScopes()->where('task_type', 'pick')->where('fulfilment_id', $fulfilmentId)->firstOrFail();
 
         return DB::transaction(function () use ($fulfilmentId, $palletCount, $handedTo, $shipmentId, $userId, $packages, $first, $task): OutboundDispatch {

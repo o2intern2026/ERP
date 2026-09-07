@@ -23,11 +23,7 @@ class TransportServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        config()->set('services.transdirect', array_replace([
-            'api_key' => env('TRANSDIRECT_API_KEY'),
-            'base_url' => env('TRANSDIRECT_BASE_URL', 'https://www.transdirect.com.au/api'),
-        ], config('services.transdirect', [])));
-
+        // services.transdirect lives in config/services.php (env() is only read there — config:cache safe). Integrator edit, CHANGE_REQUESTS #45.
         $this->app->singleton(ManualCarrierAdapter::class);
         $this->app->singleton(OwnFleetCarrierAdapter::class);
         $this->app->singleton(TransdirectAdapter::class);
@@ -67,12 +63,11 @@ class TransportServiceProvider extends ServiceProvider
             $app->make(OutboxPublisher::class),
         ));
 
-        if (! config('erp.use_fake_services')) {
-            $this->app->singleton(
-                TransportOptionServiceContract::class,
-                fn ($app) => $app->make(TransportOptionService::class),
-            );
-        }
+        // Real since M5 (integration by C, 2026-09-08): FakeTransportOptionService is retired, so the contract is always the real service.
+        $this->app->singleton(
+            TransportOptionServiceContract::class,
+            fn ($app) => $app->make(TransportOptionService::class),
+        );
     }
 
     public function boot(): void

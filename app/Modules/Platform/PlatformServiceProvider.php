@@ -4,6 +4,7 @@ namespace App\Modules\Platform;
 
 use App\Modules\Platform\Console\DispatchOutboxCommand;
 use App\Modules\Platform\Console\RetryWebhooksCommand;
+use App\Modules\Platform\Consumers\JobCostConsumer;
 use App\Modules\Platform\Consumers\WebhookConsumer;
 use App\Modules\Platform\Models\Job;
 use App\Modules\Platform\Services\DatabaseOutboxPublisher;
@@ -35,7 +36,10 @@ class PlatformServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/migrations');
 
         // A23: every event may be pushed to registered webhook endpoints. A30: Jobs are searchable by number / reference.
-        $this->app->make(ConsumerRegistry::class)->register(ConsumerRegistry::WILDCARD, WebhookConsumer::class);
+        $registry = $this->app->make(ConsumerRegistry::class);
+        $registry->register(ConsumerRegistry::WILDCARD, WebhookConsumer::class);
+        $registry->register('shipment.booked', JobCostConsumer::class);      // Job cost estimated (events.md matrix)
+        $registry->register('delivery.pod_captured', JobCostConsumer::class); // Job actual cost / confirmed
         $this->app->make(SearchRegistry::class)->register('platform', fn (string $q): array => Job::query()->with('client')
             ->where(fn ($w) => $w->where('job_no', 'like', "%{$q}%")->orWhere('reference', 'like', "%{$q}%"))
             ->limit(20)->get()
