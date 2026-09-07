@@ -1,0 +1,14 @@
+/vendor/
+/node_modules/
+/storage/*.key
+/storage/logs/
+/storage/framework/
+/public/storage
+.env
+.env.*
+!.env.example
+CLAUDE.local.md
+.phpunit.result.cache
+.idea/
+.vscode/
+.DS_Store

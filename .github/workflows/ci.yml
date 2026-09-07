@@ -1,0 +1,36 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main, 'block/**', 'fix/**']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: erp_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -proot"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo_mysql, gd, zip
+      - name: Skip until Block 0 lands
+        id: check
+        run: |
+          if [ -f composer.json ]; then echo "has_app=true" >> "$GITHUB_OUTPUT"; else echo "has_app=false" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.check.outputs.has_app == 'true'
+        run: composer install --no-interaction --prefer-dist
+      - if: steps.check.outputs.has_app == 'true'
+        run: cp .env.example .env && php artisan key:generate
+        env: { DB_HOST: 127.0.0.1, DB_DATABASE: erp_test, DB_USERNAME: root, DB_PASSWORD: root }
+      - if: steps.check.outputs.has_app == 'true'
+        run: php artisan migrate:fresh --seed --force && ./vendor/bin/pint --test && php artisan test
+        env: { DB_HOST: 127.0.0.1, DB_DATABASE: erp_test, DB_USERNAME: root, DB_PASSWORD: root }
