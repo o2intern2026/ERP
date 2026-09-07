@@ -39,6 +39,9 @@
                     <th class="num">{{ __('transport.quotes.customer_price') }}</th>
                     <th class="num">{{ __('transport.quotes.eta') }}</th>
                     <th>{{ __('transport.quotes.flags') }}</th>
+                    <th>{{ __('transport.quotes.stage') }}</th>
+                    <th>{{ __('transport.quotes.status') }}</th>
+                    <th>{{ __('transport.quotes.action') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -54,6 +57,25 @@
                             @if ($quote->is_recommended)<span class="badge" data-tone="ok">{{ __('transport.flags.recommended') }}</span>@endif
                             @if ($quote->is_cheapest)<span class="badge">{{ __('transport.flags.cheapest') }}</span>@endif
                             @if ($quote->is_fastest)<span class="badge">{{ __('transport.flags.fastest') }}</span>@endif
+                        </td>
+                        <td>{{ __('transport.quote_stages.'.$quote->quote_stage) }}</td>
+                        <td>
+                            <span class="badge">{{ __('transport.quote_statuses.'.$quote->status) }}</span>
+                            @if ($shipment->selected_quote_id === $quote->id)
+                                <span class="badge" data-tone="ok">{{ __('transport.quotes.current_selection') }}</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($shipment->status === 'quoted' && $quote->status === 'quoted' && $quote->expires_at->isFuture())
+                                <form method="post" action="{{ route('transport.shipments.quotes.select', [$shipment, $quote]) }}">
+                                    @csrf
+                                    <button type="submit">
+                                        {{ $quote->quote_stage === 'final' ? __('transport.quotes.confirm') : __('transport.quotes.select_preliminary') }}
+                                    </button>
+                                </form>
+                            @else
+                                {{ __('transport.quotes.no_action') }}
+                            @endif
                         </td>
                     </tr>
                 @endforeach

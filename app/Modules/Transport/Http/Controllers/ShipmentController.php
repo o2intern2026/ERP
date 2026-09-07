@@ -11,7 +11,10 @@ class ShipmentController extends Controller
     public function show(Shipment $shipment): View
     {
         return view('transport::shipments.show', [
-            'shipment' => $shipment->load(['client', 'job', 'carrier', 'quotes.carrier', 'selectedQuote']),
+            'shipment' => $shipment->load([
+                'client', 'job', 'carrier', 'selectedQuote',
+                'quotes' => fn ($query) => $query->with('carrier')->latest('id'),
+            ]),
         ]);
     }
 }

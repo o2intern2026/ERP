@@ -14,7 +14,8 @@ final class ShipmentStatusMachine
         'outbound' => [
             'quoting' => ['quoted', 'booking_cancelled'],
             'quoted' => ['quote_confirmed', 'booking_cancelled'],
-            'quote_confirmed' => ['booked', 'booking_cancelled'],
+            // B5d: a materially changed final quote returns to `quoted` for re-confirmation.
+            'quote_confirmed' => ['quoted', 'booked', 'booking_cancelled'],
             'booked' => ['dispatched', 'booking_cancelled'],
             'dispatched' => ['in_transit', 'failed'],
             'in_transit' => ['delivered', 'failed'],

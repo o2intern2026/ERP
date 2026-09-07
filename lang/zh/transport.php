@@ -43,6 +43,20 @@ return [
         'cheapest' => '最低价',
         'fastest' => '最快',
     ],
+    'quote_stages' => [
+        'preliminary' => '初步估价',
+        'final' => '最终报价',
+    ],
+    'quote_statuses' => [
+        'quoted' => '待选择',
+        'selected' => '已选择',
+        'expired' => '已过期',
+        'requoted' => '已重新报价',
+        'booking_cancelled' => '预订已取消',
+    ],
+    'exceptions' => [
+        'no_options' => '没有可用的自动运输方案，请人工安排运输。',
+    ],
     'shipments' => [
         'empty' => '暂无运输任务。',
         'number' => '运输单号',
@@ -68,6 +82,22 @@ return [
         'eta' => '时效',
         'eta_days' => '{1}:count 天|[2,*]:count 天',
         'flags' => '标记',
+        'stage' => '报价阶段',
+        'status' => '方案状态',
+        'action' => '操作',
+        'current_selection' => '当前选择',
+        'select_preliminary' => '选择初步方案',
+        'confirm' => '确认最终方案',
+        'no_action' => '—',
+    ],
+    'selection' => [
+        'saved' => '运输方案已保存。',
+        'invalid_selector' => '方案选择来源无效。',
+        'invalid_actor' => '当前用户不能以该身份选择方案。',
+        'wrong_shipment' => '该方案不属于此运输单。',
+        'unavailable' => '该方案当前不可选择。',
+        'expired' => '该方案已过期，请重新报价。',
+        'invalid_status' => '运输单当前状态不能选择方案。',
     ],
     'consignment_note' => [
         'title' => '托运清单',

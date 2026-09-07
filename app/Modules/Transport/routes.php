@@ -3,6 +3,7 @@
 use App\Modules\Transport\Http\Controllers\ConsignmentNoteController;
 use App\Modules\Transport\Http\Controllers\DriverController;
 use App\Modules\Transport\Http\Controllers\IndexController;
+use App\Modules\Transport\Http\Controllers\QuoteSelectionController;
 use App\Modules\Transport\Http\Controllers\ShipmentController;
 use Illuminate\Support\Facades\Route;
 
@@ -12,6 +13,9 @@ Route::prefix('transport')->name('transport.')->group(function () {
     Route::get('/{shipment}/consignment-note', ConsignmentNoteController::class)
         ->whereNumber('shipment')
         ->name('shipments.consignment-note');
+    Route::post('/{shipment}/quotes/{quote}/select', QuoteSelectionController::class)
+        ->whereNumber(['shipment', 'quote'])
+        ->name('shipments.quotes.select');
     Route::get('/{shipment}', [ShipmentController::class, 'show'])
         ->whereNumber('shipment')
         ->name('shipments.show');
