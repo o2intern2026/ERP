@@ -55,18 +55,19 @@ Not tables: **holds** = `exceptions` rows with `type = hold`; **order_documents*
 | `asn_lines` | id, asn_id, container_id (nullable), consignment_mark, deliver_to_name, deliver_to_phone, deliver_to_address, deliver_to_suburb, deliver_to_state, deliver_to_postcode, fba_reference, description, package_type, expected_cartons, received_cartons, damaged_cartons, variance_reason, weight_kg, length_mm, width_mm, height_mm, cbm, order_line_id (nullable → order_lines, set by B2c), timestamps |
 | `asn_imports` | id, asn_id (nullable), client_id, job_id, document_id, status, row_count, error_count, errors (json), warnings (json), created_by, timestamps (B2b) |
 | `stock_units` | id, client_id, job_id, asn_line_id, warehouse_id, unit_type, label_code (unique), location_id, qty_on_hand, qty_reserved, qty_inbound, pallet_class, pallet_class_overridden_reason, length_mm, width_mm, height_mm, weight_kg, pallet_source, condition, condition_reason, condition_changed_at, putaway_completed (bool — a unit is available only when true, §4.3 rule 2), received_at, timestamps |
-| `warehouse_tasks` | id, task_no (unique), task_type, job_id, client_id, warehouse_id, source_type, source_id, order_id, fulfilment_id, asn_id, container_id, priority, assigned_user_id, status, exception_reason, cancel_reason, billable_qty, billable_uom, hours_business, hours_after_hours, notes, started_at, completed_at, completed_by, billable_event_id (→ outbox_events.event_id), timestamps |
-| `warehouse_task_lines` | id, task_id, stock_unit_id (nullable), asn_line_id (nullable), location_id, required_qty, completed_qty, confirmed_at |
+| `warehouse_tasks` | id, task_no (unique), task_type, job_id, client_id, warehouse_id, source_type, source_id, order_id, fulfilment_id, wave_id (nullable, M4), asn_id, container_id, priority, assigned_user_id, status, exception_reason, cancel_reason, billable_qty, billable_uom, hours_business, hours_after_hours, notes, started_at, completed_at, completed_by, billable_event_id (→ outbox_events.event_id), timestamps |
+| `warehouse_task_lines` | id, task_id, stock_unit_id (nullable), asn_line_id (nullable), order_line_id (nullable, M4 — pick lines), location_id, required_qty, completed_qty, confirmed_at |
 | `scan_records` | id, task_id, stock_unit_id (nullable), package_id (nullable), serial_no, scanned_by, scanned_at |
 | `stock_ledger` | id, stock_unit_id, movement_type, qty, qty_before, qty_after, movement_group_id, from_stock_unit_id, to_stock_unit_id, from_location_id, to_location_id, source_type, source_id, operator_id, created_at (append-only; the single source of truth, §4.3 rule 9) |
 | `stock_snapshots` | id, snapshot_date, timezone, client_id, job_id, asn_line_id, stock_unit_id, warehouse_id, location_id, condition, pallet_class, unit_type, pallet_source, location_type, billable_qty, billable_cbm, period_start, period_end, created_at (immutable once written) |
 | `stock_reservations` | id, order_id, order_line_id, stock_unit_id, qty, status, created_at, released_at, released_reason |
-| `waves` | id, wave_no (unique), warehouse_id, status, released_by, released_at, timestamps |
+| `waves` | id, wave_no (unique), warehouse_id, status, released_by, released_at, notes, timestamps |
 | `packages` | id, fulfilment_id, order_id, job_id, client_id, package_type, weight_kg, length_mm, width_mm, height_mm, carton_label (unique), timestamps |
+| `outbound_dispatches` | id, fulfilment_id (unique), order_id, job_id, client_id, warehouse_id, pallet_count, package_count, handed_to, shipment_id (nullable), dispatched_by, dispatched_at, timestamps (M4 — the `dispatched` timestamp of §4.3 rule 5; CHANGE_REQUESTS #35) |
 | `stocktakes` | id, stocktake_no, warehouse_id, status, counted_by, timestamps |
 | `stocktake_lines` | id, stocktake_id, stock_unit_id, location_id, system_qty, counted_qty, variance, reason |
-| `return_receipts` | id, job_id, return_order_id, original_order_id, original_shipment_id, return_shipment_id, warehouse_id, status, received_at, inspected_at, inspected_by, completed_at, timestamps |
-| `return_receipt_lines` | id, return_receipt_id, original_order_line_id, asn_line_id, original_fulfilment_id, expected_qty, received_qty, condition, disposition, stock_unit_id (nullable, created on restock) |
+| `return_receipts` | id, receipt_no (unique, M4), job_id, client_id (M4), return_order_id (nullable — set when the return order exists), original_order_id, original_shipment_id, return_shipment_id, warehouse_id, status, received_at, inspected_at, inspected_by, completed_at, notes (M4), timestamps |
+| `return_receipt_lines` | id, return_receipt_id, original_order_line_id, asn_line_id, original_fulfilment_id, description (M4), expected_qty, received_qty, condition, disposition, stock_unit_id (nullable, created at inspection for every disposition with received_qty > 0), received_at, inspected_at (M4) |
 
 ## 5. Transport (owner X2) — §5.2
 | table | columns |

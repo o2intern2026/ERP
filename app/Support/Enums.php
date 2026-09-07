@@ -98,5 +98,15 @@ final class Enums
 
     public const QUANTITY_SOURCES = ['billable_qty', 'pallets', 'pallets_warehouse_plain', 'labels', 'orders', 'cartons', 'scans', 'hours_business', 'hours_after_hours', 'cbm', 'weeks', 'pickface_slots', 'one'];
 
+    public const WAVE_STATUSES = ['planned', 'released', 'completed', 'cancelled'];
+
+    public const RETURN_RECEIPT_STATUSES = ['expected', 'received', 'inspected', 'closed'];
+
+    public const RETURN_DISPOSITIONS = ['available', 'quarantine', 'damaged'];
+
+    public const HANDED_TO = ['carrier', 'driver', 'client'];
+
+    public const PACKAGE_TYPES = ['carton', 'pallet', 'satchel', 'crate'];
+
     public const STATES = ['VIC', 'NSW', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'];
 }

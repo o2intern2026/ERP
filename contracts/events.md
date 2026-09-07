@@ -33,6 +33,7 @@ Every state change another module reacts to travels as an event through the tran
 | `asn.putaway_completed` | Warehouse (C) | Billing (putaway, inbound label, pallet purchase), Orders (A14 batch link), Platform (Job `in_stock`) |
 | `task.completed` | Warehouse (C) | Billing (devanning, unload, load-out, wrap, scan, labour, waste), Orders (pick / pack progress), Platform |
 | `outbound.packed` | Warehouse (C) | Transport (final quote), Orders (→ `packed`), Billing (order processing, picks, outbound labels) |
+| `outbound.dispatched` | Warehouse (C) | Orders (→ `dispatched`), Transport (shipment left the warehouse), Billing (load-out is billed via `task.completed` `load`, not here) — added M4, CHANGE_REQUESTS #35 |
 | `shipment.quote_confirmed` | Transport (X2) | Billing (freight + tailgate + remote — the only place these arise), Orders (quote snapshot), Platform |
 | `shipment.booked` | Transport (X2) | Platform (Job cost `estimated`), Orders (tracking on the order), Billing (records `carrier_costs.expected_cost` — no charge) |
 | `delivery.pod_captured` | Transport (X2) | Orders (→ `delivered`), Billing (freight settleable, cost confirmed), Platform (POD email) |
@@ -109,6 +110,13 @@ packages: [{package_id, package_type, weight_kg, length_mm, width_mm, height_mm,
 pallet_count, carton_count, label_count,                                 # label_count → WH-LABEL-OUT qty
 packed_by, packed_at
 ```
+### `outbound.dispatched` — §4.3 rule 5 (`packed` and `dispatched` are two timestamps); added M4 (CHANGE_REQUESTS #35)
+```
+order_id, fulfilment_id, job_id, client_id, warehouse_id,
+shipment_id (nullable — set when the handover is against a booked TMS shipment), handed_to (carrier | driver | client),
+pallet_count (loaded pallets → also a `task.completed` `load` task for WH-LOAD-PLT), package_count, carton_labels: [string],
+dispatched_by, dispatched_at
+```
 ### `shipment.quote_confirmed` — §5.3, §6.4; Billing TR-* and cartage
 ```
 shipment_id, shipment_no, shipment_type, job_id, client_id, order_id, fulfilment_id,
@@ -159,12 +167,12 @@ lines: [{original_order_line_id, asn_line_id, qty}], pickup_address: {...} | nul
 ```
 ### `return.received` — only after `return_receipts` inspection starts (§4.3 rule 7)
 ```
-return_receipt_id, return_order_id, job_id, client_id, warehouse_id, received_at,
+return_receipt_id, return_order_id, original_order_id (additive, M4), job_id, client_id, warehouse_id, received_at,
 lines: [{return_receipt_line_id, original_order_line_id, asn_line_id, received_qty}]
 ```
 ### `return.inspected`
 ```
-return_receipt_id, return_order_id, job_id, client_id, warehouse_id, inspected_at, inspected_by,
+return_receipt_id, return_order_id, original_order_id (additive, M4), job_id, client_id, warehouse_id, inspected_at, inspected_by,
 lines: [{return_receipt_line_id, original_order_line_id, asn_line_id, received_qty, disposition, stock_unit_id (nullable)}]
 ```
 ### `return.financial_decision` — §6.4 (the only credit trigger)

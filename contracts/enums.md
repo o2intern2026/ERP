@@ -106,7 +106,9 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 | `stock_reservations.status` | `active` \| `released` \| `consumed` |
 | `stock_snapshots.location_type` | = `locations.type` |
 | `return_receipts.status` | `expected` → `received` → `inspected` → `closed` |
-| `return_receipt_lines.disposition` | `available` \| `quarantine` \| `damaged` |
+| `return_receipt_lines.disposition` | `available` \| `quarantine` \| `damaged` (all three create a stock unit at inspection: available → good, in receiving until put away; quarantine / damaged → held in the quarantine location) |
+| `outbound_dispatches.handed_to` ※ | `carrier` \| `driver` \| `client` (M4) |
+| `packages.package_type` ※ | `carton` \| `pallet` \| `satchel` \| `crate` (M4) |
 
 `pallet_class` default thresholds (Edward card, §4.8 — parameters live in `rate_items.threshold_json`, never in code): `standard` = 1200 × 1200 × ≤ 1400 mm and < 800 kg; `oversize_high` = height ≤ 1800 mm; `oversize_wide` = one side ≤ 2400 mm; ≥ 800 kg → `overweight` (POA); beyond every band → POA. Reservation is a quantity, not a condition: `available = qty_on_hand − qty_reserved`.
 

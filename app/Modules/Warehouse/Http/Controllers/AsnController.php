@@ -10,6 +10,7 @@ use App\Modules\Warehouse\Models\AsnImport;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Modules\Warehouse\Services\AsnImportService;
+use App\Modules\Warehouse\Services\AsnOrderGeneration;
 use App\Modules\Warehouse\Services\AsnService;
 use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Enums;
@@ -17,6 +18,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use InvalidArgumentException;
 
 /** B2 / B2b: ASN list, creation (planned / unplanned, optional containers), goods lines by hand or Excel import. */
 class AsnController extends Controller
@@ -140,5 +142,18 @@ class AsnController extends Controller
         $asns->confirmUnplanned($asn);
 
         return back()->with('status', __('warehouse.asns.unplanned_confirmed'));
+    }
+
+    /** B2c: one click → OMS OrderService::createFromAsn; asn_lines.order_line_id written back; idempotent (§4.7 #17 #18). */
+    public function generateOrders(Asn $asn, AsnOrderGeneration $generation): RedirectResponse
+    {
+        try {
+            $result = $generation->generate($asn);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['generate' => $e->getMessage()]);
+        }
+
+        return back()->with('status', __('warehouse.asns.orders_generated', ['count' => count($result['orders']), 'lines' => $result['linked_lines'], 'blocked' => count($result['blocked'])]))
+            ->with('blocked', $result['blocked']);
     }
 }

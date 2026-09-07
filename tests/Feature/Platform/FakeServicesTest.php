@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Platform;
 
+use App\Modules\Orders\Services\AsnOrderService;
+use App\Modules\Orders\Services\SpreadsheetManifestParser;
 use App\Modules\Platform\Services\DatabaseOutboxPublisher;
 use App\Support\Contracts\JobService;
 use App\Support\Contracts\ManifestParser;
@@ -21,15 +23,15 @@ use Tests\TestCase;
 /** The Fakes implement contracts/services.md and are bound when USE_FAKE_SERVICES=true (phpunit.xml). */
 class FakeServicesTest extends TestCase
 {
-    public function test_fakes_are_bound_when_the_flag_is_on(): void
+    public function test_every_contract_resolves_to_its_real_implementation(): void
     {
         $this->assertTrue(config('erp.use_fake_services'));
         $this->assertInstanceOf(\App\Modules\Warehouse\Services\StockService::class, app(StockService::class)); // real since M2
-        $this->assertInstanceOf(FakeOrderService::class, app(OrderService::class));
-        $this->assertInstanceOf(FakeTransportOptionService::class, app(TransportOptionService::class));
-        $this->assertInstanceOf(\App\Modules\Billing\Services\RateService::class, app(RateService::class)); // real since the billing block
+        $this->assertInstanceOf(AsnOrderService::class, app(OrderService::class)); // real since M3
+        $this->assertInstanceOf(\App\Modules\Transport\Services\TransportOptionService::class, app(TransportOptionService::class)); // real since M5
+        $this->assertInstanceOf(\App\Modules\Billing\Services\RateService::class, app(RateService::class)); // real since M6 (billing block)
         $this->assertInstanceOf(\App\Modules\Platform\Services\JobService::class, app(JobService::class)); // real since M1
-        $this->assertInstanceOf(FakeManifestParser::class, app(ManifestParser::class));
+        $this->assertInstanceOf(SpreadsheetManifestParser::class, app(ManifestParser::class)); // real since M3
         $this->assertInstanceOf(DatabaseOutboxPublisher::class, app(OutboxPublisher::class)); // real since M1
     }
 
@@ -92,7 +94,7 @@ class FakeServicesTest extends TestCase
 
     public function test_transport_options_flag_cheapest_fastest_and_recommended(): void
     {
-        $quotes = collect(app(TransportOptionService::class)->quote(7, 'final'));
+        $quotes = collect((new FakeTransportOptionService)->quote(7, 'final'));
 
         $this->assertCount(3, $quotes);
         $this->assertSame('eiz', $quotes->firstWhere('is_cheapest', true)['source']);
@@ -115,11 +117,11 @@ class FakeServicesTest extends TestCase
 
     public function test_order_service_and_manifest_parser_return_contract_shapes(): void
     {
-        $result = app(OrderService::class)->createFromAsn(42);
+        $result = (new FakeOrderService)->createFromAsn(42);
         $this->assertSame('ORD-FAKE-000042-0001', $result['orders'][0]['order_no']);
         $this->assertSame([], $result['blocked']);
 
-        $parsed = app(ManifestParser::class)->parse('/dev/null');
+        $parsed = (new FakeManifestParser)->parse('/dev/null');
         $this->assertCount(2, $parsed['rows']);
         $this->assertSame([], $parsed['errors']);
         $this->assertSame('FAKE-MARK-01', $parsed['rows'][0]['consignment_mark']);
