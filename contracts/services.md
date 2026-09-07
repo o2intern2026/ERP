@@ -4,7 +4,7 @@ Cross-module **synchronous** reads and writes go only through these interfaces (
 
 | Interface (`App\Support\Contracts\…`) | Owner / seat | Real implementation | Fake (M0) |
 |---|---|---|---|
-| `StockService` | Warehouse / C | M2 | `FakeStockService` — unseeded asn_line = 100 cartons on hand; `seed()` for tests |
+| `StockService` | Warehouse / C | **M2 ✓** `App\Modules\Warehouse\Services\StockService` | retired in M2 (`FakeStockService` remains for unit tests) |
 | `OrderService` | Orders / X1 | M3 | `FakeOrderService` — one order per ASN, `ORD-FAKE-<asn>-0001` |
 | `TransportOptionService` | Transport / X2 | M5 | `FakeTransportOptionService` — own_fleet $75, transdirect / eiz at cost × 1.20 |
 | `RateService` | Billing / C | M6 | `FakeRateService` — Edward card v1 for every client; `missing_rate` for codes without a row; `withRate()` for tests |
@@ -26,8 +26,8 @@ reserve(int $clientId, int $orderId, array $lines): array   // lines: list<{orde
 release(int $orderId, ?int $orderLineId = null, string $reason = 'order_cancelled'): int
 ```
 - Quantities are cartons; a pallet unit counts the cartons it holds. Only `putaway`-completed, `condition = good` stock is on hand; `qty_available = qty_on_hand − qty_reserved`.
-- `reserve` row-locks the candidate `stock_units` (FIFO by `received_at`), writes `stock_reservations`, and returns per line `{order_line_id, asn_line_id, requested_qty, reserved_qty, shortfall_qty, reservation_ids}`. Partial reservation is normal, not an error. Emits `stock.reserved` when every line is fully reserved, otherwise `stock.reservation_failed` (with the shortfalls).
-- `release` marks active reservations `released`, writes `stock_ledger` (`movement_type = release`) and emits `stock.released`; returns cartons released.
+- `reserve` row-locks the candidate `stock_units` (FIFO by `received_at`), writes `stock_reservations`, and returns per line `{order_line_id, asn_line_id, requested_qty, reserved_qty, shortfall_qty, reservation_ids}`. Partial reservation is normal, not an error. The `order.confirmed` consumer that calls it emits `stock.reserved` when every line is fully reserved, otherwise `stock.reservation_failed` (with the shortfalls) — the consumer holds the correlation context.
+- `release` marks active reservations `released`, writes `stock_ledger` (`movement_type = release`) and returns cartons released; the `order.cancelled` / `order.reduced` consumers emit `stock.released`.
 
 ## 2. `OrderService` (Orders, X1) — §3.7.2 A4, §4.6 B2c
 ```php
