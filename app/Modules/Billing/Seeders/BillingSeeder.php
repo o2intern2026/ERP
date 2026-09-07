@@ -85,7 +85,7 @@ class BillingSeeder extends Seeder
         'WH-STORAGE-PLT-OVERWEIGHT-WK' => ['snapshot.weekly', ['unit_type' => 'pallet', 'pallet_class' => 'overweight', 'condition' => 'good'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
         'WH-PALLET-RENT-PLAIN-WK' => ['snapshot.weekly', ['unit_type' => 'pallet', 'pallet_source' => 'warehouse_plain'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
         'WH-PALLET-RENT-POOL-WK' => ['snapshot.weekly', ['unit_type' => 'pallet', 'pallet_source' => ['chep', 'loscam']], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
-        'WH-ORDER-DESPATCH' => ['outbound.packed', ['is_urgent' => false], 'orders', 'fulfilment:{fulfilment_id}'],
+        'WH-ORDER-DESPATCH' => ['outbound.packed', null, 'orders', 'fulfilment:{fulfilment_id}'], // every packed order; urgent ADDS #21 on top (CHANGE_REQUESTS #5, 2026-09-08)
         'WH-ORDER-DESPATCH-URGENT' => ['outbound.packed', ['is_urgent' => true], 'orders', 'fulfilment:{fulfilment_id}'],
         'WH-PICK-PLT' => ['outbound.packed', null, 'pallets', 'fulfilment:{fulfilment_id}'],
         'WH-PICK-CTN-GE45' => ['outbound.packed', null, 'cartons', 'fulfilment:{fulfilment_id}'],
