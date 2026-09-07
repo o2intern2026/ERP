@@ -3,6 +3,9 @@
 namespace App\Modules\Platform;
 
 use App\Modules\Platform\Console\DispatchOutboxCommand;
+use App\Modules\Platform\Console\RetryWebhooksCommand;
+use App\Modules\Platform\Consumers\WebhookConsumer;
+use App\Modules\Platform\Models\Job;
 use App\Modules\Platform\Services\DatabaseOutboxPublisher;
 use App\Modules\Platform\Services\DocumentService;
 use App\Modules\Platform\Services\ExceptionService;
@@ -10,7 +13,9 @@ use App\Modules\Platform\Services\JobService;
 use App\Support\Contracts\DocumentService as DocumentServiceContract;
 use App\Support\Contracts\ExceptionService as ExceptionServiceContract;
 use App\Support\Contracts\JobService as JobServiceContract;
+use App\Support\Outbox\ConsumerRegistry;
 use App\Support\Outbox\OutboxPublisher;
+use App\Support\Search\SearchRegistry;
 use Illuminate\Support\ServiceProvider;
 
 class PlatformServiceProvider extends ServiceProvider
@@ -29,8 +34,15 @@ class PlatformServiceProvider extends ServiceProvider
         $this->loadViewsFrom(__DIR__.'/views', 'platform');
         $this->loadMigrationsFrom(__DIR__.'/migrations');
 
+        // A23: every event may be pushed to registered webhook endpoints. A30: Jobs are searchable by number / reference.
+        $this->app->make(ConsumerRegistry::class)->register(ConsumerRegistry::WILDCARD, WebhookConsumer::class);
+        $this->app->make(SearchRegistry::class)->register('platform', fn (string $q): array => Job::query()->with('client')
+            ->where(fn ($w) => $w->where('job_no', 'like', "%{$q}%")->orWhere('reference', 'like', "%{$q}%"))
+            ->limit(20)->get()
+            ->map(fn (Job $j) => ['type' => 'job', 'label' => $j->job_no, 'url' => route('platform.jobs.show', $j), 'meta' => $j->client->name.' · '.$j->reference])->all());
+
         if ($this->app->runningInConsole()) {
-            $this->commands([DispatchOutboxCommand::class]);
+            $this->commands([DispatchOutboxCommand::class, RetryWebhooksCommand::class]);
         }
     }
 }

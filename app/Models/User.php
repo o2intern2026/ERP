@@ -7,12 +7,15 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Permission\Traits\HasRoles;
 
 /** Owned by Platform (seat C). Eight roles via spatie/laravel-permission (contracts/enums.md §1). */
 class User extends Authenticatable
 {
     use HasFactory, HasRoles, Notifiable;
+    use LogsActivity;
 
     protected $fillable = ['name', 'email', 'password', 'client_id', 'is_active'];
 
@@ -37,5 +40,10 @@ class User extends Authenticatable
     public function isClientUser(): bool
     {
         return $this->hasRole('client');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()->logFillable()->logExcept(['password'])->logOnlyDirty()->dontSubmitEmptyLogs();
     }
 }
