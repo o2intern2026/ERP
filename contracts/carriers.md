@@ -1,32 +1,46 @@
 # contracts/carriers.md — carrier platform capabilities (B5e Vendor API Discovery)
 
-**Status: placeholder.** Seat C fills this in immediately after M1 (COLLAB_PLAN §4 row "B5e"); it is a Go / No-Go gate, not a merge point. Until it is filled, seat X2 implements only the `manual` and `own_fleet` `CarrierAdapter`s (`carrier_services.source`) and must not promise POD retrieval, webhooks or waybill formats for Transdirect or EIZ (ERP_PLAN §5.6 B5e, §8.9).
+**Status: discovery done 2026-09-07 from public documentation; sandbox verification pending** (no Transdirect account yet — see Action items). Decision below is binding for X2's B5c scope until a sandbox test contradicts a row, in which case C updates this file.
 
-Known before discovery (§5.6): Transdirect publishes API documentation and states that accounts can access tracking, POD and labels. EIZ's public material only proves its own UI offers quote / label / tracking; an external partner API is unverified.
-
-## Checklist — answer every row for each platform before deciding
-| # | Question | Transdirect | EIZ |
-|---|---|---|---|
-| 1 | Auth method (API key / OAuth), account type needed, cost | | |
-| 2 | Sandbox available? credentials obtained? (team vault only, never in the repo) | | |
-| 3 | Quote endpoint: required input (addresses, packages type / qty / weight / L×W×H, service level, tailgate flag, residential flag) | | |
-| 4 | Quote response (carrier, service level, cost ex / inc GST, ETA days, surcharges: fuel / tailgate / remote / residential) → `transport_quotes.cost_cents`, `eta_days` | | |
-| 5 | Quote validity / expiry and re-quote behaviour → `transport_quotes.expires_at` | | |
-| 6 | Booking endpoint: input, response (booking ref, tracking number, waybill / label file + format) → `shipments.booking_ref`, `tracking_number`, `waybill_pdf` | | |
-| 7 | Pickup booking and dispatch cut-off rules | | |
-| 8 | Tracking: webhook push or polling? event vocabulary → `tracking_events` | | |
-| 9 | POD: retrievable via API? format (PDF / image / name only) → `pods.pod_file` | | |
-| 10 | Cancellation / amendment of a booking → `booking_cancelled` | | |
-| 11 | Address validation / suburb–postcode lookup | | |
-| 12 | Actual cost after delivery (re-weigh, surcharges) → `carrier_costs.actual_cost` | | |
-| 13 | Carrier invoice export for reconciliation (B9b) | | |
-| 14 | Rate limits, uptime, support channel | | |
-| 15 | Service levels / zones exposed → mapping to `orders.service_level`, `rate_items.zone` | | |
+Sources: Transdirect API v4 blueprint (Apiary, "Transdirect Public API V201905", change log to 2025-08-25) — https://transdirectapiv4.docs.apiary.io/ ; Transdirect Developers Centre — https://www.transdirect.com.au/education/developers-centre/ ; sudiptpa/transdirect PHP client (header + sandbox handling) — https://github.com/sudiptpa/transdirect ; EIZ site, products, integrations and docs portal — https://eiz.com.au/ , https://eiz.com.au/products , https://eiz.com.au/integrations , https://upd.eiz.com.au/docs/ .
 
 ## Decision
 | Platform | Go / No-Go | Date | Scope in phase 1 | Fallback |
 |---|---|---|---|---|
-| Transdirect | | | | `manual` adapter |
-| EIZ | | | | `manual` adapter |
+| **Transdirect** | **GO (conditional)** | 2026-09-07 | quote, book, cancel, label PDF, invoice PDF, tracking by **polling** (HTML table, best effort). **No POD via API**, no webhooks. Conditions: (1) member account + API key obtained and demo mode verified by M4; (2) units and payment mode confirmed on the first demo call. | `manual` adapter for POD and for any courier Transdirect cannot book |
+| **EIZ** | **NO-GO for phase 1** | 2026-09-07 | none — no public or partner API, no developer docs, no webhooks; ShipMarvel / Lofko are seller-facing SaaS that themselves plug into couriers (eParcel, CouriersPlease, Aramex myFastway, Sendle). Tracking syncs only inside their UI / branded e-mails. Its couriers overlap Transdirect's. | `manual` adapter. Revisit only if EIZ sales offers a partner API (contact via https://eiz.com.au/contact) |
 
-No-Go for a platform = it is out of phase 1; the `manual` adapter (typed tracking number, uploaded POD) keeps quote → book → POD unbroken (§8.9).
+No-Go for a platform = out of phase 1; the `manual` adapter (typed tracking number, uploaded POD) keeps quote → book → POD unbroken (ERP_PLAN §8.9).
+
+## Checklist
+| # | Question | Transdirect | EIZ |
+|---|---|---|---|
+| 1 | Auth, account, cost | Member account (business login). Two ways: HTTP Basic with member e-mail + password, or header `Api-key: <key>` generated in the member area (Members → API modules). Account is free; freight is billed by Transdirect (see #7). | No API. Contact form only. |
+| 2 | Sandbox | **No separate sandbox host.** A new account's confirmed bookings carry status `demo` until Transdirect support switches the integration live; demo accounts can also fetch labels (static demo labels for Couriers Please, Aramex, Toll, Northline, TNT). So "sandbox" = the live account in demo mode. Credentials → team vault; `.env` `TRANSDIRECT_API_KEY` (never in repo). | — |
+| 3 | Quote input | `POST /bookings/v4` — `declared_value`, `description`, `referrer` ("API"), `items[]` {`weight`, `length`, `width`, `height`, `quantity`, `description`}, `sender` / `receiver` {`name`, `company_name`, `email`, `phone`, `address`, `suburb`, `state`, `postcode`, `type` = `business` \| `residential`, `country` default `AU`}, `tailgate_pickup`, `tailgate_delivery` (booleans, default false; **any item > 25 kg without a forklift at pickup/delivery must set them — surcharge applies**). **Units to verify on first demo call:** weight kg; dimensions documented examples look like metres, Transdirect's own plugins send cm. | — |
+| 4 | Quote output | Response = a booking (`id`, `label` URL, `items[]` with ids) plus `quotes` keyed by courier code (`allied`, `couriers_please`, `aramex`, `mainfreight`, `northline`, `direct_couriers_{regular,express,elite}`, `tnt_{nine,ten,twelve,overnight,road}_express`, `toll`, `toll_priority`, `toll_priority_overnight`, `toll_priority_sameday`): `total` (incl. Transdirect fee + insurance), `price_insurance_ex`, `fee`, `insured_amount`, `service` (e.g. `road`), `transit_time` (text, e.g. "1-2 days"), `pickup_dates[]`, `pickup_time` {`from`, `to`}. Surcharges (fuel, tailgate, remote) are **inside** `total`, not itemised. → `transport_quotes.cost_cents = round(total × 100)`, `eta_days` = max days parsed from `transit_time`, `raw_response` = the courier block. | — |
+| 5 | Quote validity | Not documented. Our rule: `expires_at` = quote time + 24 h; re-quote after that (§5.2 `requoted`). Pickup date must be one of `pickup_dates`. | — |
+| 6 | Booking | Same booking id: `PUT /bookings/v4/{id}` to complete sender/receiver, then `POST /bookings/v4/{id}/confirm` `{ "courier": "<code>", "pickup-date": "YYYY-MM-DD" }` → 204. Then `GET /bookings/v4/{id}` returns `connote` (tracking / consignment number, e.g. `IRE000623630`), `label` (PDF URL), `status`. → `shipments.booking_ref` = booking id, `tracking_number` = connote, waybill PDF via `GET /bookings/v4/{id}/label` stored through `DocumentService` (type `waybill`). Booking statuses: `new`, `pending_payment`, `paid`, `pending_review`, `request_sent`, `request_failed`, `reviewed`, `confirmed`, `cancelled`, `booked_manually`, plus `demo`. | — |
+| 7 | Pickup / cut-off / payment | Pickup date chosen from `pickup_dates`; `pickup_time` window returned per courier. **Bookings sit in `pending_payment` until paid — the account's payment arrangement with Transdirect (prepaid balance or account) must be set up by the team before live booking.** After payment no changes; cancel only until the courier confirms. | — |
+| 8 | Tracking | **Polling only**, no webhooks: `GET /bookings/track/v4/{id}` returns an **HTML table** (status, date, time, depot). Adapter parses rows → `tracking_events` (`source = api`), scheduler polls active shipments (e.g. every 30 min). Fragile by nature: on parse failure raise `manual_transport` exception and let staff type the status. | Tracking only inside ShipMarvel UI / customer e-mails. |
+| 9 | POD | **Not available via API** (no endpoint, no signature image). Phase 1: POD comes from the courier's own portal or the consignee and is uploaded manually (`pods.pod_file` via `DocumentService`, `delivery.pod_captured` with `captured_by_type = driver` / manual). `delivery.pod_captured` from Transdirect is therefore never `carrier_api`. | none |
+| 10 | Cancel / amend | `DELETE /bookings/v4/{id}` → 204 while not yet courier-confirmed; afterwards Transdirect helpdesk. Amend = `PUT` before payment only. → `shipments.status = booking_cancelled`, `transport_quotes.status = booking_cancelled`. | — |
+| 11 | Address validation | `GET /locations`, `GET /locations?q=<postcode or suburb>`, `GET /locations/postcode/{postcode}` → `locality`, `pcode`, `state`. Use for suburb/postcode checks at order entry (OMS-14 address book) and before quoting. | — |
+| 12 | Actual cost | No structured endpoint; `GET /bookings/v4/{id}/invoice` returns the invoice **PDF**. `carrier_costs.expected_cost_cents` = quote `total`; `actual_cost_cents` from Transdirect statements imported in B9b (CSV/manual). | — |
+| 13 | Carrier invoice export | None via API; statements from the member area. B9b keeps its CSV import + manual match. | — |
+| 14 | Rate limits / support | Not documented. support@transdirect.com.au and GitHub issues. Be polite: quote once per shipment stage, poll tracking ≤ every 30 min. | — |
+| 15 | Service levels / zones | Courier codes above → our `service_level`: `*_sameday` → `same_day`; `*_nine/ten/twelve/overnight_express`, `direct_couriers_express/elite`, `toll_priority*` → `express`; everything else (`road`, `regular`, `allied`, `mainfreight`, `northline`, `couriers_please`, `aramex`, `toll`) → `standard`. Zones: Transdirect prices by postcode, we keep our own `rate_items.zone` for the customer price only. "Frequent Rates" (Couriers Please, Aramex tier pricing, ≥ 3 bookings/day) can be switched on in the API module — decide with Finance. | — |
+
+## What X2 implements in B5c (binding scope)
+1. `App\Support\Contracts\CarrierAdapter` (added by C with this file) — every source implements it: `manual` (all methods, human-entered), `own_fleet` (quote from fixed rate items via `RateService`, no external calls), `transdirect` (below). `eiz` is **not** implemented in phase 1.
+2. `TransdirectAdapter`: `quote()` → `POST /bookings/v4`; `book()` → `PUT /bookings/v4/{id}` + `POST …/confirm`; `label()` → `GET …/label`; `cancel()` → `DELETE`; `tracking()` → `GET /bookings/track/v4/{id}` HTML parse; `capabilities()` = `{quote: true, book: true, cancel: true, label: true, tracking: 'poll', pod: 'manual'}`. Config from `config/services.php` → `env('TRANSDIRECT_API_KEY')`, `env('TRANSDIRECT_BASE_URL', 'https://www.transdirect.com.au/api')`. All HTTP through Laravel's `Http` client with 15 s timeout; every call and response logged to `tracking_events.raw` / `transport_quotes.raw_response` for the Integration Monitor.
+3. Tests use `Http::fake()` with the response shapes in #4, #6, #8 above — no live calls in CI. A `TransdirectContractTest` marked `@group live` may hit the demo account locally when the key is present.
+4. Until the account exists, X2 develops against the fakes; the adapter is switchable per `carrier_services.source`.
+
+## Action items (not code)
+| # | Who | What | Needed by |
+|---|---|---|---|
+| A | Project lead | Create a Transdirect business member account, generate an API key (Members → API modules), put it in the team vault; ask support whether the account starts in demo mode and what turns it live | before M4 (X2's live test) |
+| B | Project lead + Finance | Decide Transdirect payment arrangement (prepaid / account) and whether to enable Frequent Rates | before first live booking |
+| C | X2 | First demo call: confirm item units (kg / cm vs m) and pickup window behaviour; update #3 here via a CHANGE_REQUESTS row if the docs are wrong | B5c |
+| D | Project lead (optional) | Ask EIZ via their contact form whether a partner API exists; if yes, C re-runs this checklist for EIZ | any time; not blocking |
