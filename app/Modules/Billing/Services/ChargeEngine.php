@@ -202,6 +202,10 @@ final class ChargeEngine
                 if (! in_array($actual, $expected, false)) {
                     return false;
                 }
+            } elseif ($expected === null) {
+                if ($actual !== null && $actual !== '') {
+                    return false;
+                }
             } elseif (is_bool($expected)) {
                 if ((bool) $actual !== $expected) {
                     return false;
@@ -256,8 +260,8 @@ final class ChargeEngine
     private function pricingContext(array $payload): array
     {
         return array_filter([
-            'cost_cents' => $payload['carrier_cost_cents'] ?? $payload['cost_cents'] ?? null,
-            'base_cents' => $payload['client_price_cents'] ?? null,
+            'cost_cents' => $payload['cost_cents'] ?? $payload['carrier_cost_cents'] ?? null,
+            'base_cents' => $payload['customer_price_cents'] ?? $payload['client_price_cents'] ?? null,
             'zone' => $payload['zone'] ?? null,
             'carrier_id' => $payload['carrier_id'] ?? null,
             'service_level' => $payload['service_level'] ?? null,

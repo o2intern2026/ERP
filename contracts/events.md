@@ -115,6 +115,7 @@ shipment_id, shipment_no, shipment_type, job_id, client_id, order_id, fulfilment
 transport_quote_id, quote_stage, source, carrier_id, service_level, pricing_mode,
 cost_cents, customer_price_cents, markup_percent (nullable), eta_days,
 tailgate_required (bool), zone,                                          # → TR-TAILGATE, TR-REMOTE conditions
+cartage_container_size (nullable: "20" | "40"; set only on container cartage shipments → TR-CARTAGE-20/40 instead of TR-DELIVERY-BASE)   # added by C after the drift check
 packages: {count, total_weight_kg, total_cbm},
 confirmed_by_type (client | coordinator | system), confirmed_by, confirmed_at
 ```

@@ -66,8 +66,8 @@ class BillingSeeder extends Seeder
 
     /** code => [trigger_event, condition, quantity_source, idempotency template] */
     public const RULES = [
-        'TR-CARTAGE-20' => ['shipment.quote_confirmed', ['charge_code' => 'TR-CARTAGE-20'], 'one', 'shipment:{shipment_id}'],
-        'TR-CARTAGE-40' => ['shipment.quote_confirmed', ['charge_code' => 'TR-CARTAGE-40'], 'one', 'shipment:{shipment_id}'],
+        'TR-CARTAGE-20' => ['shipment.quote_confirmed', ['cartage_container_size' => '20'], 'one', 'shipment:{shipment_id}'],
+        'TR-CARTAGE-40' => ['shipment.quote_confirmed', ['cartage_container_size' => '40'], 'one', 'shipment:{shipment_id}'],
         'WH-DEVAN-20-PLT' => ['task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'pallet'], 'billable_qty', 'task:{task_id}'],
         'WH-DEVAN-20-LOOSE' => ['task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'loose'], 'billable_qty', 'task:{task_id}'],
         'WH-DEVAN-20-MIXED' => ['task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'mixed'], 'billable_qty', 'task:{task_id}'],
@@ -100,10 +100,10 @@ class BillingSeeder extends Seeder
         'VAS-PALLET-PURCHASE-NONSTD' => ['manual', null, 'one', 'manual:{charge_id}'],
         'VAS-LABOUR-HR' => ['task.completed', ['task_type' => ['labour', 'vas_other']], 'hours_business', 'task:{task_id}'],
         'VAS-LABOUR-HR-AH' => ['task.completed', ['task_type' => ['labour', 'vas_other']], 'hours_after_hours', 'task:{task_id}'],
-        'TR-DELIVERY-BASE' => ['shipment.quote_confirmed', ['charge_code' => 'TR-DELIVERY-BASE'], 'one', 'shipment:{shipment_id}'],
+        'TR-DELIVERY-BASE' => ['shipment.quote_confirmed', ['cartage_container_size' => null], 'one', 'shipment:{shipment_id}'],
         'TR-TAILGATE' => ['shipment.quote_confirmed', ['tailgate_required' => true], 'one', 'shipment:{shipment_id}'],
         'TR-REMOTE' => ['shipment.quote_confirmed', ['zone' => 'remote'], 'one', 'shipment:{shipment_id}'],
-        'TR-FUEL' => ['shipment.quote_confirmed', ['charge_code' => 'TR-DELIVERY-BASE'], 'one', 'shipment:{shipment_id}'],
+        'TR-FUEL' => ['shipment.quote_confirmed', ['cartage_container_size' => null], 'one', 'shipment:{shipment_id}'],
         'TR-FAILED' => ['delivery.extra_charge', ['charge_type' => 'failed_delivery'], 'one', 'extra:{delivery_id}:{charge_type}'],
         'TR-REDELIVERY' => ['delivery.extra_charge', ['charge_type' => 'redelivery'], 'one', 'extra:{delivery_id}:{charge_type}'],
         'TR-WAITING' => ['delivery.extra_charge', ['charge_type' => 'waiting'], 'hours_business', 'extra:{delivery_id}:{charge_type}'],

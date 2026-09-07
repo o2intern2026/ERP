@@ -112,8 +112,8 @@ class ChargeEngineTest extends TestCase
         RateItem::query()->create(['rate_card_id' => $card->id, 'charge_code_id' => $codes['TR-FUEL'], 'pricing_mode' => 'percent', 'markup_percent' => 10]);
 
         DB::transaction(fn () => app(OutboxPublisher::class)->publish(new TestEvent([
-            'shipment_id' => 15, 'order_id' => 77, 'client_id' => $client->id, 'job_id' => $job, 'charge_code' => 'TR-DELIVERY-BASE', 'source' => 'transdirect',
-            'carrier_cost_cents' => 10000, 'client_price_cents' => 12000, 'tailgate_required' => true, 'zone' => 'metro',
+            'shipment_id' => 15, 'shipment_no' => 'SHP-TEST-15', 'shipment_type' => 'outbound', 'order_id' => 77, 'client_id' => $client->id, 'job_id' => $job, 'source' => 'transdirect', 'pricing_mode' => 'cost_plus',
+            'cost_cents' => 10000, 'customer_price_cents' => 12000, 'tailgate_required' => true, 'zone' => 'metro', 'packages' => ['count' => 2, 'total_weight_kg' => 40, 'total_cbm' => 0.3], 'confirmed_by_type' => 'coordinator',
         ], 'shipment.quote_confirmed', $job, $client->id)));
         app(OutboxDispatcher::class)->dispatchDue();
         app(OutboxDispatcher::class)->dispatchDue();
