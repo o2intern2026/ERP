@@ -199,14 +199,14 @@ jobs
 
 | # | 任务 | 依赖 | 对标与取舍 |
 |---|---|---|---|
-| A0 | 仓库初始化:骨架、模块目录、contracts、CI、Seeder 框架 | — | CargoWise 一个数据库(模块化单体落地) |
-| A1 | 认证 + 8 角色 + 客户数据隔离 + 用户管理 | A0 | CartonCloud 隔离做在数据层(原样) |
-| A2 | 主数据:客户(ABN / 类型 / invoice_mode(per_job / monthly)/ payment_terms(prepaid / eom / net_N)/ default_markup_percent / dispatch_cutoff_time / standard_rate_card_id)、供应商、承运商主数据(仓库 / 库位归 WMS,在 Warehouse 模块维护) | A1 | CargoWise 主数据一处维护 |
-| A27 | Job 主线:jobs 表 + JobService + 各模块 job_id 外键 + Job 工作台骨架 | A2 | CargoWise Job(原样) |
+| A0 | ✅ M0 · 仓库初始化:骨架、模块目录、contracts、CI、Seeder 框架 | — | CargoWise 一个数据库(模块化单体落地) |
+| A1 | ✅ M1 · 认证 + 8 角色 + 客户数据隔离 + 用户管理 | A0 | CartonCloud 隔离做在数据层(原样) |
+| A2 | ✅ M1 · 主数据:客户(ABN / 类型 / invoice_mode(per_job / monthly)/ payment_terms(prepaid / eom / net_N)/ default_markup_percent / dispatch_cutoff_time / standard_rate_card_id)、供应商、承运商主数据(仓库 / 库位归 WMS,在 Warehouse 模块维护) | A1 | CargoWise 主数据一处维护 |
+| A27 | ✅ M1 · Job 主线:jobs 表 + JobService + 各模块 job_id 外键 + Job 工作台骨架 | A2 | CargoWise Job(原样) |
 | A28 | 异常中心:统一 exceptions 表与列表;各模块异常接入 | A27 | CargoWise 异常统一入口 |
 | A29 | 文档中心:统一 documents 表、上传组件、客户可见性 | A27 | CargoWise 单据管理 |
 | A30 | 全局搜索(Job / 订单 / 唛头 / 柜号 / tracking / 发票) | A27 | — |
-| A31 | 集成监控与事件可靠性:event_id / inbox / 幂等 / 重试 / 失败队列 / 告警(与 B3 共建) | A0, B3 | Extensiv Integration Manager |
+| A31 | ✅ M1 · 集成监控与事件可靠性:event_id / inbox / 幂等 / 重试 / 失败队列 / 告警(与 B3 共建) | A0, B3 | Extensiv Integration Manager |
 | A19 | 审批中心(统一入口) | A1 | Extensiv 审批 |
 | A20 | 审计日志(activitylog + 查询页) | A1 | CargoWise 留痕 |
 | A21 | 报表:老板视角 + 客户视角 | 多数 | MachShip 绩效 · Extensiv 货主视角(舍报表构建器) |
@@ -871,12 +871,12 @@ VAS:   拆柜 / 缠膜打带(进库 / 出库)/ 序列号扫描(逐个存 scan_re
 
 | # | 任务 | 依赖 | 对标与取舍 |
 |---|---|---|---|
-| B3 | 接入 Platform 的 Outbox 发布工具 + 定义 WMS / TMS 事件(不建表;outbox_events 归 Platform) | A0, A31 | CargoWise 一个数据库(以事件替代系统间对账) |
-| B1 | 库存核心:stock_units(客户 + 货物行 + 包装单元 + 库位)+ ledger + 对账命令 | A0, A27 | CartonCloud 隔离(原样)· Extensiv 流水(原样) |
-| B2 | 入库:ASN 挂 Job + 可选 containers(基础字段)+ 收货差异 → 异常 + 托盘实测与来源 + 卸货托盘数 + 上架校验 + 无预报临时收货单 | B1 | 柜为 ASN 下可选对象(只取概念,不做柜级生命周期) |
-| B2b | ASN Excel 导入:真实清单 → 货物行(含收件人字段);与 OMS 共用解析器;导入记录进导入历史 | B2 | CartonCloud 乱格式接入 |
+| B3 | ✅ M2 · 接入 Platform 的 Outbox 发布工具 + 定义 WMS / TMS 事件(不建表;outbox_events 归 Platform) | A0, A31 | CargoWise 一个数据库(以事件替代系统间对账) |
+| B1 | ✅ M2 · 库存核心:stock_units(客户 + 货物行 + 包装单元 + 库位)+ ledger + 对账命令 | A0, A27 | CartonCloud 隔离(原样)· Extensiv 流水(原样) |
+| B2 | ✅ M2 · 入库:ASN 挂 Job + 可选 containers(基础字段)+ 收货差异 → 异常 + 托盘实测与来源 + 卸货托盘数 + 上架校验 + 无预报临时收货单 | B1 | 柜为 ASN 下可选对象(只取概念,不做柜级生命周期) |
+| B2b | ✅ M2 · ASN Excel 导入:真实清单 → 货物行(含收件人字段);与 OMS 共用解析器;导入记录进导入历史 | B2 | CartonCloud 乱格式接入 |
 | B2c | 从 ASN 生成订单:上架后按唛头分组调 OMS 的 OrderService 建单;记录 asn_line ↔ order_line 对应;防重复生成 | B2b, A3 | CartonCloud 单据链(入库单 → 出库单) |
-| B4a | 分配与预留:消费 order.confirmed、写预留、失败回报、取消/减量自动释放 | B1, A3 | Extensiv · CartonCloud 预留独立步骤(原样) |
+| B4a | ✅ M2 · 分配与预留:消费 order.confirmed、写预留、失败回报、取消/减量自动释放 | B1, A3 | Extensiv · CartonCloud 预留独立步骤(原样) |
 | B4 | 出库:波次 + 拣货任务(warehouse_tasks.pick + 明细行)+ Pick Short 异常 + 复核打包(打箱标;事件逐行带单箱重量)+ packed/dispatched 交接(记装车托盘数) | B4a | Microlistics 任务化(简化)· Logiwa 波次(只取概念) |
 | B10a | 每日快照 job(托盘类型 / 托盘来源 / pickface 占用) | B1 | Extensiv 快照计费(采用,周期改为周) |
 | B10b | 盘点 / 移库 / 损坏隔离(带照片) | B1 | CartonCloud 库内管理 |
@@ -1161,7 +1161,7 @@ WMS 事件 outbound.packed(带包裹实测重量/尺寸/件数)
 | # | 任务 | 依赖 | 对标与取舍 |
 |---|---|---|---|
 | B5 | shipment 结构 + 状态机 + transport_quotes 表 + consignment note | B4 | MachShip 报价先于执行(采用) |
-| B5e | **Vendor API Discovery(Go / No-Go 门槛)**:Transdirect 有公开 API 文档(tracking / POD / label);EIZ 的外部 Partner API 能力未经公开证实。逐项验证报价字段、预订、tracking(webhook 或轮询)、POD 文件回传、waybill 格式、沙箱;产出接口契约。任一平台 No-Go 时该平台不进一期,Manual fallback 保证流程不阻塞 | — | MachShip(验证前不承诺能力) |
+| B5e | ✅ 2026-09-07 · **Vendor API Discovery(Go / No-Go 门槛)**:Transdirect 有公开 API 文档(tracking / POD / label);EIZ 的外部 Partner API 能力未经公开证实。逐项验证报价字段、预订、tracking(webhook 或轮询)、POD 文件回传、waybill 格式、沙箱;产出接口契约。任一平台 No-Go 时该平台不进一期,Manual fallback 保证流程不阻塞 | — | MachShip(验证前不承诺能力) |
 | B5c | TransportOptionService + `CarrierAdapter`:Transdirect、EIZ 适配器(报价 / 预订 / 追踪 / POD 文件)+ Manual 兜底 + own_fleet 固定费率方案;无可用方案进 Manual Transport Exception | B5e, B5, A5 | MachShip 经 TD/EIZ 落地(采用);舍自建直连 |
 | B5d | 方案选择:Recommended / Cheapest / Fastest 标记规则;客户门户确认或改选;Coordinator 代选 | B5c | Shippit 服务等级驱动(采用) |
 | B5b | 班次编排(自派:有序停靠点、指派司机) | B5 | TransVirtual run = 车 + 停靠点 |
