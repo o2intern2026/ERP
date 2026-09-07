@@ -95,3 +95,10 @@ parse(string $path): array{rows: list<Row>, errors: list<{row, column, message}>
 - `USE_FAKE_SERVICES=true` in `phpunit.xml` and CI; a seat turns it on locally while its dependency block is unmerged. The flag must be `false` in production.
 - Fakes hold state in memory per process; they are singletons for a request / test. Never write a test that depends on a Fake behaving like the database.
 - When the real implementation lands, its Feature tests must pass the same contract assertions as `tests/Feature/Platform/FakeServicesTest.php`.
+
+## 8. Platform-rest services (C, `block/c5-platform-rest`)
+- `App\Modules\Platform\Services\ApprovalService` (A19): `request(type, subjectType, subjectId, User $by, attrs) → Approval` (one open request per subject), `approve(Approval, User $by, ?note)`, `reject(...)`, `cancel(Approval, User)`, `isApproved(type, subjectType, subjectId): bool`. **The requester can never decide their own request** (PLT-7). Modules that need a second-person gate call `isApproved()` before applying the sensitive change (Billing: `rate_card_change`, `credit_note`, `price_override`, `poa_quote`; Orders: `financial_release`; Warehouse: `stock_adjustment`).
+- `App\Support\Search\SearchRegistry` (A30): modules register `register('<module>', fn (string $q): array)` in their provider's `boot()`; a hit is `['type' => ..., 'label' => ..., 'url' => ..., 'meta' => ...]`. Platform, Warehouse and MasterData are registered; X1 adds orders / tracking numbers, X2 shipments, Billing invoices.
+- `App\Support\Documents\DocumentDownloader` (A29): `canDownload(Document, ?User)` / `respond(Document, ?User)` — the single visibility rule (staff: all; client user: `client_visible` and own `client_id`). Portal (X1) must serve downloads through it from a `/portal/**` route.
+- `ExceptionService::assign(id, ?ownerId)` and `start(id, userId)` (A28) — additive; the Exception Centre at `/admin/exceptions` is the shared queue for every module's exceptions (X1's Coordinator queue may filter the same table by hold types).
+- `ConsumerRegistry::register('*', Consumer::class)` receives every event (used by the webhook pusher, A23).

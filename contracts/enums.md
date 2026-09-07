@@ -43,6 +43,10 @@ Conventions: store enums as string columns (not MySQL `ENUM`) so values can be a
 |---|---|
 | `status` ※ | `pending` \| `published` \| `failed` \| `dead` (retries exhausted → failed-event queue + alert) |
 
+| `approvals.type` | rate_card_change | credit_note | stock_adjustment | financial_release | price_override | poa_quote | A19 (PLT-7); added M6-prep by C |
+| `approvals.status` | pending | approved | rejected | cancelled | requester ≠ decider, enforced by ApprovalService |
+| `webhook_deliveries.status` | pending | delivered | failed | A23 |
+
 ## 2. MasterData (owner C) — §2.3 A2, §6.2, §0.2 rule 9
 | field | values |
 |---|---|

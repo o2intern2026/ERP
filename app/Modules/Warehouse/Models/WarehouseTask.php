@@ -6,11 +6,14 @@ use App\Support\Tenancy\BelongsToClient;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 /** Work task: execution record and billing trigger via task.completed (ERP_PLAN §4.2, §4.3 rule 8). */
 class WarehouseTask extends Model
 {
     use BelongsToClient;
+    use LogsActivity;
 
     protected $fillable = [
         'task_no', 'task_type', 'job_id', 'client_id', 'warehouse_id', 'source_type', 'source_id', 'order_id',
@@ -40,5 +43,10 @@ class WarehouseTask extends Model
     public function container(): BelongsTo
     {
         return $this->belongsTo(Container::class);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()->logOnly(['status', 'assigned_user_id', 'billable_qty', 'hours_business', 'hours_after_hours'])->logOnlyDirty()->dontSubmitEmptyLogs();
     }
 }

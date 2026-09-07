@@ -24,4 +24,10 @@ interface ExceptionService
      * Transport / Orders call this before booking or dispatch: only an active `financial` hold blocks them (§3.4 OMS-11).
      */
     public function hasActiveHold(string $holdType, ?int $clientId = null, ?int $orderId = null): bool;
+
+    /** Exception Centre (A28): take ownership; null owner releases it back to the queue. */
+    public function assign(int $exceptionId, ?int $ownerId): void;
+
+    /** Exception Centre (A28): mark work started (open → in_progress). */
+    public function start(int $exceptionId, int $userId): void;
 }

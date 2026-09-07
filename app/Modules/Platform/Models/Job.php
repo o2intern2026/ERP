@@ -7,11 +7,14 @@ use App\Modules\MasterData\Models\Client;
 use App\Support\Tenancy\BelongsToClient;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 /** Business Job (ERP_PLAN §1.6). Create only through JobService; statuses are derived, never edited by hand. */
 class Job extends Model
 {
     use BelongsToClient;
+    use LogsActivity;
 
     protected $fillable = [
         'job_no', 'client_id', 'job_type', 'operational_status', 'revenue_status', 'cost_status',
@@ -37,5 +40,10 @@ class Job extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()->logFillable()->logOnlyDirty()->dontSubmitEmptyLogs();
     }
 }
