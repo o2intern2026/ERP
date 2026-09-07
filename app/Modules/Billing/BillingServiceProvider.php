@@ -3,6 +3,7 @@
 namespace App\Modules\Billing;
 
 use App\Modules\Billing\Console\BillStorageWeeklyCommand;
+use App\Modules\Billing\Console\FlagOverdueInvoicesCommand;
 use App\Modules\Billing\Consumers\BillingChargeConsumer;
 use App\Modules\Billing\Services\RateService;
 use App\Support\Contracts\RateService as RateServiceContract;
@@ -28,7 +29,7 @@ class BillingServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
-            $this->commands([BillStorageWeeklyCommand::class]);
+            $this->commands([BillStorageWeeklyCommand::class, FlagOverdueInvoicesCommand::class]);
         }
     }
 }

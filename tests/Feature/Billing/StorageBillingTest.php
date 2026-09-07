@@ -47,11 +47,11 @@ class StorageBillingTest extends TestCase
         app(StorageBillingService::class)->billWeek(Carbon::parse('2026-09-13')); // re-run: idempotent
 
         $byCode = Charge::query()->with('chargeCode')->get()->groupBy(fn (Charge $c) => $c->chargeCode->code)->map(fn ($g) => ['n' => $g->count(), 'qty' => (float) $g->sum('qty'), 'amount' => (int) $g->sum('amount_cents')]);
-        $this->assertEquals(['n' => 2, 'qty' => 2.0, 'amount' => 900], $byCode['WH-STORAGE-PLT-WK']->toArray());        // two standard CHEP pallets × 4.50
-        $this->assertEquals(['n' => 1, 'qty' => 1.0, 'amount' => 800], $byCode['WH-STORAGE-PLT-HIGH-WK']->toArray());  // the 1700 mm pallet
-        $this->assertEquals(['n' => 2, 'qty' => 2.0, 'amount' => 400], $byCode['WH-PALLET-RENT-POOL-WK']->toArray());  // CHEP rental (§6.8 #13)
-        $this->assertEquals(['n' => 1, 'qty' => 1.0, 'amount' => 70], $byCode['WH-PALLET-RENT-PLAIN-WK']->toArray());  // warehouse plain pallet
-        $this->assertEquals(['n' => 1, 'qty' => 1.0, 'amount' => 650], $byCode['WH-STORAGE-PICKFACE-WK']->toArray());  // two units share one slot → 1 slot (§4.7 #21)
+        $this->assertEquals(['n' => 2, 'qty' => 2.0, 'amount' => 900], $byCode['WH-STORAGE-PLT-WK']);        // two standard CHEP pallets × 4.50
+        $this->assertEquals(['n' => 1, 'qty' => 1.0, 'amount' => 800], $byCode['WH-STORAGE-PLT-HIGH-WK']);  // the 1700 mm pallet
+        $this->assertEquals(['n' => 2, 'qty' => 2.0, 'amount' => 400], $byCode['WH-PALLET-RENT-POOL-WK']);  // CHEP rental (§6.8 #13)
+        $this->assertEquals(['n' => 1, 'qty' => 1.0, 'amount' => 70], $byCode['WH-PALLET-RENT-PLAIN-WK']);  // warehouse plain pallet
+        $this->assertEquals(['n' => 1, 'qty' => 1.0, 'amount' => 650], $byCode['WH-STORAGE-PICKFACE-WK']);  // two units share one slot → 1 slot (§4.7 #21)
         $this->assertArrayNotHasKey('WH-STORAGE-CTN-WK', $byCode->all()); // loose cartons in the pickface slot are covered by the slot fee
         $this->assertSame(7, Charge::query()->count());
         $this->assertStringEndsWith(':week:2026-W37', Charge::query()->whereHas('chargeCode', fn ($q) => $q->where('code', 'WH-STORAGE-PLT-WK'))->value('source_activity_id'));

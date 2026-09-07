@@ -94,8 +94,8 @@ class ChargeEngineTest extends TestCase
 
         // Pack undone and redone (activity_version 2): old charges reversed with negative twins, new ones created — §6.8 #9.
         $engine->applyEvent($payload(2));
-        $this->assertSame(6, Charge::query()->where('status', 'reversed')->count());
-        $this->assertSame(6, Charge::query()->whereNotNull('reversal_of_charge_id')->count());
+        $this->assertSame(6, Charge::query()->where('status', 'reversed')->whereNull('reversal_of_charge_id')->count()); // originals
+        $this->assertSame(6, Charge::query()->whereNotNull('reversal_of_charge_id')->where('status', 'reversed')->count()); // audit-only twins (never invoiced)
         $this->assertSame(-500, Charge::query()->whereNotNull('reversal_of_charge_id')->whereHas('chargeCode', fn ($q) => $q->where('code', 'WH-ORDER-DESPATCH'))->value('amount_cents'));
         $this->assertSame(6, Charge::query()->where('activity_version', 2)->count());
         $this->assertSame(500 + 400 + 450 + 700 + 450 + 120, (int) Charge::query()->where('status', '!=', 'reversed')->sum('amount_cents')); // net effect: charged once

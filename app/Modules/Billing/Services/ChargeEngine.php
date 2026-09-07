@@ -115,22 +115,55 @@ final class ChargeEngine
         });
     }
 
+    /** A8b manual one-off charge: reason required; priced from the card unless an amount is given (FIN-5). */
+    public function manual(int $jobId, int $clientId, string $chargeCode, float $qty, string $reason, ?int $amountCents = null, ?int $createdBy = null): Charge
+    {
+        $code = ChargeCode::query()->where('code', $chargeCode)->firstOrFail();
+        $priced = $this->rates->price($clientId, $code->code, $qty);
+        $amount = $amountCents ?? $priced['amount_cents'];
+
+        return Charge::query()->create([
+            'job_id' => $jobId, 'client_id' => $clientId, 'charge_date' => today(), 'charge_code_id' => $code->id,
+            'rate_card_id' => $priced['rate_card_id'], 'rate_card_version' => $priced['rate_card_version'], 'rate_item_id' => $priced['rate_item_id'],
+            'uom' => $priced['uom'] ?? $code->default_uom, 'qty' => $qty, 'rate_snapshot_cents' => $priced['rate_cents'], 'amount_cents' => $amount,
+            'calculation_snapshot_json' => $priced['calculation_snapshot'] + ['manual' => true, 'amount_given' => $amountCents !== null],
+            'tax_treatment' => $code->tax_treatment, 'status' => ($amountCents === null && ($priced['missing_rate'] || $priced['is_poa'])) ? 'needs_review' : 'pending',
+            'source_type' => null, 'source_id' => null, 'source_activity_id' => null, 'activity_version' => 1,
+            'is_manual' => true, 'manual_reason' => $reason, 'created_by' => $createdBy ?? auth()->id(),
+        ]);
+    }
+
+    /** POA / review queue: Finance sets the amount and the charge becomes billable. */
+    public function review(Charge $charge, int $amountCents, string $note): Charge
+    {
+        if ($charge->status !== 'needs_review') {
+            throw new \InvalidArgumentException('Only charges awaiting review can be priced by hand.');
+        }
+        $charge->update(['amount_cents' => $amountCents, 'status' => 'approved', 'calculation_snapshot_json' => ($charge->calculation_snapshot_json ?? []) + ['reviewed' => ['amount_cents' => $amountCents, 'note' => $note, 'by' => auth()->id(), 'at' => now()->toIso8601String()]]]);
+
+        return $charge->fresh();
+    }
+
     /** Reversal = a negative twin; the original is marked reversed. Invoiced charges are reversed through credit notes instead. */
     public function reverse(Charge $charge, string $reason): ?Charge
     {
-        if ($charge->status === 'reversed' || $charge->status === 'invoiced') {
+        if ($charge->status === 'reversed' || $charge->reversal_of_charge_id !== null) {
             return null;
         }
+        // An uninvoiced original simply leaves the pool (its twin is an audit row); an invoiced one stays and its negative twin is billable.
+        $wasInvoiced = $charge->status === 'invoiced';
 
-        return DB::transaction(function () use ($charge, $reason): Charge {
-            $charge->update(['status' => 'reversed']);
+        return DB::transaction(function () use ($charge, $reason, $wasInvoiced): Charge {
+            if (! $wasInvoiced) {
+                $charge->update(['status' => 'reversed']);
+            }
 
             return Charge::query()->create([
                 'job_id' => $charge->job_id, 'client_id' => $charge->client_id, 'charge_date' => today(), 'charge_code_id' => $charge->charge_code_id,
                 'rate_card_id' => $charge->rate_card_id, 'rate_card_version' => $charge->rate_card_version, 'rate_item_id' => $charge->rate_item_id,
                 'uom' => $charge->uom, 'qty' => -$charge->qty, 'rate_snapshot_cents' => $charge->rate_snapshot_cents, 'amount_cents' => -$charge->amount_cents,
                 'calculation_snapshot_json' => ['reversal_reason' => $reason, 'of' => $charge->id], 'tax_treatment' => $charge->tax_treatment,
-                'status' => 'approved', 'source_type' => $charge->source_type, 'source_id' => $charge->source_id,
+                'status' => $wasInvoiced ? 'approved' : 'reversed', 'source_type' => $charge->source_type, 'source_id' => $charge->source_id,
                 'source_activity_id' => null, 'activity_version' => $charge->activity_version, 'reversal_of_charge_id' => $charge->id,
             ]);
         });
