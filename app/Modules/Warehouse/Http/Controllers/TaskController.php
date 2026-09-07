@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Modules\Warehouse\Services\TaskService;
+use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -23,6 +24,7 @@ class TaskController extends Controller
             'tasks' => WarehouseTask::query()->with(['asn', 'container'])
                 ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
                 ->when($filters['task_type'] ?? null, fn ($q, $v) => $q->where('task_type', $v))
+                ->when(WarehouseContext::currentId(), fn ($q, $v) => $q->where('warehouse_id', $v))
                 ->orderByDesc('id')->paginate(50)->withQueryString(),
             'filters' => $filters,
             'statuses' => Enums::TASK_STATUSES,
@@ -69,12 +71,17 @@ class TaskController extends Controller
             'hours_business' => ['nullable', 'numeric', 'min:0'],
             'hours_after_hours' => ['nullable', 'numeric', 'min:0'],
             'scan_count' => ['nullable', 'integer', 'min:0'],
+            'serials' => ['nullable', 'string', 'max:20000'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         // Devanning is always one container; default the billing quantity so the operator cannot forget it.
         if ($task->task_type === 'devanning') {
             $data += ['billable_qty' => 1, 'billable_uom' => 'container'];
+        }
+
+        if (! empty($data['serials'])) {
+            $data['serials'] = preg_split('/[\r\n,;]+/', $data['serials']) ?: [];
         }
 
         $tasks->complete($task, array_filter($data, fn ($v) => $v !== null && $v !== ''), $task->asn?->asn_no);

@@ -3,6 +3,7 @@
 namespace App\Modules\Warehouse\Services;
 
 use App\Modules\Warehouse\Events\TaskCompleted;
+use App\Modules\Warehouse\Models\ScanRecord;
 use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Support\Outbox\OutboxPublisher;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,16 @@ final class TaskService
     public function complete(WarehouseTask $task, array $completion = [], ?string $correlationId = null): WarehouseTask
     {
         return DB::transaction(function () use ($task, $completion, $correlationId): WarehouseTask {
+            $serials = array_values(array_unique(array_filter(array_map('trim', $completion['serials'] ?? []))));
+            foreach ($serials as $serial) {
+                ScanRecord::query()->create(['task_id' => $task->id, 'serial_no' => $serial, 'scanned_by' => auth()->id(), 'scanned_at' => now()]);
+            }
+            if ($serials !== []) {
+                $completion['scan_count'] = ($completion['scan_count'] ?? 0) + count($serials);
+                $completion['billable_qty'] ??= $completion['scan_count'];
+                $completion['billable_uom'] ??= 'scan';
+            }
+
             $task->fill(array_intersect_key($completion, array_flip(['billable_qty', 'billable_uom', 'hours_business', 'hours_after_hours', 'notes'])));
             $task->status = 'done';
             $task->completed_at = now();
