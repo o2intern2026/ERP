@@ -12,7 +12,7 @@
             <thead><tr><th>{{ __('warehouse.stock.label_code') }}</th><th>{{ __('warehouse.stock.client') }}</th><th>{{ __('warehouse.stock.description') }}</th><th>{{ __('warehouse.stock.unit_type') }}</th><th class="num">{{ __('warehouse.stock.on_hand') }}</th><th>{{ __('warehouse.stock.condition') }}</th><th>{{ __('warehouse.stock.location') }}</th><th>{{ __('warehouse.putaway.location_code') }}</th></tr></thead>
             <tbody>
             @foreach ($units as $u)
-                <tr>
+                <tr @if ($highlight === $u->id) style="outline:2px solid var(--erp-warn)" @endif>
                     <td><code>{{ $u->label_code }}</code></td><td>{{ $u->asnLine->asn->client->name }}</td><td>{{ $u->asnLine->description }}</td><td>{{ __('warehouse.unit_types.'.$u->unit_type) }}</td><td class="num">{{ $u->qty_on_hand }}</td>
                     <td><span class="badge" data-tone="{{ $u->condition === 'good' ? 'ok' : 'danger' }}">{{ __('warehouse.conditions.'.$u->condition) }}</span></td><td>{{ $u->location?->full_code }}</td>
                     <td>

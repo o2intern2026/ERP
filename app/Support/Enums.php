@@ -72,5 +72,15 @@ final class Enums
 
     public const WEBHOOK_DELIVERY_STATUSES = ['pending', 'delivered', 'failed', 'dead'];
 
+    public const WAVE_STATUSES = ['planned', 'released', 'completed', 'cancelled'];
+
+    public const RETURN_RECEIPT_STATUSES = ['expected', 'received', 'inspected', 'closed'];
+
+    public const RETURN_DISPOSITIONS = ['available', 'quarantine', 'damaged'];
+
+    public const HANDED_TO = ['carrier', 'driver', 'client'];
+
+    public const PACKAGE_TYPES = ['carton', 'pallet', 'satchel', 'crate'];
+
     public const STATES = ['VIC', 'NSW', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'];
 }

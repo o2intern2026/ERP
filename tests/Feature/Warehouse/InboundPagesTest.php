@@ -38,22 +38,25 @@ class InboundPagesTest extends TestCase
         $this->actingAs($operator)->get('/warehouse/asns')->assertOk()->assertSee($asn->asn_no);
     }
 
-    public function test_import_creates_lines_from_the_manifest_parser_and_records_the_import(): void
+    public function test_import_creates_lines_from_the_real_manifest_parser_and_records_the_import(): void
     {
         Storage::fake('local');
         $client = $this->client();
         $warehouse = $this->warehouse();
         $asn = app(AsnService::class)->create(['client_id' => $client->id, 'warehouse_id' => $warehouse->id, 'inbound_type' => 'container', 'containers' => [['container_no' => 'IMP1', 'size' => '40', 'unpack_mode' => 'loose']]]);
+        $workbook = base_path('data/需派送货物清单.xlsx'); // the real client list, parsed by X1's SpreadsheetManifestParser (A4, M3)
 
         $this->actingAs($this->staff('customer_service'))
-            ->post(route('warehouse.asns.import', $asn), ['file' => UploadedFile::fake()->create('需派送货物清单.xlsx', 20, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'), 'container_no' => 'IMP1'])
+            ->post(route('warehouse.asns.import', $asn), ['file' => new UploadedFile($workbook, '需派送货物清单.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true), 'container_no' => 'IMP1'])
             ->assertRedirect(route('warehouse.asns.show', $asn));
 
-        $this->assertSame(2, $asn->lines()->count()); // FakeManifestParser returns two rows until X1's real parser lands (M3)
-        $this->assertSame(2, $asn->containers()->first()->fresh()->line_count);
-        $this->assertDatabaseHas('asn_lines', ['asn_id' => $asn->id, 'consignment_mark' => 'FAKE-MARK-01', 'expected_cartons' => 20, 'fba_reference' => 'FBA15FAKE01']);
         $import = AsnImport::query()->firstOrFail();
-        $this->assertSame(['imported', 2, 0], [$import->status, $import->row_count, $import->error_count]);
+        $this->assertSame(135, $import->row_count);
+        $this->assertSame(135, $asn->lines()->count());
+        $this->assertSame(135, $asn->containers()->first()->fresh()->line_count);
+        $this->assertSame(10, $import->error_count); // the workbook's five incomplete rows are reported, not silently dropped
+        $this->assertSame('failed', $import->status);
+        $this->assertTrue($asn->lines()->whereNotNull('consignment_mark')->where('expected_cartons', '>', 0)->exists());
         $this->assertDatabaseHas('documents', ['id' => $import->document_id, 'type' => 'packing_list', 'related_type' => 'asn', 'related_id' => $asn->id]);
     }
 

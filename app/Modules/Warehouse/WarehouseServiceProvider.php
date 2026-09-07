@@ -3,6 +3,7 @@
 namespace App\Modules\Warehouse;
 
 use App\Modules\Warehouse\Console\ReconcileStockCommand;
+use App\Modules\Warehouse\Console\SnapshotStockCommand;
 use App\Modules\Warehouse\Consumers\OrderCancelledConsumer;
 use App\Modules\Warehouse\Consumers\OrderConfirmedConsumer;
 use App\Modules\Warehouse\Consumers\OrderReducedConsumer;
@@ -42,7 +43,7 @@ class WarehouseServiceProvider extends ServiceProvider
         ));
 
         if ($this->app->runningInConsole()) {
-            $this->commands([ReconcileStockCommand::class]);
+            $this->commands([ReconcileStockCommand::class, SnapshotStockCommand::class]);
         }
     }
 }

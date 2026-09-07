@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Warehouse\Models\Location;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Modules\Warehouse\Services\PutawayService;
+use App\Modules\Warehouse\Services\WarehouseContext;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,12 +15,15 @@ use InvalidArgumentException;
 /** B2 putaway: receiving area → storage / pickface / quarantine; scan-gun friendly (location code input). */
 class PutawayController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $units = StockUnit::query()->with(['asnLine.asn.client', 'location', 'warehouse'])->where('putaway_completed', false)->orderBy('id')->paginate(50);
+        $units = StockUnit::query()->with(['asnLine.asn.client', 'location', 'warehouse'])->where('putaway_completed', false)
+            ->when(WarehouseContext::currentId(), fn ($q, $v) => $q->where('warehouse_id', $v))
+            ->orderBy('id')->paginate(50);
 
         return view('warehouse::putaway.index', [
             'units' => $units,
+            'highlight' => $request->integer('highlight') ?: null,
             'locations' => Location::query()->where('active', true)->whereIn('type', ['storage', 'pickface', 'quarantine'])->orderBy('full_code')->get()->groupBy('warehouse_id'),
         ]);
     }
