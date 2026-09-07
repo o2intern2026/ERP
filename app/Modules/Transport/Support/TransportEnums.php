@@ -30,6 +30,8 @@ final class TransportEnums
 
     public const RUN_STOP_STATUSES = ['pending', 'arrived', 'delivered', 'failed'];
 
+    public const TRACKING_SOURCES = ['api', 'driver', 'manual'];
+
     /** @return list<string> */
     public static function shipmentStatuses(string $shipmentType): array
     {

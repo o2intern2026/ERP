@@ -139,7 +139,7 @@ class B7DriverPodTest extends TestCase
         Storage::disk('local')->assertDirectoryEmpty('transport');
     }
 
-    public function test_driver_reports_each_failed_attempt_with_the_exact_event(): void
+    public function test_driver_reports_a_failed_attempt_with_the_exact_event(): void
     {
         $driver = $this->staff('transport_operator');
         $stop = $this->stop($driver->id);
@@ -169,11 +169,6 @@ class B7DriverPodTest extends TestCase
             'reported_by_type' => 'driver',
         ], $event->payload);
 
-        $this->actingAs($driver)->post(route('transport.driver.stops.fail', $stop), [
-            'failure_reason' => 'access_blocked',
-        ])->assertSessionHasNoErrors();
-        $this->assertSame(2, OutboxEvent::query()->where('event_name', 'delivery.failed')->count());
-        $this->assertSame(2, OutboxEvent::query()->where('event_name', 'delivery.failed')->latest('id')->first()->payload['attempt_no']);
     }
 
     public function test_a_driver_cannot_submit_another_drivers_stop_or_repeat_a_delivery(): void

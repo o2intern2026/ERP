@@ -17,6 +17,7 @@
                     <th>{{ __('transport.shipments.status') }}</th>
                     <th>{{ __('transport.shipments.carrier') }}</th>
                     <th>{{ __('transport.shipments.service_level') }}</th>
+                    <th>{{ __('transport.shipments.tracking_number') }}</th>
                     <th class="num">{{ __('transport.shipments.quote_count') }}</th>
                 </tr>
             </thead>
@@ -29,6 +30,7 @@
                         <td><span class="badge">{{ __('transport.statuses.'.$shipment->status) }}</span></td>
                         <td>{{ $shipment->carrier?->name ?? __('transport.not_selected') }}</td>
                         <td>{{ $shipment->service_level ? __('transport.service_levels.'.$shipment->service_level) : __('transport.not_selected') }}</td>
+                        <td>{{ $shipment->tracking_number ?: __('transport.not_selected') }}</td>
                         <td class="num">{{ $shipment->quotes_count }}</td>
                     </tr>
                 @endforeach

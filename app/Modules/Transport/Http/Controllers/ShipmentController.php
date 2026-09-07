@@ -12,7 +12,7 @@ class ShipmentController extends Controller
     {
         return view('transport::shipments.show', [
             'shipment' => $shipment->load([
-                'client', 'job', 'carrier', 'selectedQuote',
+                'client', 'job', 'carrier', 'selectedQuote', 'pods.podDocument', 'trackingEvents',
                 'quotes' => fn ($query) => $query->with('carrier')->latest('id'),
             ]),
         ]);

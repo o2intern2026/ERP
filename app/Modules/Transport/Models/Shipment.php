@@ -75,6 +75,11 @@ class Shipment extends Model
         return $this->hasMany(Pod::class);
     }
 
+    public function trackingEvents(): HasMany
+    {
+        return $this->hasMany(TrackingEvent::class)->orderBy('occurred_at')->orderBy('id');
+    }
+
     public function selectedQuote(): BelongsTo
     {
         return $this->belongsTo(TransportQuote::class, 'selected_quote_id');

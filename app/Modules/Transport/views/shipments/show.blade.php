@@ -17,6 +17,8 @@
         <dd>{{ __('transport.shipment_types.'.$shipment->shipment_type) }}</dd>
         <dt>{{ __('transport.shipments.status') }}</dt>
         <dd>{{ __('transport.statuses.'.$shipment->status) }}</dd>
+        <dt>{{ __('transport.shipments.tracking_number') }}</dt>
+        <dd>{{ $shipment->tracking_number ?: __('transport.not_selected') }}</dd>
     </dl>
 
     <p>
@@ -31,6 +33,97 @@
             </a>
         @endif
     </p>
+
+    @if ($shipment->status === 'failed')
+        <form method="post" action="{{ route('transport.shipments.redelivery.store', $shipment) }}">
+            @csrf
+            <button type="submit">{{ __('transport.redelivery.create') }}</button>
+        </form>
+    @endif
+
+    @php($deliveredPod = $shipment->pods->firstWhere('delivered_at', '!=', null))
+    @if ($deliveredPod)
+        <p>{{ __('transport.carrier_pod.available', [
+            'recipient' => $deliveredPod->recipient_name,
+            'time' => $deliveredPod->delivered_at->format('Y-m-d H:i'),
+        ]) }}</p>
+    @elseif ($shipment->selectedQuote !== null && $shipment->selectedQuote->source !== 'own_fleet')
+        <details>
+            <summary>{{ __('transport.carrier_pod.upload') }}</summary>
+            <form method="post" enctype="multipart/form-data" action="{{ route('transport.shipments.pod.store', $shipment) }}">
+                @csrf
+                <label>
+                    {{ __('transport.driver.recipient_name') }}
+                    <input name="recipient_name" value="{{ old('recipient_name') }}" maxlength="150" required>
+                </label>
+                <label>
+                    {{ __('transport.carrier_pod.file') }}
+                    <input type="file" name="pod_file" accept="application/pdf" required>
+                </label>
+                <button type="submit">{{ __('transport.carrier_pod.save') }}</button>
+            </form>
+        </details>
+    @endif
+
+    <h2>{{ __('transport.tracking.title') }}</h2>
+    @if ($shipment->trackingEvents->isEmpty())
+        <p>{{ __('transport.tracking.empty') }}</p>
+    @else
+        <table class="dense">
+            <thead><tr>
+                <th>{{ __('transport.tracking.time') }}</th>
+                <th>{{ __('transport.tracking.status') }}</th>
+                <th>{{ __('transport.tracking.location') }}</th>
+                <th>{{ __('transport.tracking.description') }}</th>
+            </tr></thead>
+            <tbody>
+                @foreach ($shipment->trackingEvents as $tracking)
+                    <tr>
+                        <td>{{ $tracking->occurred_at?->format('Y-m-d H:i') ?? $tracking->created_at->format('Y-m-d H:i') }}</td>
+                        <td>{{ $tracking->status }}</td>
+                        <td>{{ $tracking->location ?: __('transport.not_selected') }}</td>
+                        <td>{{ $tracking->description ?: __('transport.not_selected') }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+
+    <details>
+        <summary>{{ __('transport.extra_charges.title') }}</summary>
+        <form method="post" action="{{ route('transport.shipments.extra-charges.store', $shipment) }}">
+            @csrf
+            <label>
+                {{ __('transport.extra_charges.type') }}
+                <select name="charge_type" required>
+                    @foreach (\App\Modules\Transport\Services\ExtraChargeService::CHARGE_TYPES as $chargeType)
+                        <option value="{{ $chargeType }}">{{ __('transport.extra_charges.types.'.$chargeType) }}</option>
+                    @endforeach
+                </select>
+            </label>
+            <label>
+                {{ __('transport.extra_charges.quantity') }}
+                <input type="number" name="qty" min="0.01" step="0.01" value="{{ old('qty', 1) }}" required>
+            </label>
+            <label>
+                {{ __('transport.extra_charges.uom') }}
+                <select name="uom" required>
+                    @foreach (\App\Modules\Transport\Services\ExtraChargeService::UOMS as $uom)
+                        <option value="{{ $uom }}">{{ __('transport.extra_charges.uoms.'.$uom) }}</option>
+                    @endforeach
+                </select>
+            </label>
+            <label>
+                {{ __('transport.extra_charges.cost_cents') }}
+                <input type="number" name="cost_cents" min="0" step="1" value="{{ old('cost_cents') }}">
+            </label>
+            <label>
+                {{ __('transport.extra_charges.note') }}
+                <textarea name="note" maxlength="1000" required>{{ old('note') }}</textarea>
+            </label>
+            <button type="submit">{{ __('transport.extra_charges.submit') }}</button>
+        </form>
+    </details>
 
     <h2>{{ __('transport.quotes.title') }}</h2>
     @if ($shipment->quotes->isEmpty())

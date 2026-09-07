@@ -3,6 +3,7 @@
 namespace App\Modules\Transport\Services;
 
 use App\Models\User;
+use App\Modules\Platform\Models\ExceptionRecord;
 use App\Modules\Transport\Events\DeliveryFailed;
 use App\Modules\Transport\Events\DeliveryPodCaptured;
 use App\Modules\Transport\Models\DeliveryRun;
@@ -10,6 +11,7 @@ use App\Modules\Transport\Models\Pod;
 use App\Modules\Transport\Models\RunStop;
 use App\Modules\Transport\Models\Shipment;
 use App\Support\Contracts\DocumentService;
+use App\Support\Contracts\ExceptionService;
 use App\Support\Outbox\OutboxPublisher;
 use DomainException;
 use Illuminate\Http\UploadedFile;
@@ -33,6 +35,9 @@ final class DriverPodService
         private readonly DocumentService $documents,
         private readonly OutboxPublisher $outbox,
         private readonly PodPdf $pdf,
+        private readonly ShipmentProgressService $progress,
+        private readonly PodNotificationService $notifications,
+        private readonly ExceptionService $exceptions,
     ) {}
 
     /** @param list<UploadedFile> $photos */
@@ -47,8 +52,8 @@ final class DriverPodService
         $storedPaths = [];
 
         try {
-            return DB::transaction(function () use ($stop, $driver, $recipientName, $signature, $photos, &$storedPaths): Pod {
-                [$lockedStop, $shipment] = $this->lockDriverStop($stop, $driver);
+            $pod = DB::transaction(function () use ($stop, $driver, $recipientName, $signature, $photos, &$storedPaths): Pod {
+                [$lockedStop, $shipment, $run] = $this->lockDriverStop($stop, $driver);
 
                 if (Pod::query()->where('shipment_id', $shipment->id)->whereNotNull('delivered_at')->exists()) {
                     throw new DomainException(__('transport.driver.already_delivered'));
@@ -122,6 +127,13 @@ final class DriverPodService
                     'captured_by' => $driver->id,
                 ]);
 
+                $lockedStop->update([
+                    'arrived_at' => $lockedStop->arrived_at ?? $deliveredAt,
+                    'status' => 'delivered',
+                ]);
+                $this->progress->advance($shipment, 'delivered', $deliveredAt);
+                $this->finishRun($run);
+
                 $this->outbox->publish(new DeliveryPodCaptured([
                     'shipment_id' => $shipment->id,
                     'shipment_no' => $shipment->shipment_no,
@@ -146,6 +158,10 @@ final class DriverPodService
 
             throw $exception;
         }
+
+        $this->notifications->send($pod);
+
+        return $pod;
     }
 
     public function fail(RunStop $stop, User $driver, string $reason): Pod
@@ -155,7 +171,7 @@ final class DriverPodService
         }
 
         return DB::transaction(function () use ($stop, $driver, $reason): Pod {
-            [, $shipment] = $this->lockDriverStop($stop, $driver);
+            [$lockedStop, $shipment, $run] = $this->lockDriverStop($stop, $driver);
 
             if (Pod::query()->where('shipment_id', $shipment->id)->whereNotNull('delivered_at')->exists()) {
                 throw new DomainException(__('transport.driver.already_delivered'));
@@ -173,6 +189,11 @@ final class DriverPodService
                 'captured_by' => $driver->id,
             ]);
 
+            $lockedStop->update(['status' => 'failed']);
+            $this->progress->advance($shipment, 'failed', $failedAt);
+            $this->finishRun($run);
+            $this->raiseDeliveryFailure($shipment, $reason, $driver->id);
+
             $this->outbox->publish(new DeliveryFailed([
                 'shipment_id' => $shipment->id,
                 'shipment_no' => $shipment->shipment_no,
@@ -189,7 +210,7 @@ final class DriverPodService
         });
     }
 
-    /** @return array{RunStop, Shipment} */
+    /** @return array{RunStop, Shipment, DeliveryRun} */
     private function lockDriverStop(RunStop $stop, User $driver): array
     {
         $lockedStop = RunStop::query()->lockForUpdate()->findOrFail($stop->id);
@@ -204,7 +225,43 @@ final class DriverPodService
             throw new DomainException(__('transport.driver.stop_unavailable'));
         }
 
-        return [$lockedStop, $shipment];
+        return [$lockedStop, $shipment, $run];
+    }
+
+    private function finishRun(DeliveryRun $run): void
+    {
+        $hasOpenStops = RunStop::query()
+            ->where('delivery_run_id', $run->id)
+            ->whereNotIn('status', ['delivered', 'failed'])
+            ->exists();
+        $run->status = $hasOpenStops ? 'dispatched' : 'completed';
+        $run->save();
+    }
+
+    private function raiseDeliveryFailure(Shipment $shipment, string $reason, int $driverId): void
+    {
+        $exists = ExceptionRecord::query()->withoutGlobalScopes()
+            ->where('type', 'delivery_failed')
+            ->where('source_module', 'transport')
+            ->where('source_type', 'shipment')
+            ->where('source_id', $shipment->id)
+            ->where('status', '!=', 'resolved')
+            ->exists();
+
+        if (! $exists) {
+            $this->exceptions->raise('delivery_failed', 'transport', [
+                'job_id' => $shipment->job_id,
+                'client_id' => $shipment->client_id,
+                'order_id' => $shipment->order_id,
+                'source_type' => 'shipment',
+                'source_id' => $shipment->id,
+                'message' => __('transport.exceptions.driver_failed', [
+                    'shipment' => $shipment->shipment_no,
+                    'reason' => __('transport.driver.failure_reasons.'.$reason),
+                ]),
+                'created_by' => $driverId,
+            ]);
+        }
     }
 
     private function decodeSignature(string $signatureData): string

@@ -1,10 +1,13 @@
 <?php
 
+use App\Modules\Transport\Http\Controllers\CarrierPodController;
 use App\Modules\Transport\Http\Controllers\ConsignmentNoteController;
 use App\Modules\Transport\Http\Controllers\DeliveryRunController;
 use App\Modules\Transport\Http\Controllers\DriverController;
+use App\Modules\Transport\Http\Controllers\ExtraChargeController;
 use App\Modules\Transport\Http\Controllers\IndexController;
 use App\Modules\Transport\Http\Controllers\QuoteSelectionController;
+use App\Modules\Transport\Http\Controllers\RedeliveryController;
 use App\Modules\Transport\Http\Controllers\RunStopController;
 use App\Modules\Transport\Http\Controllers\ShipmentController;
 use App\Modules\Transport\Http\Controllers\ShipmentLabelController;
@@ -31,6 +34,15 @@ Route::prefix('transport')->name('transport.')->group(function () {
     Route::get('/{shipment}/label', ShipmentLabelController::class)
         ->whereNumber('shipment')
         ->name('shipments.label');
+    Route::post('/{shipment}/pod', CarrierPodController::class)
+        ->whereNumber('shipment')
+        ->name('shipments.pod.store');
+    Route::post('/{shipment}/extra-charges', ExtraChargeController::class)
+        ->whereNumber('shipment')
+        ->name('shipments.extra-charges.store');
+    Route::post('/{shipment}/redelivery', RedeliveryController::class)
+        ->whereNumber('shipment')
+        ->name('shipments.redelivery.store');
     Route::post('/{shipment}/quotes/{quote}/select', QuoteSelectionController::class)
         ->whereNumber(['shipment', 'quote'])
         ->name('shipments.quotes.select');

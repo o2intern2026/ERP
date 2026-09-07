@@ -1167,7 +1167,7 @@ WMS 事件 outbound.packed(带包裹实测重量/尺寸/件数)
 | B5b | ✅ 2026-09-07 · 班次编排(自派:有序停靠点、指派司机与车辆) | B5 | TransVirtual run = 车 + 停靠点 |
 | B6 | ✅ 2026-09-07 · 自有 label 打印(每包裹一页 4×6 Code 128 标签);第三方打印并归档平台 waybill | B5 | TransVirtual 标签 |
 | B7 | ✅ 2026-09-07 · 司机手机网页显示今日停靠点与尾板提示;签名 + 照片生成并归档 POD PDF;失败原因按尝试记录;发布 `delivery.pod_captured` / `delivery.failed` | B5b | TransVirtual · CartonCloud 签收即闭环 |
-| B8 | 状态回写(API 自动 + 司机页)+ 异常列表 + POD 邮件 + `delivery.extra_charge` 事件 | B5c, B7 | TransVirtual 闭环 · MachShip 追踪 |
+| B8 | ✅ 2026-09-07 · Transdirect 每 30 分钟轮询并幂等记录轨迹;API / 司机页推进状态;失败与延误进入统一异常中心并可创建重派 shipment;自派与第三方 POD 邮件;`delivery.extra_charge` 事件 | B5c, B7 | TransVirtual 闭环 · MachShip 追踪 |
 | B9a | 成本记录:第三方自动取报价成本,自派人工填;每票毛利 | B5c | CargoWise Job 利润 |
 | B9b | 承运商账单对账(导入 + 与报价成本比对) | B9a | MachShip 运费对账 |
 
