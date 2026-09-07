@@ -17,6 +17,8 @@ class ClientAddressBookTest extends TestCase
     /** ERP_PLAN §3.8 #11: a repeated FBA delivery is filled from the book, including its fixed notes. */
     public function test_second_order_to_the_same_fba_address_uses_the_saved_snapshot_and_fixed_notes(): void
     {
+        $this->withoutExceptionHandling();
+
         $user = $this->staff('customer_service');
         $client = $this->client(['name' => 'Repeat FBA Client']);
         $job = app(JobService::class)->create($client->id, 'loose');
@@ -54,7 +56,7 @@ class ClientAddressBookTest extends TestCase
                     'package_type' => 'carton',
                     'carton_qty' => 5,
                 ]],
-            ])->assertSessionHasNoErrors();
+            ])->assertSessionHasNoErrors()->assertRedirect();
         }
 
         $second = Order::query()->where('external_ref', 'PO-SECOND')->firstOrFail();
@@ -71,6 +73,8 @@ class ClientAddressBookTest extends TestCase
 
     public function test_address_book_is_sorted_by_frequency_and_address_snapshots_do_not_change(): void
     {
+        $this->withoutExceptionHandling();
+
         $user = $this->staff('customer_service');
         $client = $this->client();
         $job = app(JobService::class)->create($client->id, 'loose');
@@ -94,7 +98,7 @@ class ClientAddressBookTest extends TestCase
                 'package_type' => 'carton',
                 'carton_qty' => 1,
             ]],
-        ])->assertSessionHasNoErrors();
+        ])->assertSessionHasNoErrors()->assertRedirect();
 
         $order = Order::query()->where('external_ref', 'SNAPSHOT-1')->firstOrFail();
         $used->update(['address' => '99 Replacement Road', 'default_instructions' => 'New instructions']);
