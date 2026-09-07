@@ -4,6 +4,7 @@ namespace App\Modules\Orders\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\OrderCreationService;
@@ -57,12 +58,18 @@ final class OrderController extends Controller
             'serviceLevels' => OrderEnums::SERVICE_LEVELS,
             'addressTypes' => OrderEnums::ADDRESS_TYPES,
             'states' => Enums::STATES,
+            'addresses' => ClientAddress::query()
+                ->orderByDesc('usage_count')
+                ->orderByDesc('last_used_at')
+                ->orderBy('label')
+                ->get(),
         ]);
     }
 
     public function store(Request $request, OrderCreationService $orders): RedirectResponse
     {
         $this->authorizeOrderEntry();
+        $this->mergeSavedAddress($request);
         $data = $this->validated($request);
         $order = $orders->createManual($data, $request->user()?->id);
 
@@ -90,6 +97,7 @@ final class OrderController extends Controller
             'deliver_to_suburb' => ['required', 'string', 'max:100'],
             'deliver_to_state' => ['required', Rule::in(Enums::STATES)],
             'deliver_to_postcode' => ['required', 'string', 'max:10'],
+            'delivery_instructions' => ['nullable', 'string', 'max:2000'],
             'requested_date' => ['required', 'date'],
         ]);
 
@@ -118,6 +126,12 @@ final class OrderController extends Controller
             'deliver_to_state' => ['required', Rule::in(Enums::STATES)],
             'deliver_to_postcode' => ['required', 'string', 'max:10'],
             'deliver_to_address_type' => ['required', Rule::in(OrderEnums::ADDRESS_TYPES)],
+            'delivery_instructions' => ['nullable', 'string', 'max:2000'],
+            'client_address_id' => [
+                'nullable', 'integer',
+                Rule::exists('client_addresses', 'id')
+                    ->where(fn ($query) => $query->where('client_id', $request->integer('client_id'))),
+            ],
             'requested_date' => ['required', 'date'],
             'service_level' => ['required', Rule::in(OrderEnums::SERVICE_LEVELS)],
             'pickup_name' => ['nullable', 'string', 'max:255'],
@@ -161,6 +175,37 @@ final class OrderController extends Controller
         $data['pickup_address'] = collect($pickupFields)->filter(fn ($value) => filled($value))->isEmpty() ? null : $pickupFields;
 
         return $data;
+    }
+
+    private function mergeSavedAddress(Request $request): void
+    {
+        if (! $request->filled('client_address_id') || ! $request->filled('client_id')) {
+            return;
+        }
+
+        $address = ClientAddress::query()
+            ->whereKey($request->integer('client_address_id'))
+            ->where('client_id', $request->integer('client_id'))
+            ->first();
+
+        if (! $address) {
+            return;
+        }
+
+        $snapshot = [
+            'deliver_to_name' => $address->contact_name ?: $address->label,
+            'deliver_to_phone' => $address->phone,
+            'deliver_to_address' => $address->address,
+            'deliver_to_suburb' => $address->suburb,
+            'deliver_to_state' => $address->state,
+            'deliver_to_postcode' => $address->postcode,
+            'deliver_to_address_type' => $address->address_type,
+            'delivery_instructions' => $address->default_instructions,
+        ];
+
+        $request->merge(collect($snapshot)
+            ->reject(fn ($value, $field) => $request->filled($field))
+            ->all());
     }
 
     private function authorizeOrderEntry(): void

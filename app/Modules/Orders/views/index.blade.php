@@ -6,7 +6,10 @@
     <header class="grid">
         <h1>{{ __('orders.title') }}</h1>
         @if (auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher']))
-            <p style="text-align:right"><a role="button" href="{{ route('orders.create') }}">{{ __('orders.actions.create') }}</a></p>
+            <p style="text-align:right">
+                <a class="secondary" role="button" href="{{ route('orders.addresses.index') }}">{{ __('orders.actions.address_book') }}</a>
+                <a role="button" href="{{ route('orders.create') }}">{{ __('orders.actions.create') }}</a>
+            </p>
         @endif
     </header>
 

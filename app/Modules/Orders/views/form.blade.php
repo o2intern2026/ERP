@@ -52,31 +52,58 @@
             <label>{{ __('orders.fields.fba_reference') }}<input name="fba_reference" value="{{ old('fba_reference') }}"></label>
         </div>
 
-        <h2>{{ __('orders.sections.delivery') }}</h2>
         <div class="grid">
-            <label>{{ __('orders.fields.deliver_to_name') }}<input name="deliver_to_name" value="{{ old('deliver_to_name') }}" required></label>
-            <label>{{ __('orders.fields.deliver_to_phone') }}<input name="deliver_to_phone" value="{{ old('deliver_to_phone') }}"></label>
+            <h2>{{ __('orders.sections.delivery') }}</h2>
+            <p style="text-align:right"><a href="{{ route('orders.addresses.index') }}">{{ __('orders.actions.address_book') }}</a></p>
+        </div>
+        <label>{{ __('orders.fields.client_address') }}
+            <select name="client_address_id" id="client-address">
+                <option value="">{{ __('orders.addresses.actions.enter_manually') }}</option>
+                @foreach ($addresses as $address)
+                    <option
+                        value="{{ $address->id }}"
+                        data-client-id="{{ $address->client_id }}"
+                        data-contact-name="{{ $address->contact_name ?: $address->label }}"
+                        data-phone="{{ $address->phone }}"
+                        data-address="{{ $address->address }}"
+                        data-suburb="{{ $address->suburb }}"
+                        data-state="{{ $address->state }}"
+                        data-postcode="{{ $address->postcode }}"
+                        data-address-type="{{ $address->address_type }}"
+                        data-instructions="{{ $address->default_instructions }}"
+                        @selected((int) old('client_address_id') === $address->id)
+                    >{{ $address->label }} — {{ $address->suburb }}, {{ $address->state }}</option>
+                @endforeach
+            </select>
+            <small>{{ __('orders.addresses.frequency_hint') }}</small>
+        </label>
+        <div class="grid">
+            <label>{{ __('orders.fields.deliver_to_name') }}<input id="deliver-to-name" name="deliver_to_name" value="{{ old('deliver_to_name') }}" required></label>
+            <label>{{ __('orders.fields.deliver_to_phone') }}<input id="deliver-to-phone" name="deliver_to_phone" value="{{ old('deliver_to_phone') }}"></label>
             <label>{{ __('orders.fields.address_type') }}
-                <select name="deliver_to_address_type" required>
+                <select id="deliver-to-address-type" name="deliver_to_address_type" required>
                     @foreach ($addressTypes as $type)
                         <option value="{{ $type }}" @selected(old('deliver_to_address_type', 'business') === $type)>{{ __('orders.address_types.'.$type) }}</option>
                     @endforeach
                 </select>
             </label>
         </div>
-        <label>{{ __('orders.fields.address') }}<input name="deliver_to_address" value="{{ old('deliver_to_address') }}" required></label>
+        <label>{{ __('orders.fields.address') }}<input id="deliver-to-address" name="deliver_to_address" value="{{ old('deliver_to_address') }}" required></label>
         <div class="grid">
-            <label>{{ __('orders.fields.suburb') }}<input name="deliver_to_suburb" value="{{ old('deliver_to_suburb') }}" required></label>
+            <label>{{ __('orders.fields.suburb') }}<input id="deliver-to-suburb" name="deliver_to_suburb" value="{{ old('deliver_to_suburb') }}" required></label>
             <label>{{ __('orders.fields.state') }}
-                <select name="deliver_to_state" required>
+                <select id="deliver-to-state" name="deliver_to_state" required>
                     <option value="">{{ __('orders.actions.select') }}</option>
                     @foreach ($states as $state)
                         <option value="{{ $state }}" @selected(old('deliver_to_state') === $state)>{{ $state }}</option>
                     @endforeach
                 </select>
             </label>
-            <label>{{ __('orders.fields.postcode') }}<input name="deliver_to_postcode" value="{{ old('deliver_to_postcode') }}" required></label>
+            <label>{{ __('orders.fields.postcode') }}<input id="deliver-to-postcode" name="deliver_to_postcode" value="{{ old('deliver_to_postcode') }}" required></label>
         </div>
+        <label>{{ __('orders.fields.delivery_instructions') }}
+            <textarea id="delivery-instructions" name="delivery_instructions" rows="3">{{ old('delivery_instructions') }}</textarea>
+        </label>
         <div class="grid">
             <label>{{ __('orders.fields.requested_date') }}<input type="date" name="requested_date" value="{{ old('requested_date') }}" required></label>
             <label>{{ __('orders.fields.service_level') }}
@@ -108,4 +135,44 @@
 
         <button type="submit">{{ __('orders.actions.save') }}</button>
     </form>
+
+    <script>
+        (() => {
+            const client = document.querySelector('[name="client_id"]');
+            const book = document.getElementById('client-address');
+            const addressOptions = Array.from(book.options).slice(1);
+            const fields = {
+                contactName: document.getElementById('deliver-to-name'),
+                phone: document.getElementById('deliver-to-phone'),
+                address: document.getElementById('deliver-to-address'),
+                suburb: document.getElementById('deliver-to-suburb'),
+                state: document.getElementById('deliver-to-state'),
+                postcode: document.getElementById('deliver-to-postcode'),
+                addressType: document.getElementById('deliver-to-address-type'),
+                instructions: document.getElementById('delivery-instructions'),
+            };
+
+            const filterAddresses = () => {
+                const clientId = client.value;
+                addressOptions.forEach(option => {
+                    const unavailable = option.dataset.clientId !== clientId;
+                    option.hidden = unavailable;
+                    option.disabled = unavailable;
+                });
+                if (book.selectedOptions[0]?.disabled) book.value = '';
+            };
+
+            client.addEventListener('change', filterAddresses);
+            book.addEventListener('change', () => {
+                const option = book.selectedOptions[0];
+                if (!option?.value) return;
+
+                Object.entries(fields).forEach(([key, field]) => {
+                    field.value = option.dataset[key] ?? '';
+                });
+            });
+
+            filterAddresses();
+        })();
+    </script>
 @endsection

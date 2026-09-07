@@ -2,6 +2,7 @@
 
 namespace App\Modules\Orders\Services;
 
+use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderEvent;
 use App\Modules\Platform\Models\Job;
@@ -28,7 +29,7 @@ final class OrderCreationService
                     'client_id', 'job_id', 'order_type', 'external_ref', 'consignment_mark', 'fba_reference',
                     'pickup_address', 'deliver_to_name', 'deliver_to_phone', 'deliver_to_address',
                     'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'deliver_to_address_type',
-                    'requested_date', 'service_level',
+                    'delivery_instructions', 'requested_date', 'service_level',
                 ]),
                 'order_no' => $this->nextOrderNo(),
                 'source' => 'manual',
@@ -63,6 +64,18 @@ final class OrderCreationService
                 'note' => null,
                 'created_at' => now(),
             ]);
+
+            if (filled($attributes['client_address_id'] ?? null)) {
+                ClientAddress::query()
+                    ->whereKey((int) $attributes['client_address_id'])
+                    ->where('client_id', $order->client_id)
+                    ->lockForUpdate()
+                    ->firstOrFail()
+                    ->update([
+                        'usage_count' => DB::raw('usage_count + 1'),
+                        'last_used_at' => now(),
+                    ]);
+            }
 
             return $order->load('lines', 'declaredPackages', 'events');
         });

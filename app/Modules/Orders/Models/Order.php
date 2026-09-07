@@ -19,7 +19,7 @@ class Order extends Model
         'order_no', 'client_id', 'job_id', 'order_type', 'source', 'external_ref', 'consignment_mark',
         'fba_reference', 'pickup_address', 'deliver_to_name', 'deliver_to_phone', 'deliver_to_address',
         'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'deliver_to_address_type',
-        'requested_date', 'operational_status', 'fulfilment_status', 'billing_status', 'service_level',
+        'delivery_instructions', 'requested_date', 'operational_status', 'fulfilment_status', 'billing_status', 'service_level',
         'tailgate_required', 'tailgate_reason', 'customer_quote_id', 'created_by',
     ];
 

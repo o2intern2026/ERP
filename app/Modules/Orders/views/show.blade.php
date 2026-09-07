@@ -38,6 +38,7 @@
     </dl>
 
     <h2>{{ __('orders.sections.delivery') }}</h2>
+    <p><strong>{{ __('orders.fields.delivery_instructions') }}:</strong> {{ $order->delivery_instructions ?: __('orders.not_provided') }}</p>
     <p>{{ $order->deliver_to_name }}@if ($order->deliver_to_phone) · {{ $order->deliver_to_phone }}@endif<br>
         {{ $order->deliver_to_address }}, {{ $order->deliver_to_suburb }} {{ $order->deliver_to_state }} {{ $order->deliver_to_postcode }}
     </p>
@@ -59,6 +60,9 @@
                     <label>{{ __('orders.fields.postcode') }}<input name="deliver_to_postcode" value="{{ $order->deliver_to_postcode }}" required></label>
                     <label>{{ __('orders.fields.requested_date') }}<input type="date" name="requested_date" value="{{ $order->requested_date->format('Y-m-d') }}" required></label>
                 </div>
+                <label>{{ __('orders.fields.delivery_instructions') }}
+                    <textarea name="delivery_instructions" rows="3">{{ $order->delivery_instructions }}</textarea>
+                </label>
                 <button type="submit">{{ __('orders.actions.save_changes') }}</button>
             </form>
         </details>
