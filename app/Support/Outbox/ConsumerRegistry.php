@@ -2,9 +2,14 @@
 
 namespace App\Support\Outbox;
 
-/** event name → consumer classes. One registry per application, filled by module providers at boot. */
+/**
+ * event name → consumer classes. One registry per application, filled by module providers at boot.
+ * Register under '*' to receive every event (used by the webhook pusher, A23).
+ */
 final class ConsumerRegistry
 {
+    public const WILDCARD = '*';
+
     /** @var array<string, list<class-string<EventConsumer>>> */
     private array $consumers = [];
 
@@ -16,10 +21,10 @@ final class ConsumerRegistry
         }
     }
 
-    /** @return list<class-string<EventConsumer>> */
+    /** @return list<class-string<EventConsumer>> named consumers first, then wildcard consumers */
     public function for(string $eventName): array
     {
-        return $this->consumers[$eventName] ?? [];
+        return array_values(array_unique(array_merge($this->consumers[$eventName] ?? [], $this->consumers[self::WILDCARD] ?? [])));
     }
 
     /** @return array<string, list<class-string<EventConsumer>>> */

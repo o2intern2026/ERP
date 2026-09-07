@@ -66,5 +66,11 @@ final class Enums
 
     public const MOVEMENT_TYPES = ['receipt', 'putaway', 'pick', 'transfer', 'adjust', 'release', 'return', 'split', 'merge'];
 
+    public const APPROVAL_TYPES = ['rate_card_change', 'credit_note', 'stock_adjustment', 'financial_release', 'price_override', 'poa_quote'];
+
+    public const APPROVAL_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'];
+
+    public const WEBHOOK_DELIVERY_STATUSES = ['pending', 'delivered', 'failed', 'dead'];
+
     public const STATES = ['VIC', 'NSW', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'];
 }

@@ -17,6 +17,13 @@
             @include('layouts.nav.portal')
         </ul>
         <ul>
+             (! auth()->user()->isClientUser())
+                <li>
+                    <form method="get" action="{{ route('platform.search') }}" class="inline">
+                        <input type="search" name="q" placeholder="{{ __('platform.search_placeholder') }}" value="{{ request()->routeIs('platform.search') ? request('q') : '' }}" style="width:16rem;margin:0;padding:.2rem .6rem">
+                    </form>
+                </li>
+            
             <li class="text-muted">{{ auth()->user()->name }}</li>
             <li>
                 <form method="post" action="{{ route('platform.logout') }}" class="inline">

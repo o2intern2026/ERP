@@ -203,15 +203,15 @@ jobs
 | A1 | ✅ M1 · 认证 + 8 角色 + 客户数据隔离 + 用户管理 | A0 | CartonCloud 隔离做在数据层(原样) |
 | A2 | ✅ M1 · 主数据:客户(ABN / 类型 / invoice_mode(per_job / monthly)/ payment_terms(prepaid / eom / net_N)/ default_markup_percent / dispatch_cutoff_time / standard_rate_card_id)、供应商、承运商主数据(仓库 / 库位归 WMS,在 Warehouse 模块维护) | A1 | CargoWise 主数据一处维护 |
 | A27 | ✅ M1 · Job 主线:jobs 表 + JobService + 各模块 job_id 外键 + Job 工作台骨架 | A2 | CargoWise Job(原样) |
-| A28 | 异常中心:统一 exceptions 表与列表;各模块异常接入 | A27 | CargoWise 异常统一入口 |
-| A29 | 文档中心:统一 documents 表、上传组件、客户可见性 | A27 | CargoWise 单据管理 |
-| A30 | 全局搜索(Job / 订单 / 唛头 / 柜号 / tracking / 发票) | A27 | — |
+| A28 | ✅ c5 · 异常中心:统一 exceptions 表与列表;各模块异常接入 | A27 | CargoWise 异常统一入口 |
+| A29 | ✅ c5 · 文档中心:统一 documents 表、上传组件、客户可见性 | A27 | CargoWise 单据管理 |
+| A30 | ✅ c5 · 全局搜索(Job / 订单 / 唛头 / 柜号 / tracking / 发票) | A27 | — |
 | A31 | ✅ M1 · 集成监控与事件可靠性:event_id / inbox / 幂等 / 重试 / 失败队列 / 告警(与 B3 共建) | A0, B3 | Extensiv Integration Manager |
-| A19 | 审批中心(统一入口) | A1 | Extensiv 审批 |
-| A20 | 审计日志(activitylog + 查询页) | A1 | CargoWise 留痕 |
+| A19 | ✅ c5 · 审批中心(统一入口) | A1 | Extensiv 审批 |
+| A20 | ✅ c5 · 审计日志(activitylog + 查询页) | A1 | CargoWise 留痕 |
 | A21 | 报表:老板视角 + 客户视角 | 多数 | MachShip 绩效 · Extensiv 货主视角(舍报表构建器) |
 | A22 | 定时客户报表(邮件) | A21 | Extensiv 定时报表 |
-| A23 | Webhooks 事件推送 | A0 | Extensiv 集成接口(留接口不做市场) |
+| A23 | ✅ c5 · Webhooks 事件推送 | A0 | Extensiv 集成接口(留接口不做市场) |
 
 > 门户(PLT-3)的订单部分在 §3 的 A9-p;库存与账单部分复用 WMS/Billing 页面的客户视图。
 

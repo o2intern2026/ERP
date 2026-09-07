@@ -8,11 +8,14 @@ use App\Support\Tenancy\BelongsToClient;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 /** Inbound master document (ERP_PLAN §4.2): booked → arrived → receiving → putaway → closed. */
 class Asn extends Model
 {
     use BelongsToClient;
+    use LogsActivity;
 
     protected $fillable = [
         'asn_no', 'job_id', 'client_id', 'warehouse_id', 'expected_date', 'inbound_type', 'status', 'created_by_type',
@@ -59,5 +62,10 @@ class Asn extends Model
     public function isContainer(): bool
     {
         return $this->inbound_type === 'container';
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()->logOnly(['status', 'expected_date', 'unplanned_confirmed', 'warehouse_id'])->logOnlyDirty()->dontSubmitEmptyLogs();
     }
 }
