@@ -99,6 +99,15 @@ class ChargeEngineTest extends TestCase
         $this->assertSame(-500, Charge::query()->whereNotNull('reversal_of_charge_id')->whereHas('chargeCode', fn ($q) => $q->where('code', 'WH-ORDER-DESPATCH'))->value('amount_cents'));
         $this->assertSame(6, Charge::query()->where('activity_version', 2)->count());
         $this->assertSame(500 + 400 + 450 + 700 + 450 + 120, (int) Charge::query()->where('status', '!=', 'reversed')->sum('amount_cents')); // net effect: charged once
+
+        // CHANGE_REQUESTS #5 (project lead 2026-09-08): an urgent order pays the $5 standard fee AND the $15 urgent fee.
+        $urgent = $payload(1);
+        $urgent['payload'] = ['order_id' => 78, 'fulfilment_id' => 10, 'activity_version' => 1, 'is_urgent' => true, 'label_count' => 1, 'lines' => [['unit_type' => 'carton', 'qty' => 1, 'unit_weight_kg' => 10]]];
+        $engine->applyEvent($urgent);
+        $urgentCharges = Charge::query()->with('chargeCode')->where('source_activity_id', 'like', 'fulfilment:10%')->get()->mapWithKeys(fn (Charge $c) => [$c->chargeCode->code => $c->amount_cents]);
+        $this->assertSame(500, $urgentCharges['WH-ORDER-DESPATCH']);
+        $this->assertSame(1500, $urgentCharges['WH-ORDER-DESPATCH-URGENT']);
+        $this->assertSame(2, Charge::query()->where('source_activity_id', 'like', 'fulfilment:10%')->whereHas('chargeCode', fn ($q) => $q->where('category', 'warehouse')->where('code', 'like', 'WH-ORDER-%'))->count());
     }
 
     public function test_quote_confirmed_charges_freight_tailgate_and_fuel_once_from_a_client_card(): void
