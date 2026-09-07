@@ -5,6 +5,7 @@ namespace App\Modules\Orders\Services;
 use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderEvent;
+use App\Modules\Orders\OrderEnums;
 use App\Modules\Platform\Models\Job;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -17,13 +18,27 @@ final class OrderCreationService
      */
     public function createManual(array $attributes, ?int $actorId): Order
     {
+        return $this->create($attributes, $actorId, 'manual');
+    }
+
+    /**
+     * Shared creation path for manual, Excel, portal, API and ASN-generated orders.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function create(array $attributes, ?int $actorId, string $source): Order
+    {
+        if (! in_array($source, OrderEnums::SOURCES, true)) {
+            throw new InvalidArgumentException("Unknown order source: {$source}");
+        }
+
         $job = Job::query()->findOrFail((int) $attributes['job_id']);
 
         if ((int) $job->client_id !== (int) $attributes['client_id']) {
             throw new InvalidArgumentException('The selected Job does not belong to the selected client.');
         }
 
-        return DB::transaction(function () use ($attributes, $actorId): Order {
+        return DB::transaction(function () use ($attributes, $actorId, $source): Order {
             $order = Order::query()->create([
                 ...Arr::only($attributes, [
                     'client_id', 'job_id', 'order_type', 'external_ref', 'consignment_mark', 'fba_reference',
@@ -32,7 +47,7 @@ final class OrderCreationService
                     'delivery_instructions', 'requested_date', 'service_level',
                 ]),
                 'order_no' => $this->nextOrderNo(),
-                'source' => 'manual',
+                'source' => $source,
                 'operational_status' => 'received',
                 'fulfilment_status' => 'unfulfilled',
                 'billing_status' => 'unbilled',

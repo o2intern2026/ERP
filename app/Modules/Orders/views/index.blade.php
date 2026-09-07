@@ -8,6 +8,7 @@
         @if (auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher']))
             <p style="text-align:right">
                 <a class="secondary" role="button" href="{{ route('orders.addresses.index') }}">{{ __('orders.actions.address_book') }}</a>
+                <a class="secondary" role="button" href="{{ route('orders.imports.index') }}">{{ __('orders.actions.import') }}</a>
                 <a role="button" href="{{ route('orders.create') }}">{{ __('orders.actions.create') }}</a>
             </p>
         @endif
