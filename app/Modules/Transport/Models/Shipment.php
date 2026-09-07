@@ -75,6 +75,11 @@ class Shipment extends Model
         return $this->belongsTo(TransportQuote::class, 'selected_quote_id');
     }
 
+    public function deliveryRun(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryRun::class);
+    }
+
     public function waybillDocument(): BelongsTo
     {
         return $this->belongsTo(Document::class, 'waybill_document_id');

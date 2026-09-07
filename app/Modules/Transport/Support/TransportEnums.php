@@ -26,6 +26,10 @@ final class TransportEnums
 
     public const SERVICE_LEVELS = ['standard', 'express', 'same_day'];
 
+    public const DELIVERY_RUN_STATUSES = ['planned', 'dispatched', 'completed', 'cancelled'];
+
+    public const RUN_STOP_STATUSES = ['pending', 'arrived', 'delivered', 'failed'];
+
     /** @return list<string> */
     public static function shipmentStatuses(string $shipmentType): array
     {
