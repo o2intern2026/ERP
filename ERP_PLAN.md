@@ -1160,16 +1160,16 @@ WMS 事件 outbound.packed(带包裹实测重量/尺寸/件数)
 
 | # | 任务 | 依赖 | 对标与取舍 |
 |---|---|---|---|
-| B5 | shipment 结构 + 状态机 + transport_quotes 表 + consignment note | B4 | MachShip 报价先于执行(采用) |
+| B5 | ✅ 2026-09-07 · shipment 结构 + 状态机 + transport_quotes 表 + consignment note | B4 | MachShip 报价先于执行(采用) |
 | B5e | ✅ 2026-09-07 · **Vendor API Discovery(Go / No-Go 门槛)**:Transdirect 有公开 API 文档(tracking / POD / label);EIZ 的外部 Partner API 能力未经公开证实。逐项验证报价字段、预订、tracking(webhook 或轮询)、POD 文件回传、waybill 格式、沙箱;产出接口契约。任一平台 No-Go 时该平台不进一期,Manual fallback 保证流程不阻塞 | — | MachShip(验证前不承诺能力) |
-| B5c | TransportOptionService + `CarrierAdapter`:Transdirect、EIZ 适配器(报价 / 预订 / 追踪 / POD 文件)+ Manual 兜底 + own_fleet 固定费率方案;无可用方案进 Manual Transport Exception | B5e, B5, A5 | MachShip 经 TD/EIZ 落地(采用);舍自建直连 |
-| B5d | 方案选择:Recommended / Cheapest / Fastest 标记规则;客户门户确认或改选;Coordinator 代选 | B5c | Shippit 服务等级驱动(采用) |
-| B5b | 班次编排(自派:有序停靠点、指派司机) | B5 | TransVirtual run = 车 + 停靠点 |
-| B6 | 自有 label 打印(自派用;第三方用平台 waybill) | B5 | TransVirtual 标签 |
-| B7 | 司机网页表单 + POD(签名 / 拍照 / 失败原因) | B5b | TransVirtual · CartonCloud 签收即闭环 |
-| B8 | 状态回写(API 自动 + 司机页)+ 异常列表 + POD 邮件 + `delivery.extra_charge` 事件 | B5c, B7 | TransVirtual 闭环 · MachShip 追踪 |
-| B9a | 成本记录:第三方自动取报价成本,自派人工填;每票毛利 | B5c | CargoWise Job 利润 |
-| B9b | 承运商账单对账(导入 + 与报价成本比对) | B9a | MachShip 运费对账 |
+| B5c | ✅ 2026-09-07 · TransportOptionService + `CarrierAdapter`:Transdirect(报价 / 预订 / 追踪 / label)+ Manual 兜底 + own_fleet 固定费率方案;EIZ 按 B5e 结论一期 No-Go;无可用方案进 Manual Transport Exception | B5e, B5, A5 | MachShip 经 TD/EIZ 落地(采用);舍自建直连 |
+| B5d | ✅ 2026-09-07 · 方案选择:Recommended / Cheapest / Fastest 标记规则;客户门户确认或改选;Coordinator 代选 | B5c | Shippit 服务等级驱动(采用) |
+| B5b | ✅ 2026-09-07 · 班次编排(自派:有序停靠点、指派司机与车辆) | B5 | TransVirtual run = 车 + 停靠点 |
+| B6 | ✅ 2026-09-07 · 自有 label 打印(每包裹一页 4×6 Code 128 标签);第三方打印并归档平台 waybill | B5 | TransVirtual 标签 |
+| B7 | ✅ 2026-09-07 · 司机手机网页显示今日停靠点与尾板提示;签名 + 照片生成并归档 POD PDF;失败原因按尝试记录;发布 `delivery.pod_captured` / `delivery.failed` | B5b | TransVirtual · CartonCloud 签收即闭环 |
+| B8 | ✅ 2026-09-07 · Transdirect 每 30 分钟轮询并幂等记录轨迹;API / 司机页推进状态;失败与延误进入统一异常中心并可创建重派 shipment;自派与第三方 POD 邮件;`delivery.extra_charge` 事件 | B5c, B7 | TransVirtual 闭环 · MachShip 追踪 |
+| B9a | ✅ 2026-09-07 · `carrier_costs` + 最终方案预订:第三方自动锁定报价成本,自有车队编入班次即预订并由员工填写实际成本;运输单与订单运输利润页显示“收 − 付 = 毛利”;客户端在数据层不可查询成本 | B5c | CargoWise Job 利润 |
+| B9b | ✅ 2026-09-07 · 承运商账单 CSV 导入，按 tracking number 与报价成本逐票比对，更新实际成本并导出差异 | B9a | MachShip 运费对账 |
 
 ## 5.6 每个任务满足哪条需求
 
