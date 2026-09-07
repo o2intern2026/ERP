@@ -23,21 +23,21 @@ use Tests\TestCase;
 /** The Fakes implement contracts/services.md and are bound when USE_FAKE_SERVICES=true (phpunit.xml). */
 class FakeServicesTest extends TestCase
 {
-    public function test_fakes_are_bound_when_the_flag_is_on(): void
+    public function test_every_contract_resolves_to_its_real_implementation(): void
     {
         $this->assertTrue(config('erp.use_fake_services'));
         $this->assertInstanceOf(\App\Modules\Warehouse\Services\StockService::class, app(StockService::class)); // real since M2
         $this->assertInstanceOf(AsnOrderService::class, app(OrderService::class)); // real since M3
         $this->assertInstanceOf(\App\Modules\Transport\Services\TransportOptionService::class, app(TransportOptionService::class)); // real since M5
-        $this->assertInstanceOf(FakeRateService::class, app(RateService::class));
+        $this->assertInstanceOf(\App\Modules\Billing\Services\RateService::class, app(RateService::class)); // real since M6 (billing block)
         $this->assertInstanceOf(\App\Modules\Platform\Services\JobService::class, app(JobService::class)); // real since M1
         $this->assertInstanceOf(SpreadsheetManifestParser::class, app(ManifestParser::class)); // real since M3
         $this->assertInstanceOf(DatabaseOutboxPublisher::class, app(OutboxPublisher::class)); // real since M1
     }
 
-    public function test_rate_service_prices_the_edward_card_and_never_returns_zero_for_missing_rates(): void
+    public function test_fake_rate_service_prices_the_edward_card_and_never_returns_zero_for_missing_rates(): void
     {
-        $rates = app(RateService::class);
+        $rates = new FakeRateService;
 
         $putaway = $rates->price(1, 'WH-PUTAWAY-PLT', 3);
         $this->assertSame(1350, $putaway['amount_cents']);
@@ -63,9 +63,9 @@ class FakeServicesTest extends TestCase
         $this->assertSame(1.0, $waste['qty']);
     }
 
-    public function test_rate_service_exposes_thresholds_and_suggests_pallet_class_per_plan_4_8(): void
+    public function test_fake_rate_service_exposes_thresholds_and_suggests_pallet_class_per_plan_4_8(): void
     {
-        $rates = app(RateService::class);
+        $rates = new FakeRateService;
 
         $this->assertSame(25, $rates->thresholds(1, 'TR-TAILGATE')['tailgate_weight_kg']);
         $this->assertNull($rates->thresholds(1, 'WH-PUTAWAY-PLT'));

@@ -129,18 +129,18 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 | field | values |
 |---|---|
 | `charge_codes.category` | `warehouse` \| `vas` \| `transport` \| `storage` \| `other` |
-| `charge_codes.default_uom` | `container_20` \| `container_40` \| `pallet` \| `pallet_week` \| `carton` \| `carton_week` \| `cbm_week` \| `order` \| `scan` \| `cbm` \| `man_hour` \| `delivery` \| `label` ※ \| `pickface_week` ※ |
+| `charge_codes.default_uom` | `container_20` \| `container_40` \| `pallet` \| `pallet_week` \| `pickface_week` ※ \| `carton` \| `carton_week` \| `cbm_week` \| `order` \| `label` \| `scan` \| `cbm` \| `man_hour` \| `delivery` |
 | `charge_codes.tax_treatment` | `gst_10` \| `gst_free` \| `out_of_scope` |
-| `charge_rules.trigger_event` | `task.completed` \| `asn.putaway_completed` \| `outbound.packed` \| `shipment.quote_confirmed` \| `delivery.extra_charge` \| `snapshot.weekly` \| `return.financial_decision` |
-| `charge_rules.quantity_source` | `cartons` \| `pallets` \| `billable_qty` \| `weeks` \| `labels` \| `scans` \| `hours_business` \| `hours_after_hours` \| `cbm` \| `pickface_slots` \| `orders` ※ |
+| `charge_rules.trigger_event` | `task.completed` \\| `manual` ※ (hand-entered charges) | `asn.putaway_completed` \| `outbound.packed` \| `shipment.quote_confirmed` \| `delivery.extra_charge` \| `snapshot.weekly` \| `return.financial_decision` |
+| `charge_rules.quantity_source` | `cartons` \| `pallets` \| `pallets_warehouse_plain` ※ \| `billable_qty` \| `weeks` \| `labels` \| `scans` \| `hours_business` \| `hours_after_hours` \| `cbm` \| `pickface_slots` \| `orders` \| `one` ※ |
 | `rate_cards.status` | `draft` \| `active` \| `superseded` |
-| `rate_items.pricing_mode` | `fixed` \| `cost_plus` |
+| `rate_items.pricing_mode` | `fixed` \| `cost_plus` \| `percent` ※ (surcharge as % of a base amount, e.g. TR-FUEL) |
 | `rate_items.pallet_class` | = `stock_units.pallet_class` |
 | `charges.status` | `pending` \| `needs_review` \| `approved` \| `invoiced` \| `disputed` \| `reversed` |
 | `charges.source_type` | `asn` \| `container` \| `task` \| `shipment` \| `snapshot` \| `order` |
 | `invoices.invoice_type` | `service` \| `storage` \| `supplementary` \| `monthly` |
-| `invoices.status` | `draft` → `issued` → `paid` \| `part_paid` (`is_overdue` is display only) |
-| `credit_notes.status` ※ | `draft` \| `approved` \| `issued` |
+| `invoices.status` | `draft` → `issued` → `part_paid` \| `paid` (`void` ※ reserved; `is_overdue` is display only) |
+| `credit_notes.status` ※ | `draft` \| `approved` \| `issued` \| `cancelled` — approval is recorded in `approvals` (PLT-7); `draft` → `issued` once approved |
 
 `label` and `pickface_week` are added to `default_uom` because the 34-row import (§6.2 rule 2, §6.4) bills per label and per pickface·week while the §6.3 list predates that decision; `orders` is added to `quantity_source` for the per-order despatch fee (`CHANGE_REQUESTS.md` #3, #4).
 

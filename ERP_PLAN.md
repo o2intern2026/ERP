@@ -1461,14 +1461,14 @@ customer_quote_lines       charge_code, qty, uom, amount_cents, assumptions(拆�
 
 | # | 任务 | 依赖 | 对标与取舍 |
 |---|---|---|---|
-| A24 | charge_codes 目录 + charge_rules 触发规则 + 真实价目表映射为 code(Seeder) | A2 | CargoWise Charge Code · Extensiv 确定性匹配 |
-| A5 | 价目表(版本化)+ 费率项(引用 code;九种 UOM / 分档 / 最低 / POA / cost_plus / threshold_json 阈值参数;不可原地覆盖)+ Fallback 表 + 真实价目表 Seeder(全部 34 行,含 Label) | A24 | Extensiv 每个维度都是字段(原样)· 版本与快照 |
-| A6a | 计费引擎:消费事件 → 匹配 charge_rules → charges(带快照、状态、防重复键);取消 / 重做生成冲销;Missing Rate Exception | A5, A24, B3 | CartonCloud 作业即计费 · 逆向冲销 |
-| A6b | 周仓储费 job(快照 × 托盘类型 × 周) | A6a, B10a | Extensiv 快照计费(周期改为周) |
-| A8a | 发票生成:服务发票(最终报价确认后,引用已存在 charges)、周仓储发票、送达后补充发票 / credit note、跨 Job 合并;客户快照;按行 GST;收款登记(付款后放行预订);PDF | A6a | CargoWise 按 Job 开票 · Transdirect 打包后报价、付款、再预订 |
-| A8b | 手工加费 + 待报价项 + 未开票池 + credit_notes | A8a | Extensiv 账单控制项 |
-| A18 | 报价(FIN-6,与 OMS A7b 共用计算) | A5 | CargoWise 报价 · Magaya |
-| A10 | 收款记录 + 未结余额(按发票) | A8a | 轻量,不做总账 |
+| A24 | ✅ c4 · charge_codes 目录 + charge_rules 触发规则 + 真实价目表映射为 code(Seeder) | A2 | CargoWise Charge Code · Extensiv 确定性匹配 |
+| A5 | ✅ c4 · 价目表(版本化)+ 费率项(引用 code;九种 UOM / 分档 / 最低 / POA / cost_plus / threshold_json 阈值参数;不可原地覆盖)+ Fallback 表 + 真实价目表 Seeder(全部 34 行,含 Label) | A24 | Extensiv 每个维度都是字段(原样)· 版本与快照 |
+| A6a | ✅ c4 · 计费引擎:消费事件 → 匹配 charge_rules → charges(带快照、状态、防重复键);取消 / 重做生成冲销;Missing Rate Exception | A5, A24, B3 | CartonCloud 作业即计费 · 逆向冲销 |
+| A6b | ✅ c4 · 周仓储费 job(快照 × 托盘类型 × 周) | A6a, B10a | Extensiv 快照计费(周期改为周) |
+| A8a | ✅ c4 · 发票生成:服务发票(最终报价确认后,引用已存在 charges)、周仓储发票、送达后补充发票 / credit note、跨 Job 合并;客户快照;按行 GST;收款登记(付款后放行预订);PDF | A6a | CargoWise 按 Job 开票 · Transdirect 打包后报价、付款、再预订 |
+| A8b | ✅ c4 · 手工加费 + 待报价项 + 未开票池 + credit_notes | A8a | Extensiv 账单控制项 |
+| A18 | ✅ c4 · 报价(FIN-6,与 OMS A7b 共用计算) | A5 | CargoWise 报价 · Magaya |
+| A10 | ✅ c4 · 收款记录 + 未结余额(按发票) | A8a | 轻量,不做总账 |
 
 ## 6.7 每个任务满足哪条需求
 

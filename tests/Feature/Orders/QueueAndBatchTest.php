@@ -110,7 +110,7 @@ class QueueAndBatchTest extends TestCase
         $cs = $this->staff('customer_service');
 
         $byContainer = $this->actingAs($cs)->get('/orders/batches?ref=COSU6508115030')->assertOk();
-        $byContainer->assertSee($asn->asn_no)->assertSee($orderA->order_no)->assertSee($orderB->order_no)->assertDontSee($orderC->order_no)->assertSee(__('orders.batches.revenue_pending'));
+        $byContainer->assertSee($asn->asn_no)->assertSee($orderA->order_no)->assertSee($orderB->order_no)->assertDontSee($orderC->order_no)->assertSee(__('orders.batches.revenue'))->assertSee('0.00 AUD'); // charges table exists since M6: revenue is a number, no longer pending
         $this->actingAs($cs)->get('/orders/batches?ref='.$asn->asn_no)->assertOk()->assertSee($orderA->order_no)->assertSee('14'); // 14 cartons ordered
         $this->actingAs($cs)->get('/orders/batches?ref=NOPE')->assertOk()->assertSee(__('orders.batches.not_found', ['ref' => 'NOPE']));
         $this->actingAs($cs)->get(route('orders.show', $orderA))->assertOk()->assertSee($asn->asn_no)->assertSee('COSU6508115030'); // ASN chip on the line

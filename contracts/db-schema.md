@@ -88,16 +88,16 @@ Not tables: **holds** = `exceptions` rows with `type = hold`; **order_documents*
 |---|---|
 | `charge_codes` | id, code (unique, `charge-codes.md`), category, default_uom, customer_description, internal_description, tax_treatment, active (bool), timestamps |
 | `charge_rules` | id, trigger_event, charge_code_id, condition (json), quantity_source, rate_match_priority, effective_from, effective_to, idempotency_key_template, active (bool), timestamps |
-| `rate_cards` | id, client_id (nullable for the standard card), name, currency (`AUD`), version, effective_from, effective_to, status, is_standard (bool), created_by, approved_by, timestamps |
+| `rate_cards` | id, client_id (nullable for the standard card), name, currency (`AUD`), version, effective_from, effective_to, status, is_standard (bool), created_by, approved_by, notes, timestamps |
 | `rate_items` | id, rate_card_id, charge_code_id, pallet_class (nullable), threshold_json (json), weight_band_min, weight_band_max, zone, pricing_mode, carrier_id (nullable), service_level (nullable), markup_percent, rate_cents, min_charge_cents, is_poa (bool), notes, timestamps — never edited in place; a price change is a new card version |
 | `charges` | id, job_id, client_id, charge_date, charge_code_id, rate_card_id, rate_card_version, rate_item_id, uom, qty, rate_snapshot_cents, amount_cents, calculation_snapshot_json, tax_treatment, status, source_type, source_id, source_activity_id, activity_version, reversal_of_charge_id, is_manual (bool), manual_reason, created_by, invoice_line_id (nullable), timestamps; **unique (source_activity_id, charge_code_id, activity_version)** |
-| `invoices` | id, invoice_no (unique), client_id, invoice_type, period_from, period_to, bill_to_name, bill_to_address, bill_to_abn, status, issued_at, due_at, is_overdue (display flag), paid_at, paid_amount_cents, subtotal_cents, gst_cents, total_cents, pdf_document_id, created_by, timestamps |
+| `invoices` | id, invoice_no (unique), client_id, invoice_type, period_from, period_to, bill_to_name, bill_to_address, bill_to_abn, status, issued_at, due_at, is_overdue (display flag), paid_at, paid_amount_cents, subtotal_cents, gst_cents, total_cents, pdf_document_id, created_by, notes, timestamps |
 | `invoice_jobs` | id, invoice_id, job_id |
 | `invoice_lines` | id, invoice_id, charge_id, job_id, charge_code, description, qty, uom, amount_cents, tax_treatment, gst_cents |
 | `credit_notes` | id, credit_note_no (unique), invoice_id, job_id, client_id, reason, amount_cents, gst_cents, status, created_by, approved_by, issued_at, timestamps |
 | `credit_note_lines` | id, credit_note_id, invoice_line_id, charge_id, description, amount_cents, gst_cents |
 | `payments` | id, invoice_id, amount_cents, paid_at, method, reference, recorded_by, created_at |
-| `customer_quotes` | id, quote_no (unique), job_id, client_id, order_id (nullable), stage, valid_until, status, created_by, timestamps (FIN-6 & OMS-3; X1's A7b reads/creates through RateService + Billing's quote service, `CHANGE_REQUESTS.md` #10) |
+| `customer_quotes` | id, quote_no (unique), job_id, client_id, order_id (nullable), stage, valid_until, status, subtotal_cents, gst_cents, total_cents, notes, created_by, timestamps (FIN-6 & OMS-3; X1's A7b reads/creates through RateService + Billing's quote service, `CHANGE_REQUESTS.md` #10) |
 | `customer_quote_lines` | id, customer_quote_id, charge_code, qty, uom, amount_cents, transport_quote_id (nullable), assumptions (json) |
 
 ## Ownership quick check (used by the integrator)

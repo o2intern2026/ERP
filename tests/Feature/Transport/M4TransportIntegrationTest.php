@@ -57,8 +57,8 @@ class M4TransportIntegrationTest extends TestCase
             'active' => true,
         ]);
 
-        $rates = app(RateService::class);
-        $this->assertInstanceOf(FakeRateService::class, $rates);
+        $rates = new FakeRateService; // M6 integration: real Billing RateService is bound; the Fake keeps this end-to-end test's freight price deterministic
+        $this->app->instance(RateService::class, $rates);
         $rates->withRate('TR-DELIVERY-BASE', 10000);
         $this->app->instance(TransportOptionServiceContract::class, app(TransportOptionService::class));
 
