@@ -6,10 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\Models\Order;
+use App\Modules\Orders\Models\OrderEvent;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\FulfilmentService;
+use App\Modules\Orders\Services\OrderBatchService;
 use App\Modules\Orders\Services\OrderCreationService;
+use App\Modules\Orders\Services\OrderHoldService;
 use App\Modules\Orders\Services\OrderStatusService;
+use App\Modules\Orders\Services\TailgateRule;
 use App\Modules\Platform\Models\Job;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
@@ -79,12 +83,37 @@ final class OrderController extends Controller
             ->with('status', __('orders.messages.created', ['order_no' => $order->order_no]));
     }
 
-    public function show(Order $order, FulfilmentService $fulfilments): View
+    public function show(Order $order, FulfilmentService $fulfilments, OrderHoldService $holds, OrderBatchService $batches, TailgateRule $tailgate): View
     {
+        $order->load(['client', 'job', 'creator', 'lines.fulfilmentLines', 'declaredPackages', 'fulfilments.lines.orderLine', 'events.actor']);
+
         return view('orders::show', [
-            'order' => $order->load(['client', 'job', 'creator', 'lines.fulfilmentLines', 'declaredPackages', 'fulfilments.lines.orderLine', 'events.actor']),
+            'order' => $order,
             'availability' => $order->order_type === 'from_stock' ? $fulfilments->availability($order) : [],
+            'holds' => $holds->activeFor($order),
+            'holdTypes' => Enums::HOLD_TYPES,
+            'asnRefs' => $batches->asnRefsFor($order),
+            'tailgate' => $tailgate->evaluate($order),
         ]);
+    }
+
+    /** A16: a person may override the automatic tailgate decision; the reason goes into the timeline (§3.8 #10). */
+    public function tailgate(Request $request, Order $order, OrderStatusService $statuses): RedirectResponse
+    {
+        $this->authorizeOrderEntry();
+        abort_if(in_array($order->operational_status, ['dispatched', 'delivered', 'returned', 'cancelled'], true), 403, __('orders.tailgate.messages.locked'));
+        $data = $request->validate(['tailgate_required' => ['required', 'boolean'], 'reason' => ['required', 'string', 'max:255']]);
+
+        DB::transaction(function () use ($order, $data, $request): void {
+            $order->update(['tailgate_required' => (bool) $data['tailgate_required'], 'tailgate_reason' => 'manual']);
+            OrderEvent::query()->create([
+                'order_id' => $order->id, 'dimension' => 'operational', 'from_status' => $order->operational_status, 'to_status' => $order->operational_status,
+                'actor_type' => 'user', 'actor_id' => $request->user()->id,
+                'note' => __($data['tailgate_required'] ? 'orders.tailgate.timeline.forced' : 'orders.tailgate.timeline.cleared', ['reason' => $data['reason']]), 'created_at' => now(),
+            ]);
+        });
+
+        return back()->with('status', __('orders.tailgate.messages.saved'));
     }
 
     public function confirm(Order $order, OrderStatusService $statuses): RedirectResponse
@@ -131,7 +160,7 @@ final class OrderController extends Controller
     {
         $data = $request->validate([
             'client_id' => ['required', 'integer', Rule::exists('clients', 'id')->where('status', 'active')],
-            'job_id' => ['required', 'integer', Rule::exists('jobs', 'id')],
+            'job_id' => ['nullable', 'integer', Rule::exists('jobs', 'id')],
             'order_type' => ['required', Rule::in(OrderEnums::TYPES)],
             'external_ref' => [
                 'nullable', 'string', 'max:255',
@@ -156,11 +185,11 @@ final class OrderController extends Controller
             'service_level' => ['required', Rule::in(OrderEnums::SERVICE_LEVELS)],
             'pickup_name' => ['nullable', 'string', 'max:255'],
             'pickup_phone' => ['nullable', 'string', 'max:40'],
-            'pickup_address_line' => ['nullable', 'string', 'max:255'],
-            'pickup_suburb' => ['nullable', 'string', 'max:100'],
-            'pickup_state' => ['nullable', Rule::in(Enums::STATES)],
-            'pickup_postcode' => ['nullable', 'string', 'max:10'],
-            'lines' => ['required', 'array', 'min:1'],
+            'pickup_address_line' => ['nullable', 'required_if:order_type,pickup_deliver', 'string', 'max:255'],
+            'pickup_suburb' => ['nullable', 'required_if:order_type,pickup_deliver', 'string', 'max:100'],
+            'pickup_state' => ['nullable', 'required_if:order_type,pickup_deliver', Rule::in(Enums::STATES)],
+            'pickup_postcode' => ['nullable', 'required_if:order_type,pickup_deliver', 'string', 'max:10'],
+            'lines' => ['nullable', 'required_unless:order_type,pickup_deliver', 'array'],
             'lines.*.description_cn' => ['nullable', 'string', 'max:255', 'required_without:lines.*.description_en'],
             'lines.*.description_en' => ['nullable', 'string', 'max:255', 'required_without:lines.*.description_cn'],
             'lines.*.package_type' => ['required', 'string', 'max:30'],
@@ -171,7 +200,7 @@ final class OrderController extends Controller
             'lines.*.width_mm' => ['nullable', 'integer', 'min:0'],
             'lines.*.height_mm' => ['nullable', 'integer', 'min:0'],
             'lines.*.cbm' => ['nullable', 'numeric', 'min:0'],
-            'declared_packages' => ['nullable', 'array'],
+            'declared_packages' => ['nullable', 'required_if:order_type,pickup_deliver', 'array'],
             'declared_packages.*.package_type' => ['required_with:declared_packages.*.qty', 'nullable', 'string', 'max:30'],
             'declared_packages.*.qty' => ['required_with:declared_packages.*.package_type', 'nullable', 'integer', 'min:1'],
             'declared_packages.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
@@ -180,7 +209,7 @@ final class OrderController extends Controller
             'declared_packages.*.height_mm' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $jobMatchesClient = Job::query()
+        $jobMatchesClient = blank($data['job_id'] ?? null) || Job::query()
             ->whereKey($data['job_id'])
             ->where('client_id', $data['client_id'])
             ->exists();

@@ -48,6 +48,7 @@ final class OrderStatusService
 
             if ($toStatus === 'confirmed') {
                 $locked->loadMissing('lines', 'declaredPackages');
+                app(TailgateRule::class)->apply($locked); // A16: automatic unless a person overrode it
                 app(OutboxPublisher::class)->publish($this->confirmedEvent($locked, $actorId));
             }
 

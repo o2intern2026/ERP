@@ -7,12 +7,15 @@ use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderEvent;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Platform\Models\Job;
+use App\Support\Contracts\JobService;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 final class OrderCreationService
 {
+    public function __construct(private readonly JobService $jobs, private readonly TailgateRule $tailgate) {}
+
     /**
      * @param  array<string, mixed>  $attributes
      */
@@ -32,10 +35,16 @@ final class OrderCreationService
             throw new InvalidArgumentException("Unknown order source: {$source}");
         }
 
-        $job = Job::query()->findOrFail((int) $attributes['job_id']);
-
-        if ((int) $job->client_id !== (int) $attributes['client_id']) {
-            throw new InvalidArgumentException('The selected Job does not belong to the selected client.');
+        if (filled($attributes['job_id'] ?? null)) {
+            $job = Job::query()->findOrFail((int) $attributes['job_id']);
+            if ((int) $job->client_id !== (int) $attributes['client_id']) {
+                throw new InvalidArgumentException('The selected Job does not belong to the selected client.');
+            }
+        } else {
+            // A11b: a pure transport order opens its own transport_only Job; anything else without a Job gets a loose one (A27 JobService).
+            $attributes['job_id'] = $this->jobs->create((int) $attributes['client_id'], ($attributes['order_type'] ?? null) === 'pickup_deliver' ? 'transport_only' : 'loose', [
+                'reference' => $attributes['external_ref'] ?? $attributes['consignment_mark'] ?? null,
+            ])['job_id'];
         }
 
         return DB::transaction(function () use ($attributes, $actorId, $source): Order {
@@ -55,7 +64,7 @@ final class OrderCreationService
                 'created_by' => $actorId,
             ]);
 
-            foreach ($attributes['lines'] as $line) {
+            foreach ($attributes['lines'] ?? [] as $line) {
                 $order->lines()->create(Arr::only($line, [
                     'description_cn', 'description_en', 'hs_code', 'material', 'usage', 'brand', 'package_type',
                     'carton_qty', 'unit_qty', 'unit_price_cents', 'total_price_cents', 'actual_weight_kg',
@@ -92,6 +101,8 @@ final class OrderCreationService
                     'last_used_at' => now(),
                 ]);
             }
+
+            $this->tailgate->apply($order->load('lines', 'declaredPackages')); // A16: automatic rule at entry, re-checked at confirmation
 
             return $order->load('lines', 'declaredPackages', 'events');
         });

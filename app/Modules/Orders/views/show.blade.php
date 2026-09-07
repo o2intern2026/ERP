@@ -77,6 +77,82 @@
         <p><strong>{{ __('orders.messages.locked') }}</strong></p>
     @endif
 
+    @if ($order->order_type === 'pickup_deliver')
+        <h2>{{ __('orders.pickup.title') }}</h2>
+        <p class="text-muted"><small>{{ __('orders.pickup.hint') }}</small></p>
+        @if ($order->pickup_address)
+            <p>{{ $order->pickup_address['name'] ?? '' }}@if ($order->pickup_address['phone'] ?? null) · {{ $order->pickup_address['phone'] }}@endif<br>
+                {{ $order->pickup_address['address'] ?? '' }}, {{ $order->pickup_address['suburb'] ?? '' }} {{ $order->pickup_address['state'] ?? '' }} {{ $order->pickup_address['postcode'] ?? '' }}</p>
+        @endif
+        <h3>{{ __('orders.pickup.packages_title') }}</h3>
+        @if ($order->declaredPackages->isEmpty())
+            <p class="text-muted">{{ __('orders.pickup.none') }}</p>
+        @else
+            <table class="dense">
+                <thead><tr><th>{{ __('orders.pickup.package_type') }}</th><th>{{ __('orders.pickup.qty') }}</th><th>{{ __('orders.pickup.weight_kg') }}</th><th>{{ __('orders.pickup.dims') }}</th></tr></thead>
+                <tbody>
+                    @foreach ($order->declaredPackages as $package)
+                        <tr><td>{{ $package->package_type }}</td><td>{{ $package->qty }}</td><td>{{ $package->weight_kg ?? __('orders.not_provided') }}</td><td>{{ $package->length_mm && $package->width_mm && $package->height_mm ? $package->length_mm.' × '.$package->width_mm.' × '.$package->height_mm : __('orders.not_provided') }}</td></tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+    @endif
+
+    <div class="grid">
+        <article>
+            <header>{{ __('orders.tailgate.title') }}</header>
+            <strong>{{ $order->tailgate_required ? __('orders.tailgate.required') : __('orders.tailgate.not_required') }}</strong>
+            @if ($order->tailgate_reason)
+                <span class="badge" data-tone="{{ $order->tailgate_reason === 'manual' ? 'warn' : 'muted' }}">{{ __('orders.tailgate.reasons.'.$order->tailgate_reason) }}</span>
+            @endif
+            <p class="text-muted"><small>{{ __('orders.tailgate.rule', ['threshold' => $tailgate['threshold_kg'], 'heaviest' => number_format($tailgate['heaviest_piece_kg'], 2)]) }}</small></p>
+            @if (! in_array($order->operational_status, ['dispatched', 'delivered', 'returned', 'cancelled'], true) && auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher']))
+                <details>
+                    <summary>{{ __('orders.tailgate.override') }}</summary>
+                    <form method="post" action="{{ route('orders.tailgate', $order) }}">
+                        @csrf
+                        <label><input type="hidden" name="tailgate_required" value="0"><input type="checkbox" name="tailgate_required" value="1" @checked($order->tailgate_required)> {{ __('orders.tailgate.required') }}</label>
+                        <input type="text" name="reason" placeholder="{{ __('orders.tailgate.reason') }}" required>
+                        <button type="submit" class="secondary">{{ __('orders.tailgate.save') }}</button>
+                    </form>
+                </details>
+            @endif
+        </article>
+        <article>
+            <header>{{ __('orders.holds.title') }}</header>
+            @forelse ($holds as $hold)
+                <p>
+                    <span class="badge" data-tone="{{ $hold->hold_type === 'financial' ? 'danger' : 'warn' }}">{{ __('orders.holds.types.'.$hold->hold_type) }}</span>
+                    @if ($hold->order_id === null)<small class="text-muted">{{ __('orders.holds.client_wide') }}</small>@endif
+                    {{ $hold->message }} <small class="text-muted">{{ __('orders.holds.since') }} {{ \Carbon\Carbon::parse($hold->created_at)->format('m-d H:i') }}</small>
+                    @if ($hold->order_id !== null && auth()->user()->hasAnyRole($hold->hold_type === 'financial' ? ['admin', 'finance'] : ['admin', 'customer_service', 'dispatcher', 'finance']))
+                        <form method="post" action="{{ route('orders.holds.release', [$order, $hold->id]) }}" class="inline">
+                            @csrf
+                            <input type="text" name="note" placeholder="{{ __('orders.holds.release_note') }}" required style="width:12rem">
+                            <button type="submit" class="secondary outline">{{ __('orders.holds.release') }}</button>
+                        </form>
+                    @endif
+                </p>
+            @empty
+                <p class="text-muted">{{ __('orders.holds.none') }}</p>
+            @endforelse
+            @if (! in_array($order->operational_status, ['delivered', 'returned', 'cancelled'], true) && auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'finance']))
+                <form method="post" action="{{ route('orders.holds.store', $order) }}" class="grid">
+                    @csrf
+                    <select name="hold_type">
+                        @foreach ($holdTypes as $type)
+                            <option value="{{ $type }}" @disabled($type === 'financial' && ! auth()->user()->hasAnyRole(['admin', 'finance']))>{{ __('orders.holds.types.'.$type) }}</option>
+                        @endforeach
+                    </select>
+                    <input type="text" name="reason" placeholder="{{ __('orders.holds.reason') }}" required>
+                    <button type="submit" class="secondary">{{ __('orders.holds.place') }}</button>
+                </form>
+                <p class="text-muted"><small>{{ __('orders.holds.financial_hint') }}</small></p>
+            @endif
+        </article>
+    </div>
+
     <h2>{{ __('orders.sections.goods') }}</h2>
     <div class="overflow-auto">
         <table>
@@ -87,6 +163,7 @@
                 <th>{{ __('orders.fields.unit_qty') }}</th>
                 <th>{{ __('orders.fields.weight_kg') }}</th>
                 <th>{{ __('orders.fields.dimensions') }}</th>
+                <th>{{ __('orders.batches.asn_ref') }}</th>
             </tr></thead>
             <tbody>
                 @foreach ($order->lines as $line)
@@ -97,6 +174,14 @@
                         <td>{{ $line->unit_qty ?? __('orders.not_provided') }}</td>
                         <td>{{ $line->actual_weight_kg ?? __('orders.not_provided') }}</td>
                         <td>{{ $line->length_mm && $line->width_mm && $line->height_mm ? $line->length_mm.' × '.$line->width_mm.' × '.$line->height_mm : __('orders.not_provided') }}</td>
+                        <td>
+                            @if ($line->asn_line_id && isset($asnRefs[$line->asn_line_id]))
+                                <a href="{{ route('orders.batches', ['ref' => $asnRefs[$line->asn_line_id]->asn_no]) }}">{{ $asnRefs[$line->asn_line_id]->asn_no }}</a>
+                                @if ($asnRefs[$line->asn_line_id]->container_no) <small class="text-muted">{{ $asnRefs[$line->asn_line_id]->container_no }}</small>@endif
+                            @else
+                                <span class="text-muted">{{ __('orders.batches.unlinked') }}</span>
+                            @endif
+                        </td>
                     </tr>
                 @endforeach
             </tbody>

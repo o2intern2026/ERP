@@ -6,11 +6,13 @@ use App\Modules\Orders\Consumers\AsnPutawayCompletedConsumer;
 use App\Modules\Orders\Consumers\DeliveryPodCapturedConsumer;
 use App\Modules\Orders\Consumers\StockReservationFailedConsumer;
 use App\Modules\Orders\Consumers\StockReservedConsumer;
+use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Services\AsnOrderService;
 use App\Modules\Orders\Services\SpreadsheetManifestParser;
 use App\Support\Contracts\ManifestParser;
 use App\Support\Contracts\OrderService;
 use App\Support\Outbox\ConsumerRegistry;
+use App\Support\Search\SearchRegistry;
 use Illuminate\Support\ServiceProvider;
 
 class OrdersServiceProvider extends ServiceProvider
@@ -34,5 +36,10 @@ class OrdersServiceProvider extends ServiceProvider
         $registry->register('stock.reservation_failed', StockReservationFailedConsumer::class);
         $registry->register('asn.putaway_completed', AsnPutawayCompletedConsumer::class);
         $registry->register('delivery.pod_captured', DeliveryPodCapturedConsumer::class);
+
+        $this->app->make(SearchRegistry::class)->register('orders', fn (string $q): array => Order::query()->with('client')
+            ->where(fn ($w) => $w->where('order_no', 'like', "%{$q}%")->orWhere('external_ref', 'like', "%{$q}%")->orWhere('consignment_mark', 'like', "%{$q}%")->orWhere('fba_reference', 'like', "%{$q}%"))
+            ->limit(20)->get()
+            ->map(fn ($o) => ['type' => 'order', 'label' => $o->order_no, 'url' => route('orders.show', $o), 'meta' => $o->client->name.' · '.__('orders.statuses.operational.'.$o->operational_status)])->all());
     }
 }

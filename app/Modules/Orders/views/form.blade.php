@@ -31,15 +31,16 @@
                 </select>
             </label>
             <label>{{ __('orders.fields.job') }}
-                <select name="job_id" required>
-                    <option value="">{{ __('orders.actions.select') }}</option>
+                <select name="job_id">
+                    <option value="">{{ __('orders.pickup.new_job') }}</option>
                     @foreach ($jobs as $job)
                         <option value="{{ $job->id }}" @selected((int) old('job_id') === $job->id)>{{ $job->job_no }} — {{ $job->client->name }}</option>
                     @endforeach
                 </select>
+                <small>{{ __('orders.pickup.new_job_hint') }}</small>
             </label>
             <label>{{ __('orders.fields.order_type') }}
-                <select name="order_type" required>
+                <select name="order_type" id="order-type" required>
                     @foreach ($types as $type)
                         <option value="{{ $type }}" @selected(old('order_type', 'from_stock') === $type)>{{ __('orders.types.'.$type) }}</option>
                     @endforeach
@@ -115,14 +116,48 @@
             </label>
         </div>
 
+        {{-- A11b: pure transport orders carry a pickup address and declared packages instead of stock lines. --}}
+        <fieldset id="pickup-fields" hidden>
+            <legend>{{ __('orders.pickup.title') }}</legend>
+            <p class="text-muted"><small>{{ __('orders.pickup.hint') }}</small></p>
+            <div class="grid">
+                <label>{{ __('orders.pickup.name') }}<input name="pickup_name" value="{{ old('pickup_name') }}"></label>
+                <label>{{ __('orders.pickup.phone') }}<input name="pickup_phone" value="{{ old('pickup_phone') }}"></label>
+            </div>
+            <label>{{ __('orders.pickup.address') }}<input name="pickup_address_line" value="{{ old('pickup_address_line') }}"></label>
+            <div class="grid">
+                <label>{{ __('orders.pickup.suburb') }}<input name="pickup_suburb" value="{{ old('pickup_suburb') }}"></label>
+                <label>{{ __('orders.pickup.state') }}
+                    <select name="pickup_state">
+                        <option value="">{{ __('orders.actions.select') }}</option>
+                        @foreach ($states as $state)
+                            <option value="{{ $state }}" @selected(old('pickup_state') === $state)>{{ $state }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label>{{ __('orders.pickup.postcode') }}<input name="pickup_postcode" value="{{ old('pickup_postcode') }}"></label>
+            </div>
+            <h3>{{ __('orders.pickup.packages_title') }}</h3>
+            @for ($i = 0; $i < 3; $i++)
+                <div class="grid">
+                    <input name="declared_packages[{{ $i }}][package_type]" placeholder="{{ __('orders.pickup.package_type') }}" value="{{ old("declared_packages.$i.package_type") }}">
+                    <input type="number" min="1" name="declared_packages[{{ $i }}][qty]" placeholder="{{ __('orders.pickup.qty') }}" value="{{ old("declared_packages.$i.qty") }}">
+                    <input type="number" min="0" step="0.001" name="declared_packages[{{ $i }}][weight_kg]" placeholder="{{ __('orders.pickup.weight_kg') }}" value="{{ old("declared_packages.$i.weight_kg") }}">
+                    <input type="number" min="0" name="declared_packages[{{ $i }}][length_mm]" placeholder="{{ __('orders.fields.length_mm') }}" value="{{ old("declared_packages.$i.length_mm") }}">
+                    <input type="number" min="0" name="declared_packages[{{ $i }}][width_mm]" placeholder="{{ __('orders.fields.width_mm') }}" value="{{ old("declared_packages.$i.width_mm") }}">
+                    <input type="number" min="0" name="declared_packages[{{ $i }}][height_mm]" placeholder="{{ __('orders.fields.height_mm') }}" value="{{ old("declared_packages.$i.height_mm") }}">
+                </div>
+            @endfor
+        </fieldset>
+
         <h2>{{ __('orders.sections.goods') }}</h2>
         <div class="grid">
             <label>{{ __('orders.fields.description_cn') }}<input name="lines[0][description_cn]" value="{{ old('lines.0.description_cn') }}"></label>
             <label>{{ __('orders.fields.description_en') }}<input name="lines[0][description_en]" value="{{ old('lines.0.description_en') }}"></label>
-            <label>{{ __('orders.fields.package_type') }}<input name="lines[0][package_type]" value="{{ old('lines.0.package_type', 'carton') }}" required></label>
+            <label>{{ __('orders.fields.package_type') }}<input name="lines[0][package_type]" class="goods-required" value="{{ old('lines.0.package_type', 'carton') }}" required></label>
         </div>
         <div class="grid">
-            <label>{{ __('orders.fields.carton_qty') }}<input type="number" min="1" name="lines[0][carton_qty]" value="{{ old('lines.0.carton_qty', 1) }}" required></label>
+            <label>{{ __('orders.fields.carton_qty') }}<input type="number" min="1" name="lines[0][carton_qty]" class="goods-required" value="{{ old('lines.0.carton_qty', 1) }}" required></label>
             <label>{{ __('orders.fields.unit_qty') }}<input type="number" min="0" name="lines[0][unit_qty]" value="{{ old('lines.0.unit_qty') }}"></label>
             <label>{{ __('orders.fields.weight_kg') }}<input type="number" min="0" step="0.001" name="lines[0][actual_weight_kg]" value="{{ old('lines.0.actual_weight_kg') }}"></label>
         </div>
@@ -166,13 +201,22 @@
             book.addEventListener('change', () => {
                 const option = book.selectedOptions[0];
                 if (!option?.value) return;
-
                 Object.entries(fields).forEach(([key, field]) => {
                     field.value = option.dataset[key] ?? '';
                 });
             });
-
             filterAddresses();
+
+            // A11b: pure transport orders show the pickup fieldset and do not require goods lines.
+            const orderType = document.getElementById('order-type');
+            const pickup = document.getElementById('pickup-fields');
+            const toggleType = () => {
+                const pure = orderType.value === 'pickup_deliver';
+                pickup.hidden = !pure;
+                document.querySelectorAll('.goods-required').forEach(el => { el.required = !pure; });
+            };
+            orderType.addEventListener('change', toggleType);
+            toggleType();
         })();
     </script>
 @endsection
