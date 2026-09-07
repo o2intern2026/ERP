@@ -2,10 +2,15 @@
 
 namespace App\Modules\Orders;
 
+use App\Modules\Orders\Consumers\AsnPutawayCompletedConsumer;
+use App\Modules\Orders\Consumers\DeliveryPodCapturedConsumer;
+use App\Modules\Orders\Consumers\StockReservationFailedConsumer;
+use App\Modules\Orders\Consumers\StockReservedConsumer;
 use App\Modules\Orders\Services\AsnOrderService;
 use App\Modules\Orders\Services\SpreadsheetManifestParser;
 use App\Support\Contracts\ManifestParser;
 use App\Support\Contracts\OrderService;
+use App\Support\Outbox\ConsumerRegistry;
 use Illuminate\Support\ServiceProvider;
 
 class OrdersServiceProvider extends ServiceProvider
@@ -23,5 +28,11 @@ class OrdersServiceProvider extends ServiceProvider
     {
         $this->loadViewsFrom(__DIR__.'/views', 'orders');
         $this->loadMigrationsFrom(__DIR__.'/migrations');
+
+        $registry = $this->app->make(ConsumerRegistry::class);
+        $registry->register('stock.reserved', StockReservedConsumer::class);
+        $registry->register('stock.reservation_failed', StockReservationFailedConsumer::class);
+        $registry->register('asn.putaway_completed', AsnPutawayCompletedConsumer::class);
+        $registry->register('delivery.pod_captured', DeliveryPodCapturedConsumer::class);
     }
 }

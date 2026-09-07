@@ -7,7 +7,9 @@ use App\Modules\MasterData\Models\Client;
 use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\OrderEnums;
+use App\Modules\Orders\Services\FulfilmentService;
 use App\Modules\Orders\Services\OrderCreationService;
+use App\Modules\Orders\Services\OrderStatusService;
 use App\Modules\Platform\Models\Job;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
@@ -77,11 +79,29 @@ final class OrderController extends Controller
             ->with('status', __('orders.messages.created', ['order_no' => $order->order_no]));
     }
 
-    public function show(Order $order): View
+    public function show(Order $order, FulfilmentService $fulfilments): View
     {
         return view('orders::show', [
-            'order' => $order->load(['client', 'job', 'creator', 'lines', 'declaredPackages', 'events.actor']),
+            'order' => $order->load(['client', 'job', 'creator', 'lines.fulfilmentLines', 'declaredPackages', 'fulfilments.lines.orderLine', 'events.actor']),
+            'availability' => $order->order_type === 'from_stock' ? $fulfilments->availability($order) : [],
         ]);
+    }
+
+    public function confirm(Order $order, OrderStatusService $statuses): RedirectResponse
+    {
+        $this->authorizeOrderEntry();
+
+        if ($order->operational_status !== 'received') {
+            return back()->withErrors(['order' => __('orders.validation.confirm_received_only')]);
+        }
+
+        if ($order->order_type === 'from_stock' && $order->lines()->whereNull('asn_line_id')->exists()) {
+            return back()->withErrors(['order' => __('orders.validation.unlinked_stock')]);
+        }
+
+        $statuses->transitionOperational($order, 'confirmed', auth()->id(), __('orders.fulfilments.timeline.confirmed'));
+
+        return back()->with('status', __('orders.messages.confirmed'));
     }
 
     /** A3 establishes the picking lock invariant; A11 later adds supervised overrides and cancellation. */

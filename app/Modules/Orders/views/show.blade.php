@@ -25,6 +25,13 @@
         </article>
     </div>
 
+    @if ($order->operational_status === 'received')
+        <form method="post" action="{{ route('orders.confirm', $order) }}">
+            @csrf
+            <button type="submit">{{ __('orders.actions.confirm') }}</button>
+        </form>
+    @endif
+
     <h2>{{ __('orders.sections.instruction') }}</h2>
     <dl>
         <dt>{{ __('orders.fields.order_type') }}</dt><dd>{{ __('orders.types.'.$order->order_type) }}</dd>
@@ -95,6 +102,15 @@
             </tbody>
         </table>
     </div>
+
+    @if ($order->order_type === 'from_stock')
+        <h2>{{ __('orders.fulfilments.availability_title') }}</h2>
+        @include('orders::fulfilments.partials.availability')
+    @endif
+
+    <h2>{{ __('orders.fulfilments.batches_title') }}</h2>
+    <p><a href="{{ route('orders.fulfilments.index', $order) }}">{{ __('orders.fulfilments.actions.open') }}</a></p>
+    @include('orders::fulfilments.partials.batches')
 
     <h2>{{ __('orders.timeline.title') }}</h2>
     <ol>

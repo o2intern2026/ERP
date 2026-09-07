@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Orders\Http\Controllers\ClientAddressController;
+use App\Modules\Orders\Http\Controllers\FulfilmentController;
 use App\Modules\Orders\Http\Controllers\OrderController;
 use App\Modules\Orders\Http\Controllers\OrderImportController;
 use Illuminate\Support\Facades\Route;
@@ -21,6 +22,8 @@ Route::prefix('orders')->name('orders.')->group(function () {
     Route::post('/addresses', [ClientAddressController::class, 'store'])->name('addresses.store');
     Route::get('/addresses/{address}/edit', [ClientAddressController::class, 'edit'])->name('addresses.edit');
     Route::put('/addresses/{address}', [ClientAddressController::class, 'update'])->name('addresses.update');
+    Route::post('/{order}/confirm', [OrderController::class, 'confirm'])->name('confirm');
+    Route::get('/{order}/fulfilments', [FulfilmentController::class, 'index'])->name('fulfilments.index');
     Route::get('/{order}', [OrderController::class, 'show'])->name('show');
     Route::patch('/{order}', [OrderController::class, 'update'])->name('update');
 });

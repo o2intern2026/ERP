@@ -16,6 +16,7 @@ return [
         'edit_delivery' => '修改配送信息',
         'address_book' => '常用收件地址',
         'import' => '批量导入',
+        'confirm' => '确认订单并检查库存',
     ],
     'filters' => [
         'all_clients' => '全部客户',
@@ -26,6 +27,7 @@ return [
         'instruction' => '订单指令',
         'delivery' => '配送信息',
         'goods' => '货物明细',
+        'fulfilments' => '履约批次',
     ],
     'fields' => [
         'order_no' => '订单号',
@@ -218,13 +220,55 @@ return [
         'title' => '状态时间线',
         'system' => '系统',
     ],
+    'fulfilment_batch_statuses' => [
+        'allocated' => '已配货',
+        'picking' => '拣货中',
+        'packed' => '已打包',
+        'dispatched' => '已发运',
+        'delivered' => '已送达',
+    ],
+    'fulfilments' => [
+        'title' => '订单 :order_no 的履约批次',
+        'availability_title' => '在库校验',
+        'batches_title' => '分批履约与 Backorder',
+        'empty' => '尚未生成履约批次。订单确认后，系统会根据 WMS 的实际预留结果自动生成。',
+        'actions' => [
+            'open' => '查看完整履约批次',
+            'back' => '返回订单详情',
+        ],
+        'fields' => [
+            'asn_line' => 'ASN货物行',
+            'ordered' => '下单箱数',
+            'allocated' => '已分配',
+            'available' => '当前可用库存',
+            'backordered' => 'Backorder',
+            'stock_result' => '校验结果',
+            'warehouse' => '仓库',
+            'batch_qty' => '本批箱数',
+        ],
+        'availability_statuses' => [
+            'available' => '库存足够',
+            'partial' => '可先发一部分',
+            'unavailable' => '暂时无可用库存',
+            'allocated' => '已完成分配',
+            'unlinked' => '未关联 ASN 货物行',
+        ],
+        'timeline' => [
+            'confirmed' => '订单已确认，等待 WMS 锁定实际库存。',
+            'allocated' => 'WMS 已返回预留结果并生成履约批次。',
+            'delivered' => '运输 POD 已回传，系统重新计算整单履约进度。',
+        ],
+    ],
     'messages' => [
         'created' => '订单 :order_no 已创建。',
         'updated' => '订单信息已更新。',
+        'confirmed' => '订单已确认；WMS 将按货物行锁定库存并返回履约结果。',
         'locked' => '拣货开始后订单不能直接修改；已发运订单只能进入退货流程。',
     ],
     'validation' => [
         'heading' => '请修正以下内容：',
         'job_client_mismatch' => '所选Job不属于所选客户。',
+        'confirm_received_only' => '只有“已接收”的订单可以确认。',
+        'unlinked_stock' => '库存出库订单仍有货物行未关联 ASN，无法按货物行校验库存。请先从 ASN 生成订单或完成关联。',
     ],
 ];
