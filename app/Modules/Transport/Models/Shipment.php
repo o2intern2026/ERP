@@ -70,6 +70,11 @@ class Shipment extends Model
         return $this->hasMany(TransportQuote::class);
     }
 
+    public function pods(): HasMany
+    {
+        return $this->hasMany(Pod::class);
+    }
+
     public function selectedQuote(): BelongsTo
     {
         return $this->belongsTo(TransportQuote::class, 'selected_quote_id');

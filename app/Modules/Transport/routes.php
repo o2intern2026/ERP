@@ -40,5 +40,11 @@ Route::prefix('transport')->name('transport.')->group(function () {
 });
 
 Route::prefix('driver')->name('transport.')->group(function () {
-    Route::get('/', DriverController::class)->name('driver');
+    Route::get('/', [DriverController::class, 'index'])->name('driver');
+    Route::post('/stops/{runStop}/deliver', [DriverController::class, 'deliver'])
+        ->whereNumber('runStop')
+        ->name('driver.stops.deliver');
+    Route::post('/stops/{runStop}/fail', [DriverController::class, 'fail'])
+        ->whereNumber('runStop')
+        ->name('driver.stops.fail');
 });
