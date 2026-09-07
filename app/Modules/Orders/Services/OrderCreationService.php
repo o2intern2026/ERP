@@ -66,15 +66,16 @@ final class OrderCreationService
             ]);
 
             if (filled($attributes['client_address_id'] ?? null)) {
-                ClientAddress::query()
+                $address = ClientAddress::query()
                     ->whereKey((int) $attributes['client_address_id'])
                     ->where('client_id', $order->client_id)
                     ->lockForUpdate()
-                    ->firstOrFail()
-                    ->update([
-                        'usage_count' => DB::raw('usage_count + 1'),
-                        'last_used_at' => now(),
-                    ]);
+                    ->firstOrFail();
+
+                $address->update([
+                    'usage_count' => $address->usage_count + 1,
+                    'last_used_at' => now(),
+                ]);
             }
 
             return $order->load('lines', 'declaredPackages', 'events');
