@@ -9,6 +9,7 @@ use App\Modules\Billing\Models\RateCard;
 use App\Modules\Billing\Models\RateItem;
 use App\Modules\Billing\Services\ChargeEngine;
 use App\Modules\Billing\Services\InvoiceService;
+use App\Modules\Billing\Services\QuoteService;
 use App\Modules\Billing\Services\RateCardService;
 use App\Modules\Platform\Models\Job;
 use App\Modules\Platform\Models\OutboxEvent;
@@ -130,5 +131,21 @@ class AuditFixesTest extends TestCase
         $this->assertSame(500, $log->properties['attributes']['rate_cents']);
         $this->assertSame(450, $log->properties['old']['rate_cents']);
         $this->assertSame($admin->id, $log->causer_id);
+    }
+
+    public function test_customer_quote_takes_a_pre_priced_freight_line_as_given(): void
+    {
+        $client = $this->client();
+        $quote = app(QuoteService::class)->create($client->id, [
+            ['charge_code' => 'WH-ORDER-DESPATCH', 'qty' => 1],
+            ['charge_code' => 'TR-DELIVERY-BASE', 'qty' => 1, 'amount_cents' => 14500, 'transport_quote_id' => 77, 'description' => 'Karrio road_express'], // CHANGE_REQUESTS #68
+        ], ['stage' => 'preliminary']);
+
+        $freight = $quote->lines()->where('charge_code', 'TR-DELIVERY-BASE')->firstOrFail();
+        $this->assertSame(14500, $freight->amount_cents);
+        $this->assertSame(77, $freight->transport_quote_id);
+        $this->assertTrue($freight->assumptions['calculation']['pre_priced']);
+        $this->assertFalse($freight->assumptions['missing_rate']);
+        $this->assertSame(500 + 14500, $quote->subtotal_cents);
     }
 }

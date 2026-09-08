@@ -44,6 +44,7 @@ Conventions: `job_id` on every business record (§0.2 rule 1); `client_id` on ev
 | `order_events` | id, order_id, from_status, to_status, actor_type (user \| system), actor_id, note, created_at (append-only) |
 | `order_imports` | id, client_id, source (excel \| pdf), document_id (nullable → documents), status, row_count, error_count, errors (json), created_by, timestamps |
 | `order_api_tokens` | id, client_id, name, token_hash (sha256 of the bearer token; plain value shown once), last_used_at, revoked_at, created_by, timestamps (A4b — CHANGE_REQUESTS #39) |
+| `report_deliveries` | id, client_id, period_type (weekly \| monthly), period_from, period_to, recipient_email, sent_at, attachments (json) — A22 send log (X1, CHANGE_REQUESTS #54) |
 | `order_api_idempotency_keys` | id, client_id, idempotency_key, order_id, created_at (unique per client; replay returns the first order — A4b) |
 Not tables: **holds** = `exceptions` rows with `type = hold`; **order_documents** = `documents`; **return requests** = `orders` with `order_type = return` (`CHANGE_REQUESTS.md` #10).
 
