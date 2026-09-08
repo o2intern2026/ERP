@@ -9,6 +9,7 @@
             <p style="text-align:right">
                 <a class="secondary" role="button" href="{{ route('orders.addresses.index') }}">{{ __('orders.actions.address_book') }}</a>
                 <a class="secondary" role="button" href="{{ route('orders.imports.index') }}">{{ __('orders.actions.import') }}</a>
+                <a class="secondary" role="button" href="{{ route('orders.drafts.create') }}">{{ __('orders.drafts.nav') }}</a>
                 <a role="button" href="{{ route('orders.create') }}">{{ __('orders.actions.create') }}</a>
             </p>
         @endif
@@ -68,7 +69,9 @@
                             <td>{{ $order->consignment_mark ?: __('orders.not_provided') }}</td>
                             <td>{{ $order->deliver_to_suburb }}, {{ $order->deliver_to_state }}</td>
                             <td>{{ $order->requested_date->format('Y-m-d') }}</td>
-                            <td>{{ __('orders.statuses.operational.'.$order->operational_status) }}</td>
+                            <td>{{ __('orders.statuses.operational.'.$order->operational_status) }}
+                                @if (in_array('financial', $holdTypes[$order->id] ?? [], true))<span class="badge" data-tone="danger">{{ __('orders.holds.financial_badge') }}</span>@endif
+                            </td>
                             <td>{{ __('orders.statuses.billing.'.$order->billing_status) }}</td>
                         </tr>
                     @endforeach

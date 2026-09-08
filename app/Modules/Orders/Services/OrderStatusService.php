@@ -3,9 +3,11 @@
 namespace App\Modules\Orders\Services;
 
 use App\Modules\Orders\Events\OrderConfirmed;
+use App\Modules\Orders\Exceptions\OrderRuleViolation;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderEvent;
 use App\Modules\Orders\OrderEnums;
+use App\Support\Contracts\ExceptionService;
 use App\Support\Outbox\OutboxPublisher;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -13,12 +15,15 @@ use InvalidArgumentException;
 /** Owns the independent operational and billing state transitions and their append-only timeline. */
 final class OrderStatusService
 {
+    /** Terminal statuses: nothing moves an order out of them (consumers never resurrect cancelled / delivered orders). */
+    public const TERMINAL = ['delivered', 'returned', 'cancelled'];
+
     private const OPERATIONAL_TRANSITIONS = [
         'received' => ['confirmed', 'cancelled'],
         'confirmed' => ['allocated', 'cancelled'],
         'allocated' => ['picking', 'cancelled'],
-        'picking' => ['packed'],
-        'packed' => ['dispatched'],
+        'picking' => ['packed', 'cancelled'],      // A11: after picking starts a supervisor / admin may still cancel with a reason
+        'packed' => ['dispatched', 'cancelled'],
         'dispatched' => ['delivered'],
         'delivered' => ['returned'],
         'returned' => [],
@@ -32,6 +37,8 @@ final class OrderStatusService
         'credited' => [],
     ];
 
+    public function __construct(private readonly ExceptionService $exceptions) {}
+
     public function transitionOperational(Order|int $order, string $toStatus, ?int $actorId = null, ?string $note = null): Order
     {
         if (! in_array($toStatus, OrderEnums::OPERATIONAL_STATUSES, true)) {
@@ -41,12 +48,18 @@ final class OrderStatusService
         return DB::transaction(function () use ($order, $toStatus, $actorId, $note): Order {
             $locked = $this->lock($order);
             $fromStatus = $locked->operational_status;
-            $this->guardTransition(self::OPERATIONAL_TRANSITIONS, $fromStatus, $toStatus, 'operational');
+            $this->guardOperational($locked, $fromStatus, $toStatus);
+
+            // A13 / OMS-11: an active financial hold blocks dispatch (and booking); picking and packing are unaffected.
+            if ($toStatus === 'dispatched' && $this->exceptions->hasActiveHold('financial', $locked->client_id, $locked->id)) {
+                throw new OrderRuleViolation(__('orders.holds.messages.dispatch_blocked', ['order_no' => $locked->order_no]));
+            }
 
             $locked->update(['operational_status' => $toStatus]);
             $this->record($locked, 'operational', $fromStatus, $toStatus, $actorId, $note);
 
-            if ($toStatus === 'confirmed') {
+            // A return order is "confirmed" by the return request itself (return.requested); Warehouse must not reserve stock for it.
+            if ($toStatus === 'confirmed' && $locked->order_type !== 'return') {
                 $locked->loadMissing('lines', 'declaredPackages');
                 app(TailgateRule::class)->apply($locked); // A16: automatic unless a person overrode it
                 app(OutboxPublisher::class)->publish($this->confirmedEvent($locked, $actorId));
@@ -73,9 +86,29 @@ final class OrderStatusService
         });
     }
 
+    /** Timeline entry without a status change (holds, overrides, return progress) — actor null = system. */
+    public function note(Order $order, ?int $actorId, string $note): void
+    {
+        $this->record($order, 'operational', $order->operational_status, $order->operational_status, $actorId, $note);
+    }
+
     private function lock(Order|int $order): Order
     {
-        return Order::query()->lockForUpdate()->findOrFail($order instanceof Order ? $order->id : $order);
+        return Order::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($order instanceof Order ? $order->id : $order);
+    }
+
+    private function guardOperational(Order $order, string $from, string $to): void
+    {
+        // Return orders (A11) close as `returned` once Warehouse inspected the goods, whatever step they were at.
+        if ($to === 'returned' && $order->order_type === 'return' && ! in_array($from, self::TERMINAL, true)) {
+            return;
+        }
+        // Pure transport orders (A11b) never pass through the warehouse steps: confirmed → dispatched is their normal path.
+        if ($to === 'dispatched' && $from === 'confirmed' && $order->order_type === 'pickup_deliver') {
+            return;
+        }
+
+        $this->guardTransition(self::OPERATIONAL_TRANSITIONS, $from, $to, 'operational');
     }
 
     /** @param array<string, list<string>> $map */

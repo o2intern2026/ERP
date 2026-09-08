@@ -84,7 +84,8 @@ class QueueAndBatchTest extends TestCase
         $this->actingAs($dispatcher)->get(route('orders.show', $order))->assertOk()->assertSee('account overdue')->assertSee(__('orders.holds.types.address'));
 
         $financial = $holds->firstWhere('hold_type', 'financial');
-        $this->actingAs($dispatcher)->post(route('orders.holds.release', [$order, $financial->id]), ['note' => 'nope'])->assertForbidden();
+        // A13: a financial hold is released by Finance / admin / the dispatcher (Coordinator) — never by customer service.
+        $this->actingAs($this->staff('customer_service'))->post(route('orders.holds.release', [$order, $financial->id]), ['note' => 'nope'])->assertForbidden();
         $this->actingAs($finance)->post(route('orders.holds.release', [$order, $financial->id]), ['note' => 'paid today'])->assertRedirect();
         $this->assertFalse(app(ExceptionService::class)->hasActiveHold('financial', $client->id, $order->id));
         $this->assertDatabaseHas('order_events', ['order_id' => $order->id, 'note' => __('orders.holds.timeline.released', ['type' => __('orders.holds.types.financial'), 'note' => 'paid today'])]);

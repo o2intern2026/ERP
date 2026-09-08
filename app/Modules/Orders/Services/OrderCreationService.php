@@ -53,7 +53,7 @@ final class OrderCreationService
                     'client_id', 'job_id', 'order_type', 'external_ref', 'consignment_mark', 'fba_reference',
                     'pickup_address', 'deliver_to_name', 'deliver_to_phone', 'deliver_to_address',
                     'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'deliver_to_address_type',
-                    'delivery_instructions', 'requested_date', 'service_level',
+                    'delivery_instructions', 'requested_date', 'service_level', 'original_order_id',
                 ]),
                 'order_no' => $this->nextOrderNo(),
                 'source' => $source,
@@ -68,7 +68,7 @@ final class OrderCreationService
                 $order->lines()->create(Arr::only($line, [
                     'description_cn', 'description_en', 'hs_code', 'material', 'usage', 'brand', 'package_type',
                     'carton_qty', 'unit_qty', 'unit_price_cents', 'total_price_cents', 'actual_weight_kg',
-                    'length_mm', 'width_mm', 'height_mm', 'cbm', 'asn_line_id', 'stock_unit_ref',
+                    'length_mm', 'width_mm', 'height_mm', 'cbm', 'asn_line_id', 'stock_unit_ref', 'original_order_line_id',
                 ]));
             }
 

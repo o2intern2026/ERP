@@ -135,7 +135,7 @@ class OrderManagementTest extends TestCase
         $this->assertSame('1 Warehouse Way', $order->fresh()->deliver_to_address);
         $this->actingAs($user)->get(route('orders.show', $order))
             ->assertOk()
-            ->assertSee(__('orders.messages.locked'))
+            ->assertSee(__('orders.changes.hint_shipped')) // A11: shipped orders only accept a return
             ->assertDontSee(__('orders.actions.edit_delivery'));
     }
 
