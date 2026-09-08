@@ -209,8 +209,8 @@ jobs
 | A31 | ✅ M1 · 集成监控与事件可靠性:event_id / inbox / 幂等 / 重试 / 失败队列 / 告警(与 B3 共建) | A0, B3 | Extensiv Integration Manager |
 | A19 | ✅ c5 · 审批中心(统一入口) | A1 | Extensiv 审批 |
 | A20 | ✅ c5 · 审计日志(activitylog + 查询页) | A1 | CargoWise 留痕 |
-| A21 | 报表:老板视角 + 客户视角 | 多数 | MachShip 绩效 · Extensiv 货主视角(舍报表构建器) |
-| A22 | 定时客户报表(邮件) | A21 | Extensiv 定时报表 |
+| A21 | ✅ M7 · 报表:老板视角 + 客户视角 | 多数 | MachShip 绩效 · Extensiv 货主视角(舍报表构建器) |
+| A22 | ✅ M7 · 定时客户报表(邮件) | A21 | Extensiv 定时报表 |
 | A23 | ✅ c5 · Webhooks 事件推送 | A0 | Extensiv 集成接口(留接口不做市场) |
 
 > 门户(PLT-3)的订单部分在 §3 的 A9-p;库存与账单部分复用 WMS/Billing 页面的客户视图。
@@ -484,7 +484,7 @@ PRD 写的是给客户看的 6 步:`Received → Confirmed → In warehouse → 
 | A4 | ✅ M3 · Excel 导入(唛头分组、行级报错、去重) | A3 | CartonCloud 乱格式接入 |
 | A4b | ✅ M6 · 订单 API 接入(接口预留) | A3 | Extensiv 统一接入 |
 | A7 | ✅ M3 · 在库校验(按货物行)+ 自动拆出可发部分 + 履约批次(记仓库) | A3, B1 | Extensiv 客户规则 |
-| A7b | 客户报价单(customer_quotes)+ 初步估价:调 TransportOptionService 出初步方案与服务费预估,明细行存单 | A3, A5, B5c | CargoWise 报价 · Shippit 服务等级 |
+| A7b | ✅ M7 · 客户报价单(customer_quotes)+ 初步估价:调 TransportOptionService 出初步方案与服务费预估,明细行存单 | A3, A5, B5c | CargoWise 报价 · Shippit 服务等级 |
 | A11 | ✅ M6 · 改单/取消权限 + 退货全链路(申请 → 运输 → 验收 → 财务决定) | A3, B1, B13 | CartonCloud 改单权限 · 退货验收 |
 | A11b | ✅ M3 · 纯运输订单 | A3 | CartonCloud 订单类型分离 |
 | A9-p | ✅ M6 · 门户下单 + 门户查单 | A3, A1 | CargoWise Neo 客户工作台 |
