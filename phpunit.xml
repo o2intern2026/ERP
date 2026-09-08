@@ -25,6 +25,12 @@
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_CONNECTION" value="mysql"/>
         <env name="DB_DATABASE" value="erp_test"/>
+        <!-- Carrier gateways: tests never talk to a real Karrio / Transdirect even when the developer's .env has keys -->
+        <env name="KARRIO_API_KEY" value=""/>
+        <env name="KARRIO_BASE_URL" value="http://karrio.test:5002"/>
+        <env name="KARRIO_CARRIER_IDS" value=""/>
+        <env name="KARRIO_LIVE" value=""/>
+        <env name="TRANSDIRECT_API_KEY" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

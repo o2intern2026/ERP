@@ -73,7 +73,7 @@ cp docker/karrio/.env.example docker/karrio/.env   # set ADMIN_PASSWORD, SECRET_
 docker compose -f docker/karrio/docker-compose.yml --env-file docker/karrio/.env up -d
 ```
 
-Dashboard `http://localhost:3002` → Developers → API Keys → create one → `KARRIO_API_KEY=…` in the ERP `.env`; then Carriers → add a **Custom carrier** with a rate sheet (demo) or a real carrier's credentials. Without a key the `karrio` source simply returns no quotes and the manual / own-fleet paths work as before. `KARRIO_LIVE=1 php artisan test --filter KarrioLiveTest` checks the connection end to end.
+Dashboard `http://localhost:3002` → Developers → API Keys → create one → `KARRIO_API_KEY=…` in the ERP `.env`. Then `php docker/karrio/setup-demo-carrier.php` creates the demo custom carrier **Demo Freight** with a three-service AUD rate sheet (idempotent), or add a real carrier's credentials under Carriers. Without a key the `karrio` source simply returns no quotes and the manual / own-fleet paths work as before. `KARRIO_LIVE=1 php artisan test --filter KarrioLiveTest` checks the connection end to end.
 
 ## Layout
 
