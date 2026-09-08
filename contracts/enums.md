@@ -115,7 +115,7 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 ## 5. Transport (owner X2) — §5.2, §5.3
 | field | values |
 |---|---|
-| `carrier_services.source` | `own_fleet` \| `transdirect` \| `eiz` \| `manual` (one `CarrierAdapter` implementation each) |
+| `carrier_services.source` | `own_fleet` \| `transdirect` \| `eiz` \| `manual` \| `karrio` (one `CarrierAdapter` implementation each; `karrio` added 2026-09-08 — open-source gateway, CHANGE_REQUESTS #49) |
 | `shipments.shipment_type` | `outbound` \| `return` |
 | `shipments.status` (outbound) | `quoting` → `quoted` → `quote_confirmed` → `booked` → `dispatched` → `in_transit` → `delivered` ; alternatives `failed` \| `booking_cancelled` |
 | `shipments.status` (return) | `return_requested` → `return_in_transit` → `arrived_warehouse` (then WMS `return_receipts`) |

@@ -1,0 +1,104 @@
+# Local Karrio — the open-source, self-hosted multi-carrier shipping API used by the ERP's `karrio` carrier source
+# (contracts/carriers.md, decision 2026-09-08). Development only: DEBUG_MODE on, database port not published.
+#
+#   cp docker/karrio/.env.example docker/karrio/.env   # then set ADMIN_PASSWORD, SECRET_KEY, JWT_SECRET
+#   docker compose -f docker/karrio/docker-compose.yml --env-file docker/karrio/.env up -d
+#   API  → http://localhost:5002   Dashboard → http://localhost:3002 (log in with ADMIN_EMAIL / ADMIN_PASSWORD)
+#   Dashboard → Developers → API Keys → create → put the key in the ERP .env as KARRIO_API_KEY (never in the repo).
+#   Dashboard → Carriers → add "Custom carrier" (e.g. Demo Freight) with a rate sheet, or a real carrier's credentials.
+#
+# Images: karrio/server + karrio/dashboard (Apache-2.0, https://github.com/karrioapi/karrio), postgres:16, redis:7.
+
+services:
+  api:
+    image: karrio.docker.scarf.sh/karrio/server:${KARRIO_TAG:-2026.1.32}
+    restart: unless-stopped
+    ports:
+      - "${KARRIO_HTTP_PORT:-5002}:${KARRIO_HTTP_PORT:-5002}"
+    depends_on:
+      - db
+      - redis
+    environment:
+      DEBUG_MODE: "True"                       # local only — upstream's own compose does the same
+      DETACHED_WORKER: "True"
+      KARRIO_HTTP_PORT: ${KARRIO_HTTP_PORT:-5002}
+      KARRIO_PUBLIC_URL: ${KARRIO_PUBLIC_URL:-http://localhost:5002}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,api}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in docker/karrio/.env (any random string, 32+ chars)}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in docker/karrio/.env (any random string, 32+ chars)}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in docker/karrio/.env (first-start admin login)}
+      DATABASE_ENGINE: postgresql
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: karrio
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ENABLE_ALL_PLUGINS_BY_DEFAULT: "True"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:${KARRIO_HTTP_PORT:-5002}/ || exit 1"]
+      interval: 30s
+      timeout: 20s
+      retries: 6
+      start_period: 90s
+
+  worker:
+    image: karrio.docker.scarf.sh/karrio/server:${KARRIO_TAG:-2026.1.32}
+    restart: unless-stopped
+    command: ["/bin/bash", "./worker"]
+    depends_on:
+      - db
+      - redis
+    environment:
+      DEBUG_MODE: "True"
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_ENGINE: postgresql
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: karrio
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ENABLE_ALL_PLUGINS_BY_DEFAULT: "True"
+
+  dashboard:
+    image: karrio.docker.scarf.sh/karrio/dashboard:${KARRIO_TAG:-2026.1.32}
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-3002}:${DASHBOARD_PORT:-3002}"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      AUTH_TRUST_HOST: "true"
+      NEXTAUTH_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+      DASHBOARD_PORT: ${DASHBOARD_PORT:-3002}
+      NEXT_PUBLIC_DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:3002}
+      NEXT_PUBLIC_KARRIO_PUBLIC_URL: ${KARRIO_PUBLIC_URL:-http://localhost:5002}
+      KARRIO_URL: http://api:${KARRIO_HTTP_PORT:-5002}
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: karrio
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      PGDATA: /var/lib/postgresql/data/karrio
+    volumes:
+      - karrio-postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    volumes:
+      - karrio-redis:/data
+
+volumes:
+  karrio-postgres:
+  karrio-redis:
