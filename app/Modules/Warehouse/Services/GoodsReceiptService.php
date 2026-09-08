@@ -174,7 +174,9 @@ final class GoodsReceiptService
             ])->setPaper('a4', 'landscape')->setOption('enable_font_subsetting', true)->output();
         } finally {
             gc_collect_cycles(); // dompdf leaves a cyclic object graph (~60 MB with the CJK font) that PHP only frees on a GC run
-            if ($memoryLimit !== false && $memoryLimit !== ini_get('memory_limit')) {
+            // Restore the original limit only when the process fits under it again: lowering memory_limit below the current usage
+            // raises an E_WARNING, which Laravel turns into an ErrorException *after* the PDF was rendered (seen on a 135-line receipt).
+            if ($memoryLimit !== false && $memoryLimit !== ini_get('memory_limit') && memory_get_usage(true) < $this->bytes($memoryLimit)) {
                 ini_set('memory_limit', $memoryLimit);
             }
         }
