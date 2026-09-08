@@ -6,7 +6,7 @@
     <title>@yield('title', config('app.name'))</title>
     {{-- Frozen zone: Pico.css (classless, CDN) + one app.css ≤ 100 lines, no build step (ERP_PLAN §8.1). --}}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
 </head>
 <body>
     @include('layouts.nav')

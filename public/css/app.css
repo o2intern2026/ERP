@@ -84,3 +84,10 @@ button.form-rows-add { width: auto; margin-bottom: 1.5rem; }
 .suggest-list li { padding: .4rem .75rem; cursor: pointer; font-size: .9rem; line-height: 1.35; }
 .suggest-list li[aria-selected="true"], .suggest-list li:hover { background: var(--pico-secondary-focus); }
 .suggest-list li small { display: block; color: var(--erp-muted); }
+
+/* Forms: give hints and the tailgate checkbox room to breathe (tester feedback, portal new-order page). */
+form label > small, form fieldset > small, form .grid > small { display: block; margin-top: .4rem; line-height: 1.5; }
+#tailgate-field { margin: 1.25rem 0 1.75rem; }
+#tailgate-field label { display: flex; align-items: center; gap: .5rem; margin-bottom: .35rem; font-size: 1rem; }
+#tailgate-field label input[type="checkbox"] { margin: 0; }
+#tailgate-field small { display: block; margin-top: .2rem; line-height: 1.6; }
