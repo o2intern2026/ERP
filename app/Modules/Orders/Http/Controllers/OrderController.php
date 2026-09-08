@@ -101,6 +101,11 @@ final class OrderController extends Controller
             'canChange' => $changes->canChange($order, auth()->user()),        // A11: stage + role rule decided server side
             'requiresReason' => $changes->requiresReason($order),
             'canRequestReturn' => $order->acceptsReturnRequest() && auth()->user()->hasAnyRole(OrderChangeService::COORDINATOR_ROLES),
+            // A12: while received, a draft's lines may be corrected and linked to the client's ASN goods lines (Warehouse tables, read-only).
+            'asnLineOptions' => $order->operational_status === 'received' && $order->order_type === 'from_stock'
+                ? DB::table('asn_lines')->join('asns', 'asns.id', '=', 'asn_lines.asn_id')->where('asns.client_id', $order->client_id)
+                    ->orderByDesc('asn_lines.id')->limit(200)->get(['asn_lines.id', 'asns.asn_no', 'asn_lines.consignment_mark', 'asn_lines.description', 'asn_lines.received_cartons', 'asn_lines.expected_cartons'])
+                : collect(),
         ]);
     }
 

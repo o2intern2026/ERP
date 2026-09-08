@@ -30,6 +30,9 @@
     </div>
 
     @if ($order->operational_status === 'received')
+        @if ($order->source === 'pdf')
+            <article class="flash" role="note"><strong>{{ __('orders.drafts.banner_title') }}</strong> {{ __('orders.drafts.banner') }}</article>
+        @endif
         <form method="post" action="{{ route('orders.confirm', $order) }}">
             @csrf
             <button type="submit">{{ __('orders.actions.confirm') }}</button>
@@ -174,6 +177,7 @@
     </div>
 
     <h2>{{ __('orders.sections.goods') }}</h2>
+    @php($canEditLines = $order->operational_status === 'received' && auth()->user()->hasAnyRole(\App\Modules\Orders\Services\OrderChangeService::COORDINATOR_ROLES))
     <div class="overflow-auto">
         <table>
             <thead><tr>
@@ -188,7 +192,31 @@
             <tbody>
                 @foreach ($order->lines as $line)
                     <tr>
-                        <td>{{ $line->description_cn ?: $line->description_en }}</td>
+                        <td>{{ $line->description_cn ?: $line->description_en }}
+                            @if ($canEditLines)
+                                <details>
+                                    <summary>{{ __('orders.drafts.edit_line') }}</summary>
+                                    <form method="post" action="{{ route('orders.lines.update', [$order, $line]) }}" class="grid">
+                                        @csrf
+                                        @method('PATCH')
+                                        <input name="description_cn" value="{{ $line->description_cn }}" placeholder="{{ __('orders.fields.description_cn') }}">
+                                        <input name="description_en" value="{{ $line->description_en }}" placeholder="{{ __('orders.fields.description_en') }}">
+                                        <input name="package_type" value="{{ $line->package_type }}" placeholder="{{ __('orders.fields.package_type') }}">
+                                        <input type="number" min="1" name="carton_qty" value="{{ $line->carton_qty }}" required>
+                                        <input type="number" min="0" step="0.001" name="actual_weight_kg" value="{{ $line->actual_weight_kg }}" placeholder="{{ __('orders.fields.weight_kg') }}">
+                                        @if ($asnLineOptions->isNotEmpty())
+                                            <select name="asn_line_id" aria-label="{{ __('orders.fulfilments.fields.asn_line') }}">
+                                                <option value="">{{ __('orders.drafts.no_asn_line') }}</option>
+                                                @foreach ($asnLineOptions as $option)
+                                                    <option value="{{ $option->id }}" @selected($line->asn_line_id === $option->id)>{{ $option->asn_no }} · {{ $option->consignment_mark }} · {{ $option->description }} ({{ $option->received_cartons ?? $option->expected_cartons }})</option>
+                                                @endforeach
+                                            </select>
+                                        @endif
+                                        <button type="submit" class="secondary">{{ __('orders.actions.save_changes') }}</button>
+                                    </form>
+                                </details>
+                            @endif
+                        </td>
                         <td>{{ $line->package_type }}</td>
                         <td>{{ $line->carton_qty }}</td>
                         <td>{{ $line->unit_qty ?? __('orders.not_provided') }}</td>
@@ -207,6 +235,21 @@
             </tbody>
         </table>
     </div>
+
+    @if ($canEditLines)
+        <details>
+            <summary>{{ __('orders.drafts.add_line') }}</summary>
+            <form method="post" action="{{ route('orders.lines.store', $order) }}" class="grid">
+                @csrf
+                <input name="description_cn" placeholder="{{ __('orders.fields.description_cn') }}">
+                <input name="description_en" placeholder="{{ __('orders.fields.description_en') }}">
+                <input name="package_type" value="carton" placeholder="{{ __('orders.fields.package_type') }}">
+                <input type="number" min="1" name="carton_qty" value="1" required>
+                <input type="number" min="0" step="0.001" name="actual_weight_kg" placeholder="{{ __('orders.fields.weight_kg') }}">
+                <button type="submit" class="secondary">{{ __('orders.drafts.add_line') }}</button>
+            </form>
+        </details>
+    @endif
 
     @if ($canChange)
         <article>
