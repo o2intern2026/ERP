@@ -5,6 +5,7 @@ namespace App\Modules\Platform;
 use App\Modules\Platform\Console\DispatchOutboxCommand;
 use App\Modules\Platform\Console\RetryWebhooksCommand;
 use App\Modules\Platform\Consumers\JobCostConsumer;
+use App\Modules\Platform\Consumers\JobRevenueConsumer;
 use App\Modules\Platform\Consumers\WebhookConsumer;
 use App\Modules\Platform\Models\Job;
 use App\Modules\Platform\Services\DatabaseOutboxPublisher;
@@ -40,6 +41,7 @@ class PlatformServiceProvider extends ServiceProvider
         $registry->register(ConsumerRegistry::WILDCARD, WebhookConsumer::class);
         $registry->register('shipment.booked', JobCostConsumer::class);      // Job cost estimated (events.md matrix)
         $registry->register('delivery.pod_captured', JobCostConsumer::class); // Job actual cost / confirmed
+        $registry->register('invoice.issued', JobRevenueConsumer::class);     // Job revenue invoiced
         $this->app->make(SearchRegistry::class)->register('platform', fn (string $q): array => Job::query()->with('client')
             ->where(fn ($w) => $w->where('job_no', 'like', "%{$q}%")->orWhere('reference', 'like', "%{$q}%"))
             ->limit(20)->get()

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Billing\Services;
 
+use App\Modules\Billing\Events\InvoiceIssued;
 use App\Modules\Billing\Models\Charge;
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Billing\Models\InvoiceLine;
@@ -9,6 +10,7 @@ use App\Modules\Billing\Models\Payment;
 use App\Modules\MasterData\Models\Client;
 use App\Support\Contracts\DocumentService;
 use App\Support\Numbers;
+use App\Support\Outbox\OutboxPublisher;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -23,7 +25,7 @@ use InvalidArgumentException;
  */
 final class InvoiceService
 {
-    public function __construct(private readonly DocumentService $documents) {}
+    public function __construct(private readonly DocumentService $documents, private readonly OutboxPublisher $outbox) {}
 
     /** Service invoice for one Job (per_job clients) — or a supplementary one after delivery. */
     public function draftForJob(int $jobId, string $type = 'service'): Invoice
@@ -93,6 +95,16 @@ final class InvoiceService
             Storage::disk('local')->put($path, $this->pdf($invoice));
             $documentId = $this->documents->attach('invoice', 'invoice', $invoice->id, $path, ['client_id' => $invoice->client_id, 'client_visible' => true, 'original_name' => $invoice->invoice_no.'.pdf', 'mime' => 'application/pdf', 'size_bytes' => Storage::disk('local')->size($path)]);
             $invoice->update(['pdf_document_id' => $documentId]);
+
+            $chargeRows = Charge::query()->withoutGlobalScopes()->whereIn('id', $lines->pluck('charge_id')->filter())->get(['id', 'job_id', 'source_type', 'source_id']);
+            $orderIds = $chargeRows->where('source_type', 'order')->pluck('source_id')
+                ->merge(DB::table('shipments')->whereIn('id', $chargeRows->where('source_type', 'shipment')->pluck('source_id'))->pluck('order_id'))
+                ->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+            $this->outbox->publish(new InvoiceIssued([
+                'invoice_id' => $invoice->id, 'invoice_no' => $invoice->invoice_no, 'invoice_type' => $invoice->invoice_type, 'client_id' => $invoice->client_id,
+                'job_ids' => $lines->pluck('job_id')->filter()->map(fn ($id) => (int) $id)->unique()->values()->all(), 'order_ids' => $orderIds,
+                'subtotal_cents' => $subtotal, 'gst_cents' => $gst, 'total_cents' => $subtotal + $gst, 'issued_at' => $now->toIso8601String(), 'due_date' => $invoice->due_at?->toDateString(),
+            ], jobId: $lines->pluck('job_id')->filter()->count() === 1 ? (int) $lines->first()->job_id : null, clientId: $invoice->client_id, correlationId: $invoice->invoice_no));
 
             return $invoice->fresh();
         });

@@ -68,9 +68,9 @@ No seed rate: priced only if a client card carries them, otherwise **Missing Rat
 | `TR-TAILGATE` | transport | delivery | shipment.quote_confirmed | billable_qty (1) | condition tailgate_required=true; `{"tailgate_weight_kg":25}` default per client (§3.4 OMS-13) — the only place the tailgate fee arises |
 | `TR-REMOTE` | transport | delivery | shipment.quote_confirmed | billable_qty (1) | condition zone=remote (§6.4) |
 | `TR-FUEL` | transport | delivery | shipment.quote_confirmed | billable_qty (1) | percentage surcharge as a rate-item attribute (§6.7 A5) |
-| `TR-FAILED` | transport | delivery | delivery.extra_charge | billable_qty (1) | failed delivery (§6.4) |
-| `TR-REDELIVERY` | transport | delivery | delivery.extra_charge | billable_qty (1) | re-delivery (§6.4) |
-| `TR-WAITING` ※ | transport | man_hour | delivery.extra_charge | hours_business | waiting time (§6.4, §6.7 A5) |
+| `TR-FAILED` | transport | delivery | delivery.extra_charge | one | `charge_type = failed`; key `extra:{shipment_id}:failed:{occurred_at}` (§6.4) |
+| `TR-REDELIVERY` | transport | delivery | delivery.extra_charge | one | `charge_type = redelivery`; key `extra:{shipment_id}:redelivery:{occurred_at}` (§6.4) |
+| `TR-WAITING` ※ | transport | man_hour | delivery.extra_charge | billable_qty (= payload `qty`, hours) | `charge_type = waiting`; key `extra:{shipment_id}:waiting:{occurred_at}` (§6.4, §6.7 A5) |
 | `WH-STORAGE-CTN-WK` | storage | carton_week | snapshot.weekly | cartons | loose cartons not on a pallet, if the client card bills per carton (§6.7 A6b) |
 | `WH-STORAGE-CBM-WK` | storage | cbm_week | snapshot.weekly | cbm | loose cartons by volume, if the client card bills per CBM (§6.7 A6b) |
 | `WH-STORAGE-QUARANTINE-PLT-WK` ※ | storage | pallet_week | snapshot.weekly | weeks | condition ∈ {quarantine, damaged}: still charged, separate code (§4.8) |

@@ -7,14 +7,17 @@ use App\Support\Contracts\JobService;
 use App\Support\Tenancy\ClientScope;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use Tests\Support\BuildsOutboundOrders;
 use Tests\Support\CreatesUsers;
+use Tests\Support\CreatesWarehouse;
 use Tests\TestCase;
 
 /** A27: jobs table, JobService, Job workbench skeleton. */
 class JobWorkbenchTest extends TestCase
 {
-    use CreatesUsers, RefreshDatabase;
+    use BuildsOutboundOrders, CreatesUsers, CreatesWarehouse, RefreshDatabase;
 
     public function test_staff_create_a_job_from_the_form_and_see_it(): void
     {
@@ -88,5 +91,18 @@ class JobWorkbenchTest extends TestCase
         ClientScope::set($a->id);
         $this->expectException(ModelNotFoundException::class);
         app(JobService::class)->create($b->id, 'container');
+    }
+
+    /** §2.5 #6 / §7 step 9: the Job page shows the ASN, orders, shipments, stock and documents that hang off it. */
+    public function test_job_page_lists_everything_that_hangs_off_the_job(): void
+    {
+        $client = $this->client();
+        $warehouse = $this->warehouse();
+        ['asn' => $asn, 'lines' => $asnLines] = $this->stockedAsn($client, $warehouse, [['mark' => 'JOB1', 'cartons' => 4]]);
+        $order = $this->confirmedOrder($client, $asn->job_id, [['asn_line_id' => $asnLines[0]->id, 'qty' => 2]]);
+        $shipmentNo = DB::table('shipments')->where('order_id', $order->id)->value('shipment_no');
+
+        $page = $this->actingAs($this->staff('customer_service'))->get(route('platform.jobs.show', $asn->job_id))->assertOk();
+        $page->assertSee($asn->asn_no)->assertSee($order->order_no)->assertSee((string) $shipmentNo)->assertSee(__('platform.jobs.panel_stock'))->assertDontSee(__('platform.jobs.panel_pending', ['module' => 'Orders', 'checkpoint' => 'M3']));
     }
 }

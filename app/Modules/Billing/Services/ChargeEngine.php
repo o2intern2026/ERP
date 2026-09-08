@@ -222,7 +222,7 @@ final class ChargeEngine
     private function quantities(ChargeRule $rule, array $payload, int $clientId, string $eventName): array
     {
         return match ($rule->quantity_source) {
-            'billable_qty' => [[(float) ($payload['billable_qty'] ?? 0), []]],
+            'billable_qty' => [[(float) ($payload['billable_qty'] ?? $payload['qty'] ?? 0), []]], // delivery.extra_charge carries `qty`
             'pallets' => [[(float) ($payload['pallet_count'] ?? collect($payload['lines'] ?? [])->where('unit_type', 'pallet')->sum('qty')), []]],
             'pallets_warehouse_plain' => [[(float) collect($payload['pallets'] ?? [])->where('pallet_source', 'warehouse_plain')->count(), []]],
             'labels' => [[(float) ($payload['label_count'] ?? 0), []]],

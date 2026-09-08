@@ -44,6 +44,7 @@ Every state change another module reacts to travels as an event through the tran
 | `return.requested` | Orders (X1) | Transport (return shipment), Warehouse (expected return receipt), Billing |
 | `return.received` | Warehouse (C) | Orders (return progress) |
 | `return.inspected` | Warehouse (C) | Orders (→ `returned`), Billing (awaits financial decision) |
+| `invoice.issued` | Billing (C) | Orders (→ `billing_status` `billed` for the invoiced orders), Platform (Job `revenue_status` / actual revenue) — added 2026-09-08, CHANGE_REQUESTS #65 |
 | `return.financial_decision` | Orders (X1) | Billing (credit note or none — the only trigger) — see `CHANGE_REQUESTS.md` #11 |
 
 ## Payloads
@@ -182,6 +183,12 @@ credit_lines: [{original_charge_id (nullable), original_order_line_id, qty, amou
 decided_by, decided_at, note
 ```
 
+### `invoice.issued` — §3.8 #3 billing line, §1.6 Job revenue; added 2026-09-08 (CHANGE_REQUESTS #65)
+```
+invoice_id, invoice_no, invoice_type (service | storage | supplementary | monthly), client_id,
+job_ids: [int], order_ids: [int],                                        # every Job / order that has a line on the invoice
+subtotal_cents, gst_cents, total_cents, issued_at, due_date
+```
 ## Billing trigger summary (`charge_rules.trigger_event`)
 `asn.putaway_completed` → putaway / inbound label / pallet purchase · `task.completed` → devanning (only here), unload, load-out, wrap, scan, labour, waste · `outbound.packed` → order processing (urgent by cut-off), picks, outbound labels · `shipment.quote_confirmed` → freight, tailgate, remote, cartage (only here) · `delivery.extra_charge` → waiting / redelivery / failed · `snapshot.weekly` → storage, pallet rental, pickface · `return.financial_decision` → credit note. `shipment.booked` and `delivery.pod_captured` create **no** charge.
 

@@ -74,7 +74,7 @@ class BillingSeeder extends Seeder
         'WH-DEVAN-40-PLT' => ['task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'pallet'], 'billable_qty', 'task:{task_id}'],
         'WH-DEVAN-40-LOOSE' => ['task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'loose'], 'billable_qty', 'task:{task_id}'],
         'WH-DEVAN-40-MIXED' => ['task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'mixed'], 'billable_qty', 'task:{task_id}'],
-        'WH-UNLOAD-PLT' => ['task.completed', ['task_type' => 'receiving'], 'billable_qty', 'task:{task_id}'],
+        'WH-UNLOAD-PLT' => ['task.completed', ['task_type' => 'receiving', 'asn.inbound_type' => 'loose_truck'], 'billable_qty', 'task:{task_id}'], // charge-codes.md #9: LCL trucks only
         'WH-PUTAWAY-PLT' => ['asn.putaway_completed', null, 'pallets', 'asn:{asn_id}'],
         'WH-WRAP-IN-PLT' => ['task.completed', ['task_type' => 'wrap', 'source_type' => ['asn', 'container']], 'billable_qty', 'task:{task_id}'],
         'WH-LABEL-IN' => ['asn.putaway_completed', null, 'labels', 'asn:{asn_id}'],
@@ -104,9 +104,9 @@ class BillingSeeder extends Seeder
         'TR-TAILGATE' => ['shipment.quote_confirmed', ['tailgate_required' => true], 'one', 'shipment:{shipment_id}'],
         'TR-REMOTE' => ['shipment.quote_confirmed', ['zone' => 'remote'], 'one', 'shipment:{shipment_id}'],
         'TR-FUEL' => ['shipment.quote_confirmed', ['cartage_container_size' => null], 'one', 'shipment:{shipment_id}'],
-        'TR-FAILED' => ['delivery.extra_charge', ['charge_type' => 'failed_delivery'], 'one', 'extra:{delivery_id}:{charge_type}'],
-        'TR-REDELIVERY' => ['delivery.extra_charge', ['charge_type' => 'redelivery'], 'one', 'extra:{delivery_id}:{charge_type}'],
-        'TR-WAITING' => ['delivery.extra_charge', ['charge_type' => 'waiting'], 'hours_business', 'extra:{delivery_id}:{charge_type}'],
+        'TR-FAILED' => ['delivery.extra_charge', ['charge_type' => 'failed'], 'one', 'extra:{shipment_id}:{charge_type}:{occurred_at}'],
+        'TR-REDELIVERY' => ['delivery.extra_charge', ['charge_type' => 'redelivery'], 'one', 'extra:{shipment_id}:{charge_type}:{occurred_at}'],
+        'TR-WAITING' => ['delivery.extra_charge', ['charge_type' => 'waiting'], 'billable_qty', 'extra:{shipment_id}:{charge_type}:{occurred_at}'], // qty = hours reported by the driver / coordinator
         'WH-STORAGE-CTN-WK' => ['snapshot.weekly', ['unit_type' => 'carton', 'condition' => 'good'], 'cartons', 'unit:{stock_unit_id}:week:{week}'],
         'WH-STORAGE-CBM-WK' => ['snapshot.weekly', ['unit_type' => 'carton', 'condition' => 'good'], 'cbm', 'unit:{stock_unit_id}:week:{week}'],
         'WH-STORAGE-QUARANTINE-PLT-WK' => ['snapshot.weekly', ['unit_type' => 'pallet', 'condition' => ['quarantine', 'damaged']], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
