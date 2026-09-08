@@ -8,11 +8,31 @@
         <p class="text-muted"><small>{{ __('portal.stock.hint') }}</small></p>
     </header>
 
-    <form method="get">
-        <div class="grid">
-            <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="{{ __('portal.stock.search') }}" aria-label="{{ __('portal.stock.search') }}">
-            <button type="submit" class="secondary">{{ __('portal.actions.filter') }}</button>
-        </div>
+    <style>
+        /* Item 1 (tester feedback): search box + 货物状态 + 可用性 + 筛选 on one row on desktop (wraps only on phones). Inline until
+           app.css gets shared classes (CHANGE_REQUESTS #80). */
+        form.filter-row { display: flex; flex-wrap: nowrap; gap: .5rem; align-items: center; margin-bottom: 1rem; }
+        form.filter-row > * { margin-bottom: 0; }
+        form.filter-row input[type="search"] { flex: 1 1 14rem; min-width: 0; }
+        form.filter-row select { flex: 0 0 auto; width: auto; min-width: 9rem; }
+        form.filter-row button { flex: 0 0 auto; width: auto; }
+        @media (max-width: 640px) { form.filter-row { flex-wrap: wrap; } form.filter-row input[type="search"] { flex-basis: 100%; } }
+    </style>
+    <form method="get" class="filter-row">
+        <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="{{ __('portal.stock.search') }}" aria-label="{{ __('portal.stock.search') }}">
+        <select name="condition" aria-label="{{ __('portal.stock.filters.condition') }}">
+            <option value="">{{ __('portal.stock.filters.all_conditions') }}</option>
+            @foreach ($conditionFilters as $value)
+                <option value="{{ $value }}" @selected(($filters['condition'] ?? '') === $value)>{{ __('portal.stock.filters.conditions.'.$value) }}</option>
+            @endforeach
+        </select>
+        <select name="availability" aria-label="{{ __('portal.stock.filters.availability') }}">
+            <option value="">{{ __('portal.stock.filters.all_availability') }}</option>
+            @foreach ($availabilityFilters as $value)
+                <option value="{{ $value }}" @selected(($filters['availability'] ?? '') === $value)>{{ __('portal.stock.filters.availabilities.'.$value) }}</option>
+            @endforeach
+        </select>
+        <button type="submit" class="secondary">{{ __('portal.actions.filter') }}</button>
     </form>
 
     @if ($rows->isEmpty())

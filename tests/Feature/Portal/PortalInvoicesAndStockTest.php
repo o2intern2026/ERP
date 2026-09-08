@@ -6,6 +6,7 @@ use App\Modules\Billing\Models\Invoice;
 use App\Modules\Billing\Services\ChargeEngine;
 use App\Modules\Billing\Services\InvoiceService;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Warehouse\Services\QuarantineService;
 use App\Support\Contracts\JobService;
 use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -76,6 +77,34 @@ class PortalInvoicesAndStockTest extends TestCase
         $this->actingAs($user)->get(route('portal.stock.index', ['q' => 'THEIRS']))->assertOk()->assertSee(__('portal.stock.empty'))->assertDontSee('STK-THEIRS');
         $this->actingAs($this->staff('warehouse_supervisor'))->get(route('portal.stock.index'))->assertForbidden();
         $this->actingAs($user)->get('/warehouse')->assertForbidden(); // client users never leave /portal
+    }
+
+    /** Tester feedback item 1: 货物状态 (全部 / 正常 / 不正常) and 可用性 filters sit next to the search box and combine with it. */
+    public function test_client_filters_its_stock_by_condition_and_availability_together_with_the_search(): void
+    {
+        $client = $this->client();
+        $user = $this->clientUser($client);
+        $warehouse = $this->warehouse();
+        ['units' => $units] = $this->stockedAsn($client, $warehouse, [
+            ['mark' => 'STK-GOOD', 'description' => 'Display stands', 'cartons' => 10],
+            ['mark' => 'STK-WET', 'description' => 'Wet lamps', 'cartons' => 4],
+        ]);
+        app(QuarantineService::class)->quarantine($units[1], 'quarantine', 'water damage on arrival'); // 4 cartons → quarantine, 0 available
+
+        $page = $this->actingAs($user)->get(route('portal.stock.index'))->assertOk();
+        $page->assertSee('<form method="get" class="filter-row">', false)->assertSee('name="condition"', false)->assertSee('name="availability"', false)
+            ->assertSee(__('portal.stock.filters.all_conditions'))->assertSee(__('portal.stock.filters.conditions.good'))->assertSee(__('portal.stock.filters.conditions.abnormal'))
+            ->assertSee(__('portal.stock.filters.availabilities.available'))->assertSee(__('portal.stock.search'))
+            ->assertSee('STK-GOOD')->assertSee('STK-WET')->assertSee(__('portal.stock.conditions.quarantine'));
+
+        $this->actingAs($user)->get(route('portal.stock.index', ['condition' => 'good']))->assertOk()->assertSee('STK-GOOD')->assertDontSee('STK-WET')->assertDontSee(__('portal.stock.conditions.quarantine'))
+            ->assertSee('<option value="good" selected>', false);
+        $this->actingAs($user)->get(route('portal.stock.index', ['condition' => 'abnormal']))->assertOk()->assertSee('STK-WET')->assertSee(__('portal.stock.conditions.quarantine'))->assertDontSee('STK-GOOD');
+        $this->actingAs($user)->get(route('portal.stock.index', ['condition' => 'abnormal', 'q' => 'GOOD']))->assertOk()->assertSee(__('portal.stock.empty'))->assertDontSee('STK-GOOD'); // filters combine
+        $this->actingAs($user)->get(route('portal.stock.index', ['availability' => 'available']))->assertOk()->assertSee('STK-GOOD')->assertDontSee('STK-WET');
+        $this->actingAs($user)->get(route('portal.stock.index', ['availability' => 'none']))->assertOk()->assertSee('STK-WET')->assertDontSee('STK-GOOD');
+        $this->actingAs($user)->get(route('portal.stock.index', ['condition' => 'good', 'availability' => 'none']))->assertOk()->assertSee(__('portal.stock.empty'));
+        $this->actingAs($user)->get(route('portal.stock.index', ['condition' => 'bogus']))->assertSessionHasErrors('condition');
     }
 
     private function issuedInvoice(Client $client, int $financeId): Invoice

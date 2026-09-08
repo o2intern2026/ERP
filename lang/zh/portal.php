@@ -150,6 +150,15 @@ return [
         'title' => '我的库存',
         'hint' => '按货物行(唛头 + 品名)、库位类型与货物状态汇总的箱数:在库 − 已为订单预留 = 可用;尚未上架或非正常状态的货物暂不可用。数量以仓库实际收货为准。',
         'search' => '唛头 / 品名 / 入库单号 / FBA 引用',
+        // Item 1 (tester feedback): 货物状态 (全部 / 正常 / 不正常 = 隔离 + 破损) and 可用性 filters next to the search box.
+        'filters' => [
+            'condition' => '货物状态',
+            'all_conditions' => '货物状态：全部',
+            'conditions' => ['good' => '正常', 'abnormal' => '不正常'],
+            'availability' => '可用性',
+            'all_availability' => '可用性：全部',
+            'availabilities' => ['available' => '有可用库存', 'none' => '无可用'],
+        ],
         'empty' => '当前没有在库货物。',
         'not_put_away' => '待上架',
         'totals' => '合计 · :lines 个货物行 · :units 个库存单元',
