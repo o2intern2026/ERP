@@ -10,7 +10,7 @@ trait CreatesWarehouse
 {
     protected function warehouse(string $code = 'MEL'): Warehouse
     {
-        $warehouse = Warehouse::query()->firstOrCreate(['code' => $code], ['name' => $code.' DC', 'state' => 'VIC', 'active' => true]);
+        $warehouse = Warehouse::query()->firstOrCreate(['code' => $code], ['name' => $code.' DC', 'address' => '1 Depot Road', 'suburb' => 'Dandenong South', 'state' => 'VIC', 'postcode' => '3175', 'active' => true]);
 
         foreach ([['RCV', '01', '01', 'receiving'], ['A', '01', '01', 'storage'], ['A', '01', '02', 'storage'], ['PF', '01', '01', 'pickface'], ['QA', '01', '01', 'quarantine']] as [$zone, $aisle, $bin, $type]) {
             Location::query()->firstOrCreate(

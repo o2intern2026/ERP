@@ -29,6 +29,7 @@
 | Billing | `GET /billing` | `billing.index` | `billing::index` |
 | Orders | `GET /orders` | `orders.index` | `orders::index` |
 | Portal | `GET /portal` | `portal.index` | `portal::index` |
+| Portal | `GET /portal/reports` (client view of A21, client users only — ClientScope confines them to `/portal/**`, CHANGE_REQUESTS #52) | `portal.reports.index` | `reports::client` |
 | Reports | `GET /reports` | `reports.index` | `reports::index` |
 | Transport | `GET /transport` and `GET /driver` | `transport.index`, `transport.driver` | `transport::index`, `transport::driver` |
 

@@ -27,6 +27,8 @@ class WarehouseController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'state' => ['nullable', 'string', 'max:3'],
             'address' => ['nullable', 'string', 'max:255'],
+            'suburb' => ['nullable', 'string', 'max:100'],
+            'postcode' => ['nullable', 'string', 'max:10'],
         ]);
         $warehouse = Warehouse::query()->create($data + ['active' => true]);
 

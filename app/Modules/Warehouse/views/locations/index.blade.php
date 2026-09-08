@@ -9,7 +9,10 @@
             @csrf
             <input type="text" name="code" placeholder="{{ __('warehouse.warehouses.code') }}" maxlength="10" required>
             <input type="text" name="name" placeholder="{{ __('warehouse.warehouses.name') }}" required>
+            <input type="text" name="address" placeholder="{{ __('warehouse.warehouses.address') }}">
+            <input type="text" name="suburb" placeholder="{{ __('warehouse.warehouses.suburb') }}">
             <input type="text" name="state" placeholder="{{ __('warehouse.warehouses.state') }}" maxlength="3">
+            <input type="text" name="postcode" placeholder="{{ __('warehouse.warehouses.postcode') }}" maxlength="10">
             <button type="submit" class="secondary outline">{{ __('warehouse.warehouses.create') }}</button>
         </form>
     @endrole

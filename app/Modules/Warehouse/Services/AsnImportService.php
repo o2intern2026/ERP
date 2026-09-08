@@ -42,6 +42,7 @@ final class AsnImportService
                 'deliver_to_name' => $row['deliver_to_name'],
                 'deliver_to_phone' => $row['deliver_to_phone'],
                 'deliver_to_address' => $row['deliver_to_address'],
+                'deliver_to_suburb' => $row['deliver_to_suburb'] ?? null, // OMS needs it to build orders from the ASN (createFromAsn completeness rule)
                 'deliver_to_state' => $row['deliver_to_state'],
                 'deliver_to_postcode' => $row['deliver_to_postcode'],
                 'fba_reference' => $row['fba_reference'],
