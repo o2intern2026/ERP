@@ -4,6 +4,7 @@
 return [
     'title' => 'Job 工作台',
     'nav' => 'Job',
+    'nav_groups' => ['platform' => '平台', 'orders' => '订单', 'warehouse' => '仓库', 'transport' => '运输', 'billing' => '费用', 'reports' => '报表'],
     'nav_users' => '用户',
     'nav_integration' => '集成监控',
     'placeholder' => '模块占位页 —— 功能在后续检查点交付。',

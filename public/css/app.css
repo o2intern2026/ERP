@@ -7,7 +7,7 @@
     --erp-muted: #6b7280;
 }
 
-nav.container ul li a { padding-inline: .5rem; }
+nav.container ul li a { padding-inline: .5rem; white-space: nowrap; }
 
 main.container { padding-block: 1rem 3rem; }
 
@@ -44,3 +44,17 @@ input.scan { font-size: 1.25rem; font-family: ui-monospace, SFMono-Regular, Menl
 form.inline { display: inline; margin: 0; }
 form.inline button { padding: .2rem .7rem; margin: 0; width: auto; }
 .login-card { max-width: 26rem; margin: 3rem auto; }
+
+/* Top bar: one dropdown per module, nothing wraps mid-word; the bar itself wraps on narrow screens. */
+nav.erp-nav { flex-wrap: wrap; row-gap: .25rem; }
+nav.erp-nav ul { flex-wrap: wrap; }
+nav.erp-nav details.dropdown { margin: 0; }
+nav.erp-nav details.dropdown summary { white-space: nowrap; padding: .3rem .75rem; border: none; background: transparent; color: var(--pico-primary); font-weight: 500; }
+nav.erp-nav details.dropdown summary.active { font-weight: 700; text-decoration: underline; text-underline-offset: .3rem; }
+nav.erp-nav details.dropdown summary::after { margin-left: .25rem; }
+nav.erp-nav details.dropdown ul { min-width: 12rem; }
+nav.erp-nav details.dropdown ul li { white-space: nowrap; }
+nav.erp-nav .erp-search { width: 13rem; margin: 0; padding: .25rem .6rem; }
+nav.erp-nav .erp-user { white-space: nowrap; }
+nav.erp-nav .erp-logout { padding: .25rem .7rem; margin: 0; white-space: nowrap; }
+@media (max-width: 1100px) { nav.erp-nav .erp-search { width: 9rem; } nav.erp-nav .erp-user { display: none; } }
