@@ -8,6 +8,7 @@ One branch, one seat at a time. Register before covering another seat's block br
 | 2026-09-08 | block/x1-portal-reports | X1 (quota exhausted) | C (delegated build agent, C reviews) | block 2 from task 1: outbound / return event consumers → order status, A13, A11, A9-p, A12, A4b | when X1's quota returns — A7b / A21 / A22 stay with X1 (need M6 RateService / data) | |
 | 2026-09-08 | block/c8-karrio-adapter (Transport zone) | X2 (quota exhausted) | C | Karrio carrier adapter + `karrio` source (project lead: open-source API instead of Transdirect) | single task; X2 resumes Transport afterwards | 2026-09-08 — adapter, seeds, docs, tests (CHANGE_REQUESTS #49) |
 | 2026-09-08 | block/x1-quotes-reports | X1 (quota exhausted) | C (delegated build agent, C reviews) | block 2 part 2: A7b customer quotes + estimate, A21 reports (boss / client), A22 scheduled client reports | when X1's quota returns |  2026-09-08 — A7b / A21 / A22 delivered, draft PR "M7 (draft): OMS block 2 part 2" opened; see Notes |
+| 2026-09-08 | block/x1-feedback-1 | X1 (quota exhausted) | C (delegated build agent, C reviews) | tester feedback items 1, 2, 3b, 5, 6, 7 (portal stock filter, order info layout, address suggestions, package type select, tailgate checkbox, line dimensions) | when X1's quota returns | |
 
 ## Notes
 

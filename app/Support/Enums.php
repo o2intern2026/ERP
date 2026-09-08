@@ -34,6 +34,12 @@ final class Enums
 
     public const INVOICE_MODES = ['per_job', 'monthly'];
 
+    public const INVOICE_PERIODS = ['weekly', 'fortnightly', 'monthly'];
+
+    public const INVOICE_GROUPINGS = ['job', 'order'];
+
+    public const INVOICE_SCOPES = ['service', 'storage', 'all'];
+
     public const LEG_TYPES = ['first_leg', 'last_leg', 'both'];
 
     public const MASTER_STATUSES = ['active', 'inactive'];

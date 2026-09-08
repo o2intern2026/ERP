@@ -52,6 +52,17 @@ class InvoiceController extends Controller
         return $this->tryDraft(fn () => $invoices->draftMonthly((int) $data['client_id'], Carbon::parse($data['from']), Carbon::parse($data['to'])));
     }
 
+    /** Tester feedback #4: any period (week / fortnight / month / custom), service or storage or both, grouped by Job or by order. */
+    public function draftPeriod(Request $request, InvoiceService $invoices): RedirectResponse
+    {
+        $data = $request->validate([
+            'client_id' => ['required', 'integer', Rule::exists('clients', 'id')], 'from' => ['required', 'date'], 'to' => ['required', 'date', 'after_or_equal:from'],
+            'scope' => ['required', Rule::in(Enums::INVOICE_SCOPES)], 'group_by' => ['nullable', Rule::in(Enums::INVOICE_GROUPINGS)],
+        ]);
+
+        return $this->tryDraft(fn () => $invoices->draftPeriod((int) $data['client_id'], Carbon::parse($data['from']), Carbon::parse($data['to']), $data['scope'], $data['group_by'] ?? null));
+    }
+
     public function draftStorage(Request $request, InvoiceService $invoices): RedirectResponse
     {
         $data = $request->validate(['client_id' => ['required', 'integer', Rule::exists('clients', 'id')], 'week' => ['required', 'date']]);
@@ -59,11 +70,11 @@ class InvoiceController extends Controller
         return $this->tryDraft(fn () => $invoices->draftStorageWeek((int) $data['client_id'], Carbon::parse($data['week'])));
     }
 
-    public function show(Invoice $invoice): View
+    public function show(Invoice $invoice, InvoiceService $invoices): View
     {
         return view('billing::invoices.show', [
             'invoice' => $invoice->load(['client', 'lines.charge.chargeCode', 'jobs', 'payments', 'creditNotes.lines']),
-            'linesByJob' => $invoice->lines()->with('job')->orderBy('job_id')->orderBy('id')->get()->groupBy('job_id'),
+            'groups' => $invoices->groupedLines($invoice),
         ]);
     }
 

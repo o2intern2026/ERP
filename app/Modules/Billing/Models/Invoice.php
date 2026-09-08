@@ -18,7 +18,7 @@ class Invoice extends Model
     use BelongsToClient, LogsActivity;
 
     protected $fillable = [
-        'invoice_no', 'client_id', 'invoice_type', 'period_from', 'period_to', 'bill_to_name', 'bill_to_address', 'bill_to_abn', 'status',
+        'invoice_no', 'client_id', 'invoice_type', 'group_by', 'period_from', 'period_to', 'bill_to_name', 'bill_to_address', 'bill_to_abn', 'status',
         'issued_at', 'due_at', 'is_overdue', 'paid_at', 'paid_amount_cents', 'subtotal_cents', 'gst_cents', 'total_cents', 'pdf_document_id', 'created_by', 'notes',
     ];
 

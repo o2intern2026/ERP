@@ -28,7 +28,7 @@ Conventions: `job_id` on every business record (§0.2 rule 1); `client_id` on ev
 ## 2. MasterData (owner C) — §2.3 A2, §6.2, §3.3
 | table | columns |
 |---|---|
-| `clients` | id, code (unique), name, abn, leg_type, contact_name, contact_phone, contact_email, billing_email, address, suburb, state, postcode, status, payment_terms, invoice_mode, default_markup_percent (decimal 5,2), dispatch_cutoff_time (time), standard_rate_card_id (nullable → rate_cards; new clients bound to the standard card by default), timestamps |
+| `clients` | id, code (unique), name, abn, leg_type, contact_name, contact_phone, contact_email, billing_email, address, suburb, state, postcode, status, payment_terms, invoice_mode, invoice_period, invoice_grouping (2026-09-08), default_markup_percent (decimal 5,2), dispatch_cutoff_time (time), standard_rate_card_id (nullable → rate_cards; new clients bound to the standard card by default), timestamps |
 | `suppliers` | id, code (unique), name, abn, contact_name, contact_phone, contact_email, address, status, timestamps |
 | `carriers` | id, code (unique), name, abn, contact_name, contact_phone, contact_email, status, timestamps — master data only; transport attributes are `carrier_services` (X2) |
 
@@ -94,9 +94,9 @@ Not tables: **holds** = `exceptions` rows with `type = hold`; **order_documents*
 | `rate_cards` | id, client_id (nullable for the standard card), name, currency (`AUD`), version, effective_from, effective_to, status, is_standard (bool), created_by, approved_by, notes, timestamps |
 | `rate_items` | id, rate_card_id, charge_code_id, pallet_class (nullable), threshold_json (json), weight_band_min, weight_band_max, zone, pricing_mode, carrier_id (nullable), service_level (nullable), markup_percent, rate_cents, min_charge_cents, is_poa (bool), notes, timestamps — never edited in place; a price change is a new card version |
 | `charges` | id, job_id, client_id, charge_date, charge_code_id, rate_card_id, rate_card_version, rate_item_id, uom, qty, rate_snapshot_cents, amount_cents, calculation_snapshot_json, tax_treatment, status, source_type, source_id, source_activity_id, activity_version, reversal_of_charge_id, is_manual (bool), manual_reason, created_by, invoice_line_id (nullable), timestamps; **unique (source_activity_id, charge_code_id, activity_version)** |
-| `invoices` | id, invoice_no (unique), client_id, invoice_type, period_from, period_to, bill_to_name, bill_to_address, bill_to_abn, status, issued_at, due_at, is_overdue (display flag), paid_at, paid_amount_cents, subtotal_cents, gst_cents, total_cents, pdf_document_id, created_by, notes, timestamps |
+| `invoices` | id, invoice_no (unique), client_id, invoice_type, group_by (job \| order, 2026-09-08), period_from, period_to, bill_to_name, bill_to_address, bill_to_abn, status, issued_at, due_at, is_overdue (display flag), paid_at, paid_amount_cents, subtotal_cents, gst_cents, total_cents, pdf_document_id, created_by, notes, timestamps |
 | `invoice_jobs` | id, invoice_id, job_id |
-| `invoice_lines` | id, invoice_id, charge_id, job_id, charge_code, description, qty, uom, amount_cents, tax_treatment, gst_cents |
+| `invoice_lines` | id, invoice_id, charge_id, job_id, order_id (nullable, resolved from the charge source, 2026-09-08), charge_code, description, qty, uom, amount_cents, tax_treatment, gst_cents |
 | `credit_notes` | id, credit_note_no (unique), invoice_id, job_id, client_id, reason, amount_cents, gst_cents, status, created_by, approved_by, issued_at, timestamps |
 | `credit_note_lines` | id, credit_note_id, invoice_line_id, charge_id, description, amount_cents, gst_cents |
 | `payments` | id, invoice_id, amount_cents, paid_at, method, reference, recorded_by, created_at |

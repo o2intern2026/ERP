@@ -37,11 +37,15 @@ return [
         'status' => '状态',
         'payment_terms' => '账期',
         'invoice_mode' => '开票模式',
+        'invoice_period' => '账期长度',
+        'invoice_grouping' => '发票分组',
         'default_markup_percent' => '默认加成 %',
         'dispatch_cutoff_time' => '发运截单时间',
     ],
 
     'leg_types' => ['first_leg' => '头程', 'last_leg' => '尾程', 'both' => '头程 + 尾程'],
     'invoice_modes' => ['per_job' => '按 Job 开票', 'monthly' => '月结汇总'],
+    'invoice_periods' => ['weekly' => '每周', 'fortnightly' => '每两周', 'monthly' => '每月'],
+    'invoice_groupings' => ['job' => '按 Job 分组', 'order' => '按订单分组'],
     'statuses' => ['active' => '启用', 'inactive' => '停用'],
 ];

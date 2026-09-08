@@ -28,8 +28,9 @@
     <table class="lines">
         <thead><tr><th>Code</th><th>Description</th><th class="num">Qty</th><th>UOM</th><th class="num">Amount (ex GST)</th><th class="num">GST</th></tr></thead>
         <tbody>
-        @foreach ($linesByJob as $jobId => $lines)
-            <tr class="job"><td colspan="6">Job {{ $lines->first()->job?->job_no ?? '—' }} @if ($lines->first()->job?->reference) · {{ $lines->first()->job->reference }} @endif</td></tr>
+        @foreach ($groups as $group)
+            @php($lines = $group['lines'])
+            <tr class="job"><td colspan="6">{{ $invoice->group_by === 'order' ? 'Order' : 'Job' }} {{ $group['title'] }}</td></tr>
             @foreach ($lines as $line)
                 <tr><td>{{ $line->charge_code }}</td><td>{{ $line->description }} <span class="small">#{{ $line->charge_id }}</span></td><td class="num">{{ rtrim(rtrim(number_format($line->qty, 3), '0'), '.') }}</td><td>{{ $line->uom }}</td><td class="num">{{ number_format($line->amount_cents / 100, 2) }}</td><td class="num">{{ number_format($line->gst_cents / 100, 2) }}</td></tr>
             @endforeach

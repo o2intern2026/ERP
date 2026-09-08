@@ -161,7 +161,7 @@ return [
 
     'search' => [
         'title' => '全局搜索',
-        'hint' => '输入至少 2 个字符:Job 号、参考号、ASN 号、柜号、唛头、单元条码、客户编码 / 名称;订单号与运单号在 M3 / M5 后加入。',
+        'hint' => '输入至少 2 个字符,可同时输入多个关键词(任意顺序、不分大小写,例如 "20260908 0008"):Job 号、参考号、ASN 号、柜号、唛头、单元条码、客户编码 / 名称、订单号。命中关键词越多排得越前。',
         'empty' => '没有找到 ":q"。',
         'modules' => ['platform' => 'Job', 'warehouse' => '仓库', 'masterdata' => '客户', 'orders' => '订单', 'transport' => '运输', 'billing' => '计费'],
         'types' => ['job' => 'Job', 'asn' => 'ASN', 'container' => '柜号', 'consignment_mark' => '唛头', 'stock_unit' => '库存单元', 'client' => '客户', 'order' => '订单', 'shipment' => '发运', 'invoice' => '发票'],

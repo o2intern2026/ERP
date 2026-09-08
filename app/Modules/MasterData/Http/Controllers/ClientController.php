@@ -45,7 +45,7 @@ class ClientController extends Controller
     /** @return array<string, mixed> */
     private function validated(Request $request, ?Client $client = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'code' => ['required', 'string', 'max:20', 'alpha_dash', Rule::unique('clients', 'code')->ignore($client?->id)],
             'name' => ['required', 'string', 'max:255'],
             'abn' => ['nullable', 'string', 'max:20'],
@@ -61,8 +61,16 @@ class ClientController extends Controller
             'status' => ['required', Rule::in(Enums::MASTER_STATUSES)],
             'payment_terms' => ['required', 'string', 'regex:'.Enums::PAYMENT_TERMS_PATTERN],
             'invoice_mode' => ['required', Rule::in(Enums::INVOICE_MODES)],
+            'invoice_period' => ['nullable', Rule::in(Enums::INVOICE_PERIODS)],
+            'invoice_grouping' => ['nullable', Rule::in(Enums::INVOICE_GROUPINGS)],
             'default_markup_percent' => ['required', 'numeric', 'min:0', 'max:999.99'],
             'dispatch_cutoff_time' => ['nullable', 'date_format:H:i'],
         ]);
+
+        // Invoice cadence / grouping have sensible defaults so older forms and imports keep working (tester feedback #4).
+        $data['invoice_period'] = $data['invoice_period'] ?? $client?->invoice_period ?? 'monthly';
+        $data['invoice_grouping'] = $data['invoice_grouping'] ?? $client?->invoice_grouping ?? 'job';
+
+        return $data;
     }
 }

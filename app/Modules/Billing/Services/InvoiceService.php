@@ -9,6 +9,7 @@ use App\Modules\Billing\Models\InvoiceLine;
 use App\Modules\Billing\Models\Payment;
 use App\Modules\MasterData\Models\Client;
 use App\Support\Contracts\DocumentService;
+use App\Support\Enums;
 use App\Support\Numbers;
 use App\Support\Outbox\OutboxPublisher;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -36,6 +37,44 @@ final class InvoiceService
         }
 
         return $this->draft($charges, $type, null, null);
+    }
+
+    /**
+     * Any period the client wants (a week, a fortnight, a month, a custom range), one scope (service fees, storage fees or
+     * both) and one grouping (by Job or by order) — tester feedback #4. Storage-only drafts are typed `storage`,
+     * everything else `service`; the grouping defaults to the client's setting.
+     */
+    public function draftPeriod(int $clientId, CarbonInterface $from, CarbonInterface $to, string $scope = 'service', ?string $groupBy = null): Invoice
+    {
+        if (! in_array($scope, Enums::INVOICE_SCOPES, true)) {
+            throw new InvalidArgumentException("Unknown invoice scope: {$scope}");
+        }
+        $charges = $this->unbilled()->where('client_id', $clientId)->whereBetween('charge_date', [$from->toDateString(), $to->toDateString()])
+            ->when($scope !== 'all', fn ($q) => $q->whereHas('chargeCode', fn ($c) => $scope === 'storage' ? $c->where('category', 'storage') : $c->where('category', '!=', 'storage')))
+            ->get();
+        if ($charges->isEmpty()) {
+            throw new InvalidArgumentException('No unbilled charges for this client in the period.');
+        }
+
+        return $this->draft($charges, $scope === 'storage' ? 'storage' : 'service', $from, $to, $groupBy);
+    }
+
+    /**
+     * Lines grouped the way the invoice asks for (`group_by`): by Job (job_no · reference) or by order (order_no); lines
+     * with no group land under "—". Used by the invoice page and the PDF.
+     *
+     * @return Collection<int, array{key:string, title:string, lines:Collection<int, InvoiceLine>}>
+     */
+    public function groupedLines(Invoice $invoice): Collection
+    {
+        $lines = $invoice->lines()->with('job')->orderBy('job_id')->orderBy('order_id')->orderBy('id')->get();
+        if ($invoice->group_by === 'order') {
+            $orderNos = DB::table('orders')->whereIn('id', $lines->pluck('order_id')->filter()->unique())->pluck('order_no', 'id');
+
+            return $lines->groupBy(fn (InvoiceLine $l) => (string) ($l->order_id ?? ''))->map(fn ($group, $key) => ['key' => 'order:'.$key, 'title' => $key === '' ? '—' : (string) ($orderNos[(int) $key] ?? '#'.$key), 'lines' => $group])->values();
+        }
+
+        return $lines->groupBy(fn (InvoiceLine $l) => (string) ($l->job_id ?? ''))->map(fn ($group, $key) => ['key' => 'job:'.$key, 'title' => trim(($group->first()->job?->job_no ?? '—').' '.($group->first()->job?->reference ? '· '.$group->first()->job->reference : '')), 'lines' => $group])->values();
     }
 
     /** Monthly consolidated invoice for a client (monthly clients): every unbilled charge in the period, grouped by Job. */
@@ -154,9 +193,36 @@ final class InvoiceService
         return Invoice::query()->withoutGlobalScopes()->whereIn('status', ['issued', 'part_paid'])->whereDate('due_at', '<', today())->where('is_overdue', false)->update(['is_overdue' => true]);
     }
 
+    /**
+     * Which order each charge belongs to, from its source record (Orders / Warehouse / Transport tables read-only):
+     * order → itself, shipment → shipments.order_id, task → warehouse_tasks.order_id, asn / snapshot → none.
+     *
+     * @return array<int, int> charge id → order id
+     */
+    private function orderIdsFor(Collection $charges): array
+    {
+        $byType = $charges->groupBy('source_type');
+        $shipments = DB::table('shipments')->whereIn('id', $byType->get('shipment', collect())->pluck('source_id')->filter())->pluck('order_id', 'id');
+        $tasks = DB::table('warehouse_tasks')->whereIn('id', $byType->get('task', collect())->pluck('source_id')->filter())->pluck('order_id', 'id');
+        $map = [];
+        foreach ($charges as $charge) {
+            $orderId = match ($charge->source_type) {
+                'order' => $charge->source_id,
+                'shipment' => $shipments[$charge->source_id] ?? null,
+                'task' => $tasks[$charge->source_id] ?? null,
+                default => null,
+            };
+            if ($orderId) {
+                $map[$charge->id] = (int) $orderId;
+            }
+        }
+
+        return $map;
+    }
+
     public function pdf(Invoice $invoice): string
     {
-        return Pdf::loadView('billing::invoices.pdf', ['invoice' => $invoice->load(['lines.charge.chargeCode', 'client']), 'linesByJob' => $invoice->lines()->with('job')->get()->groupBy('job_id')])->setPaper('a4')->output();
+        return Pdf::loadView('billing::invoices.pdf', ['invoice' => $invoice->load(['lines.charge.chargeCode', 'client']), 'groups' => $this->groupedLines($invoice)])->setPaper('a4')->output();
     }
 
     private function unbilled()
@@ -164,13 +230,15 @@ final class InvoiceService
         return Charge::query()->withoutGlobalScopes()->whereIn('status', ['pending', 'approved'])->whereNull('invoice_line_id');
     }
 
-    private function draft(Collection $charges, string $type, ?CarbonInterface $from, ?CarbonInterface $to): Invoice
+    private function draft(Collection $charges, string $type, ?CarbonInterface $from, ?CarbonInterface $to, ?string $groupBy = null): Invoice
     {
-        return DB::transaction(function () use ($charges, $type, $from, $to): Invoice {
+        return DB::transaction(function () use ($charges, $type, $from, $to, $groupBy): Invoice {
             $client = Client::query()->withoutGlobalScopes()->findOrFail($charges->first()->client_id);
+            $groupBy = in_array($groupBy, Enums::INVOICE_GROUPINGS, true) ? $groupBy : ($client->invoice_grouping ?: 'job');
+            $orderIds = $this->orderIdsFor($charges);
             $invoice = Invoice::query()->create([
-                'invoice_no' => 'DR-'.now()->format('ymdHis').'-'.$client->id,
-                'client_id' => $client->id, 'invoice_type' => $type,
+                'invoice_no' => 'DR-'.strtoupper(base_convert((string) (int) floor(microtime(true) * 1000), 10, 36)).'-'.$client->id, // unique per millisecond, ≤ 16 chars; the real number is assigned at issue
+                'client_id' => $client->id, 'invoice_type' => $type, 'group_by' => $groupBy,
                 'period_from' => $from?->toDateString(), 'period_to' => $to?->toDateString(),
                 'bill_to_name' => $client->name, 'bill_to_abn' => $client->abn, 'status' => 'draft', 'created_by' => auth()->id(),
             ]);
@@ -178,7 +246,7 @@ final class InvoiceService
             foreach ($charges->load('chargeCode') as $charge) {
                 $gst = $charge->gstCents();
                 $line = InvoiceLine::query()->create([
-                    'invoice_id' => $invoice->id, 'charge_id' => $charge->id, 'job_id' => $charge->job_id,
+                    'invoice_id' => $invoice->id, 'charge_id' => $charge->id, 'job_id' => $charge->job_id, 'order_id' => $orderIds[$charge->id] ?? null,
                     'charge_code' => $charge->chargeCode->code, 'description' => $charge->chargeCode->customer_description,
                     'qty' => $charge->qty, 'uom' => $charge->uom, 'amount_cents' => $charge->amount_cents, 'tax_treatment' => $charge->tax_treatment, 'gst_cents' => $gst,
                 ]);
