@@ -50,7 +50,7 @@ Not tables: **holds** = `exceptions` rows with `type = hold`; **order_documents*
 ## 4. Warehouse (owner C) — §4.2
 | table | columns |
 |---|---|
-| `warehouses` | id, code (unique), name, address, state, active (bool), business_hours (json: per weekday open/close for hours_business vs hours_after_hours), timestamps |
+| `warehouses` | id, code (unique), name, address, suburb (M7), state, postcode (M7), active (bool), business_hours (json: per weekday open/close for hours_business vs hours_after_hours), timestamps |
 | `locations` | id, warehouse_id, zone, aisle, bin, full_code (unique per warehouse), type, active (bool), timestamps |
 | `asns` | id, asn_no (unique), job_id, client_id, warehouse_id, expected_date, inbound_type, status, created_by_type, created_by, unplanned (bool), unplanned_confirmed (bool), arrived_at, putaway_completed_at, closed_at, notes, timestamps |
 | `containers` | id, asn_id, job_id, container_no, size, unpack_mode, gross_weight_kg, line_count (derived), timestamps — basic fields only, no lifecycle |

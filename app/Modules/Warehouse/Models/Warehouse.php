@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Warehouse extends Model
 {
-    protected $fillable = ['code', 'name', 'address', 'state', 'active', 'business_hours'];
+    protected $fillable = ['code', 'name', 'address', 'suburb', 'state', 'postcode', 'active', 'business_hours'];
 
     protected function casts(): array
     {
