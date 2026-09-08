@@ -8,6 +8,7 @@ Sources: Transdirect API v4 blueprint (Apiary, "Transdirect Public API V201905",
 | Platform | Go / No-Go | Date | Scope in phase 1 | Fallback |
 |---|---|---|---|---|
 | **Transdirect** | **GO (conditional)** | 2026-09-07 | quote, book, cancel, label PDF, invoice PDF, tracking by **polling** (HTML table, best effort). **No POD via API**, no webhooks. Conditions: (1) member account + API key obtained and demo mode verified by M4; (2) units and payment mode confirmed on the first demo call. | `manual` adapter for POD and for any courier Transdirect cannot book |
+| **Karrio** (open-source, self-hosted gateway — https://github.com/karrioapi/karrio, Apache-2.0) | **GO for development / demo** | 2026-09-08 | quote, book (label PDF in one call), cancel, label, tracking by polling Karrio's tracker (events only for carriers that publish them). One `karrio` adapter fronts every carrier connected inside Karrio: its built-in **custom carrier + rate sheet** needs no external account (demo); real Australian carriers (Australia Post, Sendle, TNT, Allied Express, …) plug in later with their own credentials. **No POD via API** (same manual path as Transdirect). Decision by project lead 2026-09-08: use this instead of Transdirect for now; Transdirect stays interface-compatible and dormant. | Manual adapter |
 | **EIZ** | **NO-GO for phase 1** | 2026-09-07 | none — no public or partner API, no developer docs, no webhooks; ShipMarvel / Lofko are seller-facing SaaS that themselves plug into couriers (eParcel, CouriersPlease, Aramex myFastway, Sendle). Tracking syncs only inside their UI / branded e-mails. Its couriers overlap Transdirect's. | `manual` adapter. Revisit only if EIZ sales offers a partner API (contact via https://eiz.com.au/contact) |
 
 No-Go for a platform = out of phase 1; the `manual` adapter (typed tracking number, uploaded POD) keeps quote → book → POD unbroken (ERP_PLAN §8.9).
@@ -44,3 +45,18 @@ No-Go for a platform = out of phase 1; the `manual` adapter (typed tracking numb
 | B | Project lead + Finance | Decide Transdirect payment arrangement (prepaid / account) and whether to enable Frequent Rates | before first live booking |
 | C | X2 | First demo call: confirm item units (kg / cm vs m) and pickup window behaviour; update #3 here via a CHANGE_REQUESTS row if the docs are wrong | B5c |
 | D | Project lead (optional) | Ask EIZ via their contact form whether a partner API exists; if yes, C re-runs this checklist for EIZ | any time; not blocking |
+
+## Karrio (added 2026-09-08 — C covering X2, CHANGE_REQUESTS #49)
+
+| # | Topic | Finding | ERP mapping |
+|---|---|---|---|
+| K1 | Run | `docker/karrio/docker-compose.yml` (server + worker + dashboard + Postgres 16 + Redis). API `http://localhost:5002`, dashboard `http://localhost:3002`. First start provisions the admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in the git-ignored `docker/karrio/.env`. | `config/services.php` → `services.karrio` (`KARRIO_BASE_URL`, `KARRIO_API_KEY`, optional `KARRIO_CARRIER_IDS`) |
+| K2 | Auth | REST v1, header `Authorization: Token <api key>` (key created in Dashboard → Developers → API Keys). | key in `.env` / vault only; adapter is idle (returns no quotes) when the key is empty |
+| K3 | Quote | `POST /v1/proxy/rates` — `shipper` / `recipient` (`address_line1`, `city`, `state_code`, `postal_code`, `country_code`), `parcels[]` (`weight` KG, `length/width/height` CM, `packaging_type`), `options.currency/declared_value/shipment_date`, optional `carrier_ids`. Response `rates[]` with `id`, `carrier_id`, `carrier_name`, `service`, `total_charge`, `transit_days`. | `KarrioAdapter::quote()`: one parcel per piece, mm → cm, decimal → cents; `service_code = <carrier_id>::<service>`; `service_level` from the service name / transit days; `raw.booking_id` = rate id |
+| K4 | Book | `POST /v1/shipments` with `service` + `carrier_ids` buys the label in one call (status `purchased`, `tracking_number`, `label_url`, `tracker_id`); if the shipment stays `draft`, `POST /v1/shipments/{id}/purchase` with `selected_rate_id`. | `book()` → `booking_ref` = Karrio shipment id, `status = booked` |
+| K5 | Cancel / label | `POST /v1/shipments/{id}/cancel`; label bytes from the shipment's `label_url` (PDF). | `cancel()`, `label()` |
+| K6 | Tracking | `GET /v1/trackers/{tracker_id or tracking_number}` → `status` (`pending`, `in_transit`, `out_for_delivery`, `delivered`, `delivery_failed`, …) and `events[]` (`date`, `time`, `description`, `location`, `code`). Carriers without a feed (custom carrier) return no events. | `tracking()` maps events; a status-only tracker becomes one event; nothing pending → empty list (X2's sync raises `manual_transport` once) |
+| K7 | POD | none via API | manual upload, `captured_by_type = driver` / manual — unchanged |
+| K8 | Cost | Karrio itself is free (self-hosted). Real carrier accounts are billed by each carrier. | `carrier_costs` from the quote as for any third party |
+
+Verification: `tests/Feature/Transport/KarrioAdapterTest.php` (contract shapes with `Http::fake`) runs in CI; `KarrioLiveTest` (`KARRIO_LIVE=1`) exercises quote → book → label → cancel against the local instance and is skipped otherwise.

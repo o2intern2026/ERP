@@ -35,14 +35,16 @@ Conventions: `job_id` on every business record (§0.2 rule 1); `client_id` on ev
 ## 3. Orders (owner X1) — §3.3
 | table | columns |
 |---|---|
-| `orders` | id, order_no (unique, `ORD-YYYYMMDD-NNNN`), client_id, job_id, order_type, source, external_ref, consignment_mark, fba_reference, pickup_address (json, pickup_deliver), deliver_to_name, deliver_to_phone, deliver_to_address, deliver_to_suburb, deliver_to_state, deliver_to_postcode, deliver_to_address_type, requested_date, operational_status, fulfilment_status, billing_status, service_level, tailgate_required (bool), tailgate_reason, customer_quote_id (nullable → customer_quotes), created_by, timestamps |
-| `order_lines` | id, order_id, description_cn, description_en, hs_code, material, usage, brand, package_type, carton_qty, unit_qty, unit_price_cents, total_price_cents, actual_weight_kg, length_mm, width_mm, height_mm, cbm, qty_shipped, qty_backordered, asn_line_id (nullable → asn_lines), stock_unit_ref (nullable), timestamps |
+| `orders` | id, order_no (unique, `ORD-YYYYMMDD-NNNN`), client_id, job_id, order_type, source, external_ref, consignment_mark, fba_reference, pickup_address (json, pickup_deliver), deliver_to_name, deliver_to_phone, deliver_to_address, deliver_to_suburb, deliver_to_state, deliver_to_postcode, deliver_to_address_type, requested_date, operational_status, fulfilment_status, billing_status, service_level, tailgate_required (bool), tailgate_reason, customer_quote_id (nullable → customer_quotes), created_by, timestamps, original_order_id (nullable → orders; return orders, A11), return_inspected_at, return_decision (credit \| no_credit), return_decided_by, return_decided_at, return_decision_note (A11 — CHANGE_REQUESTS #38) |
+| `order_lines` | id, order_id, description_cn, description_en, hs_code, material, usage, brand, package_type, carton_qty, unit_qty, unit_price_cents, total_price_cents, actual_weight_kg, length_mm, width_mm, height_mm, cbm, qty_shipped, qty_backordered, asn_line_id (nullable → asn_lines), stock_unit_ref (nullable), timestamps, original_order_line_id (nullable; return orders, A11 — CHANGE_REQUESTS #38) |
 | `declared_packages` | id, order_id, package_type, qty, weight_kg, length_mm, width_mm, height_mm |
 | `fulfilments` | id, order_id, seq (`F1`, `F2`…), warehouse_id, status, shipment_id (nullable → shipments), timestamps |
 | `fulfilment_lines` | id, fulfilment_id, order_line_id, qty |
 | `client_addresses` | id, client_id, label, contact_name, phone, address, suburb, state, postcode, address_type, default_instructions, usage_count, last_used_at, timestamps (§3.3 OMS-14; owner per `CHANGE_REQUESTS.md` #9) |
 | `order_events` | id, order_id, from_status, to_status, actor_type (user \| system), actor_id, note, created_at (append-only) |
 | `order_imports` | id, client_id, source (excel \| pdf), document_id (nullable → documents), status, row_count, error_count, errors (json), created_by, timestamps |
+| `order_api_tokens` | id, client_id, name, token_hash (sha256 of the bearer token; plain value shown once), last_used_at, revoked_at, created_by, timestamps (A4b — CHANGE_REQUESTS #39) |
+| `order_api_idempotency_keys` | id, client_id, idempotency_key, order_id, created_at (unique per client; replay returns the first order — A4b) |
 Not tables: **holds** = `exceptions` rows with `type = hold`; **order_documents** = `documents`; **return requests** = `orders` with `order_type = return` (`CHANGE_REQUESTS.md` #10).
 
 ## 4. Warehouse (owner C) — §4.2
@@ -88,16 +90,16 @@ Not tables: **holds** = `exceptions` rows with `type = hold`; **order_documents*
 |---|---|
 | `charge_codes` | id, code (unique, `charge-codes.md`), category, default_uom, customer_description, internal_description, tax_treatment, active (bool), timestamps |
 | `charge_rules` | id, trigger_event, charge_code_id, condition (json), quantity_source, rate_match_priority, effective_from, effective_to, idempotency_key_template, active (bool), timestamps |
-| `rate_cards` | id, client_id (nullable for the standard card), name, currency (`AUD`), version, effective_from, effective_to, status, is_standard (bool), created_by, approved_by, timestamps |
+| `rate_cards` | id, client_id (nullable for the standard card), name, currency (`AUD`), version, effective_from, effective_to, status, is_standard (bool), created_by, approved_by, notes, timestamps |
 | `rate_items` | id, rate_card_id, charge_code_id, pallet_class (nullable), threshold_json (json), weight_band_min, weight_band_max, zone, pricing_mode, carrier_id (nullable), service_level (nullable), markup_percent, rate_cents, min_charge_cents, is_poa (bool), notes, timestamps — never edited in place; a price change is a new card version |
 | `charges` | id, job_id, client_id, charge_date, charge_code_id, rate_card_id, rate_card_version, rate_item_id, uom, qty, rate_snapshot_cents, amount_cents, calculation_snapshot_json, tax_treatment, status, source_type, source_id, source_activity_id, activity_version, reversal_of_charge_id, is_manual (bool), manual_reason, created_by, invoice_line_id (nullable), timestamps; **unique (source_activity_id, charge_code_id, activity_version)** |
-| `invoices` | id, invoice_no (unique), client_id, invoice_type, period_from, period_to, bill_to_name, bill_to_address, bill_to_abn, status, issued_at, due_at, is_overdue (display flag), paid_at, paid_amount_cents, subtotal_cents, gst_cents, total_cents, pdf_document_id, created_by, timestamps |
+| `invoices` | id, invoice_no (unique), client_id, invoice_type, period_from, period_to, bill_to_name, bill_to_address, bill_to_abn, status, issued_at, due_at, is_overdue (display flag), paid_at, paid_amount_cents, subtotal_cents, gst_cents, total_cents, pdf_document_id, created_by, notes, timestamps |
 | `invoice_jobs` | id, invoice_id, job_id |
 | `invoice_lines` | id, invoice_id, charge_id, job_id, charge_code, description, qty, uom, amount_cents, tax_treatment, gst_cents |
 | `credit_notes` | id, credit_note_no (unique), invoice_id, job_id, client_id, reason, amount_cents, gst_cents, status, created_by, approved_by, issued_at, timestamps |
 | `credit_note_lines` | id, credit_note_id, invoice_line_id, charge_id, description, amount_cents, gst_cents |
 | `payments` | id, invoice_id, amount_cents, paid_at, method, reference, recorded_by, created_at |
-| `customer_quotes` | id, quote_no (unique), job_id, client_id, order_id (nullable), stage, valid_until, status, created_by, timestamps (FIN-6 & OMS-3; X1's A7b reads/creates through RateService + Billing's quote service, `CHANGE_REQUESTS.md` #10) |
+| `customer_quotes` | id, quote_no (unique), job_id, client_id, order_id (nullable), stage, valid_until, status, subtotal_cents, gst_cents, total_cents, notes, created_by, timestamps (FIN-6 & OMS-3; X1's A7b reads/creates through RateService + Billing's quote service, `CHANGE_REQUESTS.md` #10) |
 | `customer_quote_lines` | id, customer_quote_id, charge_code, qty, uom, amount_cents, transport_quote_id (nullable), assumptions (json) |
 
 ## Ownership quick check (used by the integrator)

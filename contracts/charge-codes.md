@@ -40,8 +40,8 @@ One charge per billable unit per week; idempotency key = unit + billing week + c
 ## 4. Outbound
 | # | Edward row | Code | Category | UOM | Trigger | Quantity source | Condition / threshold | Edward rate |
 |---|---|---|---|---|---|---|---|---|
-| 20 | Order process – despatch | `WH-ORDER-DESPATCH` | warehouse | order | outbound.packed | orders (1) | is_urgent=false | 5.00 |
-| 21 | Order process – urgent despatch | `WH-ORDER-DESPATCH-URGENT` | warehouse | order | outbound.packed | orders (1) | is_urgent=true (same-day dispatch requested after `clients.dispatch_cutoff_time`); `{"cutoff_source":"clients.dispatch_cutoff_time"}`; **replaces** #20 — one order-processing charge per order (`CHANGE_REQUESTS.md` #5) | 15.00 |
+| 20 | Order process – despatch | `WH-ORDER-DESPATCH` | warehouse | order | outbound.packed | orders (1) | every packed order (urgent or not) | 5.00 |
+| 21 | Order process – urgent despatch | `WH-ORDER-DESPATCH-URGENT` | warehouse | order | outbound.packed | orders (1) | is_urgent=true (same-day dispatch requested after `clients.dispatch_cutoff_time`); `{"cutoff_source":"clients.dispatch_cutoff_time"}`; **adds to** #20 — an urgent order carries $5 + $15 (`CHANGE_REQUESTS.md` #5, project lead 2026-09-08) | 15.00 |
 | 22 | Pick – pallet | `WH-PICK-PLT` | warehouse | pallet | outbound.packed | pallets | lines with unit_type=pallet | 4.00 |
 | 23 | Pick – carton ≥ 45 kg | `WH-PICK-CTN-GE45` | warehouse | carton | outbound.packed | cartons | unit_type=carton; weight_band_min=45.00, weight_band_max=null | 4.50 |
 | 24 | Pick – carton 22–44.99 kg | `WH-PICK-CTN-22-45` | warehouse | carton | outbound.packed | cartons | weight_band_min=22.00, weight_band_max=44.99 | 3.50 |

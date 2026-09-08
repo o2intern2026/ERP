@@ -17,7 +17,7 @@
 - Middleware: every route except `/login` and `/logout` sits behind `auth`. The global client scope (M1/A1) is enforced in the data layer, not per route.
 - Client-role users may reach only `/portal/**`, `/logout` and the client views Portal links to; enforced server side (M1), never by hiding links.
 - `/admin/**` is Platform's namespace; MasterData owns exactly the three sub-paths above and nothing else under `/admin`.
-- Unauthenticated pages: `/login` only. No API routes in phase 1 except the reserved `/api/orders` (A4b, X1, token auth) — add it to this table before implementing it.
+- Unauthenticated pages: `/login` only. The only API route in phase 1 is A4b's `POST /orders/api/orders` (X1, bearer token from `order_api_tokens`, `Idempotency-Key` header; no session, CSRF or client scope — the token names the client). It sits under the Orders prefix so the prefix rule holds (CHANGE_REQUESTS #39).
 - Nav: `resources/views/layouts/nav.blade.php` includes `layouts/nav/<module>.blade.php` for every module; each module edits only its own include.
 
 ## M0 placeholders (one per module; Feature test in `tests/Feature/<Module>/`)

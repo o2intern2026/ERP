@@ -2,16 +2,15 @@
 
 namespace App\Support\Fakes;
 
-use App\Support\Contracts\RateService;
-use App\Support\Contracts\TransportOptionService;
 use Illuminate\Support\ServiceProvider;
 
 /**
- * Binds the Fake implementations of contracts/services.md when config('erp.use_fake_services') is true
- * (env USE_FAKE_SERVICES). Tests run with it on; a seat whose dependency block is not merged yet turns it on locally.
- * Module providers bind the real implementations at their checkpoints; the flag must be off in production.
- * Retired fakes (real implementation merged): FakeJobService (M1), FakeStockService (M2), FakeOrderService and
- * FakeManifestParser (M3 — bound by OrdersServiceProvider). The classes stay for unit tests.
+ * Bound the Fake implementations of contracts/services.md while config('erp.use_fake_services') was true
+ * (env USE_FAKE_SERVICES). Every Fake is now retired — the module providers bind the real services at their checkpoints:
+ * FakeJobService (M1, Platform), FakeStockService (M2, Warehouse), FakeOrderService + FakeManifestParser (M3, Orders),
+ * FakeTransportOptionService (M5, Transport), FakeRateService (M6, Billing). The Fake classes stay for unit tests and as
+ * executable documentation of the contract shapes (tests/Feature/Platform/FakeServicesTest.php); the flag is kept so a
+ * seat can still bind one locally while experimenting, and it must be false in production.
  */
 final class FakeServicesProvider extends ServiceProvider
 {
@@ -21,7 +20,6 @@ final class FakeServicesProvider extends ServiceProvider
             return;
         }
 
-        $this->app->singleton(TransportOptionService::class, FakeTransportOptionService::class);
-        $this->app->singleton(RateService::class, FakeRateService::class);
+        // Nothing left to bind: all five contracts have their real implementation merged.
     }
 }

@@ -60,7 +60,7 @@ class FinancialLockTest extends TestCase
             ->assertSeeInOrder(['Fiona Finance', 'Dan Dispatcher']);
     }
 
-    public function test_warehouse_dispatch_reported_under_a_lock_is_applied_when_finance_releases(): void
+    public function test_warehouse_dispatch_is_refused_under_a_lock_and_flows_through_after_finance_releases(): void
     {
         $finance = $this->staff('finance');
         $operator = $this->staff('warehouse_operator');
@@ -80,15 +80,21 @@ class FinancialLockTest extends TestCase
         app(OutboxDispatcher::class)->dispatchDue();
         $this->assertSame('packed', $order->fresh()->operational_status, 'picking and packing are not blocked by a financial hold');
 
-        // Warehouse has no gate yet (C follow-up): the handover is recorded on the batch, the order waits for the release.
-        $outbound->dispatch($fulfilment->id, 0, 'carrier', null, $operator->id);
-        app(OutboxDispatcher::class)->dispatchDue();
-        $this->assertSame('dispatched', $fulfilment->fresh()->status);
+        // CHANGE_REQUESTS #40 (delivered in PR #10): the Warehouse handover itself is refused while the hold is active.
+        try {
+            $outbound->dispatch($fulfilment->id, 0, 'carrier', null, $operator->id);
+            $this->fail('Warehouse must refuse the handover while a financial hold is active');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('financial hold', $e->getMessage());
+        }
+        $this->assertSame('packed', $fulfilment->fresh()->status);
         $this->assertSame('packed', $order->fresh()->operational_status);
-        $this->assertDatabaseHas('order_events', ['order_id' => $order->id, 'actor_type' => 'system', 'note' => __('orders.holds.messages.dispatch_blocked', ['order_no' => $order->order_no])]);
 
         $holdId = (int) app(OrderHoldService::class)->activeFor($order)->first()->id;
         $this->actingAs($finance)->post(route('orders.holds.release', [$order, $holdId]), ['note' => 'paid'])->assertRedirect();
+        $outbound->dispatch($fulfilment->id, 0, 'carrier', null, $operator->id);
+        app(OutboxDispatcher::class)->dispatchDue();
+        $this->assertSame('dispatched', $fulfilment->fresh()->status);
         $this->assertSame('dispatched', $order->fresh()->operational_status);
     }
 

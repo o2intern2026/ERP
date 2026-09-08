@@ -6,6 +6,7 @@ One branch, one seat at a time. Register before covering another seat's block br
 |---|---|---|---|---|---|---|
 | 2026-09-07 | block/x1-oms-min | X1 (quota exhausted) | C | A14 (A3, A17, A4, A7 done by X1) | when M3 is merged — X1 resumes with block 2 (`block/x1-portal-reports`) | 2026-09-07 — A14 / A16 / A11b / A15 delivered, PR "M3: OMS minimal block" opened; see Notes |
 | 2026-09-08 | block/x1-portal-reports | X1 (quota exhausted) | C (delegated build agent, C reviews) | block 2 from task 1: outbound / return event consumers → order status, A13, A11, A9-p, A12, A4b | when X1's quota returns — A7b / A21 / A22 stay with X1 (need M6 RateService / data) | |
+| 2026-09-08 | block/c8-karrio-adapter (Transport zone) | X2 (quota exhausted) | C | Karrio carrier adapter + `karrio` source (project lead: open-source API instead of Transdirect) | single task; X2 resumes Transport afterwards | 2026-09-08 — adapter, seeds, docs, tests (CHANGE_REQUESTS #49) |
 
 ## Notes
 

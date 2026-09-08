@@ -77,6 +77,7 @@ return [
         'same_day' => '当日达',
     ],
     'sources' => [
+        'karrio' => 'Karrio 开源网关',
         'own_fleet' => '自有车队',
         'transdirect' => 'Transdirect',
         'eiz' => 'EIZ',

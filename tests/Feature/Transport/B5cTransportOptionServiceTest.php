@@ -104,8 +104,8 @@ class B5cTransportOptionServiceTest extends TestCase
 
     public function test_own_fleet_and_manual_adapters_follow_the_frozen_interface(): void
     {
-        $rates = app(RateService::class);
-        $this->assertInstanceOf(FakeRateService::class, $rates);
+        $rates = new FakeRateService; // M6 integration: the real Billing RateService is bound now; this test pins the Fake to price TR-DELIVERY-BASE deterministically
+        $this->app->instance(RateService::class, $rates);
         $rates->withRate('TR-DELIVERY-BASE', 7500);
 
         $ownFleet = new OwnFleetCarrierAdapter($rates);
