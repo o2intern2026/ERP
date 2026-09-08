@@ -2,4 +2,5 @@
 <li><a href="{{ route('portal.index') }}">{{ __('portal.nav') }}</a></li>
 @if (auth()->user()->isClientUser())
     <li><a href="{{ route('portal.orders.create') }}">{{ __('portal.actions.create') }}</a></li>
+    <li><a href="{{ route('portal.reports') }}">{{ __('portal.reports.nav') }}</a></li>
 @endif

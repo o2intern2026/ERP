@@ -3,6 +3,7 @@
 use App\Modules\Portal\Http\Controllers\PortalDocumentController;
 use App\Modules\Portal\Http\Controllers\PortalEstimateController;
 use App\Modules\Portal\Http\Controllers\PortalOrderController;
+use App\Modules\Portal\Http\Controllers\PortalReportController;
 use App\Modules\Portal\Http\Controllers\PortalReturnController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,5 +16,8 @@ Route::prefix('portal')->name('portal.')->group(function () {
     Route::get('/orders/{order}', [PortalOrderController::class, 'show'])->name('orders.show');
     Route::post('/orders/{order}/returns', [PortalReturnController::class, 'store'])->name('orders.returns.store');
     Route::post('/orders/{order}/estimate', PortalEstimateController::class)->name('orders.estimate'); // A7b 估价 (客户价)
+    // A21 客户视角 for client users: ClientScope confines them to /portal/**, so the Reports module's client report is served here (CHANGE_REQUESTS #52).
+    Route::get('/reports', [PortalReportController::class, 'index'])->name('reports');
+    Route::get('/reports/export/{table}', [PortalReportController::class, 'export'])->name('reports.export');
     Route::get('/documents/{document}', PortalDocumentController::class)->name('documents.download');
 });
