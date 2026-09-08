@@ -19,7 +19,7 @@ class Client extends Model
     protected $fillable = [
         'code', 'name', 'abn', 'leg_type', 'contact_name', 'contact_phone', 'contact_email', 'billing_email',
         'address', 'suburb', 'state', 'postcode', 'status', 'payment_terms', 'invoice_mode',
-        'default_markup_percent', 'dispatch_cutoff_time', 'standard_rate_card_id',
+        'default_markup_percent', 'dispatch_cutoff_time', 'standard_rate_card_id', 'invoice_period', 'invoice_grouping',
     ];
 
     protected function casts(): array

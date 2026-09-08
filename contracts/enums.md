@@ -164,3 +164,6 @@ Currency `AUD`, money as integer cents (`app/Support/Money`); timezone `Australi
 | `carrier_invoices.status` | `received` \| `matched` \| `disputed` \| `paid` |
 | `delivery.extra_charge.charge_type` (event) | `waiting` \| `redelivery` \| `failed` \| `other` |
 | `return.financial_decision.decision` (event) | `credit` \| `no_credit` |
+| `invoices.group_by` ※ | `job` \| `order` (tester feedback #4) |
+| `clients.invoice_period` ※ | `weekly` \| `fortnightly` \| `monthly` |
+| `clients.invoice_grouping` ※ | `job` \| `order` |

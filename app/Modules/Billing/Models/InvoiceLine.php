@@ -10,7 +10,7 @@ class InvoiceLine extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['invoice_id', 'charge_id', 'job_id', 'charge_code', 'description', 'qty', 'uom', 'amount_cents', 'tax_treatment', 'gst_cents'];
+    protected $fillable = ['invoice_id', 'charge_id', 'job_id', 'order_id', 'charge_code', 'description', 'qty', 'uom', 'amount_cents', 'tax_treatment', 'gst_cents'];
 
     protected function casts(): array
     {

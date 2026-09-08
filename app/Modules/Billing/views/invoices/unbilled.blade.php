@@ -26,10 +26,28 @@
                     @endforeach
                     </tbody>
                 </table>
-                <footer class="grid">
-                    <form method="post" action="{{ route('billing.invoices.draft_monthly') }}" class="grid">
+                <footer>
+                    <form method="post" action="{{ route('billing.invoices.draft_period') }}" class="erp-period-form" data-client="{{ $entry['client']->id }}">
                         @csrf<input type="hidden" name="client_id" value="{{ $entry['client']->id }}">
-                        <input type="date" name="from" value="{{ now()->startOfMonth()->toDateString() }}" aria-label="{{ __('billing.unbilled.period_from') }}"><input type="date" name="to" value="{{ now()->endOfMonth()->toDateString() }}" aria-label="{{ __('billing.unbilled.period_to') }}">
+                        <p class="text-muted"><small>{{ __('billing.unbilled_period.period_hint', ['period' => __('masterdata.invoice_periods.'.($entry['client']->invoice_period ?? 'monthly')), 'grouping' => __('masterdata.invoice_groupings.'.($entry['client']->invoice_grouping ?? 'job'))]) }}</small></p>
+                        <div class="grid">
+                            <label>{{ __('billing.unbilled_period.period_from') }}<input type="date" name="from" value="{{ now()->startOfMonth()->toDateString() }}" required></label>
+                            <label>{{ __('billing.unbilled_period.period_to') }}<input type="date" name="to" value="{{ now()->endOfMonth()->toDateString() }}" required></label>
+                            <label>{{ __('billing.unbilled_period.scope') }}<select name="scope">@foreach (\App\Support\Enums::INVOICE_SCOPES as $scope)<option value="{{ $scope }}">{{ __('billing.unbilled_period.scopes.'.$scope) }}</option>@endforeach</select></label>
+                            <label>{{ __('billing.unbilled_period.group_by') }}<select name="group_by">@foreach (\App\Support\Enums::INVOICE_GROUPINGS as $g)<option value="{{ $g }}" @selected(($entry['client']->invoice_grouping ?? 'job') === $g)>{{ __('billing.invoices.group_by.'.$g) }}</option>@endforeach</select></label>
+                        </div>
+                        <div class="grid">
+                            <div>
+                                @foreach (['this_week' => [now()->startOfWeek()->toDateString(), now()->endOfWeek()->toDateString()], 'last_week' => [now()->subWeek()->startOfWeek()->toDateString(), now()->subWeek()->endOfWeek()->toDateString()], 'last_fortnight' => [now()->subWeeks(2)->startOfWeek()->toDateString(), now()->subWeek()->endOfWeek()->toDateString()], 'this_month' => [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()], 'last_month' => [now()->subMonth()->startOfMonth()->toDateString(), now()->subMonth()->endOfMonth()->toDateString()]] as $preset => [$f, $t])
+                                    <button type="button" class="outline secondary erp-preset" data-from="{{ $f }}" data-to="{{ $t }}" style="padding:.2rem .6rem;margin:0 .25rem .25rem 0">{{ __('billing.unbilled_period.presets.'.$preset) }}</button>
+                                @endforeach
+                            </div>
+                            <button type="submit" class="secondary">{{ __('billing.unbilled_period.draft_period') }}</button>
+                        </div>
+                    </form>
+                    <form method="post" action="{{ route('billing.invoices.draft_monthly') }}" class="grid" hidden>
+                        @csrf<input type="hidden" name="client_id" value="{{ $entry['client']->id }}">
+                        <input type="date" name="from" value="{{ now()->startOfMonth()->toDateString() }}" aria-label="{{ __('billing.unbilled_period.period_from') }}"><input type="date" name="to" value="{{ now()->endOfMonth()->toDateString() }}" aria-label="{{ __('billing.unbilled_period.period_to') }}">
                         <button type="submit" class="secondary">{{ __('billing.unbilled.draft_monthly') }}</button>
                     </form>
                     @if ($entry['has_storage'])
@@ -43,4 +61,13 @@
             </article>
         @endforeach
     @endif
+    <script>
+        document.querySelectorAll('.erp-preset').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var form = btn.closest('form');
+                form.querySelector('[name=from]').value = btn.dataset.from;
+                form.querySelector('[name=to]').value = btn.dataset.to;
+            });
+        });
+    </script>
 @endsection

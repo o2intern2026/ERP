@@ -34,6 +34,9 @@ class SearchApprovalActivityTest extends TestCase
         $this->actingAs($cs)->get('/admin/search?q=edward')->assertOk()->assertSee('Edward Logistics');
         $this->actingAs($cs)->get('/admin/search?q=zzzz-none')->assertOk()->assertSee(__('platform.search.empty', ['q' => 'zzzz-none']));
         $this->actingAs($cs)->get('/admin/search?q=x')->assertOk()->assertSee(__('platform.search.hint'));
+        // Tester feedback #3: several keywords in any order, no dashes needed, case-insensitive.
+        $this->actingAs($cs)->get('/admin/search?q=6508115030 cosu')->assertOk()->assertSee('COSU6508115030');
+        $this->actingAs($cs)->get('/admin/search?q=EDWARD logistics')->assertOk()->assertSee('Edward Logistics');
     }
 
     public function test_approvals_need_a_second_person(): void

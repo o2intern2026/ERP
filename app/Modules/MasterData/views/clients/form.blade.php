@@ -57,6 +57,20 @@
                         @endforeach
                     </select>
                 </label>
+                <label>{{ __('masterdata.fields.invoice_period') }}
+                    <select name="invoice_period">
+                        @foreach (\App\Support\Enums::INVOICE_PERIODS as $v)
+                            <option value="{{ $v }}" @selected(old('invoice_period', $client->invoice_period ?? 'monthly') === $v)>{{ __('masterdata.invoice_periods.'.$v) }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label>{{ __('masterdata.fields.invoice_grouping') }}
+                    <select name="invoice_grouping">
+                        @foreach (\App\Support\Enums::INVOICE_GROUPINGS as $v)
+                            <option value="{{ $v }}" @selected(old('invoice_grouping', $client->invoice_grouping ?? 'job') === $v)>{{ __('masterdata.invoice_groupings.'.$v) }}</option>
+                        @endforeach
+                    </select>
+                </label>
                 <label>{{ __('masterdata.fields.default_markup_percent') }}
                     <input type="number" step="0.01" min="0" name="default_markup_percent" value="{{ old('default_markup_percent', $client->default_markup_percent ?? 0) }}" required>
                     <small>{{ __('masterdata.clients.markup_hint') }}</small>

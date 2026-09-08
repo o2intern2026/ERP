@@ -25,6 +25,7 @@ return [
     'charge_statuses' => ['pending' => '待开票', 'needs_review' => '待报价 / 复核', 'approved' => '已确认', 'invoiced' => '已开票', 'disputed' => '有争议', 'reversed' => '已冲销'],
     'categories' => ['warehouse' => '仓库操作', 'vas' => '增值服务', 'transport' => '运输', 'storage' => '仓储', 'other' => '其它'],
 
+    'unbilled_period' => ['period_from' => '账期从', 'period_to' => '到', 'scope' => '包含费用', 'group_by' => '分组方式', 'draft_period' => '按账期生成草稿', 'period_hint' => '该客户设置:账期:period,发票:grouping。可临时改成任意区间(一周 / 两周 / 自定义)和分组。', 'scopes' => ['service' => '服务费(不含仓储)', 'storage' => '仓储费', 'all' => '全部费用'], 'presets' => ['this_week' => '本周', 'last_week' => '上周', 'last_fortnight' => '前两周', 'this_month' => '本月', 'last_month' => '上月']],
     'unbilled' => ['title' => '未开票池', 'hint' => '已完成作业但尚未进入发票的费用,按客户 / Job 汇总。整柜客户按 Job 开服务发票;尾程客户月底汇总;仓储费按周。', 'draft_job' => '按此 Job 开票', 'draft_monthly' => '月结汇总开票', 'draft_storage' => '本周仓储费开票', 'period_from' => '期间从', 'period_to' => '到', 'week' => '周内任一天', 'empty' => '没有未开票费用。', 'lines' => '行数', 'review_pending' => '另有 :n 条待报价 / 复核,不在此池中。'],
 
     'invoices' => [
@@ -33,6 +34,7 @@ return [
         'pdf' => '下载 PDF', 'payments' => '收款记录', 'record_payment' => '登记收款', 'payment_amount' => '金额 (AUD)', 'paid_at' => '收款日期', 'method' => '方式', 'reference' => '参考号', 'payment_recorded' => '收款已登记。',
         'bill_to' => '开票对象(开票时快照)', 'draft_hint' => '草稿状态下金额可能仍会因新费用变化;开出后冻结,只能用 credit note 冲减。', 'empty' => '没有发票。',
         'types' => ['service' => '服务发票', 'storage' => '周仓储', 'supplementary' => '补充发票', 'monthly' => '月结汇总'],
+        'group_by' => ['job' => '按 Job 分组', 'order' => '按订单分组'],
         'statuses' => ['draft' => '草稿', 'issued' => '已开出', 'part_paid' => '部分收款', 'paid' => '已收款', 'void' => '作废'],
         'methods' => ['bank' => '银行转账', 'card' => '刷卡', 'cash' => '现金', 'other' => '其它'],
     ],

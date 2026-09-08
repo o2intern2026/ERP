@@ -32,6 +32,7 @@ Route::prefix('billing')->name('billing.')->group(function () {
         Route::post('/invoices/job/{job}', [InvoiceController::class, 'draftJob'])->name('invoices.draft_job');
         Route::post('/invoices/monthly', [InvoiceController::class, 'draftMonthly'])->name('invoices.draft_monthly');
         Route::post('/invoices/storage', [InvoiceController::class, 'draftStorage'])->name('invoices.draft_storage');
+        Route::post('/invoices/period', [InvoiceController::class, 'draftPeriod'])->name('invoices.draft_period');
         Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show')->whereNumber('invoice');
         Route::post('/invoices/{invoice}/issue', [InvoiceController::class, 'issue'])->name('invoices.issue');
         Route::delete('/invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
