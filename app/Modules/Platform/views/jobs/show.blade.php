@@ -31,12 +31,52 @@
 
     <h2>{{ __('platform.jobs.panels') }}</h2>
     <div class="grid">
-        @foreach (['panel_asns' => ['Warehouse', 'M2'], 'panel_stock' => ['Warehouse', 'M2'], 'panel_orders' => ['Orders', 'M3'], 'panel_shipments' => ['Transport', 'M5'], 'panel_charges' => ['Billing', 'M6'], 'panel_documents' => ['Platform', 'M6']] as $key => [$module, $checkpoint])
-            <article>
-                <header>{{ __('platform.jobs.'.$key) }}</header>
-                <p class="text-muted">{{ __('platform.jobs.panel_pending', ['module' => $module, 'checkpoint' => $checkpoint]) }}</p>
-            </article>
-        @endforeach
+        <article>
+            <header>{{ __('platform.jobs.panel_asns') }} <small class="text-muted">{{ $panels['asns']->count() }}</small></header>
+            @forelse ($panels['asns'] as $a)
+                <p><a href="{{ route('warehouse.asns.show', $a->id) }}">{{ $a->asn_no }}</a> · {{ __('warehouse.asn_statuses.'.$a->status) }} · {{ $a->lines_count }} {{ __('platform.jobs.lines') }}</p>
+            @empty
+                <p class="text-muted">{{ __('platform.jobs.none') }}</p>
+            @endforelse
+        </article>
+        <article>
+            <header>{{ __('platform.jobs.panel_stock') }}</header>
+            <p>{{ __('platform.jobs.stock_units') }}: {{ (int) $panels['stock']->units }} · {{ __('platform.jobs.on_hand') }}: {{ (int) $panels['stock']->on_hand }} · {{ __('platform.jobs.reserved') }}: {{ (int) $panels['stock']->reserved }}</p>
+            <p><a href="{{ route('warehouse.index') }}">{{ __('platform.jobs.open_stock') }}</a></p>
+        </article>
+        <article>
+            <header>{{ __('platform.jobs.panel_orders') }} <small class="text-muted">{{ $panels['orders']->count() }}</small></header>
+            @forelse ($panels['orders'] as $o)
+                <p><a href="{{ route('orders.show', $o->id) }}">{{ $o->order_no }}</a> · {{ __('orders.statuses.'.$o->operational_status) }} · <small class="text-muted">{{ $o->billing_status }}</small></p>
+            @empty
+                <p class="text-muted">{{ __('platform.jobs.none') }}</p>
+            @endforelse
+        </article>
+        <article>
+            <header>{{ __('platform.jobs.panel_shipments') }} <small class="text-muted">{{ $panels['shipments']->count() }}</small></header>
+            @forelse ($panels['shipments'] as $s)
+                <p>@if (Route::has('transport.shipments.show'))<a href="{{ route('transport.shipments.show', $s->id) }}">{{ $s->shipment_no }}</a>@else{{ $s->shipment_no }}@endif · {{ $s->status }} @if ($s->tracking_number)· {{ __('platform.jobs.tracking') }} {{ $s->tracking_number }}@endif</p>
+            @empty
+                <p class="text-muted">{{ __('platform.jobs.none') }}</p>
+            @endforelse
+        </article>
+        <article>
+            <header>{{ __('platform.jobs.panel_documents') }} <small class="text-muted">{{ $panels['documents']->count() }}</small></header>
+            @forelse ($panels['documents'] as $d)
+                <p>{{ $d->type }} · {{ $d->original_name ?? basename((string) $d->storage_path) }}</p>
+            @empty
+                <p class="text-muted">{{ __('platform.jobs.none') }}</p>
+            @endforelse
+            <p><a href="{{ route('platform.documents.index') }}">{{ __('platform.jobs.open_documents') }}</a></p>
+        </article>
+        <article>
+            <header>{{ __('platform.jobs.panel_invoices') }} <small class="text-muted">{{ $panels['invoices']->count() }}</small></header>
+            @forelse ($panels['invoices'] as $inv)
+                <p>{{ $inv->invoice_no ?? __('platform.jobs.draft') }} · {{ $inv->invoice_type }} · {{ $inv->status }} · {{ \App\Support\Money::cents($inv->total_cents ?? 0) }}</p>
+            @empty
+                <p class="text-muted">{{ __('platform.jobs.none') }}</p>
+            @endforelse
+        </article>
     </div>
 
     @if ($job->notes)

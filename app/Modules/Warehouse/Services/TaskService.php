@@ -59,6 +59,7 @@ final class TaskService
                 'fulfilment_id' => $task->fulfilment_id,
                 'asn_id' => $task->asn_id,
                 'container_id' => $task->container_id,
+                'asn' => $task->asn ? ['asn_no' => $task->asn->asn_no, 'inbound_type' => $task->asn->inbound_type] : null, // Billing: unload fee only for loose trucks (charge-codes.md #9)
                 'container' => $container ? ['size' => $container->size, 'unpack_mode' => $container->unpack_mode, 'line_count' => $container->line_count, 'gross_weight_kg' => $container->gross_weight_kg !== null ? (float) $container->gross_weight_kg : null] : null,
                 'billable_qty' => $task->billable_qty !== null ? (float) $task->billable_qty : null,
                 'billable_uom' => $task->billable_uom,

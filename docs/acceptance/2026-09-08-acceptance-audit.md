@@ -171,3 +171,8 @@ Every test cited below passed in these runs. Test names are `File::test_method` 
 8. **Exception centre** with all three types visible together (receiving discrepancy, delivery failure, Missing Rate) — create each once before the walkthrough.
 9. **PDFs** (dompdf) — invoice, consignment note, labels, POD: check Chinese text rendering and printer output; Pico.css loads from CDN, so the demo machine needs internet.
 10. **Portal walk-through** as a client user: orders list / detail / POD download work; invoices and stock are not reachable from the portal (gap #2).
+
+
+## Follow-up (C, 2026-09-08, block/c13-audit-fixes)
+
+Delivered after this audit: Job workbench panels (gap #1), `delivery.extra_charge` billing rules (#4), per_job service invoice draft at final-quote confirmation (#6), `invoice.issued` event + Platform Job revenue consumer (#7 — Orders' `billed` consumer requested from X1), unload rule limited to loose trucks (#14), `RateItem` audit log (#10). Demo data for #8 comes from `DemoFlowSeeder` (Edward client card with TR-* items). Open for X1: portal quote confirmation, portal invoices / stock, reports (block/x1-quotes-reports). Open for X2/C: supplementary invoice from carrier re-weigh variance (#9), pick-short coordinator decision (#11).

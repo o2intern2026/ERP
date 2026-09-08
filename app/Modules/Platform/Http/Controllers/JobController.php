@@ -3,8 +3,14 @@
 namespace App\Modules\Platform\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Billing\Models\Invoice;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Orders\Models\Order;
+use App\Modules\Platform\Models\Document;
 use App\Modules\Platform\Models\Job;
+use App\Modules\Transport\Models\Shipment;
+use App\Modules\Warehouse\Models\Asn;
+use App\Modules\Warehouse\Models\StockUnit;
 use App\Support\Contracts\JobService;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
@@ -65,9 +71,20 @@ class JobController extends Controller
 
     public function show(Job $job, JobService $jobs): View
     {
+        // §2.5 #6: everything hanging off the Job on one page — read-only views of the other modules' tables (client scope applies).
+        $panels = [
+            'asns' => Asn::query()->where('job_id', $job->id)->withCount('lines')->orderBy('id')->get(),
+            'stock' => StockUnit::query()->where('job_id', $job->id)->selectRaw('COUNT(*) AS units, COALESCE(SUM(qty_on_hand), 0) AS on_hand, COALESCE(SUM(qty_reserved), 0) AS reserved')->first(),
+            'orders' => Order::query()->where('job_id', $job->id)->orderBy('id')->get(['id', 'order_no', 'operational_status', 'billing_status']),
+            'shipments' => Shipment::query()->where('job_id', $job->id)->orderBy('id')->get(['id', 'shipment_no', 'status', 'tracking_number', 'order_id']),
+            'documents' => Document::query()->where('job_id', $job->id)->orderByDesc('id')->limit(20)->get(),
+            'invoices' => Invoice::query()->whereHas('lines', fn ($q) => $q->where('job_id', $job->id))->orderBy('id')->get(['id', 'invoice_no', 'invoice_type', 'status', 'total_cents']),
+        ];
+
         return view('platform::jobs.show', [
             'job' => $job->load('client', 'creator'),
             'summary' => $jobs->summarize($job->id),
+            'panels' => $panels,
         ]);
     }
 }
