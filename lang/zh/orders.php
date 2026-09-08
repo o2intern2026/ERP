@@ -15,6 +15,9 @@ return [
         'save_changes' => '保存修改',
         'edit_delivery' => '修改配送信息',
         'address_book' => '常用收件地址',
+        'add_line' => '新增货物行',
+        'add_package' => '新增包裹',
+        'remove_row' => '删除此行',
         'import' => '批量导入',
         'confirm' => '确认订单并检查库存',
     ],
@@ -69,6 +72,11 @@ return [
         'customer_status' => '客户看到',
     ],
     'create' => ['title' => '手工新建订单'],
+    // Items 5 + 7 (tester feedback): compact goods-line rows shared with the portal form (orders::partials.goods-lines).
+    'lines' => [
+        'hint' => '每行一种货物：重量填整行合计（kg），系统按“重量 ÷ 箱数”计算单件重量并判定尾板车；长 / 宽 / 高为单箱尺寸（mm）。',
+        'weight_total' => '重量（kg，整行合计）',
+    ],
     'addresses' => [
         'title' => '客户收件地址簿',
         'create_title' => '新增常用收件地址',
