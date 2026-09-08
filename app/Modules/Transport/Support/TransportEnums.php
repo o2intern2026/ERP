@@ -22,7 +22,7 @@ final class TransportEnums
 
     public const SELECTED_BY = ['client', 'coordinator', 'system'];
 
-    public const SOURCES = ['own_fleet', 'transdirect', 'eiz', 'manual'];
+    public const SOURCES = ['own_fleet', 'transdirect', 'eiz', 'manual', 'karrio'];
 
     public const SERVICE_LEVELS = ['standard', 'express', 'same_day'];
 

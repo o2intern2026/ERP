@@ -20,6 +20,11 @@ class TransportSeeder extends Seeder
                 ['source' => 'transdirect', 'service_level' => 'express', 'default_eta_days' => 1],
                 ['source' => 'transdirect', 'service_level' => 'same_day', 'default_eta_days' => 0],
             ],
+            'KARRIO' => [ // every carrier connected inside the local Karrio instance (docker/karrio) quotes through this source
+                ['source' => 'karrio', 'service_level' => 'standard', 'default_eta_days' => 3],
+                ['source' => 'karrio', 'service_level' => 'express', 'default_eta_days' => 1],
+                ['source' => 'karrio', 'service_level' => 'same_day', 'default_eta_days' => 0],
+            ],
         ];
 
         foreach ($services as $carrierCode => $rows) {

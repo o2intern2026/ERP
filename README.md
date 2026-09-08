@@ -64,6 +64,17 @@ One user per role, password `password` (override with `SEED_DEMO_PASSWORD` in `.
 
 `php artisan db:seed` loads the 44 charge codes, their trigger rules and Edward's standard rate card (34 rows, ex GST) and binds every client to it. Warehouse events (devanning / putaway / tasks) create charges automatically; `/billing` lists them, `/billing/unbilled` drafts invoices per Job, per month or per storage week, `/billing/invoices/{id}` issues them (PDF, GST, due date from the client's payment terms) and records payments; `/billing/receivables` shows open balances; `/billing/rate-cards` versions prices (second-person approval); `/billing/quotes` prices one-off work. Cron: `billing:storage-weekly` (Mon 01:00), `billing:flag-overdue` (daily).
 
+## Carrier gateway: Karrio (optional, open source)
+
+Transport quotes / bookings / labels can run through a local [Karrio](https://github.com/karrioapi/karrio) instead of a paid carrier account:
+
+```bash
+cp docker/karrio/.env.example docker/karrio/.env   # set ADMIN_PASSWORD, SECRET_KEY, JWT_SECRET
+docker compose -f docker/karrio/docker-compose.yml --env-file docker/karrio/.env up -d
+```
+
+Dashboard `http://localhost:3002` → Developers → API Keys → create one → `KARRIO_API_KEY=…` in the ERP `.env`; then Carriers → add a **Custom carrier** with a rate sheet (demo) or a real carrier's credentials. Without a key the `karrio` source simply returns no quotes and the manual / own-fleet paths work as before. `KARRIO_LIVE=1 php artisan test --filter KarrioLiveTest` checks the connection end to end.
+
 ## Layout
 
 ```

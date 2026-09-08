@@ -2,6 +2,7 @@
 
 namespace App\Modules\Transport;
 
+use App\Modules\Transport\Adapters\KarrioAdapter;
 use App\Modules\Transport\Adapters\ManualCarrierAdapter;
 use App\Modules\Transport\Adapters\OwnFleetCarrierAdapter;
 use App\Modules\Transport\Adapters\TransdirectAdapter;
@@ -27,10 +28,12 @@ class TransportServiceProvider extends ServiceProvider
         $this->app->singleton(ManualCarrierAdapter::class);
         $this->app->singleton(OwnFleetCarrierAdapter::class);
         $this->app->singleton(TransdirectAdapter::class);
+        $this->app->singleton(KarrioAdapter::class); // open-source gateway (C, 2026-09-08, CHANGE_REQUESTS #49)
         $this->app->tag([
             ManualCarrierAdapter::class,
             OwnFleetCarrierAdapter::class,
             TransdirectAdapter::class,
+            KarrioAdapter::class,
         ], 'transport.carrier-adapters');
 
         $this->app->singleton(TransportOptionService::class, fn ($app) => new TransportOptionService(

@@ -3,8 +3,8 @@
 namespace App\Support\Contracts;
 
 /**
- * One implementation per carrier_services.source (contracts/enums.md): manual, own_fleet, transdirect (eiz is out of
- * phase 1 — contracts/carriers.md). Implemented by Transport (seat X2, B5c); TransportOptionService aggregates them.
+ * One implementation per carrier_services.source (contracts/enums.md): manual, own_fleet, transdirect, karrio (eiz is out
+ * of phase 1 — contracts/carriers.md). Implemented by Transport (seat X2, B5c); TransportOptionService aggregates them.
  * Money is integer cents, dimensions mm, weights kg. Never throw for a "no quote" outcome — return an empty list.
  */
 interface CarrierAdapter

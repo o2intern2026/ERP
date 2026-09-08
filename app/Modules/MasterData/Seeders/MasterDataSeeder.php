@@ -26,6 +26,7 @@ class MasterDataSeeder extends Seeder
             ['code' => 'OWN', 'name' => 'Own fleet'],
             ['code' => 'TRANSDIRECT', 'name' => 'Transdirect'],
             ['code' => 'EIZ', 'name' => 'EIZ'],
+            ['code' => 'KARRIO', 'name' => 'Karrio (open-source carrier gateway)'],
         ] as $carrier) {
             Carrier::query()->updateOrCreate(['code' => $carrier['code']], $carrier + ['status' => 'active']);
         }
