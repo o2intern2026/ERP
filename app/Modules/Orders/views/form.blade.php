@@ -91,7 +91,12 @@
                 </select>
             </label>
         </div>
-        <label>{{ __('orders.fields.address') }}<input id="deliver-to-address" name="deliver_to_address" value="{{ old('deliver_to_address') }}" required></label>
+        <div class="suggest-wrap">
+            <label>{{ __('orders.fields.address') }}<input id="deliver-to-address" name="deliver_to_address" value="{{ old('deliver_to_address') }}" required autocomplete="off">
+                <small>{{ __('orders.addresses.suggest_hint') }}</small>
+            </label>
+        </div>
+        @include('orders::partials.address-suggest', ['suggestUrl' => route('orders.addresses.suggest'), 'clientField' => '[name="client_id"]'])
         <div class="grid">
             <label>{{ __('orders.fields.suburb') }}<input id="deliver-to-suburb" name="deliver_to_suburb" value="{{ old('deliver_to_suburb') }}" required></label>
             <label>{{ __('orders.fields.state') }}

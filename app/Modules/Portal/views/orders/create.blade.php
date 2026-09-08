@@ -47,7 +47,12 @@
                 </select>
             </label>
         </div>
-        <label>{{ __('portal.fields.address') }}<input id="deliver-to-address" name="deliver_to_address" value="{{ old('deliver_to_address') }}" required></label>
+        <div class="suggest-wrap">
+            <label>{{ __('portal.fields.address') }}<input id="deliver-to-address" name="deliver_to_address" value="{{ old('deliver_to_address') }}" required autocomplete="off">
+                <small>{{ __('portal.create.suggest_hint') }}</small>
+            </label>
+        </div>
+        @include('orders::partials.address-suggest', ['suggestUrl' => route('portal.addresses.suggest')])
         <div class="grid">
             <label>{{ __('portal.fields.suburb') }}<input id="deliver-to-suburb" name="deliver_to_suburb" value="{{ old('deliver_to_suburb') }}" required></label>
             <label>{{ __('portal.fields.state') }}

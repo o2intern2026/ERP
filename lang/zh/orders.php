@@ -83,6 +83,9 @@ return [
         'edit_title' => '修改常用收件地址',
         'empty' => '暂无常用收件地址。',
         'frequency_hint' => '常用地址按使用频率排序；选择后会自动填入地址类型及固定备注。',
+        // Item 3b (tester feedback): suggestions while typing come from the client's own history only (address book + past orders).
+        'suggest_hint' => '输入地址、城区或收件人时会提示该客户用过的收件地址（地址簿 + 历史订单），选择后自动填入；新地址请完整手工输入。',
+        'suggest_sources' => ['book' => '地址簿', 'history' => '历史订单'],
         'actions' => [
             'create' => '新增地址',
             'edit' => '修改',
