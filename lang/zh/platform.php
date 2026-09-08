@@ -175,8 +175,8 @@ return [
         'size' => '大小',
         'uploaded_at' => '上传时间',
         'empty' => '没有单据。',
-        'types' => ['pod' => '签收凭证 POD', 'docket' => '派送单 Docket', 'photo' => '照片', 'waybill' => '运单 / 面单', 'invoice' => '发票', 'packing_list' => '装箱单 / 清单', 'consignment_note' => '托运单', 'label' => '标签'],
-        'related_types' => ['job' => 'Job', 'asn' => '入库 ASN', 'order' => '订单', 'shipment' => '发运', 'stock_unit' => '库存单元', 'invoice' => '发票', 'client' => '客户', 'other' => '其它'],
+        'types' => ['pod' => '签收凭证 POD', 'docket' => '派送单 Docket', 'photo' => '照片', 'waybill' => '运单 / 面单', 'invoice' => '发票', 'packing_list' => '装箱单 / 清单', 'consignment_note' => '托运单', 'label' => '标签', 'goods_receipt' => '入库单'],
+        'related_types' => ['job' => 'Job', 'asn' => '预报单 (ASN)', 'order' => '订单', 'shipment' => '发运', 'stock_unit' => '库存单元', 'invoice' => '发票', 'client' => '客户', 'other' => '其它'],
     ],
 
     'search' => [
@@ -184,7 +184,7 @@ return [
         'hint' => '输入至少 2 个字符,可同时输入多个关键词(任意顺序、不分大小写,例如 "20260908 0008"):Job 号、参考号、ASN 号、柜号、唛头、单元条码、客户编码 / 名称、订单号。命中关键词越多排得越前。',
         'empty' => '没有找到 ":q"。',
         'modules' => ['platform' => 'Job', 'warehouse' => '仓库', 'masterdata' => '客户', 'orders' => '订单', 'transport' => '运输', 'billing' => '计费'],
-        'types' => ['job' => 'Job', 'asn' => 'ASN', 'container' => '柜号', 'consignment_mark' => '唛头', 'stock_unit' => '库存单元', 'client' => '客户', 'order' => '订单', 'shipment' => '发运', 'invoice' => '发票'],
+        'types' => ['job' => 'Job', 'asn' => '预报单 (ASN)', 'goods_receipt' => '入库单', 'container' => '柜号', 'consignment_mark' => '唛头', 'stock_unit' => '库存单元', 'client' => '客户', 'order' => '订单', 'shipment' => '发运', 'invoice' => '发票'],
     ],
 
     'approvals' => [
