@@ -17,6 +17,8 @@
         </article>
     @endif
 
+    <p class="text-muted"><small>{{ __('orders.estimate.form_hint') }}</small></p>
+
     <form method="post" action="{{ route('orders.store') }}">
         @csrf
 

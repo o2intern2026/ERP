@@ -7,6 +7,8 @@ use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\OrderCreationService;
+use App\Modules\Orders\Services\OrderEstimateService;
+use App\Modules\Portal\Services\PortalTransportQuotes;
 use App\Modules\Transport\Models\Shipment;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
@@ -17,7 +19,7 @@ use Illuminate\Validation\Rule;
 /**
  * A9-p / OMS-10 + PLT-3: the client's own orders. Isolation is the data-layer client scope (ClientScope + BelongsToClient),
  * so every query here is naturally limited to the signed-in client; another client's order is a 404, never a 403.
- * Cost, margin, quotes and internal timeline notes are never loaded here.
+ * Cost, margin and internal timeline notes are never loaded here; the customer quote is shown in customer prices only (A7b).
  */
 final class PortalOrderController extends Controller
 {
@@ -130,7 +132,7 @@ final class PortalOrderController extends Controller
         return redirect()->route('portal.orders.show', $order)->with('status', __('portal.messages.created', ['order_no' => $order->order_no]));
     }
 
-    public function show(int $order): View
+    public function show(int $order, OrderEstimateService $estimates, PortalTransportQuotes $transportQuotes): View
     {
         // Resolved here, not by implicit binding: SubstituteBindings runs before the client.scope middleware sets the tenant,
         // so only a query issued inside the action is filtered to the signed-in client (another client's order → 404).
@@ -144,6 +146,11 @@ final class PortalOrderController extends Controller
             'timeline' => $order->events()->where('dimension', 'operational')->where(fn ($q) => $q->whereColumn('from_status', '!=', 'to_status')->orWhereNull('from_status'))->get(), // status steps only — no internal notes
             'shipments' => $shipments,
             'canRequestReturn' => $order->acceptsReturnRequest(),
+            // A7b: the client's estimate — customer prices only (OrderEstimateService never selects cost).
+            'estimate' => $estimates->current($order),
+            'canEstimate' => $estimates->canEstimate($order) && auth()->user()->isClientUser(),
+            // §5.7 #2: final carrier quotes to confirm (customer price only; confirmation goes through Transport's QuoteSelectionService).
+            'transportQuotes' => $transportQuotes->forOrder($order),
         ]);
     }
 

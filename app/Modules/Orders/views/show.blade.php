@@ -26,6 +26,10 @@
         <article>
             <header>{{ __('orders.fields.billing_status') }}</header>
             <strong>{{ __('orders.statuses.billing.'.$order->billing_status) }}</strong>
+            {{-- X2 handoff: Transport's "收 − 付 = 毛利" page. Staff only — this page is unreachable for client users (ClientScope) and the link is role-gated as well; cost / margin never render here. --}}
+            @if (! auth()->user()->isClientUser() && auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'transport_operator', 'finance']))
+                <br><small><a href="{{ route('transport.orders.margin', $order->id) }}">{{ __('orders.transport.margin_link') }}</a></small>
+            @endif
         </article>
     </div>
 
@@ -175,6 +179,8 @@
             @endif
         </article>
     </div>
+
+    @include('orders::partials.estimate', ['estimate' => $estimate, 'canEstimate' => $canEstimate, 'estimateRoute' => route('orders.estimate', $order), 'staff' => true])
 
     <h2>{{ __('orders.sections.goods') }}</h2>
     @php($canEditLines = $order->operational_status === 'received' && auth()->user()->hasAnyRole(\App\Modules\Orders\Services\OrderChangeService::COORDINATOR_ROLES))

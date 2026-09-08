@@ -9,6 +9,7 @@ use App\Modules\Orders\Http\Controllers\HoldController;
 use App\Modules\Orders\Http\Controllers\OrderApiController;
 use App\Modules\Orders\Http\Controllers\OrderChangeController;
 use App\Modules\Orders\Http\Controllers\OrderController;
+use App\Modules\Orders\Http\Controllers\OrderEstimateController;
 use App\Modules\Orders\Http\Controllers\OrderImportController;
 use App\Modules\Orders\Http\Controllers\OrderLineController;
 use App\Modules\Orders\Http\Controllers\QueueController;
@@ -44,6 +45,7 @@ Route::prefix('orders')->name('orders.')->group(function () {
     Route::put('/addresses/{address}', [ClientAddressController::class, 'update'])->name('addresses.update');
     Route::post('/{order}/confirm', [OrderController::class, 'confirm'])->name('confirm');
     Route::post('/{order}/tailgate', [OrderController::class, 'tailgate'])->name('tailgate');
+    Route::post('/{order}/estimate', [OrderEstimateController::class, 'store'])->name('estimate'); // A7b customer quote / 估价
     Route::post('/{order}/holds', [HoldController::class, 'store'])->name('holds.store');
     Route::post('/{order}/holds/{exception}/release', [HoldController::class, 'release'])->name('holds.release');
     Route::post('/{order}/cancel', [OrderChangeController::class, 'cancel'])->name('cancel');

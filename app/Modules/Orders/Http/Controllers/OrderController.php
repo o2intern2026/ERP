@@ -13,6 +13,7 @@ use App\Modules\Orders\Services\FulfilmentService;
 use App\Modules\Orders\Services\OrderBatchService;
 use App\Modules\Orders\Services\OrderChangeService;
 use App\Modules\Orders\Services\OrderCreationService;
+use App\Modules\Orders\Services\OrderEstimateService;
 use App\Modules\Orders\Services\OrderHoldService;
 use App\Modules\Orders\Services\OrderStatusService;
 use App\Modules\Orders\Services\TailgateRule;
@@ -87,7 +88,7 @@ final class OrderController extends Controller
             ->with('status', __('orders.messages.created', ['order_no' => $order->order_no]));
     }
 
-    public function show(Order $order, FulfilmentService $fulfilments, OrderHoldService $holds, OrderBatchService $batches, TailgateRule $tailgate, OrderChangeService $changes): View
+    public function show(Order $order, FulfilmentService $fulfilments, OrderHoldService $holds, OrderBatchService $batches, TailgateRule $tailgate, OrderChangeService $changes, OrderEstimateService $estimates): View
     {
         $order->load(['client', 'job', 'creator', 'lines.fulfilmentLines', 'declaredPackages', 'fulfilments.lines.orderLine', 'events.actor', 'originalOrder', 'returnOrders', 'returnDecider']);
 
@@ -101,6 +102,9 @@ final class OrderController extends Controller
             'canChange' => $changes->canChange($order, auth()->user()),        // A11: stage + role rule decided server side
             'requiresReason' => $changes->requiresReason($order),
             'canRequestReturn' => $order->acceptsReturnRequest() && auth()->user()->hasAnyRole(OrderChangeService::COORDINATOR_ROLES),
+            // A7b: the customer quote / estimate (Billing QuoteService + Transport preliminary freight, customer prices only).
+            'estimate' => $estimates->current($order),
+            'canEstimate' => $estimates->canEstimate($order) && auth()->user()->hasAnyRole(OrderEstimateService::STAFF_ROLES),
             // A12: while received, a draft's lines may be corrected and linked to the client's ASN goods lines (Warehouse tables, read-only).
             'asnLineOptions' => $order->operational_status === 'received' && $order->order_type === 'from_stock'
                 ? DB::table('asn_lines')->join('asns', 'asns.id', '=', 'asn_lines.asn_id')->where('asns.client_id', $order->client_id)
