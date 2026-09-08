@@ -12,6 +12,8 @@
 
 ## 2. 每次启动(方式 A / B)
 
+方式 C 的服务器不需要这些步骤:网站常驻,调度和队列由 cron 每分钟自动执行。
+
 1. **数据库**:`brew services start mysql@8.4`(已在跑就跳过)。
 2. **网站**(终端 1):
    ```bash
@@ -44,7 +46,7 @@ php artisan migrate:fresh --seed && php artisan db:seed --class=DemoFlowSeeder
 
 ## 4. 登录账号
 
-地址 http://localhost:8000/login 。密码统一为 `password`(改法见第 6 节)。
+试用服务器地址 **http://103.6.171.144/login**(本机开发时为 http://localhost:8000/login)。所有演示账号共用一个密码,由项目负责人另行发送,不写在本文档里(改法见第 6 节)。
 
 | 账号 | 角色 | 看什么 |
 |---|---|---|
@@ -77,10 +79,10 @@ php artisan migrate:fresh --seed && php artisan db:seed --class=DemoFlowSeeder
 
 ## 6. 给别人试用前
 
-1. **改默认密码**:在 `.env` 里加一行 `SEED_DEMO_PASSWORD=你的密码`,再执行第 3 节的重置命令(所有演示账号都会用新密码)。
+1. **改默认密码**:本机上在 `.env` 里加一行 `SEED_DEMO_PASSWORD=你的密码`,再执行第 3 节的重置命令(所有演示账号都会用新密码)。服务器上不要重置数据,用 admin 登录 /admin/users 逐个编辑用户改密码即可。
 2. Karrio 后台(3002 端口)只给自己用,不要开放给别人。
 3. 演示数据里的清单是去标识版本,可以给人看。
-4. 方式 B 时手机扫码页(/warehouse/scan)用摄像头需要 HTTPS 或 localhost,局域网 http 地址下只能用扫码枪 / 手动输入。
+4. 手机扫码页(/warehouse/scan)用摄像头需要 HTTPS 或 localhost;方式 B 的局域网地址和方式 C 的服务器目前都是 http,只能用扫码枪 / 手动输入,服务器配上域名和 HTTPS 后即可用摄像头。
 
 ## 7. 手动走一遍(推荐顺序,20 分钟)
 
@@ -110,4 +112,4 @@ php artisan migrate:fresh --seed && php artisan db:seed --class=DemoFlowSeeder
 | 端口 8000 被占 | `php artisan serve --port=8001`,并把 `.env` 的 `APP_URL` 改成对应端口 |
 | 运输报价没有 Karrio 方案 | Docker Desktop 未启动或容器未起;`.env` 里 `KARRIO_API_KEY` 为空;Karrio 里没有承运商费率(`php docker/karrio/setup-demo-carrier.php` 可重建演示承运商) |
 | 想看发出的邮件 | 本地邮件写在 `storage/logs/laravel.log`(`MAIL_MAILER=log`) |
-| API 试用 | `curl -X POST http://localhost:8000/orders/api/orders -H "Authorization: Bearer <钥匙>" -H "Idempotency-Key: demo-1" -H "Content-Type: application/json" -d @order.json`(钥匙在 /orders/api-tokens 生成,只显示一次) |
+| API 试用 | `curl -X POST http://103.6.171.144/orders/api/orders -H "Authorization: Bearer <钥匙>" -H "Idempotency-Key: demo-1" -H "Content-Type: application/json" -d @order.json`(钥匙在 /orders/api-tokens 生成,只显示一次) |
