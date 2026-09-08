@@ -93,7 +93,7 @@ class ReportsTest extends TestCase
         $this->scenario();
         $user = $this->clientUser($this->alpha);
 
-        $page = $this->actingAs($user)->get(route('portal.reports'))->assertOk();
+        $page = $this->actingAs($user)->get(route('portal.reports.index'))->assertOk();
         $page->assertSee('Alpha Pty Ltd')->assertSee('$1,000.00')->assertSee('$500.00')->assertSee('50.0%')->assertSee(__('reports.exception_types.delivery_failed'));
         $page->assertDontSee('Bravo Co')->assertDontSee('100.0%')->assertDontSee(__('reports.exception_types.pick_short'))->assertDontSee(__('reports.exception_types.missing_rate'))->assertDontSee(__('reports.exception_types.manual_transport'));
         $page->assertDontSee(__('reports.columns.margin_cents'))->assertDontSee(__('reports.columns.estimated_cost_cents'))->assertDontSee(__('reports.columns.actual_cost_cents'))->assertDontSee(__('reports.columns.estimated_jobs'));
@@ -115,7 +115,7 @@ class ReportsTest extends TestCase
         $this->assertStringContainsString('Alpha Pty Ltd', $orders);
         $this->assertStringNotContainsString('Bravo Co', $orders);
         $this->actingAs($user)->get(route('portal.reports.export', ['table' => 'nope']))->assertNotFound();
-        $this->actingAs($this->staff('customer_service'))->get(route('portal.reports'))->assertForbidden(); // staff use /reports/client
+        $this->actingAs($this->staff('customer_service'))->get(route('portal.reports.index'))->assertForbidden(); // staff use /reports/client
     }
 
     public function test_staff_client_view_is_the_clients_report_behind_a_client_filter(): void

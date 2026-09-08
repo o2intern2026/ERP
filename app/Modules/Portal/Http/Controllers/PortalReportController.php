@@ -32,7 +32,7 @@ final class PortalReportController extends Controller
             'columns' => collect(ReportService::TABLES)->mapWithKeys(fn ($t) => [$t => $reports->columns($t, true)])->all(),
             'totals' => collect(ReportService::TABLES)->mapWithKeys(fn ($t) => [$t => $reports->totals($t, $report[$t], true)])->all(),
             'portal' => true,
-            'filterAction' => route('portal.reports'),
+            'filterAction' => route('portal.reports.index'),
             'exportUrl' => fn (string $table) => route('portal.reports.export', ['table' => $table, 'from' => $period->from->toDateString(), 'to' => $period->to->toDateString()]),
         ]);
     }

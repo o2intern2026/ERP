@@ -11,7 +11,7 @@ use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Models\TransportQuote;
 use App\Support\Contracts\JobService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Tests\Support\BuildsOutboundOrders;
 use Tests\Support\CreatesUsers;
@@ -69,24 +69,33 @@ class CustomerQuoteEstimateTest extends TestCase
         $this->actingAs($this->staff('warehouse_operator'))->post(route('orders.estimate', $order))->assertForbidden();
     }
 
-    public function test_same_day_orders_after_the_client_cut_off_add_the_urgent_despatch_code(): void
+    public function test_orders_for_today_estimated_after_the_client_cut_off_add_the_urgent_despatch_code(): void
     {
+        // Same predicate as Warehouse at packing (OutboundService::pack): cut-off configured, dispatch requested for today, clock past the cut-off.
         $client = $this->client(['dispatch_cutoff_time' => '12:00:00']);
-        $late = $this->order($client, ['service_level' => 'same_day', 'lines' => [['description_en' => 'Goods', 'package_type' => 'carton', 'carton_qty' => 1, 'actual_weight_kg' => 5]]]);
-        $early = $this->order($client, ['service_level' => 'same_day', 'lines' => [['description_en' => 'Goods', 'package_type' => 'carton', 'carton_qty' => 1, 'actual_weight_kg' => 5]]]);
-        DB::table('orders')->where('id', $late->id)->update(['created_at' => today()->setTime(15, 0)]);
-        DB::table('orders')->where('id', $early->id)->update(['created_at' => today()->setTime(9, 30)]);
+        $noCutoff = $this->client(['code' => 'NOCUT', 'dispatch_cutoff_time' => null]);
+        $today = ['requested_date' => today()->toDateString(), 'lines' => [['description_en' => 'Goods', 'package_type' => 'carton', 'carton_qty' => 1, 'actual_weight_kg' => 5]]];
+        $late = $this->order($client, $today);
+        $early = $this->order($client, $today);
+        $tomorrow = $this->order($client, array_replace($today, ['requested_date' => today()->addDay()->toDateString()]));
+        $unconfigured = $this->order($noCutoff, $today);
         $admin = $this->staff('admin');
 
+        Carbon::setTestNow(today()->setTime(15, 0));
         $this->actingAs($admin)->post(route('orders.estimate', $late))->assertRedirect();
+        $this->actingAs($admin)->post(route('orders.estimate', $tomorrow))->assertRedirect();
+        $this->actingAs($admin)->post(route('orders.estimate', $unconfigured))->assertRedirect();
+        Carbon::setTestNow(today()->setTime(9, 30));
         $this->actingAs($admin)->post(route('orders.estimate', $early))->assertRedirect();
+        Carbon::setTestNow();
 
-        $lateCodes = CustomerQuote::query()->findOrFail($late->fresh()->customer_quote_id)->lines()->pluck('amount_cents', 'charge_code')->all();
-        $earlyCodes = CustomerQuote::query()->findOrFail($early->fresh()->customer_quote_id)->lines()->pluck('amount_cents', 'charge_code')->all();
-        $this->assertSame(500, $lateCodes['WH-ORDER-DESPATCH']);
-        $this->assertSame(1500, $lateCodes['WH-ORDER-DESPATCH-URGENT']); // adds to the standard fee (CHANGE_REQUESTS #5)
-        $this->assertArrayNotHasKey('WH-ORDER-DESPATCH-URGENT', $earlyCodes);
-        $this->assertSame(500, $earlyCodes['WH-ORDER-DESPATCH']);
+        $codes = fn (Order $o) => CustomerQuote::query()->findOrFail($o->fresh()->customer_quote_id)->lines()->pluck('amount_cents', 'charge_code')->all();
+        $this->assertSame(500, $codes($late)['WH-ORDER-DESPATCH']);
+        $this->assertSame(1500, $codes($late)['WH-ORDER-DESPATCH-URGENT']); // adds to the standard fee (CHANGE_REQUESTS #5)
+        $this->assertArrayNotHasKey('WH-ORDER-DESPATCH-URGENT', $codes($early));
+        $this->assertArrayNotHasKey('WH-ORDER-DESPATCH-URGENT', $codes($tomorrow));
+        $this->assertArrayNotHasKey('WH-ORDER-DESPATCH-URGENT', $codes($unconfigured)); // no cut-off → Warehouse never flags urgent, so neither does the estimate
+        $this->assertSame(500, $codes($early)['WH-ORDER-DESPATCH']);
     }
 
     public function test_stocked_pallets_are_picked_per_pallet_transport_preliminary_freight_is_shown_without_cost_and_a_re_estimate_supersedes(): void

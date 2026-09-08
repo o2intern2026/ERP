@@ -296,18 +296,19 @@ final class OrderEstimateService
         ];
     }
 
-    /** Urgent = same-day dispatch requested after the client's cut-off (mirrors Warehouse's `outbound.packed.is_urgent`; without a cut-off every same-day order is urgent). */
+    /**
+     * Urgent = the same predicate Warehouse applies at packing (`outbound.packed.is_urgent`, OutboundService::pack): the client
+     * has a dispatch cut-off, dispatch is requested for today, and the clock is already past the cut-off. No cut-off → never
+     * urgent (review of PR #18, CHANGE_REQUESTS #75). The estimate can only look at "now"; Warehouse decides at pack time.
+     */
     public function isUrgent(Order $order): bool
     {
-        if ($order->service_level !== 'same_day') {
+        $cutoff = $order->client?->dispatch_cutoff_time;
+        if (blank($cutoff) || $order->requested_date === null) {
             return false;
         }
-        $cutoff = $order->client?->dispatch_cutoff_time;
-        if (blank($cutoff)) {
-            return true;
-        }
 
-        return $order->created_at->format('H:i:s') > substr((string) $cutoff, 0, 8);
+        return $order->requested_date->toDateString() === today()->toDateString() && now()->format('H:i:s') > substr((string) $cutoff, 0, 8);
     }
 
     /**
@@ -324,15 +325,19 @@ final class OrderEstimateService
         $weight = $line->actual_weight_kg === null ? null : (float) $line->actual_weight_kg / $cartons;
 
         if ($line->asn_line_id !== null) {
+            // Capacity comes from what the pallets held when received (emptied pallets must not shrink the divisor — review of PR #18, CHANGE_REQUESTS #75).
             $units = DB::table('stock_units')->where('asn_line_id', $line->asn_line_id)->where('putaway_completed', true)->where('condition', 'good')
-                ->selectRaw('unit_type, count(*) as units, coalesce(sum(qty_on_hand), 0) as cartons')->groupBy('unit_type')->get()->keyBy('unit_type');
+                ->selectRaw('unit_type, count(*) as units, coalesce(sum(qty_on_hand), 0) as cartons, coalesce(sum(case when qty_on_hand > 0 then qty_on_hand end), 0) as cartons_stocked, sum(case when qty_on_hand > 0 then 1 else 0 end) as units_stocked')->groupBy('unit_type')->get()->keyBy('unit_type');
             if ($weight === null) {
                 $asnLine = DB::table('asn_lines')->where('id', $line->asn_line_id)->first(['weight_kg', 'received_cartons', 'expected_cartons']);
                 $asnCartons = (int) ($asnLine?->received_cartons ?: $asnLine?->expected_cartons ?: 0);
                 $weight = $asnLine?->weight_kg !== null && $asnCartons > 0 ? (float) $asnLine->weight_kg / $asnCartons : null;
             }
             if (isset($units['pallet'])) {
-                $perPallet = max(1.0, (float) $units['pallet']->cartons / max(1, (int) $units['pallet']->units));
+                $received = (int) (DB::table('asn_lines')->where('id', $line->asn_line_id)->value('received_cartons') ?? 0);
+                $perPallet = $received > 0
+                    ? max(1.0, $received / max(1, (int) $units['pallet']->units))                                                          // cartons the pallets came in with
+                    : max(1.0, (float) $units['pallet']->cartons_stocked / max(1, (int) $units['pallet']->units_stocked));               // fallback: average of pallets still holding stock
 
                 return ['unit_type' => 'pallet', 'qty' => (int) ceil($cartons / $perPallet), 'weight_kg' => $weight, 'source' => 'stock_units'];
             }
