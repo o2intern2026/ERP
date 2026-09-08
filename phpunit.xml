@@ -19,6 +19,8 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- The 入库单 PDF embeds a CJK TrueType font when storage/fonts/cjk.ttf exists; php-font-lib parses it in memory (~65 MB per render) on top of a ~110 MB test process (CHANGE_REQUESTS #90). -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>

@@ -14,6 +14,7 @@ use InvalidArgumentException;
  * B2 receiving: per goods line record received / damaged cartons, create stock units in the receiving location
  * (not yet available), suggest pallet_class from the client's thresholds (§4.8), raise a discrepancy exception when
  * received ≠ expected (§4.3). Truck (LCL) receiving records the unloaded pallet count on a receiving task.
+ * Every received line is snapshotted into the ASN's open 入库单 batch (GoodsReceiptService) and its units carry goods_receipt_id.
  */
 final class ReceivingService
 {
@@ -21,19 +22,23 @@ final class ReceivingService
         private readonly StockLedger $ledger,
         private readonly RateService $rates,
         private readonly ExceptionService $exceptions,
+        private readonly GoodsReceiptService $receipts,
     ) {}
 
     /**
      * @param  array{received_cartons:int, damaged_cartons?:int, variance_reason?:?string, units:list<array{unit_type:string, carton_qty:int, length_mm?:?int, width_mm?:?int, height_mm?:?int, weight_kg?:?float, pallet_source?:?string, pallet_class?:?string, pallet_class_reason?:?string}>}  $data
-     * @return list<StockUnit>
+     * @param  ?int  $actorId  who received (defaults to the signed-in user); stamped on the 入库单 line
+     * @return list<StockUnit> the units created (the line's 入库单 is reachable via AsnLine::receiptLine()->receipt)
      */
-    public function receiveLine(AsnLine $line, array $data, Location $receivingLocation): array
+    public function receiveLine(AsnLine $line, array $data, Location $receivingLocation, ?int $actorId = null): array
     {
         if ($receivingLocation->type !== 'receiving') {
             throw new InvalidArgumentException('Goods are received into a receiving location.');
         }
 
-        return DB::transaction(function () use ($line, $data, $receivingLocation): array {
+        $actorId ??= auth()->id();
+
+        return DB::transaction(function () use ($line, $data, $receivingLocation, $actorId): array {
             $asn = $line->asn;
             if ($asn->status === 'booked') {
                 $asn->update(['status' => 'receiving', 'arrived_at' => $asn->arrived_at ?? now()]);
@@ -101,6 +106,10 @@ final class ReceivingService
                     'message' => sprintf('%s line %d: expected %d, received %d, damaged %d. %s', $asn->asn_no, $line->id, $line->expected_cartons, $line->received_cartons, $line->damaged_cartons, $data['variance_reason'] ?? ''),
                 ]);
             }
+
+            // Reading A/C (lead decision 2026-09-08): the line joins the ASN's open 入库单 batch; the operator ends the batch with 入库完成.
+            $receipt = $this->receipts->openFor($asn, $actorId);
+            $this->receipts->recordLine($receipt, $line, $units, $actorId);
 
             return $units;
         });

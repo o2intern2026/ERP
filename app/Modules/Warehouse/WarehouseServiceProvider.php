@@ -10,6 +10,7 @@ use App\Modules\Warehouse\Consumers\OrderReducedConsumer;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnLine;
 use App\Modules\Warehouse\Models\Container;
+use App\Modules\Warehouse\Models\GoodsReceipt;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Modules\Warehouse\Services\StockService;
 use App\Support\Contracts\StockService as StockServiceContract;
@@ -37,6 +38,7 @@ class WarehouseServiceProvider extends ServiceProvider
 
         $this->app->make(SearchRegistry::class)->register('warehouse', fn (string $q): array => array_merge(
             Asn::query()->where('asn_no', 'like', "%{$q}%")->limit(10)->get()->map(fn ($a) => ['type' => 'asn', 'label' => $a->asn_no, 'url' => route('warehouse.asns.show', $a), 'meta' => __('warehouse.asn_statuses.'.$a->status)])->all(),
+            GoodsReceipt::query()->where('receipt_no', 'like', "%{$q}%")->limit(10)->get()->map(fn ($r) => ['type' => 'goods_receipt', 'label' => $r->receipt_no, 'url' => route('warehouse.receipts.show', $r), 'meta' => __('warehouse.receipt_statuses.'.$r->status)])->all(),
             Container::query()->where('container_no', 'like', "%{$q}%")->limit(10)->get()->map(fn ($c) => ['type' => 'container', 'label' => $c->container_no, 'url' => route('warehouse.asns.show', $c->asn_id), 'meta' => __('warehouse.container_sizes.'.$c->size)])->all(),
             AsnLine::query()->where('consignment_mark', 'like', "%{$q}%")->limit(10)->get()->map(fn ($l) => ['type' => 'consignment_mark', 'label' => (string) $l->consignment_mark, 'url' => route('warehouse.asns.show', $l->asn_id).'#line-'.$l->id, 'meta' => $l->description])->all(),
             StockUnit::query()->where('label_code', 'like', "%{$q}%")->limit(10)->get()->map(fn ($u) => ['type' => 'stock_unit', 'label' => $u->label_code, 'url' => route('warehouse.stock.show', $u), 'meta' => ($u->location?->full_code ?? '—').' · '.$u->qty_on_hand])->all(),

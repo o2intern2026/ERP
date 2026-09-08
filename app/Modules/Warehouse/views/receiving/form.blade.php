@@ -6,6 +6,7 @@
     <p><a href="{{ route('warehouse.asns.show', $asn) }}">← {{ $asn->asn_no }}</a></p>
     <h1>{{ __('warehouse.receiving.title') }} · {{ __('warehouse.receiving.line') }} #{{ $line->id }}</h1>
     <p>{{ $asn->client->name }} · {{ $line->consignment_mark }} · <strong>{{ $line->description }}</strong> · {{ __('warehouse.asns.expected') }}: {{ $line->expected_cartons }}</p>
+    <p><mark>{{ __($receipt['open'] ? 'warehouse.receiving.joins_receipt' : 'warehouse.receiving.new_receipt', ['no' => $receipt['no']]) }}</mark></p>
     <p class="text-muted"><small>{{ __('warehouse.receiving.hint') }}</small></p>
     <form method="post" action="{{ route('warehouse.receiving.store', [$asn, $line]) }}">
         @csrf

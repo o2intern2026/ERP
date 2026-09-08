@@ -29,12 +29,14 @@ use App\Modules\Transport\Services\RedeliveryService;
 use App\Modules\Transport\Services\ShipmentBookingService;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnLine;
+use App\Modules\Warehouse\Models\GoodsReceipt;
 use App\Modules\Warehouse\Models\Location;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Services\AsnImportService;
 use App\Modules\Warehouse\Services\AsnOrderGeneration;
 use App\Modules\Warehouse\Services\AsnService;
+use App\Modules\Warehouse\Services\GoodsReceiptService;
 use App\Modules\Warehouse\Services\OutboundService;
 use App\Modules\Warehouse\Services\PutawayService;
 use App\Modules\Warehouse\Services\ReceivingService;
@@ -214,13 +216,15 @@ class DemoFlowSeeder extends Seeder
             if ($data['units'] === [] && ($data['damaged_cartons'] ?? 0) === 0) {
                 continue;
             }
-            $units = $receiving->receiveLine($line, $data, $this->location('receiving'));
+            $units = $receiving->receiveLine($line, $data, $this->location('receiving'), $operator->id);
             foreach ($units as $u => $unit) {
                 $target = $unit->condition !== 'good' ? $this->location('quarantine') : ($unit->unit_type === 'pallet' ? $this->location('storage', $pallets + $u) : $this->location('pickface', $i));
                 $putaway->putaway($unit, $target);
             }
         }
         $this->out['edward_pallets'] = $pallets;
+        // Tester feedback round 3 item 2: the batch ends with 入库完成 → printable 入库单 PDF in the document centre (client visible).
+        $this->out['edward_receipt_no'] = $this->completeReceipt($asn, $operator->id, 'Demo container — received in one batch')->receipt_no;
 
         $wrap = $tasks->create('wrap', ['job_id' => $asn->job_id, 'client_id' => $edward->id, 'warehouse_id' => $warehouse->id, 'source_type' => 'container', 'source_id' => $container->id, 'asn_id' => $asn->id, 'container_id' => $container->id]);
         $tasks->complete($wrap, ['billable_qty' => 3, 'billable_uom' => 'pallet'], $asn->asn_no);
@@ -458,10 +462,20 @@ class DemoFlowSeeder extends Seeder
         $tasks = app(TaskService::class);
         $unload = $tasks->create('receiving', ['job_id' => $asn->job_id, 'client_id' => $client->id, 'warehouse_id' => $this->warehouse()->id, 'source_type' => 'asn', 'source_id' => $asn->id, 'asn_id' => $asn->id]);
         $tasks->complete($unload, ['billable_qty' => 1, 'billable_uom' => 'pallet'], $asn->asn_no);
-        [$unit] = app(ReceivingService::class)->receiveLine($line, ['received_cartons' => $cartons, 'units' => [['unit_type' => 'pallet', 'carton_qty' => $cartons, 'length_mm' => 1200, 'width_mm' => 1200, 'height_mm' => 1400, 'weight_kg' => $weightKg, 'pallet_source' => 'chep']]], $this->location('receiving'));
+        $operator = $this->user('warehouse_operator');
+        [$unit] = app(ReceivingService::class)->receiveLine($line, ['received_cartons' => $cartons, 'units' => [['unit_type' => 'pallet', 'carton_qty' => $cartons, 'length_mm' => 1200, 'width_mm' => 1200, 'height_mm' => 1400, 'weight_kg' => $weightKg, 'pallet_source' => 'chep']]], $this->location('receiving'), $operator->id);
+        $this->completeReceipt($asn, $operator->id);
         app(PutawayService::class)->putaway($unit, $this->location('storage', 17 + $slot));
 
         return [$asn->fresh(), $line->fresh(), $unit->fresh()];
+    }
+
+    /** 入库完成 on the ASN's open 入库单 batch (GoodsReceiptService::complete → totals, PDF, goods_receipt document). */
+    private function completeReceipt(Asn $asn, int $userId, ?string $notes = null): GoodsReceipt
+    {
+        $receipt = GoodsReceipt::query()->withoutGlobalScopes()->where('asn_id', $asn->id)->where('status', 'open')->firstOrFail();
+
+        return app(GoodsReceiptService::class)->complete($receipt, $userId, $notes);
     }
 
     // ------------------------------------------------------ billing / misc

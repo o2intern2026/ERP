@@ -7,6 +7,7 @@ use App\Modules\Billing\Models\Invoice;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Platform\Models\Job;
 use App\Modules\Transport\Models\Shipment;
+use App\Modules\Warehouse\Models\GoodsReceipt;
 use App\Modules\Warehouse\Models\ReturnReceipt;
 use App\Modules\Warehouse\Models\StockSnapshot;
 use Database\Seeders\DatabaseSeeder;
@@ -36,6 +37,12 @@ class DemoFlowTest extends TestCase
         // §7 #2–#3: real manifest → ASN → orders per consignment mark, second click creates nothing
         $this->assertGreaterThanOrEqual(25, $out['edward_orders_generated']);
         $this->assertDatabaseHas('exceptions', ['type' => 'discrepancy', 'status' => 'open']); // §4.7 #8 short-shipped line
+        // Tester feedback round 3 item 2: the receiving batch was closed with 入库完成 → completed 入库单 with its PDF in the document centre
+        $receipt = GoodsReceipt::query()->where('receipt_no', $out['edward_receipt_no'])->firstOrFail();
+        $this->assertSame('completed', $receipt->status);
+        $this->assertGreaterThan(100, $receipt->line_count);
+        $this->assertDatabaseHas('documents', ['id' => $receipt->pdf_document_id, 'type' => 'goods_receipt', 'related_type' => 'asn', 'related_id' => $receipt->asn_id, 'client_visible' => true]);
+        $this->assertGreaterThanOrEqual(3, GoodsReceipt::query()->where('status', 'completed')->count()); // Edward container + the loose-truck ASNs
         $this->artisan('stock:reconcile')->assertSuccessful(); // §4.7 #2
 
         // §7 #4–#5: the four confirmed orders travelled the whole chain

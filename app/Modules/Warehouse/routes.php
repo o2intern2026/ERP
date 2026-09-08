@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Warehouse\Http\Controllers\AsnController;
+use App\Modules\Warehouse\Http\Controllers\GoodsReceiptController;
 use App\Modules\Warehouse\Http\Controllers\LabelController;
 use App\Modules\Warehouse\Http\Controllers\LocationController;
 use App\Modules\Warehouse\Http\Controllers\OutboundController;
@@ -12,6 +13,7 @@ use App\Modules\Warehouse\Http\Controllers\SnapshotController;
 use App\Modules\Warehouse\Http\Controllers\StockController;
 use App\Modules\Warehouse\Http\Controllers\StocktakeController;
 use App\Modules\Warehouse\Http\Controllers\TaskController;
+use App\Modules\Warehouse\Http\Controllers\UnplannedReceivingController;
 use App\Modules\Warehouse\Http\Controllers\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
@@ -40,6 +42,13 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/switch', [WarehouseController::class, 'switch'])->name('switch');
     });
 
+    // 入库单 (goods receipt, CHANGE_REQUESTS #90): finance reads them too; the PDF is rendered live (open → 草稿).
+    Route::middleware('role:admin|warehouse_supervisor|warehouse_operator|customer_service|finance')->group(function () {
+        Route::get('/receipts', [GoodsReceiptController::class, 'index'])->name('receipts.index');
+        Route::get('/receipts/{receipt}', [GoodsReceiptController::class, 'show'])->name('receipts.show')->whereNumber('receipt');
+        Route::get('/receipts/{receipt}/pdf', [GoodsReceiptController::class, 'pdf'])->name('receipts.pdf')->whereNumber('receipt');
+    });
+
     Route::middleware('role:admin|warehouse_supervisor|warehouse_operator|customer_service')->group(function () {
         Route::get('/asns/create', [AsnController::class, 'create'])->name('asns.create');
         Route::post('/asns', [AsnController::class, 'store'])->name('asns.store');
@@ -48,11 +57,15 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/asns/{asn}/arrive', [AsnController::class, 'arrive'])->name('asns.arrive');
         Route::post('/asns/{asn}/confirm-unplanned', [AsnController::class, 'confirmUnplanned'])->name('asns.confirm_unplanned');
         Route::post('/asns/{asn}/generate-orders', [AsnController::class, 'generateOrders'])->name('asns.generate_orders');
+        Route::get('/receiving', [ReceivingController::class, 'index'])->name('receiving.index'); // 待收货 worklist (the 收货 button itself is warehouse-roles only)
     });
 
     Route::middleware('role:admin|warehouse_supervisor|warehouse_operator')->group(function () {
         Route::get('/asns/{asn}/lines/{line}/receive', [ReceivingController::class, 'form'])->name('receiving.form');
         Route::post('/asns/{asn}/lines/{line}/receive', [ReceivingController::class, 'store'])->name('receiving.store');
+        Route::get('/receiving/unplanned', [UnplannedReceivingController::class, 'form'])->name('receiving.unplanned.form'); // 无预报收货 (#91)
+        Route::post('/receiving/unplanned', [UnplannedReceivingController::class, 'store'])->name('receiving.unplanned.store');
+        Route::post('/receipts/{receipt}/complete', [GoodsReceiptController::class, 'complete'])->name('receipts.complete')->whereNumber('receipt'); // 入库完成
         Route::get('/putaway', [PutawayController::class, 'index'])->name('putaway.index');
         Route::post('/putaway/{unit}', [PutawayController::class, 'store'])->name('putaway.store');
         Route::get('/tasks/create', [TaskController::class, 'create'])->name('tasks.create');

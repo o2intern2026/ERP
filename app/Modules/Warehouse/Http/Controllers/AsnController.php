@@ -12,6 +12,7 @@ use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Modules\Warehouse\Services\AsnImportService;
 use App\Modules\Warehouse\Services\AsnOrderGeneration;
 use App\Modules\Warehouse\Services\AsnService;
+use App\Modules\Warehouse\Services\GoodsReceiptService;
 use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
@@ -78,12 +79,14 @@ class AsnController extends Controller
         return redirect()->route('warehouse.asns.show', $asn)->with('status', __('warehouse.asns.created', ['asn_no' => $asn->asn_no]));
     }
 
-    public function show(Asn $asn): View
+    public function show(Asn $asn, GoodsReceiptService $receipts): View
     {
-        $asn->load(['client', 'warehouse', 'job', 'containers', 'lines.stockUnits', 'lines.container']);
+        $asn->load(['client', 'warehouse', 'job', 'containers', 'lines.stockUnits', 'lines.receiptLine', 'lines.container']);
 
         return view('warehouse::asns.show', [
             'asn' => $asn,
+            'receipts' => $asn->goodsReceipts()->withCount('lines')->with('lines')->get(),
+            'rollup' => $receipts->rollup($asn),
             'tasks' => $asn->hasMany(WarehouseTask::class)->orderByDesc('id')->get(),
             'imports' => AsnImport::query()->where('asn_id', $asn->id)->orderByDesc('id')->get(),
         ]);

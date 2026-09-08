@@ -5,6 +5,7 @@ namespace App\Modules\Warehouse\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /** Goods line = the identity of stock; the consignee fields feed B2c order generation (ERP_PLAN §4.2). */
 class AsnLine extends Model
@@ -34,6 +35,20 @@ class AsnLine extends Model
     public function stockUnits(): HasMany
     {
         return $this->hasMany(StockUnit::class);
+    }
+
+    /** The 入库单 line that recorded this goods line (a line is received once). */
+    public function receiptLine(): HasOne
+    {
+        return $this->hasOne(GoodsReceiptLine::class);
+    }
+
+    /** Received (into a 入库单 or, before 入库单 existed, into stock units) — a line received with 0 cartons counts. */
+    public function isReceived(): bool
+    {
+        return $this->relationLoaded('receiptLine') && $this->relationLoaded('stockUnits')
+            ? $this->receiptLine !== null || $this->stockUnits->isNotEmpty()
+            : $this->receiptLine()->exists() || $this->stockUnits()->exists();
     }
 
     public function variance(): int
