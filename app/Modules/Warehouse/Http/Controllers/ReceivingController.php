@@ -27,7 +27,8 @@ class ReceivingController extends Controller
     public function index(Request $request): View
     {
         $filters = $request->validate(['client_id' => ['nullable', 'integer'], 'warehouse_id' => ['nullable', 'integer']]);
-        $warehouseId = ($filters['warehouse_id'] ?? null) ?: WarehouseContext::currentId();
+        // First load: default to the session warehouse. A submitted filter wins, including an explicit 全部 (empty value → null = all).
+        $warehouseId = $request->has('warehouse_id') ? ($filters['warehouse_id'] ?? null) : WarehouseContext::currentId();
 
         return view('warehouse::receiving.index', [
             'lines' => AsnLine::query()->with(['asn.client', 'asn.warehouse', 'container'])
@@ -36,7 +37,7 @@ class ReceivingController extends Controller
                     ->when($warehouseId, fn ($q, $v) => $q->where('warehouse_id', $v)))
                 ->whereDoesntHave('stockUnits')->whereDoesntHave('receiptLine')
                 ->orderBy('asn_id')->orderBy('id')->paginate(50)->withQueryString(),
-            'filters' => $filters + ['warehouse_id' => $warehouseId],
+            'filters' => ['warehouse_id' => $warehouseId] + $filters, // the dropdown shows the warehouse actually applied
             'clients' => Client::query()->orderBy('name')->get(['id', 'name']),
             'warehouses' => Warehouse::query()->where('active', true)->orderBy('code')->get(['id', 'code']),
         ]);

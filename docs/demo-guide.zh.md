@@ -86,7 +86,7 @@ php artisan migrate:fresh --seed && php artisan db:seed --class=DemoFlowSeeder
 
 先用第 3 节的空白系统,或在演示数据基础上新建。括号里是建议登录的账号。
 
-1. **入库**(warehouse-supervisor):/warehouse/asns/create 新建预报单 (ASN)(整柜)→ 进入预报单页 → "Excel 导入" 上传 `data/需派送货物清单.xlsx` → 逐行"收货"(或用顶栏"收货"的待收货列表;试着少收 2 箱并填原因,看 /admin/exceptions 出现差异)。收的行自动归到一张入库单(编号 = 预报单号-R1;下次到货再收的行会开 -R2)→ 全部收完后在预报单页或入库单页点"入库完成"→ "打印入库单 (PDF)"(单据中心 /admin/documents 和客户门户也能下载)→ /warehouse/putaway 输入库位码上架 → 预报单页点"从预报单 (ASN) 生成派送订单"。
+1. **入库**(warehouse-supervisor):/warehouse/asns/create 新建预报单 (ASN)(整柜)→ 进入预报单页 → "Excel 导入" 上传 `data/需派送货物清单.xlsx` → 逐行"收货"(或用顶栏"收货"的待收货列表;试着少收 2 箱并填原因,看 /admin/exceptions 出现差异)。收的行自动归到一张入库单(编号 = 预报单号-R1;下次到货再收的行会开 -R2)→ 全部收完后在预报单页或入库单页点"入库完成"→ "打印入库单 (PDF)"(单据中心 /admin/documents 可下载;客户门户暂无入口,见 HANDOFF 的 X1 待办)→ /warehouse/putaway 输入库位码上架 → 预报单页点"从预报单 (ASN) 生成派送订单"。
    - **1b. 无预报收货**(warehouse-operator):货到了但没有预报单时,顶栏"无预报收货"(/warehouse/receiving/unplanned):选客户、仓库、送货参考、收货库位,逐行填唛头 / 品名 / 实收 / 破损 / 托盘数,提交即生成临时预报单和一张已完成的入库单;上架前 customer-service 在预报单页点"确认无预报到货"。
 2. **订单**(customer-service):/orders 看到刚生成的订单 → 打开一张 → "确认"。等一分钟(或跑 `php artisan outbox:dispatch`),/warehouse/reservations 出现预留,/transport 出现运单和初步报价。
 3. **出库**(warehouse-operator):/warehouse/outbound → 勾选订单"释放波次" → 进波次页逐行"确认"拣货(试一次少拣,看 Pick Short 异常)→ "打包" 录包裹重量尺寸(录一个 25kg 以上的看尾板)→ 回到出库页。
@@ -105,7 +105,7 @@ php artisan migrate:fresh --seed && php artisan db:seed --class=DemoFlowSeeder
 | 页面能开,但确认订单后没有预留 / 报价 | 事件分发没跑:开 `php artisan schedule:work`,或手动 `php artisan outbox:dispatch` |
 | ASN 和入库单有什么区别 | **预报单 (ASN)** 是货到之前的预报(客户 / 客服告诉仓库将有什么货来);**入库单**是仓库实际收到货以后的凭证,一次到货一张(编号 = 预报单号-R1、-R2…),写实收 / 破损 / 差异并可打印签字。一张预报单可以对应多张入库单,页面上会汇总 |
 | 客服账号为什么看不到收货按钮 | 收货、无预报收货、入库完成是仓库操作(admin / warehouse-supervisor / warehouse-operator);客服 (customer-service) 能看预报单、待收货列表和入库单,但不能录实收。用 warehouse-operator 账号操作 |
-| 入库单 PDF 里中文是空白 | dompdf 自带字体没有中文:把一个中文 TrueType 字体复制到 `storage/fonts/cjk.ttf`(这台 Mac:`cp "/System/Library/Fonts/Supplemental/Arial Unicode.ttf" storage/fonts/cjk.ttf`;Linux 服务器可用 Noto Sans CJK),或在 `.env` 里用 `PDF_CJK_FONT` 指向项目内的字体文件 |
+| 点"入库完成"报"未配置中文 PDF 字体" / 预览 PDF 里中文是空白 | dompdf 自带字体没有中文,系统在没有中文字体时拒绝完成入库单(否则存档 PDF 会是空白中文)。**每个代码目录 / 每台部署机器**都要放一次:把一个中文 TrueType 字体复制到该目录的 `storage/fonts/cjk.ttf`(这台 Mac:`cp "/System/Library/Fonts/Supplemental/Arial Unicode.ttf" storage/fonts/cjk.ttf`;Linux 服务器可用 Noto Sans CJK),或在 `.env` 里用 `PDF_CJK_FONT` 指向项目内的字体文件,然后重试 |
 | 报错 `Connection refused` / 数据库连不上 | `brew services start mysql@8.4` |
 | 端口 8000 被占 | `php artisan serve --port=8001`,并把 `.env` 的 `APP_URL` 改成对应端口 |
 | 运输报价没有 Karrio 方案 | Docker Desktop 未启动或容器未起;`.env` 里 `KARRIO_API_KEY` 为空;Karrio 里没有承运商费率(`php docker/karrio/setup-demo-carrier.php` 可重建演示承运商) |

@@ -11,6 +11,7 @@ use App\Modules\Warehouse\Models\StockUnit;
 use App\Support\Contracts\DocumentService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
@@ -28,14 +29,20 @@ final class GoodsReceiptService
     /**
      * The ASN's current open batch, or the next one. The ASN row is locked so two operators cannot open two batches at once.
      *
+     * The receipts are then read FOR UPDATE as well: under InnoDB REPEATABLE READ (MySQL's default) a plain SELECT inside the caller's
+     * transaction (ReceivingService::receiveLine() has already read the ASN and counted units) would return the snapshot taken
+     * before the other operator committed — so after waiting on the lock the second operator would not see the batch the first
+     * one just opened, build the same batch_no and fail on the unique index. Only locking reads see the latest committed rows.
+     *
      * @param  array{delivery_reference?:?string, notes?:?string}  $attrs
      */
     public function openFor(Asn $asn, ?int $userId = null, array $attrs = []): GoodsReceipt
     {
         return DB::transaction(function () use ($asn, $userId, $attrs): GoodsReceipt {
             $locked = Asn::query()->withoutGlobalScopes()->whereKey($asn->id)->lockForUpdate()->firstOrFail();
+            $existing = GoodsReceipt::query()->withoutGlobalScopes()->where('asn_id', $locked->id)->lockForUpdate()->orderBy('batch_no')->get();
 
-            $open = $this->openReceipt($locked);
+            $open = $existing->firstWhere('status', 'open');
             if ($open !== null) {
                 if (($attrs['delivery_reference'] ?? null) !== null && $open->delivery_reference === null) {
                     $open->update(['delivery_reference' => $attrs['delivery_reference']]);
@@ -44,7 +51,7 @@ final class GoodsReceiptService
                 return $open;
             }
 
-            $batch = (int) GoodsReceipt::query()->withoutGlobalScopes()->where('asn_id', $locked->id)->max('batch_no') + 1;
+            $batch = (int) $existing->max('batch_no') + 1;
 
             return GoodsReceipt::query()->create([
                 'receipt_no' => $locked->asn_no.'-R'.$batch,
@@ -86,17 +93,28 @@ final class GoodsReceiptService
         return $receiptLine;
     }
 
-    /** 入库完成: refuse unless open with ≥ 1 line; snapshot totals, store + attach the PDF, mark the ASN fully received when it is. */
+    /**
+     * 入库完成: refuse unless open with ≥ 1 line; snapshot totals, store + attach the PDF, mark the ASN fully received when it is.
+     *
+     * The guards run on the row re-read FOR UPDATE inside the transaction (not on the caller's route-bound model), so two overlapping
+     * submits of the same 入库完成 form cannot both pass: the second waits on the lock, sees `completed` and is refused instead of
+     * filing a second `goods_receipt` document. The PDF stored here is what the document centre and the portal serve permanently,
+     * so completion is also refused while no CJK font is configured — dompdf's bundled font would print every Chinese label blank.
+     */
     public function complete(GoodsReceipt $receipt, ?int $userId = null, ?string $notes = null): GoodsReceipt
     {
-        if (! $receipt->isOpen()) {
-            throw new InvalidArgumentException(__('warehouse.receipts.errors.not_open', ['no' => $receipt->receipt_no]));
-        }
-        if ($receipt->lines()->doesntExist()) {
-            throw new InvalidArgumentException(__('warehouse.receipts.errors.no_lines', ['no' => $receipt->receipt_no]));
-        }
-
         return DB::transaction(function () use ($receipt, $userId, $notes): GoodsReceipt {
+            $receipt = GoodsReceipt::query()->withoutGlobalScopes()->whereKey($receipt->id)->lockForUpdate()->firstOrFail();
+            if (! $receipt->isOpen()) {
+                throw new InvalidArgumentException(__('warehouse.receipts.errors.not_open', ['no' => $receipt->receipt_no]));
+            }
+            if ($receipt->lines()->doesntExist()) {
+                throw new InvalidArgumentException(__('warehouse.receipts.errors.no_lines', ['no' => $receipt->receipt_no]));
+            }
+            if ($this->cjkFont() === null) {
+                throw new InvalidArgumentException(__('warehouse.receipts.errors.no_cjk_font', ['path' => (string) config('erp.pdf_cjk_font')]));
+            }
+
             $lines = $receipt->lines()->get();
             $receipt->update([
                 'status' => 'completed',
@@ -240,11 +258,21 @@ final class GoodsReceiptService
         return ['no' => $asn->asn_no.'-R'.((int) GoodsReceipt::query()->withoutGlobalScopes()->where('asn_id', $asn->id)->max('batch_no') + 1), 'open' => false];
     }
 
+    /** The configured CJK TrueType font, or null when it is missing — then the live PDF falls back to DejaVu Sans (Chinese blank) and says so in the log. */
     public function cjkFont(): ?string
     {
-        $font = config('erp.pdf_cjk_font');
+        static $warned = null;
 
-        return is_string($font) && $font !== '' && is_file($font) ? $font : null;
+        $font = config('erp.pdf_cjk_font');
+        if (is_string($font) && $font !== '' && is_file($font)) {
+            return $font;
+        }
+        if ($warned !== $font) {
+            $warned = $font;
+            Log::warning('Goods receipt PDF: no CJK font at config erp.pdf_cjk_font - Chinese labels render blank; copy a CJK TrueType font there or set PDF_CJK_FONT.', ['path' => $font]);
+        }
+
+        return null;
     }
 
     /** php.ini shorthand ("128M", "1G", "-1") → bytes; -1 / 0 = unlimited. */
@@ -263,6 +291,7 @@ final class GoodsReceiptService
         };
     }
 
+    /** Plain (non-locking) read for page hints; openFor() reads the receipts FOR UPDATE itself. */
     private function openReceipt(Asn $asn): ?GoodsReceipt
     {
         return GoodsReceipt::query()->withoutGlobalScopes()->where('asn_id', $asn->id)->where('status', 'open')->orderBy('batch_no')->first();

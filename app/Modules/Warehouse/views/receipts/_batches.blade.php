@@ -20,7 +20,7 @@
                     · <a href="{{ route('warehouse.receipts.pdf', $b) }}" target="_blank">PDF</a>
                     @role('admin|warehouse_supervisor|warehouse_operator')
                         @if ($b->isOpen() && $b->lines_count > 0)
-                            · <form method="post" action="{{ route('warehouse.receipts.complete', $b) }}" class="inline">@csrf<button type="submit" class="secondary">{{ __('warehouse.receipts.complete') }}</button></form>
+                            · <form method="post" action="{{ route('warehouse.receipts.complete', $b) }}" class="inline" onsubmit="this.querySelector('button[type=submit]').disabled = true">@csrf<button type="submit" class="secondary">{{ __('warehouse.receipts.complete') }}</button></form>
                         @endif
                     @endrole
                 </td>

@@ -24,7 +24,7 @@
         <a role="button" class="secondary outline" target="_blank" href="{{ route('warehouse.receipts.pdf', $receipt) }}">{{ __('warehouse.receipts.pdf_button') }}</a>
         @role('admin|warehouse_supervisor|warehouse_operator')
             @if ($receipt->isOpen() && $receipt->lines->isNotEmpty())
-                <form method="post" action="{{ route('warehouse.receipts.complete', $receipt) }}">
+                <form method="post" action="{{ route('warehouse.receipts.complete', $receipt) }}" onsubmit="this.querySelector('button[type=submit]').disabled = true">
                     @csrf
                     <textarea name="notes" rows="2" placeholder="{{ __('warehouse.receipts.notes_placeholder') }}">{{ old('notes') }}</textarea>
                     <button type="submit">{{ __('warehouse.receipts.complete') }}</button>

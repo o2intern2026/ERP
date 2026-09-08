@@ -10,7 +10,9 @@ use App\Modules\Warehouse\Services\AsnService;
 use App\Modules\Warehouse\Services\GoodsReceiptService;
 use App\Modules\Warehouse\Services\PutawayService;
 use App\Modules\Warehouse\Services\ReceivingService;
+use App\Modules\Warehouse\Services\WarehouseContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 use Tests\Support\CreatesUsers;
@@ -105,12 +107,12 @@ class GoodsReceiptTest extends TestCase
         $draft->assertOk()->assertHeader('Content-Type', 'application/pdf');
         $this->assertStringContainsString($receipt->receipt_no.'.pdf', $draft->headers->get('Content-Disposition'));
         $this->assertStringStartsWith('%PDF', $draft->getContent());
-        // The stylesheet must have been understood: dompdf falls back to Times when font-family is garbled (Blade escaping), and a
-        // configured CJK font must actually be embedded (subset) so the Chinese labels print instead of "???".
+        // The stylesheet must have been understood: dompdf falls back to Times when font-family is garbled (Blade escaping), and the CJK
+        // font must actually be embedded (subset) so the Chinese labels print instead of blanks. Deliberately unconditional: a checkout
+        // without storage/fonts/cjk.ttf must fail here instead of staying green (the font is git-ignored — see HANDOFF).
         $this->assertStringNotContainsString('/Times-Roman', $draft->getContent());
-        if (app(GoodsReceiptService::class)->cjkFont() !== null) {
-            $this->assertMatchesRegularExpression('/BaseFont \/[A-Z]{6}\+(?!DejaVu)/', $draft->getContent(), 'the CJK font should be embedded as a subset');
-        }
+        $this->assertNotNull(app(GoodsReceiptService::class)->cjkFont(), 'storage/fonts/cjk.ttf (or PDF_CJK_FONT) is missing in this checkout — copy a CJK TrueType font there');
+        $this->assertMatchesRegularExpression('/BaseFont \/[A-Z]{6}\+(?!DejaVu)/', $draft->getContent(), 'the CJK font should be embedded as a subset');
 
         app(GoodsReceiptService::class)->complete($receipt, $operator->id);
         $this->actingAs($this->staff('finance'))->get(route('warehouse.receipts.pdf', $receipt))->assertOk()->assertHeader('Content-Type', 'application/pdf');
@@ -226,6 +228,119 @@ class GoodsReceiptTest extends TestCase
         $this->actingAs($clientUser)->get('/warehouse/receipts')->assertForbidden();
         $this->actingAs($clientUser)->get(route('portal.documents.download', $receipt->pdf_document_id))->assertOk()->assertHeader('Content-Type', 'application/pdf');
         $this->actingAs($this->clientUser())->get(route('portal.documents.download', $receipt->pdf_document_id))->assertNotFound(); // another client never sees it
+    }
+
+    public function test_completion_re_reads_the_receipt_under_lock_so_a_concurrent_second_submit_is_refused(): void
+    {
+        Storage::fake('local');
+        $operator = $this->staff('warehouse_operator');
+        $warehouse = $this->warehouse();
+        ['asn' => $asn, 'lines' => [$line]] = $this->asnWithLines($this->client()->id, $warehouse->id, [3]);
+        app(ReceivingService::class)->receiveLine($line, ['received_cartons' => 3, 'units' => [['unit_type' => 'carton', 'carton_qty' => 3]]], $this->location($warehouse, 'receiving'), $operator->id);
+        $stale = GoodsReceipt::query()->firstOrFail(); // the second request's route-bound model: still `open` in memory
+
+        // The first request commits in between (simulated by a direct UPDATE the in-memory model does not see).
+        app(GoodsReceiptService::class)->complete(GoodsReceipt::query()->firstOrFail(), $operator->id, 'first click');
+        $this->assertSame('open', $stale->status);
+        $this->assertSame(1, Document::query()->where('type', 'goods_receipt')->count());
+
+        try {
+            app(GoodsReceiptService::class)->complete($stale, $operator->id, 'second click');
+            $this->fail('the guards must run on the row re-read under lock, not on the stale model');
+        } catch (InvalidArgumentException $e) {
+            $this->assertSame(__('warehouse.receipts.errors.not_open', ['no' => $stale->receipt_no]), $e->getMessage());
+        }
+        $fresh = $stale->fresh();
+        $this->assertSame(['completed', 'first click'], [$fresh->status, $fresh->notes], 'the first completion is untouched');
+        $this->assertSame(1, Document::query()->where('type', 'goods_receipt')->count(), 'no second goods_receipt document');
+        $this->actingAs($operator)->post(route('warehouse.receipts.complete', $stale))->assertSessionHasErrors('complete');
+    }
+
+    public function test_completion_is_refused_while_no_cjk_font_is_configured_so_no_blank_pdf_is_filed(): void
+    {
+        Storage::fake('local');
+        $operator = $this->staff('warehouse_operator');
+        $client = $this->client();
+        $warehouse = $this->warehouse();
+        $rcv = $this->location($warehouse, 'receiving');
+        ['asn' => $asn, 'lines' => [$line]] = $this->asnWithLines($client->id, $warehouse->id, [2]);
+        app(ReceivingService::class)->receiveLine($line, ['received_cartons' => 2, 'units' => [['unit_type' => 'carton', 'carton_qty' => 2]]], $rcv, $operator->id);
+        $receipt = GoodsReceipt::query()->firstOrFail();
+
+        $missing = storage_path('fonts/does-not-exist.ttf');
+        config(['erp.pdf_cjk_font' => $missing]);
+        $this->assertNull(app(GoodsReceiptService::class)->cjkFont());
+
+        $this->actingAs($operator)->post(route('warehouse.receipts.complete', $receipt))->assertRedirect()->assertSessionHasErrors(['complete' => __('warehouse.receipts.errors.no_cjk_font', ['path' => $missing])]);
+        $this->assertSame(['open', null], [$receipt->fresh()->status, $receipt->fresh()->pdf_document_id]);
+        $this->assertSame(0, Document::query()->where('type', 'goods_receipt')->count());
+        // The live preview still renders (DejaVu fallback) — it is not stored anywhere.
+        $this->actingAs($operator)->get(route('warehouse.receipts.pdf', $receipt))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+
+        // 无预报收货 completes its batch in the same transaction, so the whole walk-in receipt is refused and nothing is created.
+        $this->actingAs($operator)->post(route('warehouse.receiving.unplanned.store'), [
+            'client_id' => $client->id, 'warehouse_id' => $warehouse->id, 'inbound_type' => 'parcel', 'receiving_location_id' => $rcv->id,
+            'rows' => [['description' => 'Walk-in', 'received_cartons' => 1, 'damaged_cartons' => 0, 'unit_type' => 'carton']],
+        ])->assertSessionHasErrors('rows');
+        $this->assertSame(1, Asn::query()->count());
+        $this->assertSame(1, GoodsReceipt::query()->count());
+
+        // Font back → the same receipt completes.
+        config(['erp.pdf_cjk_font' => storage_path('fonts/cjk.ttf')]);
+        app(GoodsReceiptService::class)->complete($receipt->fresh(), $operator->id);
+        $this->assertSame('completed', $receipt->fresh()->status);
+    }
+
+    public function test_opening_a_batch_reads_the_asn_receipts_with_a_locking_read(): void
+    {
+        // Under REPEATABLE READ only a locking read sees a batch another operator committed while we waited on the ASN lock; a plain
+        // SELECT returns the earlier snapshot and the second operator would build the same batch_no (duplicate key) instead of joining.
+        Storage::fake('local');
+        $operator = $this->staff('warehouse_operator');
+        $warehouse = $this->warehouse();
+        ['asn' => $asn, 'lines' => [$l1, $l2]] = $this->asnWithLines($this->client()->id, $warehouse->id, [1, 1]);
+        $rcv = $this->location($warehouse, 'receiving');
+
+        DB::enableQueryLog();
+        app(ReceivingService::class)->receiveLine($l1, ['received_cartons' => 1, 'units' => [['unit_type' => 'carton', 'carton_qty' => 1]]], $rcv, $operator->id);
+        $sql = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+
+        $receiptReads = array_values(array_filter($sql, fn (string $q) => str_starts_with($q, 'select') && str_contains($q, '`goods_receipts`') && str_contains($q, '`asn_id`')));
+        $this->assertNotEmpty($receiptReads);
+        foreach ($receiptReads as $q) {
+            $this->assertStringEndsWith('for update', $q, 'openFor() must read the ASN\'s receipts FOR UPDATE: '.$q);
+        }
+        $this->assertContains(true, array_map(fn (string $q) => str_contains($q, '`asns`') && str_ends_with($q, 'for update'), $sql), 'the ASN row is locked first');
+
+        app(ReceivingService::class)->receiveLine($l2, ['received_cartons' => 1, 'units' => [['unit_type' => 'carton', 'carton_qty' => 1]]], $rcv, $operator->id);
+        $this->assertSame([1], GoodsReceipt::query()->pluck('batch_no')->all(), 'the second line joins batch 1');
+    }
+
+    public function test_worklist_honours_an_explicit_all_warehouses_filter_over_the_session_warehouse(): void
+    {
+        $operator = $this->staff('warehouse_operator');
+        $client = $this->client();
+        $mel = $this->warehouse('MEL');
+        $syd = $this->warehouse('SYD');
+        ['asn' => $melAsn] = $this->asnWithLines($client->id, $mel->id, [4]);
+        ['asn' => $sydAsn] = $this->asnWithLines($client->id, $syd->id, [6], 'loose_truck');
+        $session = [WarehouseContext::SESSION_KEY => $mel->id];
+        // The nav's warehouse switcher always marks the session warehouse `selected`, so the worklist dropdown is the 2nd occurrence.
+        $selected = fn (int $warehouseId, string $html): int => substr_count($html, 'value="'.$warehouseId.'" selected');
+
+        // First load: the session warehouse applies and is pre-selected in the worklist filter too.
+        $first = $this->actingAs($operator)->withSession($session)->get(route('warehouse.receiving.index'));
+        $first->assertOk()->assertSee($melAsn->asn_no)->assertDontSee($sydAsn->asn_no);
+        $this->assertSame(2, $selected($mel->id, $first->getContent()));
+        // 仓库 = 全部 submitted explicitly: every warehouse, and the dropdown must not claim otherwise (only the nav switcher stays on MEL).
+        $all = $this->actingAs($operator)->withSession($session)->get(route('warehouse.receiving.index', ['warehouse_id' => '']));
+        $all->assertOk()->assertSee($melAsn->asn_no)->assertSee($sydAsn->asn_no);
+        $this->assertSame(1, $selected($mel->id, $all->getContent()));
+        // Another warehouse chosen explicitly wins over the session warehouse.
+        $other = $this->actingAs($operator)->withSession($session)->get(route('warehouse.receiving.index', ['warehouse_id' => $syd->id]));
+        $other->assertOk()->assertSee($sydAsn->asn_no)->assertDontSee($melAsn->asn_no);
+        $this->assertSame([1, 1], [$selected($syd->id, $other->getContent()), $selected($mel->id, $other->getContent())]);
     }
 
     /** @return array{asn: Asn, lines: array} */
