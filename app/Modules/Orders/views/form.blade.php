@@ -28,7 +28,7 @@
                 <select name="client_id" required>
                     <option value="">{{ __('orders.actions.select') }}</option>
                     @foreach ($clients as $client)
-                        <option value="{{ $client->id }}" @selected((int) old('client_id') === $client->id)>{{ $client->code }} — {{ $client->name }}</option>
+                        <option value="{{ $client->id }}" data-tailgate-kg="{{ ($tailgateThresholds[$client->id] ?? $tailgateThresholdKg) + 0 }}" @selected((int) old('client_id') === $client->id)>{{ $client->code }} — {{ $client->name }}</option>
                     @endforeach
                 </select>
             </label>
@@ -91,7 +91,12 @@
                 </select>
             </label>
         </div>
-        <label>{{ __('orders.fields.address') }}<input id="deliver-to-address" name="deliver_to_address" value="{{ old('deliver_to_address') }}" required></label>
+        <div class="suggest-wrap">
+            <label>{{ __('orders.fields.address') }}<input id="deliver-to-address" name="deliver_to_address" value="{{ old('deliver_to_address') }}" required autocomplete="off">
+                <small>{{ __('orders.addresses.suggest_hint') }}</small>
+            </label>
+        </div>
+        @include('orders::partials.address-suggest', ['suggestUrl' => route('orders.addresses.suggest'), 'clientField' => '[name="client_id"]'])
         <div class="grid">
             <label>{{ __('orders.fields.suburb') }}<input id="deliver-to-suburb" name="deliver_to_suburb" value="{{ old('deliver_to_suburb') }}" required></label>
             <label>{{ __('orders.fields.state') }}
@@ -117,6 +122,7 @@
                 </select>
             </label>
         </div>
+        @include('orders::partials.tailgate', ['tailgateThresholdKg' => $tailgateThresholdKg])
 
         {{-- A11b: pure transport orders carry a pickup address and declared packages instead of stock lines. --}}
         <fieldset id="pickup-fields" hidden>
@@ -140,35 +146,11 @@
                 <label>{{ __('orders.pickup.postcode') }}<input name="pickup_postcode" value="{{ old('pickup_postcode') }}"></label>
             </div>
             <h3>{{ __('orders.pickup.packages_title') }}</h3>
-            @for ($i = 0; $i < 3; $i++)
-                <div class="grid">
-                    <input name="declared_packages[{{ $i }}][package_type]" placeholder="{{ __('orders.pickup.package_type') }}" value="{{ old("declared_packages.$i.package_type") }}">
-                    <input type="number" min="1" name="declared_packages[{{ $i }}][qty]" placeholder="{{ __('orders.pickup.qty') }}" value="{{ old("declared_packages.$i.qty") }}">
-                    <input type="number" min="0" step="0.001" name="declared_packages[{{ $i }}][weight_kg]" placeholder="{{ __('orders.pickup.weight_kg') }}" value="{{ old("declared_packages.$i.weight_kg") }}">
-                    <input type="number" min="0" name="declared_packages[{{ $i }}][length_mm]" placeholder="{{ __('orders.fields.length_mm') }}" value="{{ old("declared_packages.$i.length_mm") }}">
-                    <input type="number" min="0" name="declared_packages[{{ $i }}][width_mm]" placeholder="{{ __('orders.fields.width_mm') }}" value="{{ old("declared_packages.$i.width_mm") }}">
-                    <input type="number" min="0" name="declared_packages[{{ $i }}][height_mm]" placeholder="{{ __('orders.fields.height_mm') }}" value="{{ old("declared_packages.$i.height_mm") }}">
-                </div>
-            @endfor
+            @include('orders::partials.declared-packages')
         </fieldset>
 
         <h2>{{ __('orders.sections.goods') }}</h2>
-        <div class="grid">
-            <label>{{ __('orders.fields.description_cn') }}<input name="lines[0][description_cn]" value="{{ old('lines.0.description_cn') }}"></label>
-            <label>{{ __('orders.fields.description_en') }}<input name="lines[0][description_en]" value="{{ old('lines.0.description_en') }}"></label>
-            <label>{{ __('orders.fields.package_type') }}<input name="lines[0][package_type]" class="goods-required" value="{{ old('lines.0.package_type', 'carton') }}" required></label>
-        </div>
-        <div class="grid">
-            <label>{{ __('orders.fields.carton_qty') }}<input type="number" min="1" name="lines[0][carton_qty]" class="goods-required" value="{{ old('lines.0.carton_qty', 1) }}" required></label>
-            <label>{{ __('orders.fields.unit_qty') }}<input type="number" min="0" name="lines[0][unit_qty]" value="{{ old('lines.0.unit_qty') }}"></label>
-            <label>{{ __('orders.fields.weight_kg') }}<input type="number" min="0" step="0.001" name="lines[0][actual_weight_kg]" value="{{ old('lines.0.actual_weight_kg') }}"></label>
-        </div>
-        <div class="grid">
-            <label>{{ __('orders.fields.length_mm') }}<input type="number" min="0" name="lines[0][length_mm]" value="{{ old('lines.0.length_mm') }}"></label>
-            <label>{{ __('orders.fields.width_mm') }}<input type="number" min="0" name="lines[0][width_mm]" value="{{ old('lines.0.width_mm') }}"></label>
-            <label>{{ __('orders.fields.height_mm') }}<input type="number" min="0" name="lines[0][height_mm]" value="{{ old('lines.0.height_mm') }}"></label>
-            <label>{{ __('orders.fields.cbm') }}<input type="number" min="0" step="0.0001" name="lines[0][cbm]" value="{{ old('lines.0.cbm') }}"></label>
-        </div>
+        @include('orders::partials.goods-lines', ['prefix' => 'orders', 'extended' => true])
 
         <button type="submit">{{ __('orders.actions.save') }}</button>
     </form>

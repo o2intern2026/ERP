@@ -15,28 +15,49 @@
         </p>
     </header>
 
+    <style>
+        /* Item 2 (tester feedback): label / value grids — label left (muted, 9rem), value right, one field per row; .kv-2 puts two
+           pairs per row on desktop. Inline until app.css gets shared classes (CHANGE_REQUESTS #80). */
+        dl.kv { display: grid; grid-template-columns: 9rem minmax(0, 1fr); column-gap: 1rem; row-gap: .4rem; align-items: baseline; margin: 0 0 1.25rem; }
+        dl.kv dt { margin: 0; color: var(--erp-muted); font-weight: 400; }
+        dl.kv dd { margin: 0; overflow-wrap: anywhere; }
+        @media (min-width: 768px) { dl.kv.kv-2 { grid-template-columns: 9rem minmax(0, 1fr) 9rem minmax(0, 1fr); } }
+    </style>
+
     <h2>{{ __('portal.sections.instruction') }}</h2>
-    <dl>
+    <dl class="kv kv-2">
         <dt>{{ __('portal.fields.reference') }}</dt><dd>{{ $order->external_ref ?: __('portal.not_provided') }}</dd>
         <dt>{{ __('portal.fields.consignment_mark') }}</dt><dd>{{ $order->consignment_mark ?: __('portal.not_provided') }}</dd>
         <dt>{{ __('portal.fields.fba_reference') }}</dt><dd>{{ $order->fba_reference ?: __('portal.not_provided') }}</dd>
         <dt>{{ __('portal.fields.requested_date') }}</dt><dd>{{ $order->requested_date->format('Y-m-d') }}</dd>
         <dt>{{ __('portal.fields.service_level') }}</dt><dd>{{ __('orders.service_levels.'.$order->service_level) }}</dd>
+        <dt>{{ __('portal.fields.tailgate') }}</dt><dd>{{ $order->tailgate_required ? __('portal.tailgate.required') : __('portal.tailgate.not_required') }}</dd>
     </dl>
 
     <h2>{{ __($order->order_type === 'return' ? 'portal.returns.pickup_title' : 'portal.sections.delivery') }}</h2>
     @if ($order->order_type === 'return' && $order->pickup_address)
-        <p>{{ $order->pickup_address['name'] ?? '' }}@if ($order->pickup_address['phone'] ?? null) · {{ $order->pickup_address['phone'] }}@endif<br>
-            {{ $order->pickup_address['address'] ?? '' }}, {{ $order->pickup_address['suburb'] ?? '' }} {{ $order->pickup_address['state'] ?? '' }} {{ $order->pickup_address['postcode'] ?? '' }}</p>
+        <dl class="kv">
+            <dt>{{ __('portal.pickup.name') }}</dt><dd>{{ ($order->pickup_address['name'] ?? null) ?: __('portal.not_provided') }}</dd>
+            <dt>{{ __('portal.pickup.phone') }}</dt><dd>{{ ($order->pickup_address['phone'] ?? null) ?: __('portal.not_provided') }}</dd>
+            <dt>{{ __('portal.pickup.address') }}</dt><dd>{{ $order->pickup_address['address'] ?? '' }}, {{ $order->pickup_address['suburb'] ?? '' }} {{ $order->pickup_address['state'] ?? '' }} {{ $order->pickup_address['postcode'] ?? '' }}</dd>
+        </dl>
     @else
-        <p>{{ $order->deliver_to_name }}@if ($order->deliver_to_phone) · {{ $order->deliver_to_phone }}@endif<br>
-            {{ $order->deliver_to_address }}, {{ $order->deliver_to_suburb }} {{ $order->deliver_to_state }} {{ $order->deliver_to_postcode }}</p>
-        @if ($order->delivery_instructions)<p><small>{{ __('portal.fields.delivery_instructions') }}: {{ $order->delivery_instructions }}</small></p>@endif
+        <dl class="kv">
+            <dt>{{ __('portal.fields.deliver_to_name') }}</dt><dd>{{ $order->deliver_to_name }}</dd>
+            <dt>{{ __('portal.fields.deliver_to_phone') }}</dt><dd>{{ $order->deliver_to_phone ?: __('portal.not_provided') }}</dd>
+            <dt>{{ __('portal.fields.address') }}</dt><dd>{{ $order->deliver_to_address }}, {{ $order->deliver_to_suburb }} {{ $order->deliver_to_state }} {{ $order->deliver_to_postcode }}</dd>
+            <dt>{{ __('portal.fields.address_type') }}</dt><dd>{{ $order->deliver_to_address_type ? __('orders.address_types.'.$order->deliver_to_address_type) : __('portal.not_provided') }}</dd>
+            <dt>{{ __('portal.fields.delivery_instructions') }}</dt><dd>{{ $order->delivery_instructions ?: __('portal.not_provided') }}</dd>
+        </dl>
     @endif
 
     @if ($order->order_type === 'pickup_deliver' && $order->pickup_address)
         <h3>{{ __('portal.sections.pickup') }}</h3>
-        <p>{{ $order->pickup_address['name'] ?? '' }}<br>{{ $order->pickup_address['address'] ?? '' }}, {{ $order->pickup_address['suburb'] ?? '' }} {{ $order->pickup_address['state'] ?? '' }} {{ $order->pickup_address['postcode'] ?? '' }}</p>
+        <dl class="kv">
+            <dt>{{ __('portal.pickup.name') }}</dt><dd>{{ ($order->pickup_address['name'] ?? null) ?: __('portal.not_provided') }}</dd>
+            <dt>{{ __('portal.pickup.phone') }}</dt><dd>{{ ($order->pickup_address['phone'] ?? null) ?: __('portal.not_provided') }}</dd>
+            <dt>{{ __('portal.pickup.address') }}</dt><dd>{{ $order->pickup_address['address'] ?? '' }}, {{ $order->pickup_address['suburb'] ?? '' }} {{ $order->pickup_address['state'] ?? '' }} {{ $order->pickup_address['postcode'] ?? '' }}</dd>
+        </dl>
     @endif
 
     @if ($order->order_type !== 'return')
@@ -49,10 +70,10 @@
             <thead><tr><th>{{ __('portal.fields.description') }}</th><th>{{ __('portal.fields.package_type') }}</th><th>{{ __('portal.fields.carton_qty') }}</th><th>{{ __('portal.fields.shipped_qty') }}</th><th>{{ __('portal.fields.weight_kg') }}</th></tr></thead>
             <tbody>
                 @foreach ($order->lines as $line)
-                    <tr><td>{{ $line->description_cn ?: $line->description_en }}</td><td>{{ $line->package_type }}</td><td>{{ $line->carton_qty }}</td><td>{{ $line->qty_shipped }}</td><td>{{ $line->actual_weight_kg ?? __('portal.not_provided') }}</td></tr>
+                    <tr><td>{{ $line->description_cn ?: $line->description_en }}</td><td>{{ \App\Modules\Orders\OrderEnums::packageTypeLabel($line->package_type) }}</td><td>{{ $line->carton_qty }}</td><td>{{ $line->qty_shipped }}</td><td>{{ $line->actual_weight_kg ?? __('portal.not_provided') }}</td></tr>
                 @endforeach
                 @foreach ($order->declaredPackages as $package)
-                    <tr><td>{{ __('portal.fields.declared_package') }}</td><td>{{ $package->package_type }}</td><td>{{ $package->qty }}</td><td>—</td><td>{{ $package->weight_kg ?? __('portal.not_provided') }}</td></tr>
+                    <tr><td>{{ __('portal.fields.declared_package') }}</td><td>{{ \App\Modules\Orders\OrderEnums::packageTypeLabel($package->package_type) }}</td><td>{{ $package->qty }}</td><td>—</td><td>{{ $package->weight_kg ?? __('portal.not_provided') }}</td></tr>
                 @endforeach
             </tbody>
         </table>

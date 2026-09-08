@@ -3,13 +3,16 @@
 namespace App\Modules\Portal\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Orders\Http\OrderFormRows;
 use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Orders\Services\OrderEstimateService;
+use App\Modules\Orders\Services\TailgateRule;
 use App\Modules\Portal\Services\PortalTransportQuotes;
 use App\Modules\Transport\Models\Shipment;
+use App\Support\Contracts\RateService;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -63,11 +66,13 @@ final class PortalOrderController extends Controller
         ]);
     }
 
-    public function create(Request $request): View
+    public function create(Request $request, RateService $rates): View
     {
-        $this->clientId($request);
+        $clientId = $this->clientId($request);
 
         return view('portal::orders.create', [
+            // Item 6: the tailgate checkbox auto-ticks from the client's TR-TAILGATE threshold (rate card parameter, default 25 kg).
+            'tailgateThresholdKg' => (float) ($rates->thresholds($clientId, 'TR-TAILGATE')['tailgate_weight_kg'] ?? TailgateRule::DEFAULT_WEIGHT_KG),
             'types' => ['from_stock', 'pickup_deliver'],
             'serviceLevels' => OrderEnums::SERVICE_LEVELS,
             'addressTypes' => OrderEnums::ADDRESS_TYPES,
@@ -80,6 +85,7 @@ final class PortalOrderController extends Controller
     {
         $clientId = $this->clientId($request);
         $this->mergeSavedAddress($request, $clientId);
+        OrderFormRows::prune($request); // spare form rows (package type select always has a value) are not lines
 
         $data = $request->validate([
             'order_type' => ['required', Rule::in(['from_stock', 'pickup_deliver'])],
@@ -97,6 +103,8 @@ final class PortalOrderController extends Controller
             'delivery_instructions' => ['nullable', 'string', 'max:2000'],
             'requested_date' => ['required', 'date', 'after_or_equal:today'],
             'service_level' => ['required', Rule::in(OrderEnums::SERVICE_LEVELS)],
+            'tailgate_required' => ['nullable', 'boolean'], // item 6: checkbox state; only stored as given when tailgate_manual is set
+            'tailgate_manual' => ['nullable', 'boolean'],
             'pickup_name' => ['nullable', 'string', 'max:255'],
             'pickup_phone' => ['nullable', 'string', 'max:40'],
             'pickup_address_line' => ['nullable', 'required_if:order_type,pickup_deliver', 'string', 'max:255'],
@@ -106,7 +114,7 @@ final class PortalOrderController extends Controller
             'lines' => ['nullable', 'required_unless:order_type,pickup_deliver', 'array'],
             'lines.*.description_cn' => ['nullable', 'string', 'max:255', 'required_without:lines.*.description_en'],
             'lines.*.description_en' => ['nullable', 'string', 'max:255', 'required_without:lines.*.description_cn'],
-            'lines.*.package_type' => ['required', 'string', 'max:30'],
+            'lines.*.package_type' => ['required', Rule::in(OrderEnums::PACKAGE_TYPES)],
             'lines.*.carton_qty' => ['required', 'integer', 'min:1'],
             'lines.*.unit_qty' => ['nullable', 'integer', 'min:0'],
             'lines.*.actual_weight_kg' => ['nullable', 'numeric', 'min:0'],
@@ -114,7 +122,7 @@ final class PortalOrderController extends Controller
             'lines.*.width_mm' => ['nullable', 'integer', 'min:0'],
             'lines.*.height_mm' => ['nullable', 'integer', 'min:0'],
             'declared_packages' => ['nullable', 'required_if:order_type,pickup_deliver', 'array'],
-            'declared_packages.*.package_type' => ['required_with:declared_packages.*.qty', 'nullable', 'string', 'max:30'],
+            'declared_packages.*.package_type' => ['required_with:declared_packages.*.qty', 'nullable', Rule::in(OrderEnums::PACKAGE_TYPES)],
             'declared_packages.*.qty' => ['required_with:declared_packages.*.package_type', 'nullable', 'integer', 'min:1'],
             'declared_packages.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
             'declared_packages.*.length_mm' => ['nullable', 'integer', 'min:0'],

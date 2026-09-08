@@ -15,6 +15,9 @@ return [
         'save_changes' => '保存修改',
         'edit_delivery' => '修改配送信息',
         'address_book' => '常用收件地址',
+        'add_line' => '新增货物行',
+        'add_package' => '新增包裹',
+        'remove_row' => '删除此行',
         'import' => '批量导入',
         'confirm' => '确认订单并检查库存',
     ],
@@ -69,12 +72,20 @@ return [
         'customer_status' => '客户看到',
     ],
     'create' => ['title' => '手工新建订单'],
+    // Items 5 + 7 (tester feedback): compact goods-line rows shared with the portal form (orders::partials.goods-lines).
+    'lines' => [
+        'hint' => '每行一种货物：重量填整行合计（kg），系统按“重量 ÷ 箱数”计算单件重量并判定尾板车；长 / 宽 / 高为单箱尺寸（mm）。',
+        'weight_total' => '重量（kg，整行合计）',
+    ],
     'addresses' => [
         'title' => '客户收件地址簿',
         'create_title' => '新增常用收件地址',
         'edit_title' => '修改常用收件地址',
         'empty' => '暂无常用收件地址。',
         'frequency_hint' => '常用地址按使用频率排序；选择后会自动填入地址类型及固定备注。',
+        // Item 3b (tester feedback): suggestions while typing come from the client's own history only (address book + past orders).
+        'suggest_hint' => '输入地址、城区或收件人时会提示该客户用过的收件地址（地址簿 + 历史订单），选择后自动填入；新地址请完整手工输入。',
+        'suggest_sources' => ['book' => '地址簿', 'history' => '历史订单'],
         'actions' => [
             'create' => '新增地址',
             'edit' => '修改',
@@ -176,6 +187,16 @@ return [
         'business' => '企业地址',
         'fba' => 'FBA仓库',
         'residential' => '住宅地址',
+    ],
+    // Item 5 (tester feedback): the package type dropdown shows Chinese + code; OrderEnums::PACKAGE_TYPES is the value list.
+    'package_types' => [
+        'carton' => '纸箱 carton',
+        'satchel' => '快递袋 satchel',
+        'pallet' => '托盘 pallet',
+        'crate' => '木箱 crate',
+        'tube' => '圆筒 tube',
+        'flat_pack' => '扁平件 flat_pack',
+        'skid' => '栈板 skid',
     ],
     'dimensions' => [
         'operational' => '运营',
@@ -306,7 +327,15 @@ return [
         'reason' => '覆盖原因（必填，写入时间线）',
         'save' => '保存判定',
         'reasons' => ['heavy_item' => '重货（超过阈值）', 'residential_address' => '住宅地址', 'manual' => '人工指定'],
-        'timeline' => ['forced' => '人工勾选尾板车：:reason', 'cleared' => '人工取消尾板车：:reason'],
+        // Item 6 (tester feedback): checkbox on the order forms; a hand-changed box is saved as given with reason manual.
+        'form_label' => '尾板车',
+        'form_hint' => '按单件重量超过 :kg kg 自动勾选,可取消',
+        'timeline' => [
+            'forced' => '人工勾选尾板车：:reason',
+            'cleared' => '人工取消尾板车：:reason',
+            'manual_on_entry' => '建单时人工指定：需要尾板车（不再按重量 / 地址自动判定）',
+            'manual_off_entry' => '建单时人工指定：不需要尾板车（不再按重量 / 地址自动判定）',
+        ],
         'messages' => ['saved' => '尾板车判定已更新。', 'locked' => '已发运的订单不能再改尾板车判定。'],
     ],
     'holds' => [

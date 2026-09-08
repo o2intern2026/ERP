@@ -346,7 +346,7 @@ final class OrderEstimateService
             }
         }
 
-        if (preg_match('/pallet|plt|托/iu', (string) $line->package_type) === 1) {
+        if (preg_match('/pallet|plt|skid|托|栈板/iu', (string) $line->package_type) === 1) { // pallet-like package types (skid = 栈板, OrderEnums::PACKAGE_TYPES)
             return ['unit_type' => 'pallet', 'qty' => $cartons, 'weight_kg' => $weight, 'source' => 'package_type'];
         }
 

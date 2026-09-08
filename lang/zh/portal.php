@@ -53,6 +53,7 @@ return [
         'height_mm' => '高（mm）',
         'declared_package' => '申报包裹',
         'tracking_number' => '追踪号',
+        'tailgate' => '尾板车',
     ],
     'sections' => [
         'instruction' => '订单信息',
@@ -68,12 +69,17 @@ return [
         'hint' => '库存出库配送：从我们仓库中的货物发出；现场提货直送：从您指定的地址取货直送收件人。提交后由客服确认。',
         'enter_manually' => '不使用地址簿，手工输入',
         'address_hint' => '常用地址按使用频率排序，选择后自动填入。',
+        'suggest_hint' => '输入地址、城区或收件人时会提示贵公司用过的收件地址，选择后自动填入；新地址请完整手工输入。',
     ],
     'pickup' => [
         'name' => '取货联系人',
         'phone' => '取货电话',
         'address' => '取货地址',
         'packages_title' => '申报包裹',
+    ],
+    'tailgate' => [
+        'required' => '需要',
+        'not_required' => '不需要',
     ],
     'shipment_statuses' => [
         'quoting' => '报价中',
@@ -144,6 +150,15 @@ return [
         'title' => '我的库存',
         'hint' => '按货物行(唛头 + 品名)、库位类型与货物状态汇总的箱数:在库 − 已为订单预留 = 可用;尚未上架或非正常状态的货物暂不可用。数量以仓库实际收货为准。',
         'search' => '唛头 / 品名 / 入库单号 / FBA 引用',
+        // Item 1 (tester feedback): 货物状态 (全部 / 正常 / 不正常 = 隔离 + 破损) and 可用性 filters next to the search box.
+        'filters' => [
+            'condition' => '货物状态',
+            'all_conditions' => '货物状态：全部',
+            'conditions' => ['good' => '正常', 'abnormal' => '不正常'],
+            'availability' => '可用性',
+            'all_availability' => '可用性：全部',
+            'availabilities' => ['available' => '有可用库存', 'none' => '无可用'],
+        ],
         'empty' => '当前没有在库货物。',
         'not_put_away' => '待上架',
         'totals' => '合计 · :lines 个货物行 · :units 个库存单元',

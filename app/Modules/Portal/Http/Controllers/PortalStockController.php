@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 /**
  * ERP_PLAN §7 step 8 / §3.8 #5 "自查库存": the client's own stock, grouped by goods line (consignment mark + description),
@@ -15,10 +16,20 @@ use Illuminate\Support\Facades\DB;
  */
 final class PortalStockController extends Controller
 {
+    /** Item 1 (tester feedback): 货物状态 filter — good, or abnormal = quarantine + damaged (stock_units.condition, enums.md §4). */
+    public const CONDITION_FILTERS = ['good', 'abnormal'];
+
+    /** Optional 可用性 filter on the computed available quantity of each grouped row. */
+    public const AVAILABILITY_FILTERS = ['available', 'none'];
+
     public function index(Request $request): View
     {
         $clientId = $this->clientId($request);
-        $filters = $request->validate(['q' => ['nullable', 'string', 'max:100']]);
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+            'condition' => ['nullable', Rule::in(self::CONDITION_FILTERS)],
+            'availability' => ['nullable', Rule::in(self::AVAILABILITY_FILTERS)],
+        ]);
 
         $rows = DB::table('stock_units as u')
             ->join('asn_lines as l', 'l.id', '=', 'u.asn_line_id')
@@ -31,6 +42,8 @@ final class PortalStockController extends Controller
                 ->orWhere('l.description', 'like', "%{$q}%")
                 ->orWhere('a.asn_no', 'like', "%{$q}%")
                 ->orWhere('l.fba_reference', 'like', "%{$q}%")))
+            ->when(($filters['condition'] ?? null) === 'good', fn ($query) => $query->where('u.condition', 'good'))
+            ->when(($filters['condition'] ?? null) === 'abnormal', fn ($query) => $query->whereIn('u.condition', ['quarantine', 'damaged']))
             ->groupBy('l.id', 'l.consignment_mark', 'l.description', 'l.fba_reference', 'a.asn_no', 'loc.type', 'u.condition', 'u.putaway_completed')
             ->orderBy('l.consignment_mark')->orderBy('l.id')->orderBy('loc.type')->orderBy('u.condition')
             ->get([
@@ -52,11 +65,19 @@ final class PortalStockController extends Controller
                 $row->qty_available = $row->putaway_completed && $row->condition === 'good' ? max(0, $row->qty_on_hand - $row->qty_reserved) : 0;
 
                 return $row;
-            });
+            })
+            ->filter(fn ($row) => match ($filters['availability'] ?? null) { // availability is derived per row, so it is filtered after grouping
+                'available' => $row->qty_available > 0,
+                'none' => $row->qty_available === 0,
+                default => true,
+            })
+            ->values();
 
         return view('portal::stock.index', [
             'rows' => $rows,
             'filters' => $filters,
+            'conditionFilters' => self::CONDITION_FILTERS,
+            'availabilityFilters' => self::AVAILABILITY_FILTERS,
             'totals' => [
                 'units' => $rows->sum('units'),
                 'pallets' => $rows->sum('pallets'),

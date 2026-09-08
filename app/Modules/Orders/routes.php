@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Orders\Http\Controllers\AddressSuggestionController;
 use App\Modules\Orders\Http\Controllers\ApiTokenController;
 use App\Modules\Orders\Http\Controllers\BatchController;
 use App\Modules\Orders\Http\Controllers\ClientAddressController;
@@ -40,6 +41,7 @@ Route::prefix('orders')->name('orders.')->group(function () {
     Route::get('/imports/{import}', [OrderImportController::class, 'show'])->name('imports.show');
     Route::get('/addresses', [ClientAddressController::class, 'index'])->name('addresses.index');
     Route::get('/addresses/create', [ClientAddressController::class, 'create'])->name('addresses.create');
+    Route::get('/addresses/suggest', AddressSuggestionController::class)->name('addresses.suggest'); // item 3b: JSON, client's address book + past deliver-to snapshots
     Route::post('/addresses', [ClientAddressController::class, 'store'])->name('addresses.store');
     Route::get('/addresses/{address}/edit', [ClientAddressController::class, 'edit'])->name('addresses.edit');
     Route::put('/addresses/{address}', [ClientAddressController::class, 'update'])->name('addresses.update');

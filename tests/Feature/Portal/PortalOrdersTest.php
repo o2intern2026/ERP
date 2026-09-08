@@ -121,6 +121,29 @@ class PortalOrdersTest extends TestCase
         $this->actingAs($user)->get(route('portal.orders.show', $order))->assertOk()->assertSee($return->order_no);
     }
 
+    /** Tester feedback item 2: 订单信息 and the address blocks render as tidy label / value grids, not a stacked list. */
+    public function test_order_page_renders_order_info_and_addresses_as_label_value_grids(): void
+    {
+        $client = $this->client();
+        $user = $this->clientUser($client);
+        $order = $this->order($client, ['external_ref' => 'PO-KV-1', 'deliver_to_phone' => '0400123456', 'delivery_instructions' => 'Ring the bell', 'deliver_to_address_type' => 'residential']);
+
+        $page = $this->actingAs($user)->get(route('portal.orders.show', $order))->assertOk();
+        $page->assertSee('<dl class="kv kv-2">', false)->assertSee('<dl class="kv">', false)->assertSee('dl.kv dt', false)
+            ->assertSee('<dt>'.__('portal.fields.reference').'</dt><dd>PO-KV-1</dd>', false)
+            ->assertSee('<dt>'.__('portal.fields.tailgate').'</dt><dd>'.__('portal.tailgate.required').'</dd>', false) // residential → tailgate
+            ->assertSeeInOrder([
+                __('portal.fields.reference'), 'PO-KV-1', __('portal.fields.consignment_mark'), __('portal.fields.fba_reference'), __('portal.fields.requested_date'), __('portal.fields.service_level'),
+                __('portal.sections.delivery'), __('portal.fields.deliver_to_name'), 'Receiver', __('portal.fields.deliver_to_phone'), '0400123456', __('portal.fields.address'), '1 Test St, Melbourne VIC 3000',
+                __('portal.fields.address_type'), __('orders.address_types.residential'), __('portal.fields.delivery_instructions'), 'Ring the bell',
+            ]);
+
+        // A pure transport order shows its pickup block in the same grid.
+        $pickup = $this->order($client, ['order_type' => 'pickup_deliver', 'lines' => [], 'pickup_address' => ['name' => 'Factory', 'phone' => null, 'address' => '9 Supplier Rd', 'suburb' => 'Laverton', 'state' => 'VIC', 'postcode' => '3028'], 'declared_packages' => [['package_type' => 'pallet', 'qty' => 1, 'weight_kg' => 100]]]);
+        $this->actingAs($user)->get(route('portal.orders.show', $pickup))->assertOk()
+            ->assertSeeInOrder([__('portal.sections.pickup'), '<dl class="kv">', __('portal.pickup.name'), 'Factory', __('portal.pickup.phone'), __('portal.not_provided'), __('portal.pickup.address'), '9 Supplier Rd, Laverton VIC 3028'], false);
+    }
+
     private function order(Client $client, array $overrides = []): Order
     {
         $job = app(JobService::class)->create($client->id, 'loose')['job_id'];

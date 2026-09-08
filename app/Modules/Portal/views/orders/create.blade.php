@@ -47,7 +47,12 @@
                 </select>
             </label>
         </div>
-        <label>{{ __('portal.fields.address') }}<input id="deliver-to-address" name="deliver_to_address" value="{{ old('deliver_to_address') }}" required></label>
+        <div class="suggest-wrap">
+            <label>{{ __('portal.fields.address') }}<input id="deliver-to-address" name="deliver_to_address" value="{{ old('deliver_to_address') }}" required autocomplete="off">
+                <small>{{ __('portal.create.suggest_hint') }}</small>
+            </label>
+        </div>
+        @include('orders::partials.address-suggest', ['suggestUrl' => route('portal.addresses.suggest')])
         <div class="grid">
             <label>{{ __('portal.fields.suburb') }}<input id="deliver-to-suburb" name="deliver_to_suburb" value="{{ old('deliver_to_suburb') }}" required></label>
             <label>{{ __('portal.fields.state') }}
@@ -67,6 +72,7 @@
                 </select>
             </label>
         </div>
+        @include('orders::partials.tailgate', ['tailgateThresholdKg' => $tailgateThresholdKg])
 
         <fieldset id="pickup-fields" hidden>
             <legend>{{ __('portal.sections.pickup') }}</legend>
@@ -83,28 +89,11 @@
                 <label>{{ __('portal.fields.postcode') }}<input name="pickup_postcode" value="{{ old('pickup_postcode') }}"></label>
             </div>
             <h3>{{ __('portal.pickup.packages_title') }}</h3>
-            @for ($i = 0; $i < 3; $i++)
-                <div class="grid">
-                    <input name="declared_packages[{{ $i }}][package_type]" placeholder="{{ __('portal.fields.package_type') }}" value="{{ old("declared_packages.$i.package_type") }}">
-                    <input type="number" min="1" name="declared_packages[{{ $i }}][qty]" placeholder="{{ __('portal.fields.qty') }}" value="{{ old("declared_packages.$i.qty") }}">
-                    <input type="number" min="0" step="0.001" name="declared_packages[{{ $i }}][weight_kg]" placeholder="{{ __('portal.fields.weight_kg') }}" value="{{ old("declared_packages.$i.weight_kg") }}">
-                    <input type="number" min="0" name="declared_packages[{{ $i }}][length_mm]" placeholder="{{ __('portal.fields.length_mm') }}" value="{{ old("declared_packages.$i.length_mm") }}">
-                    <input type="number" min="0" name="declared_packages[{{ $i }}][width_mm]" placeholder="{{ __('portal.fields.width_mm') }}" value="{{ old("declared_packages.$i.width_mm") }}">
-                    <input type="number" min="0" name="declared_packages[{{ $i }}][height_mm]" placeholder="{{ __('portal.fields.height_mm') }}" value="{{ old("declared_packages.$i.height_mm") }}">
-                </div>
-            @endfor
+            @include('orders::partials.declared-packages')
         </fieldset>
 
         <h2>{{ __('portal.sections.goods') }}</h2>
-        @for ($i = 0; $i < 3; $i++)
-            <div class="grid">
-                <input name="lines[{{ $i }}][description_cn]" placeholder="{{ __('portal.fields.description_cn') }}" value="{{ old("lines.$i.description_cn") }}">
-                <input name="lines[{{ $i }}][description_en]" placeholder="{{ __('portal.fields.description_en') }}" value="{{ old("lines.$i.description_en") }}">
-                <input name="lines[{{ $i }}][package_type]" placeholder="{{ __('portal.fields.package_type') }}" value="{{ old("lines.$i.package_type", $i === 0 ? 'carton' : '') }}" @if ($i === 0) class="goods-required" required @endif>
-                <input type="number" min="1" name="lines[{{ $i }}][carton_qty]" placeholder="{{ __('portal.fields.carton_qty') }}" value="{{ old("lines.$i.carton_qty") }}" @if ($i === 0) class="goods-required" required @endif>
-                <input type="number" min="0" step="0.001" name="lines[{{ $i }}][actual_weight_kg]" placeholder="{{ __('portal.fields.weight_kg') }}" value="{{ old("lines.$i.actual_weight_kg") }}">
-            </div>
-        @endfor
+        @include('orders::partials.goods-lines', ['prefix' => 'portal', 'extended' => false])
 
         <button type="submit">{{ __('portal.actions.submit_order') }}</button>
     </form>
@@ -132,19 +121,6 @@
             };
             orderType.addEventListener('change', toggleType);
             toggleType();
-            // Empty extra goods rows are dropped so only filled lines are submitted.
-            document.querySelector('form').addEventListener('submit', () => {
-                document.querySelectorAll('[name^="lines["]').forEach(input => {
-                    const row = input.closest('.grid');
-                    const qty = row.querySelector('[name$="[carton_qty]"]');
-                    if (qty && !qty.value) row.querySelectorAll('input').forEach(i => { i.disabled = true; });
-                });
-                document.querySelectorAll('[name^="declared_packages["]').forEach(input => {
-                    const row = input.closest('.grid');
-                    const qty = row.querySelector('[name$="[qty]"]');
-                    if (qty && !qty.value) row.querySelectorAll('input').forEach(i => { i.disabled = true; });
-                });
-            });
         })();
     </script>
 @endsection

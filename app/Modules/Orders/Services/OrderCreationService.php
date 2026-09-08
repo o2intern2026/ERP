@@ -47,7 +47,10 @@ final class OrderCreationService
             ])['job_id'];
         }
 
-        return DB::transaction(function () use ($attributes, $actorId, $source): Order {
+        // Item 6: a person changed the 尾板车 checkbox on the form → stored as given with reason `manual`; TailgateRule::apply() then leaves it alone.
+        $manualTailgate = filter_var($attributes['tailgate_manual'] ?? false, FILTER_VALIDATE_BOOL);
+
+        return DB::transaction(function () use ($attributes, $actorId, $source, $manualTailgate): Order {
             $order = Order::query()->create([
                 ...Arr::only($attributes, [
                     'client_id', 'job_id', 'order_type', 'external_ref', 'consignment_mark', 'fba_reference',
@@ -60,7 +63,8 @@ final class OrderCreationService
                 'operational_status' => 'received',
                 'fulfilment_status' => 'unfulfilled',
                 'billing_status' => 'unbilled',
-                'tailgate_required' => false,
+                'tailgate_required' => $manualTailgate && filter_var($attributes['tailgate_required'] ?? false, FILTER_VALIDATE_BOOL),
+                'tailgate_reason' => $manualTailgate ? 'manual' : null,
                 'created_by' => $actorId,
             ]);
 
@@ -88,6 +92,14 @@ final class OrderCreationService
                 'note' => null,
                 'created_at' => now(),
             ]);
+
+            if ($manualTailgate) {
+                OrderEvent::query()->create([
+                    'order_id' => $order->id, 'dimension' => 'operational', 'from_status' => 'received', 'to_status' => 'received',
+                    'actor_type' => $actorId === null ? 'system' : 'user', 'actor_id' => $actorId,
+                    'note' => __($order->tailgate_required ? 'orders.tailgate.timeline.manual_on_entry' : 'orders.tailgate.timeline.manual_off_entry'), 'created_at' => now(),
+                ]);
+            }
 
             if (filled($attributes['client_address_id'] ?? null)) {
                 $address = ClientAddress::query()

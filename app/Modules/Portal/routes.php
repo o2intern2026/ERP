@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Portal\Http\Controllers\PortalAddressSuggestionController;
 use App\Modules\Portal\Http\Controllers\PortalDocumentController;
 use App\Modules\Portal\Http\Controllers\PortalEstimateController;
 use App\Modules\Portal\Http\Controllers\PortalInvoiceController;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('portal')->name('portal.')->group(function () {
     Route::get('/', [PortalOrderController::class, 'index'])->name('index');
     Route::get('/orders/create', [PortalOrderController::class, 'create'])->name('orders.create');
+    Route::get('/addresses/suggest', PortalAddressSuggestionController::class)->name('addresses.suggest'); // item 3b: JSON, the signed-in client's own addresses
     Route::post('/orders', [PortalOrderController::class, 'store'])->name('orders.store');
     Route::get('/orders/{order}', [PortalOrderController::class, 'show'])->name('orders.show');
     Route::post('/orders/{order}/returns', [PortalReturnController::class, 'store'])->name('orders.returns.store');
