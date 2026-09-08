@@ -206,6 +206,10 @@ return [
             'credited' => '已贷记',
         ],
     ],
+    'billing' => [
+        'timeline' => ['invoiced' => '计费模块已开出发票 :invoice_no(:type),订单转为已开票。'],
+        'invoice_types' => ['service' => '服务发票', 'storage' => '周仓储发票', 'supplementary' => '补充发票', 'monthly' => '月结汇总'],
+    ],
     'customer_statuses' => [
         'received' => 'Received',
         'confirmed' => 'Confirmed',

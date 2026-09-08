@@ -4,6 +4,7 @@ namespace App\Modules\Orders;
 
 use App\Modules\Orders\Consumers\AsnPutawayCompletedConsumer;
 use App\Modules\Orders\Consumers\DeliveryPodCapturedConsumer;
+use App\Modules\Orders\Consumers\InvoiceIssuedConsumer;
 use App\Modules\Orders\Consumers\OutboundDispatchedConsumer;
 use App\Modules\Orders\Consumers\OutboundPackedConsumer;
 use App\Modules\Orders\Consumers\ReturnInspectedConsumer;
@@ -43,6 +44,8 @@ class OrdersServiceProvider extends ServiceProvider
         $registry->register('outbound.packed', OutboundPackedConsumer::class);
         $registry->register('outbound.dispatched', OutboundDispatchedConsumer::class);
         $registry->register('return.inspected', ReturnInspectedConsumer::class);
+        // §3.8 #3 billing line: Billing's invoice.issued (CHANGE_REQUESTS #65) moves the invoiced orders to billed.
+        $registry->register('invoice.issued', InvoiceIssuedConsumer::class);
 
         $this->app->make(SearchRegistry::class)->register('orders', fn (string $q): array => Order::query()->with('client')
             ->where(fn ($w) => $w->where('order_no', 'like', "%{$q}%")->orWhere('external_ref', 'like', "%{$q}%")->orWhere('consignment_mark', 'like', "%{$q}%")->orWhere('fba_reference', 'like', "%{$q}%"))
