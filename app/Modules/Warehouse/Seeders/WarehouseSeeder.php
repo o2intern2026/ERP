@@ -11,7 +11,7 @@ class WarehouseSeeder extends Seeder
     public function run(): void
     {
         $mel = Warehouse::query()->updateOrCreate(['code' => 'MEL'], [
-            'name' => 'Melbourne DC', 'address' => 'Dandenong South', 'state' => 'VIC', 'active' => true,
+            'name' => 'Melbourne DC', 'address' => '1 Depot Road', 'suburb' => 'Dandenong South', 'state' => 'VIC', 'postcode' => '3175', 'active' => true,
             'business_hours' => ['mon' => ['07:00', '17:00'], 'tue' => ['07:00', '17:00'], 'wed' => ['07:00', '17:00'], 'thu' => ['07:00', '17:00'], 'fri' => ['07:00', '17:00']],
         ]);
 

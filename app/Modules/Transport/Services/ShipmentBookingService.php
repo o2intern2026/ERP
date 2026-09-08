@@ -52,7 +52,8 @@ final class ShipmentBookingService
             throw new DomainException(__('transport.booking.adapter_unavailable'));
         }
 
-        $request = $quote->source === 'transdirect' ? $this->requests->build($shipment, 'final') : [];
+        // Gateways that book against the carrier need the full consignment (integrator edit for karrio, CHANGE_REQUESTS #58).
+        $request = in_array($quote->source, ['transdirect', 'karrio'], true) ? $this->requests->build($shipment, 'final') : [];
         if ($request === null) {
             throw new DomainException(__('transport.booking.details_unavailable'));
         }

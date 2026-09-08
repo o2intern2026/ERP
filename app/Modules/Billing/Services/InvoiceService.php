@@ -28,7 +28,7 @@ final class InvoiceService
     /** Service invoice for one Job (per_job clients) — or a supplementary one after delivery. */
     public function draftForJob(int $jobId, string $type = 'service'): Invoice
     {
-        $charges = $this->unbilled()->where('job_id', $jobId)->get();
+        $charges = $this->unbilled()->where('job_id', $jobId)->whereHas('chargeCode', fn ($q) => $q->where('category', '!=', 'storage'))->get(); // storage goes on the weekly storage invoice
         if ($charges->isEmpty()) {
             throw new InvalidArgumentException('No unbilled charges on this Job.');
         }
@@ -39,7 +39,7 @@ final class InvoiceService
     /** Monthly consolidated invoice for a client (monthly clients): every unbilled charge in the period, grouped by Job. */
     public function draftMonthly(int $clientId, CarbonInterface $from, CarbonInterface $to): Invoice
     {
-        $charges = $this->unbilled()->where('client_id', $clientId)->whereBetween('charge_date', [$from->toDateString(), $to->toDateString()])->get();
+        $charges = $this->unbilled()->where('client_id', $clientId)->whereBetween('charge_date', [$from->toDateString(), $to->toDateString()])->whereHas('chargeCode', fn ($q) => $q->where('category', '!=', 'storage'))->get();
         if ($charges->isEmpty()) {
             throw new InvalidArgumentException('No unbilled charges for this client in the period.');
         }
