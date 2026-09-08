@@ -3,12 +3,14 @@
 namespace App\Modules\Orders\Services;
 
 use App\Modules\Billing\Models\CustomerQuote;
+use App\Modules\Billing\Models\CustomerQuoteLine;
 use App\Modules\Billing\Services\QuoteService;
 use App\Modules\Orders\Exceptions\OrderRuleViolation;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderLine;
 use App\Support\Contracts\RateService;
 use App\Support\Money;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -17,8 +19,9 @@ use Illuminate\Support\Facades\DB;
  * Warehouse service fees are priced through Billing's RateService and persisted as a customer quote through Billing's
  * QuoteService (CHANGE_REQUESTS #10 — customer_quotes belong to Billing; Orders only keeps `orders.customer_quote_id`).
  * Freight is Transport's business: `order.confirmed` makes Transport write preliminary `transport_quotes`; this service
- * reads them read-only (customer price only — never cost) and shows the recommended / cheapest one. POA and missing rates
- * stay flagged ("待报价"), never $0. Assumptions are listed in CHANGE_REQUESTS #51.
+ * reads them read-only (customer price only — never cost), takes the recommended / cheapest one and stores it on the quote
+ * as a pre-priced `TR-DELIVERY-BASE` line (`amount_cents` + `transport_quote_id`, CHANGE_REQUESTS #50 → #68) so the customer
+ * quote is a complete snapshot. POA and missing rates stay flagged ("待报价"), never $0. Assumptions: CHANGE_REQUESTS #51, #73.
  */
 final class OrderEstimateService
 {
@@ -27,6 +30,9 @@ final class OrderEstimateService
 
     /** Order statuses in which an estimate still makes sense (after dispatch the final quote / invoice takes over). */
     public const ESTIMABLE_STATUSES = ['received', 'confirmed', 'allocated', 'picking', 'packed'];
+
+    /** The freight line's charge code (charge-codes.md #TR-DELIVERY-BASE): pre-priced from Transport's customer price, never re-priced from a card. */
+    public const FREIGHT_CODE = 'TR-DELIVERY-BASE';
 
     /** Carton pick bands, lightest first; the edges live on the rate items (weight_band_min/max), these are the contract defaults used only when no item matches. */
     private const CARTON_PICK_CODES = [['WH-PICK-CTN-LT22', 0.0, 22.0], ['WH-PICK-CTN-22-45', 22.0, 45.0], ['WH-PICK-CTN-GE45', 45.0, null]];
@@ -55,6 +61,9 @@ final class OrderEstimateService
         $order->loadMissing('lines', 'declaredPackages', 'client', 'job');
         $lines = $this->lines($order);
         $freight = $this->freight($order);
+        if ($freight !== null) {
+            $lines[] = $this->freightLine($freight); // CHANGE_REQUESTS #68: Transport's customer price stored as given, never re-priced
+        }
 
         return DB::transaction(function () use ($order, $lines, $freight, $actorId): CustomerQuote {
             $previous = $order->customer_quote_id ? CustomerQuote::query()->find($order->customer_quote_id) : null;
@@ -63,9 +72,7 @@ final class OrderEstimateService
                 'job_id' => $order->job_id,
                 'order_id' => $order->id,
                 'stage' => 'preliminary',
-                'notes' => $freight === null
-                    ? __('orders.estimate.notes.freight_pending')
-                    : __('orders.estimate.notes.freight', ['carrier' => $this->freightLabel($freight), 'price' => Money::cents($freight['customer_price_cents'])->format(), 'id' => $freight['transport_quote_id']]),
+                'notes' => $freight === null ? __('orders.estimate.notes.freight_pending') : null, // with a freight line the quote is self-contained
             ]);
 
             if ($previous !== null && $previous->id !== $quote->id) {
@@ -73,8 +80,9 @@ final class OrderEstimateService
             }
             $order->update(['customer_quote_id' => $quote->id]);
             // An all-unpriced quote (POA / missing rates) is reported as 待报价 in the timeline too — never as $0.00.
-            $unpriced = $quote->subtotal_cents === 0 && $quote->lines()->exists();
-            $this->statuses->note($order, $actorId, __('orders.estimate.timeline.created', ['quote_no' => $quote->quote_no, 'total' => $unpriced ? __('orders.estimate.flags.missing') : Money::cents($quote->subtotal_cents)->format()]));
+            $services = (int) $quote->subtotal_cents - ($freight['customer_price_cents'] ?? 0);
+            $unpriced = $services === 0 && $quote->lines()->whereNull('transport_quote_id')->exists();
+            $this->statuses->note($order, $actorId, __('orders.estimate.timeline.created', ['quote_no' => $quote->quote_no, 'total' => $unpriced ? __('orders.estimate.flags.missing') : Money::cents($services)->format()]));
 
             return $quote;
         });
@@ -133,14 +141,12 @@ final class OrderEstimateService
      * confirmation): recommended first, else cheapest, else the lowest customer price. Read-only on X2's tables; cost is
      * never selected so it can never reach a client user.
      *
-     * @return array{transport_quote_id:int, shipment_no:string, carrier_name:?string, source:string, service_level:string, customer_price_cents:int, eta_days:?int, is_recommended:bool, is_cheapest:bool, is_fastest:bool, quote_stage:string, quoted_at:?string}|null
+     * @return array{transport_quote_id:int, shipment_no:string, carrier_name:?string, source:string, service_level:string, customer_price_cents:int, eta_days:?int, is_recommended:bool, is_cheapest:bool, is_fastest:bool, quote_stage:string, quoted_at:?string, label:string}|null
      */
     public function freight(Order $order): ?array
     {
         $stage = $order->order_type === 'pickup_deliver' ? 'final' : 'preliminary';
-        $row = DB::table('transport_quotes as q')
-            ->join('shipments as s', 's.id', '=', 'q.shipment_id')
-            ->leftJoin('carriers as c', 'c.id', '=', 'q.carrier_id')
+        $row = $this->transportQuotes()
             ->where('s.order_id', $order->id)
             ->where('s.client_id', $order->client_id)
             ->where('s.shipment_type', 'outbound')
@@ -151,13 +157,69 @@ final class OrderEstimateService
             ->orderByDesc('q.is_cheapest')
             ->orderBy('q.customer_price_cents')
             ->orderByDesc('q.id')
-            ->first(['q.id', 's.shipment_no', 'c.name as carrier_name', 'q.source', 'q.service_level', 'q.customer_price_cents', 'q.eta_days', 'q.is_recommended', 'q.is_cheapest', 'q.is_fastest', 'q.quote_stage', 'q.quoted_at']);
+            ->first(self::FREIGHT_COLUMNS);
 
-        if ($row === null) {
-            return null;
+        return $row === null ? null : $this->freightRow($row);
+    }
+
+    /**
+     * The pre-priced QuoteService line for Transport's freight (CHANGE_REQUESTS #68): the customer price as given, the
+     * transport quote referenced, the carrier / service level in the description.
+     *
+     * @param  array{transport_quote_id:int, customer_price_cents:int, label:string, quote_stage:string, shipment_no:string}  $freight
+     * @return array{charge_code:string, qty:float, amount_cents:int, transport_quote_id:int, description:string, context:array<string, mixed>}
+     */
+    public function freightLine(array $freight): array
+    {
+        return [
+            'charge_code' => self::FREIGHT_CODE,
+            'qty' => 1.0,
+            'amount_cents' => $freight['customer_price_cents'],
+            'transport_quote_id' => $freight['transport_quote_id'],
+            'description' => __('orders.estimate.descriptions.freight', ['label' => $freight['label']]),
+            'context' => ['quote_stage' => $freight['quote_stage'], 'shipment_no' => $freight['shipment_no']],
+        ];
+    }
+
+    /**
+     * The stored freight line read back as the estimate's freight (a snapshot: the amount is the line's, the carrier /
+     * flags come from the referenced transport quote — customer columns only).
+     *
+     * @return array{transport_quote_id:?int, shipment_no:string, carrier_name:?string, source:string, service_level:string, customer_price_cents:int, eta_days:?int, is_recommended:bool, is_cheapest:bool, is_fastest:bool, quote_stage:string, quoted_at:?string, label:string}
+     */
+    private function freightFromLine(CustomerQuoteLine $line): array
+    {
+        $row = $line->transport_quote_id === null ? null : $this->transportQuotes()->where('q.id', $line->transport_quote_id)->first(self::FREIGHT_COLUMNS);
+        if ($row !== null) {
+            return ['customer_price_cents' => (int) $line->amount_cents] + $this->freightRow($row);
         }
 
+        // The transport quote row is gone (re-quoted / purged): the line still tells the story.
         return [
+            'transport_quote_id' => $line->transport_quote_id === null ? null : (int) $line->transport_quote_id,
+            'shipment_no' => (string) ($line->assumptions['shipment_no'] ?? ''),
+            'carrier_name' => null, 'source' => 'manual', 'service_level' => 'standard',
+            'customer_price_cents' => (int) $line->amount_cents, 'eta_days' => null,
+            'is_recommended' => false, 'is_cheapest' => false, 'is_fastest' => false,
+            'quote_stage' => (string) ($line->assumptions['quote_stage'] ?? 'preliminary'), 'quoted_at' => null,
+            'label' => (string) $line->description,
+        ];
+    }
+
+    /** Customer-visible quote columns (never cost_cents / markup_percent). */
+    private const FREIGHT_COLUMNS = ['q.id', 's.shipment_no', 'c.name as carrier_name', 'q.source', 'q.service_level', 'q.customer_price_cents', 'q.eta_days', 'q.is_recommended', 'q.is_cheapest', 'q.is_fastest', 'q.quote_stage', 'q.quoted_at'];
+
+    private function transportQuotes(): Builder
+    {
+        return DB::table('transport_quotes as q')
+            ->join('shipments as s', 's.id', '=', 'q.shipment_id')
+            ->leftJoin('carriers as c', 'c.id', '=', 'q.carrier_id');
+    }
+
+    /** @return array{transport_quote_id:int, shipment_no:string, carrier_name:?string, source:string, service_level:string, customer_price_cents:int, eta_days:?int, is_recommended:bool, is_cheapest:bool, is_fastest:bool, quote_stage:string, quoted_at:?string, label:string} */
+    private function freightRow(object $row): array
+    {
+        $freight = [
             'transport_quote_id' => (int) $row->id,
             'shipment_no' => (string) $row->shipment_no,
             'carrier_name' => $row->carrier_name,
@@ -171,14 +233,17 @@ final class OrderEstimateService
             'quote_stage' => (string) $row->quote_stage,
             'quoted_at' => $row->quoted_at === null ? null : (string) $row->quoted_at,
         ];
+        $freight['label'] = $this->freightLabel($freight);
+
+        return $freight;
     }
 
     /**
-     * The estimate as shown to staff and clients: the persisted quote's lines (客户价 only — `assumptions` carry pricing
-     * context and are never rendered), the live freight estimate and the totals. Unpriced lines (POA / missing rate) are
-     * flagged and excluded from the totals instead of counting as $0.
+     * The estimate as shown to staff and clients: the persisted quote's service lines (客户价 only — `assumptions` carry
+     * pricing context and are never rendered), its freight line as the freight snapshot and the totals. Unpriced lines
+     * (POA / missing rate) are flagged and excluded from the totals instead of counting as $0.
      *
-     * @return array{quote: CustomerQuote, lines: list<array{description:string, charge_code:string, qty:string, uom:string, amount_cents:?int, flag:?string}>, unpriced:int, subtotal_cents:int, gst_cents:int, freight:?array, total_cents:?int}|null
+     * @return array{quote: CustomerQuote, lines: list<array{description:string, charge_code:string, qty:string, uom:string, amount_cents:?int, flag:?string, weight_assumed:bool}>, unpriced:int, subtotal_cents:int, freight:?array, total_cents:?int, gst_cents:int, total_inc_gst_cents:?int}|null
      */
     public function current(Order $order): ?array
     {
@@ -190,8 +255,10 @@ final class OrderEstimateService
             return null;
         }
 
+        $isFreight = fn (CustomerQuoteLine $line): bool => $line->transport_quote_id !== null || $line->charge_code === self::FREIGHT_CODE;
+        $freightLine = $quote->lines->first($isFreight);
         $unpriced = 0;
-        $lines = $quote->lines->map(function ($line) use (&$unpriced): array {
+        $lines = $quote->lines->reject($isFreight)->map(function (CustomerQuoteLine $line) use (&$unpriced): array {
             $flag = match (true) {
                 (bool) ($line->assumptions['is_poa'] ?? false) => 'poa',
                 (bool) ($line->assumptions['missing_rate'] ?? false) => 'missing',
@@ -212,18 +279,20 @@ final class OrderEstimateService
             ];
         })->values()->all();
 
-        $freight = $this->freight($order);
-        $priced = collect($lines)->whereNull('flag')->isNotEmpty();
+        $freight = $freightLine === null ? null : $this->freightFromLine($freightLine);
+        $services = (int) $quote->subtotal_cents - ($freightLine === null ? 0 : (int) $freightLine->amount_cents);
+        $priced = collect($lines)->whereNull('flag')->isNotEmpty() || $freight !== null;
 
         return [
             'quote' => $quote,
             'lines' => $lines,
             'unpriced' => $unpriced,
-            'subtotal_cents' => (int) $quote->subtotal_cents,
+            'subtotal_cents' => $services,                       // warehouse services, ex GST
+            'freight' => $freight,                               // the stored freight line (snapshot), null = 待运输报价
+            // Totals are only meaningful when something was priced: all-unpriced quotes show 待报价, never $0.
+            'total_cents' => $priced ? (int) $quote->subtotal_cents : null,          // ex GST, incl. freight
             'gst_cents' => (int) $quote->gst_cents,
-            'freight' => $freight,
-            // The grand total (ex GST) is only meaningful when something was priced: all-unpriced quotes show 待报价, never $0.
-            'total_cents' => $priced || $freight !== null ? (int) $quote->subtotal_cents + ($freight['customer_price_cents'] ?? 0) : null,
+            'total_inc_gst_cents' => $priced ? (int) $quote->total_cents : null,
         ];
     }
 

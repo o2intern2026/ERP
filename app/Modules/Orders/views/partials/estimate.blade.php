@@ -34,7 +34,7 @@
                     <tr>
                         <td colspan="3"><strong>{{ __('orders.estimate.fields.freight') }}</strong>
                             @if ($estimate['freight'])
-                                <br><small class="text-muted">{{ app(\App\Modules\Orders\Services\OrderEstimateService::class)->freightLabel($estimate['freight']) }}
+                                <br><small class="text-muted">{{ $estimate['freight']['label'] }}
                                     @if ($estimate['freight']['is_recommended']) · {{ __('orders.estimate.freight_flags.recommended') }}@endif
                                     @if ($estimate['freight']['is_cheapest']) · {{ __('orders.estimate.freight_flags.cheapest') }}@endif
                                     @if ($estimate['freight']['is_fastest']) · {{ __('orders.estimate.freight_flags.fastest') }}@endif
@@ -54,11 +54,12 @@
                 </tbody>
                 <tfoot>
                     <tr><th colspan="3">{{ __('orders.estimate.fields.subtotal') }}</th><th class="num">{{ $estimate['unpriced'] > 0 && $estimate['subtotal_cents'] === 0 ? __('orders.estimate.flags.missing') : \App\Support\Money::cents($estimate['subtotal_cents'])->format() }}</th></tr>
-                    <tr><th colspan="3">{{ __('orders.estimate.fields.gst') }}</th><th class="num">{{ $estimate['unpriced'] > 0 && $estimate['subtotal_cents'] === 0 ? '—' : \App\Support\Money::cents($estimate['gst_cents'])->format() }}</th></tr>
                     <tr><th colspan="3">{{ __('orders.estimate.fields.total') }}
                         @if ($estimate['unpriced'] > 0)<br><small class="text-muted">{{ __('orders.estimate.unpriced_note', ['count' => $estimate['unpriced']]) }}</small>@endif
                         @if (! $estimate['freight'])<br><small class="text-muted">{{ __('orders.estimate.freight_excluded') }}</small>@endif
                     </th><th class="num">{{ $estimate['total_cents'] === null ? __('orders.estimate.flags.missing') : \App\Support\Money::cents($estimate['total_cents'])->format() }}</th></tr>
+                    <tr><th colspan="3">{{ __('orders.estimate.fields.gst') }}</th><th class="num">{{ $estimate['total_cents'] === null ? '—' : \App\Support\Money::cents($estimate['gst_cents'])->format() }}</th></tr>
+                    <tr><th colspan="3">{{ __('orders.estimate.fields.total_inc_gst') }}</th><th class="num">{{ $estimate['total_inc_gst_cents'] === null ? __('orders.estimate.flags.missing') : \App\Support\Money::cents($estimate['total_inc_gst_cents'])->format() }}</th></tr>
                 </tfoot>
             </table>
         </div>

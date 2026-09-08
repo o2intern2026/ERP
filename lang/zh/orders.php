@@ -494,7 +494,7 @@ return [
     ],
     'estimate' => [
         'title' => '客户报价 / 估价',
-        'hint' => '按客户价目表预估这张订单的仓库服务费(订单处理、拣货、出库贴标、装车),运费取运输模块在订单确认后自动生成的初步报价(推荐 / 最低价)。只显示客户价;POA 或缺费率的项目显示“待报价”,不会按 $0 计。正式费用以打包后的最终报价与发票为准。',
+        'hint' => '按客户价目表预估这张订单的仓库服务费(订单处理、拣货、出库贴标、装车),运费取运输模块在订单确认后自动生成的初步报价(推荐 / 最低价),作为一行运费存入报价单。只显示客户价;POA 或缺费率的项目显示“待报价”,不会按 $0 计。估价是生成时的快照,运输报价到位后可“重新估价”。正式费用以打包后的最终报价与发票为准。',
         'form_hint' => '建单后可在订单页点“生成估价”按客户价目表预估服务费与运费(A7b)。',
         'none' => '尚未生成估价。',
         'open_quote' => '在计费模块查看报价单',
@@ -504,7 +504,7 @@ return [
         'unpriced_note' => '其中 :count 项待报价,未计入合计',
         'eta_days' => '约 :days 天',
         'actions' => ['create' => '生成估价', 'refresh' => '重新估价(生成新版本)'],
-        'fields' => ['item' => '项目', 'qty' => '数量', 'uom' => '单位', 'amount' => '客户价(不含 GST)', 'freight' => '运费预估', 'subtotal' => '服务费小计(不含 GST)', 'gst' => 'GST', 'total' => '预估合计(不含 GST,含运费)'],
+        'fields' => ['item' => '项目', 'qty' => '数量', 'uom' => '单位', 'amount' => '客户价(不含 GST)', 'freight' => '运费预估', 'subtotal' => '服务费小计(不含 GST)', 'gst' => 'GST', 'total' => '预估合计(不含 GST,含运费)', 'total_inc_gst' => '预估合计(含 GST)'],
         'flags' => ['poa' => '待报价(POA)', 'missing' => '待报价'],
         'freight_flags' => ['recommended' => '推荐', 'cheapest' => '最低价', 'fastest' => '最快'],
         'stages' => ['preliminary' => '初步', 'final' => '最终'],
@@ -515,9 +515,9 @@ return [
             'pick_pallet' => '拣货 · 整托 · :goods',
             'pick_carton' => '拣货 · 散箱 · :goods(约 :weight kg/箱)',
             'pick_carton_unknown' => '拣货 · 散箱 · :goods(重量未知)',
+            'freight' => '运费 · :label(运输模块报价,客户价)',
         ],
         'notes' => [
-            'freight' => '运费预估::carrier :price(运输初步报价 #:id)',
             'freight_pending' => '运费预估:待运输报价',
         ],
         'timeline' => ['created' => '生成客户估价 :quote_no,服务费小计 :total(不含 GST)'],

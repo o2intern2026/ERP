@@ -108,12 +108,17 @@ class CustomerQuoteEstimateTest extends TestCase
         $dispatcher = $this->staff('dispatcher');
         $this->actingAs($dispatcher)->post(route('orders.estimate', $order))->assertRedirect();
         $first = CustomerQuote::query()->with('lines')->findOrFail($order->fresh()->customer_quote_id);
-        $this->assertSame(['WH-ORDER-DESPATCH' => 1.0, 'WH-PICK-PLT' => 2.0, 'WH-LABEL-OUT' => 2.0, 'WH-LOAD-PLT' => 2.0], $first->lines->mapWithKeys(fn ($l) => [$l->charge_code => (float) $l->qty])->all());
-        $this->assertSame(500 + 800 + 60 + 800, $first->subtotal_cents);
-        $this->assertStringContainsString('#'.TransportQuote::query()->where('is_recommended', true)->value('id'), (string) $first->notes);
+        $this->assertSame(['WH-ORDER-DESPATCH' => 1.0, 'WH-PICK-PLT' => 2.0, 'WH-LABEL-OUT' => 2.0, 'WH-LOAD-PLT' => 2.0, 'TR-DELIVERY-BASE' => 1.0], $first->lines->mapWithKeys(fn ($l) => [$l->charge_code => (float) $l->qty])->all());
+        $this->assertSame(500 + 800 + 60 + 800 + 9000, $first->subtotal_cents); // services + the recommended freight as a real line (CHANGE_REQUESTS #68)
+        $freightLine = $first->lines->firstWhere('charge_code', 'TR-DELIVERY-BASE');
+        $recommendedId = (int) TransportQuote::query()->where('is_recommended', true)->value('id');
+        $this->assertSame([9000, $recommendedId, true, 'preliminary', false, false], [(int) $freightLine->amount_cents, (int) $freightLine->transport_quote_id, $freightLine->assumptions['calculation']['pre_priced'], $freightLine->assumptions['quote_stage'], $freightLine->assumptions['missing_rate'], $freightLine->assumptions['is_poa']]);
+        $this->assertStringContainsString('Karrio Test Carrier', $freightLine->description);
+        $this->assertNull($first->notes); // no more notes snapshot — the line carries the freight
+        $this->assertSame(1116, $first->gst_cents); // GST on services and freight alike
 
         $page = $this->actingAs($dispatcher)->get(route('orders.show', $order))->assertOk();
-        $page->assertSee('$90.00')->assertSee(__('orders.estimate.freight_flags.recommended'))->assertSee('Karrio Test Carrier')->assertSee('$111.60'); // 21.60 services + 90.00 freight
+        $page->assertSee('$21.60')->assertSee('$90.00')->assertSee(__('orders.estimate.freight_flags.recommended'))->assertSee('Karrio Test Carrier')->assertSee('$111.60')->assertSee('$122.76'); // 21.60 services + 90.00 freight, 122.76 incl. GST
         $page->assertDontSee('65.43')->assertDontSee('54.32')->assertDontSee('6543')->assertDontSee('$60.00'); // cost never, final-stage quote never
         $page->assertDontSee(__('orders.estimate.freight_pending'));
 
@@ -144,7 +149,8 @@ class CustomerQuoteEstimateTest extends TestCase
 
         $quote = CustomerQuote::query()->withoutGlobalScopes()->with('lines')->findOrFail($order->fresh()->customer_quote_id);
         $this->assertSame([$client->id, $user->id], [$quote->client_id, $quote->created_by]);
-        $this->assertSame(['WH-ORDER-DESPATCH' => 500, 'WH-PICK-CTN-LT22' => 900, 'WH-LABEL-OUT' => 180], $quote->lines->pluck('amount_cents', 'charge_code')->map(fn ($v) => (int) $v)->all());
+        $this->assertSame(['WH-ORDER-DESPATCH' => 500, 'WH-PICK-CTN-LT22' => 900, 'WH-LABEL-OUT' => 180, 'TR-DELIVERY-BASE' => 8250], $quote->lines->pluck('amount_cents', 'charge_code')->map(fn ($v) => (int) $v)->all());
+        $this->assertSame(9830, $quote->subtotal_cents);
 
         $page = $this->actingAs($user)->get(route('portal.orders.show', $order))->assertOk();
         $page->assertSee($quote->quote_no)->assertSee('$15.80')->assertSee('$82.50')->assertSee('$98.30')->assertSee(__('orders.estimate.freight_flags.recommended'));
