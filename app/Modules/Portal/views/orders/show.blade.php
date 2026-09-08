@@ -39,6 +39,10 @@
         <p>{{ $order->pickup_address['name'] ?? '' }}<br>{{ $order->pickup_address['address'] ?? '' }}, {{ $order->pickup_address['suburb'] ?? '' }} {{ $order->pickup_address['state'] ?? '' }} {{ $order->pickup_address['postcode'] ?? '' }}</p>
     @endif
 
+    @if ($order->order_type !== 'return')
+        @include('orders::partials.estimate', ['estimate' => $estimate, 'canEstimate' => $canEstimate, 'estimateRoute' => route('portal.orders.estimate', $order), 'staff' => false])
+    @endif
+
     <h2>{{ __('portal.sections.goods') }}</h2>
     <div class="overflow-auto">
         <table class="dense">

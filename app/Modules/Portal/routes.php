@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Portal\Http\Controllers\PortalDocumentController;
+use App\Modules\Portal\Http\Controllers\PortalEstimateController;
 use App\Modules\Portal\Http\Controllers\PortalOrderController;
 use App\Modules\Portal\Http\Controllers\PortalReturnController;
 use Illuminate\Support\Facades\Route;
@@ -13,5 +14,6 @@ Route::prefix('portal')->name('portal.')->group(function () {
     Route::post('/orders', [PortalOrderController::class, 'store'])->name('orders.store');
     Route::get('/orders/{order}', [PortalOrderController::class, 'show'])->name('orders.show');
     Route::post('/orders/{order}/returns', [PortalReturnController::class, 'store'])->name('orders.returns.store');
+    Route::post('/orders/{order}/estimate', PortalEstimateController::class)->name('orders.estimate'); // A7b 估价 (客户价)
     Route::get('/documents/{document}', PortalDocumentController::class)->name('documents.download');
 });

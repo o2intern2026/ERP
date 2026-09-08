@@ -176,6 +176,8 @@
         </article>
     </div>
 
+    @include('orders::partials.estimate', ['estimate' => $estimate, 'canEstimate' => $canEstimate, 'estimateRoute' => route('orders.estimate', $order), 'staff' => true])
+
     <h2>{{ __('orders.sections.goods') }}</h2>
     @php($canEditLines = $order->operational_status === 'received' && auth()->user()->hasAnyRole(\App\Modules\Orders\Services\OrderChangeService::COORDINATOR_ROLES))
     <div class="overflow-auto">
