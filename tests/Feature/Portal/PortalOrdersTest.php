@@ -129,7 +129,7 @@ class PortalOrdersTest extends TestCase
         $order = $this->order($client, ['external_ref' => 'PO-KV-1', 'deliver_to_phone' => '0400123456', 'delivery_instructions' => 'Ring the bell', 'deliver_to_address_type' => 'residential']);
 
         $page = $this->actingAs($user)->get(route('portal.orders.show', $order))->assertOk();
-        $page->assertSee('<dl class="kv kv-2">', false)->assertSee('<dl class="kv">', false)->assertSee('dl.kv dt', false)
+        $page->assertSee('<dl class="kv kv-2">', false)->assertSee('<dl class="kv">', false) // dl.kv styles live in public/css/app.css (CHANGE_REQUESTS #80)
             ->assertSee('<dt>'.__('portal.fields.reference').'</dt><dd>PO-KV-1</dd>', false)
             ->assertSee('<dt>'.__('portal.fields.tailgate').'</dt><dd>'.__('portal.tailgate.required').'</dd>', false) // residential → tailgate
             ->assertSeeInOrder([
