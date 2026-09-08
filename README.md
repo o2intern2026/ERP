@@ -64,6 +64,10 @@ One user per role, password `password` (override with `SEED_DEMO_PASSWORD` in `.
 
 `php artisan db:seed` loads the 44 charge codes, their trigger rules and Edward's standard rate card (34 rows, ex GST) and binds every client to it. Warehouse events (devanning / putaway / tasks) create charges automatically; `/billing` lists them, `/billing/unbilled` drafts invoices per Job, per month or per storage week, `/billing/invoices/{id}` issues them (PDF, GST, due date from the client's payment terms) and records payments; `/billing/receivables` shows open balances; `/billing/rate-cards` versions prices (second-person approval); `/billing/quotes` prices one-off work. Cron: `billing:storage-weekly` (Mon 01:00), `billing:flag-overdue` (daily).
 
+## 试用指南
+
+本地试用、给同事 / 外部人员试用、账号、页面地图、20 分钟手动走一遍:见 [docs/demo-guide.zh.md](docs/demo-guide.zh.md)。
+
 ## Demo data: the whole story in one command (ERP_PLAN §7)
 
 ```bash
