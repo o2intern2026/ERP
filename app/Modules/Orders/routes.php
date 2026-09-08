@@ -1,20 +1,29 @@
 <?php
 
+use App\Modules\Orders\Http\Controllers\ApiTokenController;
 use App\Modules\Orders\Http\Controllers\BatchController;
 use App\Modules\Orders\Http\Controllers\ClientAddressController;
 use App\Modules\Orders\Http\Controllers\DraftOrderController;
 use App\Modules\Orders\Http\Controllers\FulfilmentController;
 use App\Modules\Orders\Http\Controllers\HoldController;
+use App\Modules\Orders\Http\Controllers\OrderApiController;
 use App\Modules\Orders\Http\Controllers\OrderChangeController;
 use App\Modules\Orders\Http\Controllers\OrderController;
 use App\Modules\Orders\Http\Controllers\OrderImportController;
 use App\Modules\Orders\Http\Controllers\OrderLineController;
 use App\Modules\Orders\Http\Controllers\QueueController;
 use App\Modules\Orders\Http\Controllers\ReturnController;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 // contracts/routes.md — every Orders route lives under /orders with the "orders." name prefix.
 Route::prefix('orders')->name('orders.')->group(function () {
+    // A4b: token-authenticated JSON endpoint (no session, no CSRF, no client.scope — the bearer token names the client).
+    Route::post('/api/orders', [OrderApiController::class, 'store'])->name('api.orders.store')
+        ->withoutMiddleware(['auth', 'client.scope', ValidateCsrfToken::class]);
+    Route::get('/api-tokens', [ApiTokenController::class, 'index'])->name('api-tokens.index');
+    Route::post('/api-tokens', [ApiTokenController::class, 'store'])->name('api-tokens.store');
+    Route::post('/api-tokens/{token}/revoke', [ApiTokenController::class, 'revoke'])->name('api-tokens.revoke');
     Route::get('/', [OrderController::class, 'index'])->name('index');
     Route::get('/create', [OrderController::class, 'create'])->name('create');
     Route::post('/', [OrderController::class, 'store'])->name('store');

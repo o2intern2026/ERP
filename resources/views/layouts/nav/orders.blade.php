@@ -4,3 +4,6 @@
     <li><a href="{{ route('orders.queue') }}">{{ __('orders.queue.nav') }}</a></li>
     <li><a href="{{ route('orders.batches') }}">{{ __('orders.batches.nav') }}</a></li>
 @endrole
+@role('admin')
+    <li><a href="{{ route('orders.api-tokens.index') }}">{{ __('orders.api.nav') }}</a></li>
+@endrole
