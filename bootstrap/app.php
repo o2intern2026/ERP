@@ -27,6 +27,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // CHANGE_REQUESTS #41: implicit route-model binding must see the tenant, so the client scope runs before SubstituteBindings.
         $middleware->prependToPriorityList(SubstituteBindings::class, ClientScope::class);
 
+        // Behind a reverse proxy / tunnel (Cloudflare, Nginx) the app sees plain HTTP; trust the forwarded scheme so links and cookies stay HTTPS.
+        $middleware->trustProxies(at: '*');
+
         $middleware->redirectGuestsTo(fn () => route('platform.login'));
         $middleware->redirectUsersTo(fn () => auth()->user()?->isClientUser() ? route('portal.index') : route('platform.index'));
     })
