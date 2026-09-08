@@ -23,7 +23,7 @@
                 <header>{{ __('orders.batches.orders') }}: {{ $totals['orders'] }}</header>
                 <p>{{ __('orders.batches.cartons') }}: {{ $totals['cartons'] }} · {{ __('orders.batches.shipped') }}: {{ $totals['shipped'] }}</p>
                 <p>{{ __('orders.batches.by_status') }}: @foreach ($totals['by_status'] as $status => $n)<span class="badge" data-tone="muted">{{ __('orders.statuses.operational.'.$status) }} × {{ $n }}</span> @endforeach</p>
-                <p>{{ __('orders.batches.revenue') }}: <strong>{{ $totals['revenue_cents'] === null ? __('orders.batches.revenue_pending') : number_format($totals['revenue_cents'] / 100, 2).' AUD' }}</strong></p>
+                <p>{{ __('orders.batches.revenue') }}: <strong>{{ $totals['revenue_cents'] === null ? __('orders.batches.revenue_pending') : \App\Support\Money::cents((int) $totals['revenue_cents'])->format() }}</strong></p>
             </article>
         </div>
         @if ($orders->isEmpty())

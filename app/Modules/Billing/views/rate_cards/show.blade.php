@@ -26,8 +26,8 @@
             <tr>
                 <td><code>{{ $item->chargeCode->code }}</code><br><small class="text-muted">{{ $item->chargeCode->customer_description }}</small></td>
                 <td>{{ __('billing.rate_cards.pricing_modes.'.$item->pricing_mode) }} @if ($item->markup_percent !== null) {{ $item->markup_percent }}% @endif</td>
-                <td class="num">{{ $item->is_poa ? 'POA' : ($item->rate_cents !== null ? number_format($item->rate_cents / 100, 2) : '—') }}</td>
-                <td class="num">{{ $item->min_charge_cents !== null ? number_format($item->min_charge_cents / 100, 2) : '—' }}</td>
+                <td class="num">{{ $item->is_poa ? 'POA' : ($item->rate_cents !== null ? \App\Support\Money::cents((int) round($item->rate_cents))->format() : '—') }}</td>
+                <td class="num">{{ $item->min_charge_cents !== null ? \App\Support\Money::cents((int) round($item->min_charge_cents))->format() : '—' }}</td>
                 <td>{{ $item->pallet_class ? __('warehouse.pallet_classes.'.$item->pallet_class) : '—' }}</td>
                 <td>{{ $item->weight_band_min !== null || $item->weight_band_max !== null ? ($item->weight_band_min ?? 0).' – '.($item->weight_band_max ?? '∞') : '—' }}</td>
                 <td>{{ $item->zone ?? '—' }} / {{ $item->service_level ?? '—' }}</td>

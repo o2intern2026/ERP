@@ -12,7 +12,7 @@
             <article>
                 <header class="grid">
                     <strong>{{ $entry['client']->name }} <small class="text-muted">· {{ __('masterdata.invoice_modes.'.$entry['client']->invoice_mode) }} · {{ $entry['client']->payment_terms }}</small></strong>
-                    <span class="num">{{ number_format($entry['amount_cents'] / 100, 2) }} {{ __('billing.money') }}</span>
+                    <span class="num">{{ \App\Support\Money::cents((int) round($entry['amount_cents']))->format() }} {{ __('billing.money') }}</span>
                 </header>
                 <table class="dense">
                     <tbody>
@@ -20,7 +20,7 @@
                         <tr>
                             <td><a href="{{ route('platform.jobs.show', $row['job']) }}">{{ $row['job']->job_no }}</a> <small class="text-muted">{{ $row['job']->reference }}</small></td>
                             <td class="num">{{ $row['count'] }} {{ __('billing.unbilled.lines') }}</td>
-                            <td class="num">{{ number_format($row['amount_cents'] / 100, 2) }}</td>
+                            <td class="num">{{ \App\Support\Money::cents((int) round($row['amount_cents']))->format() }}</td>
                             <td><form method="post" action="{{ route('billing.invoices.draft_job', $row['job']) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('billing.unbilled.draft_job') }}</button></form></td>
                         </tr>
                     @endforeach

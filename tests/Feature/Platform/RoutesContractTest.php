@@ -14,7 +14,7 @@ class RoutesContractTest extends TestCase
 {
     /** @var array<string, list<string>> module → URL prefixes (contracts/routes.md) */
     private const PREFIXES = [
-        'platform' => ['/', 'login', 'logout', 'admin', 'jobs'],
+        'platform' => ['/', 'login', 'logout', 'register', 'admin', 'jobs'],
         'masterdata' => ['admin/clients', 'admin/suppliers', 'admin/carriers'],
         'warehouse' => ['warehouse'],
         'billing' => ['billing'],

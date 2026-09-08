@@ -3,11 +3,13 @@
 namespace App\Modules\MasterData\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Modules\MasterData\Models\Client;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /** A2: clients — billing behaviour (payment_terms, invoice_mode, markup, cut-off, standard card) lives here. */
@@ -15,7 +17,10 @@ class ClientController extends Controller
 {
     public function index(): View
     {
-        return view('masterdata::clients.index', ['clients' => Client::query()->orderBy('name')->paginate(50)]);
+        return view('masterdata::clients.index', [
+            'clients' => Client::query()->orderByRaw("case when status = 'pending' then 0 else 1 end")->orderBy('name')->paginate(50), // self-registered clients first (tester feedback #8)
+            'pendingCount' => Client::query()->where('status', 'pending')->count(),
+        ]);
     }
 
     public function create(): View
@@ -38,11 +43,25 @@ class ClientController extends Controller
     public function update(Request $request, Client $client): RedirectResponse
     {
         $client->update($this->validated($request, $client));
+        if ($client->wasChanged('status') && $client->status === 'active') {
+            User::query()->withoutGlobalScopes()->where('client_id', $client->id)->update(['is_active' => true]); // approving via the edit form behaves like approve() (tester feedback #8)
+        }
 
         return redirect()->route('masterdata.index')->with('status', __('masterdata.saved'));
     }
 
     /** @return array<string, mixed> */
+    /** Tester feedback #8: a self-registered (`pending`) client is approved here — the client and every user under it become active and can sign in. */
+    public function approve(Client $client): RedirectResponse
+    {
+        DB::transaction(function () use ($client) {
+            $client->update(['status' => 'active']);
+            User::query()->withoutGlobalScopes()->where('client_id', $client->id)->update(['is_active' => true]);
+        });
+
+        return redirect()->route('masterdata.index')->with('status', __('masterdata.clients.approved', ['name' => $client->name]));
+    }
+
     private function validated(Request $request, ?Client $client = null): array
     {
         $data = $request->validate([
@@ -58,7 +77,7 @@ class ClientController extends Controller
             'suburb' => ['nullable', 'string', 'max:100'],
             'state' => ['nullable', Rule::in(Enums::STATES)],
             'postcode' => ['nullable', 'string', 'max:10'],
-            'status' => ['required', Rule::in(Enums::MASTER_STATUSES)],
+            'status' => ['required', Rule::in(Enums::CLIENT_STATUSES)],
             'payment_terms' => ['required', 'string', 'regex:'.Enums::PAYMENT_TERMS_PATTERN],
             'invoice_mode' => ['required', Rule::in(Enums::INVOICE_MODES)],
             'invoice_period' => ['nullable', Rule::in(Enums::INVOICE_PERIODS)],

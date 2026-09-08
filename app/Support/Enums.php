@@ -44,6 +44,9 @@ final class Enums
 
     public const MASTER_STATUSES = ['active', 'inactive'];
 
+    /** clients.status — `pending` = self-registered at /register, waiting for staff approval (tester feedback #8). */
+    public const CLIENT_STATUSES = ['pending', 'active', 'inactive'];
+
     public const INBOUND_TYPES = ['container', 'loose_truck', 'parcel'];
 
     public const ASN_STATUSES = ['booked', 'arrived', 'receiving', 'putaway', 'closed'];

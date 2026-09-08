@@ -44,6 +44,7 @@ input.scan { font-size: 1.25rem; font-family: ui-monospace, SFMono-Regular, Menl
 form.inline { display: inline; margin: 0; }
 form.inline button { padding: .2rem .7rem; margin: 0; width: auto; }
 .login-card { max-width: 26rem; margin: 3rem auto; }
+.register-card { max-width: 44rem; margin: 2rem auto; }
 
 /* Top bar: one dropdown per module, nothing wraps mid-word; the bar itself wraps on narrow screens. */
 nav.erp-nav { flex-wrap: wrap; row-gap: .25rem; }

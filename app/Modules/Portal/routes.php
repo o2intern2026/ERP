@@ -18,6 +18,7 @@ Route::prefix('portal')->name('portal.')->group(function () {
     Route::get('/orders/create', [PortalOrderController::class, 'create'])->name('orders.create');
     Route::get('/addresses/suggest', PortalAddressSuggestionController::class)->name('addresses.suggest'); // item 3b: JSON, the signed-in client's own addresses
     Route::post('/orders', [PortalOrderController::class, 'store'])->name('orders.store');
+    Route::post('/orders/preview', [PortalOrderController::class, 'preview'])->name('orders.preview'); // tester feedback #10: 获取估价 before 确认提交
     Route::get('/orders/{order}', [PortalOrderController::class, 'show'])->name('orders.show');
     Route::post('/orders/{order}/returns', [PortalReturnController::class, 'store'])->name('orders.returns.store');
     Route::post('/orders/{order}/estimate', PortalEstimateController::class)->name('orders.estimate'); // A7b 估价 (客户价)

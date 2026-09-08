@@ -4,7 +4,7 @@
 
 | Module | Seat | URL prefix(es) | Route name prefix | Blade view namespace | lang file |
 |---|---|---|---|---|---|
-| Platform | C | `/` (redirects to `/jobs`), `/login`, `/logout`, `/admin/**` (users, roles, exceptions, documents, search, approvals, audit, integration monitor), `/jobs/**` (Job workbench) | `platform.` | `platform::` | `lang/zh/platform.php` |
+| Platform | C | `/` (redirects to `/jobs`), `/login`, `/register`, `/logout`, `/admin/**` (users, roles, exceptions, documents, search, approvals, audit, integration monitor), `/jobs/**` (Job workbench) | `platform.` | `platform::` | `lang/zh/platform.php` |
 | MasterData | C | `/admin/clients/**`, `/admin/suppliers/**`, `/admin/carriers/**` | `masterdata.` | `masterdata::` | `lang/zh/masterdata.php` |
 | Warehouse | C | `/warehouse/**` | `warehouse.` | `warehouse::` | `lang/zh/warehouse.php` |
 | Billing | C | `/billing/**` | `billing.` | `billing::` | `lang/zh/billing.php` |
@@ -14,10 +14,10 @@
 | Transport | X2 | `/transport/**`, `/driver/**` (driver mobile pages) | `transport.` | `transport::` | `lang/zh/transport.php` |
 
 ## Rules
-- Middleware: every route except `/login` and `/logout` sits behind `auth`. The global client scope (M1/A1) is enforced in the data layer, not per route.
+- Middleware: every route except `/login`, `/register` and `/logout` sits behind `auth`. The global client scope (M1/A1) is enforced in the data layer, not per route.
 - Client-role users may reach only `/portal/**`, `/logout` and the client views Portal links to; enforced server side (M1), never by hiding links.
 - `/admin/**` is Platform's namespace; MasterData owns exactly the three sub-paths above and nothing else under `/admin`.
-- Unauthenticated pages: `/login` only. The only API route in phase 1 is A4b's `POST /orders/api/orders` (X1, bearer token from `order_api_tokens`, `Idempotency-Key` header; no session, CSRF or client scope — the token names the client). It sits under the Orders prefix so the prefix rule holds (CHANGE_REQUESTS #39).
+- Unauthenticated pages: `/login` and `/register` (client self-registration, tester feedback #8 / CHANGE_REQUESTS #89; hidden when `erp.allow_signup` is false). The only API route in phase 1 is A4b's `POST /orders/api/orders` (X1, bearer token from `order_api_tokens`, `Idempotency-Key` header; no session, CSRF or client scope — the token names the client). It sits under the Orders prefix so the prefix rule holds (CHANGE_REQUESTS #39).
 - Nav: `resources/views/layouts/nav.blade.php` includes `layouts/nav/<module>.blade.php` for every module; each module edits only its own include.
 
 ## M0 placeholders (one per module; Feature test in `tests/Feature/<Module>/`)
@@ -35,6 +35,9 @@
 | Portal | `POST /portal/orders/{order}/quotes/{quote}/confirm` (client confirms the final transport quote → QuoteSelectionService, §5.7 #2) | `portal.orders.quotes.confirm` | — |
 | Orders | `GET /orders/addresses/suggest?q=&client_id=` (JSON address suggestions from the client's address book + past orders) | `orders.addresses.suggest` | — |
 | Portal | `GET /portal/addresses/suggest?q=` (same, for the signed-in client) | `portal.addresses.suggest` | — |
+| Portal | `POST /portal/orders/preview` (获取估价: validates and prices the unsaved order form, nothing persisted; the form then offers 确认提交订单 → `portal.orders.store`; tester feedback #10, CHANGE_REQUESTS #88) | `portal.orders.preview` | `portal::orders.create` |
+| Platform | `GET /register`, `POST /register` (client self-registration → Client `pending` + inactive client-role user; tester feedback #8, CHANGE_REQUESTS #89) | `platform.register`, `platform.register.store` | `platform::auth.register` |
+| MasterData | `POST /admin/clients/{client}/approve` (pending → active and activates the client's users; admin \| customer_service \| finance) | `masterdata.clients.approve` | — |
 | Portal | `GET /portal/reports/export/{table}` (CSV of the client report) | `portal.reports.export` | — |
 | Portal | `GET /portal/invoices`, `GET /portal/invoices/{invoice}/download` (own issued invoices, PDF via DocumentDownloader) | `portal.invoices.index`, `portal.invoices.download` | `portal::invoices.index` |
 | Portal | `GET /portal/stock` (own stock, read-only) | `portal.stock.index` | `portal::stock.index` |

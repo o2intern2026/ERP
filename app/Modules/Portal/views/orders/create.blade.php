@@ -11,7 +11,7 @@
         <article><strong>{{ __('portal.validation.heading') }}</strong><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></article>
     @endif
 
-    <form method="post" action="{{ route('portal.orders.store') }}">
+    <form method="post" action="{{ route('portal.orders.preview') }}" id="portal-order-form">
         @csrf
         <div class="grid">
             <label>{{ __('portal.fields.order_type') }}
@@ -95,7 +95,37 @@
         <h2>{{ __('portal.sections.goods') }}</h2>
         @include('orders::partials.goods-lines', ['prefix' => 'portal', 'extended' => false])
 
-        <button type="submit">{{ __('portal.actions.submit_order') }}</button>
+        @if ($preview !== null)
+            <article id="estimate-preview">
+                <header><strong>{{ __('portal.estimate.preview_title') }}</strong></header>
+                <table>
+                    <thead><tr><th>{{ __('portal.estimate.preview_item') }}</th><th class="num">{{ __('portal.estimate.preview_qty') }}</th><th class="num">{{ __('portal.estimate.preview_amount') }}</th></tr></thead>
+                    <tbody>
+                        @foreach ($preview['lines'] as $line)
+                            <tr>
+                                <td>{{ $line['description'] }} <span class="text-muted"><small>{{ $line['charge_code'] }}</small></span></td>
+                                <td class="num">{{ rtrim(rtrim(number_format($line['qty'], 2), '0'), '.') }} {{ $line['uom'] }}</td>
+                                <td class="num">{{ $line['missing'] ? __('portal.estimate.preview_poa') : \App\Support\Money::cents($line['amount_cents'])->format() }}</td>
+                            </tr>
+                        @endforeach
+                        <tr><td colspan="3" class="text-muted"><small>{{ __('portal.estimate.preview_freight') }}</small></td></tr>
+                    </tbody>
+                    <tfoot>
+                        <tr><td colspan="2">{{ __('portal.estimate.preview_subtotal') }}</td><td class="num">{{ \App\Support\Money::cents($preview['subtotal_cents'])->format() }}</td></tr>
+                        <tr><td colspan="2">{{ __('portal.estimate.preview_gst') }}</td><td class="num">{{ \App\Support\Money::cents($preview['gst_cents'])->format() }}</td></tr>
+                        <tr><td colspan="2"><strong>{{ __('portal.estimate.preview_total') }}</strong></td><td class="num"><strong>{{ \App\Support\Money::cents($preview['total_cents'])->format() }}</strong></td></tr>
+                    </tfoot>
+                </table>
+                @if ($preview['unpriced'])<p class="text-muted"><small>{{ __('portal.estimate.preview_unpriced') }}</small></p>@endif
+                <p class="text-muted"><small>{{ __('portal.estimate.preview_hint') }}</small></p>
+            </article>
+        @endif
+
+        {{-- Tester feedback #10: the form defaults to "获取估价"; "确认提交订单" only appears once an estimate is on screen and hides again on any change. --}}
+        <div class="grid" id="order-actions">
+            <button type="submit" formaction="{{ route('portal.orders.preview') }}" class="{{ $preview !== null ? 'secondary' : '' }}" id="get-estimate">{{ __('portal.actions.get_estimate') }}</button>
+            <button type="submit" formaction="{{ route('portal.orders.store') }}" id="confirm-submit" @if ($preview === null) hidden @endif>{{ __('portal.actions.confirm_submit') }}</button>
+        </div>
     </form>
 
     <script>
@@ -121,6 +151,19 @@
             };
             orderType.addEventListener('change', toggleType);
             toggleType();
+
+            const confirm = document.getElementById('confirm-submit');
+            const form = confirm.closest('form');
+            const invalidate = () => {
+                if (confirm.hidden) return;
+                confirm.hidden = true;
+                document.getElementById('get-estimate')?.classList.remove('secondary');
+                document.getElementById('estimate-preview')?.remove();
+            };
+            form.addEventListener('input', invalidate);
+            form.addEventListener('change', invalidate);
+            form.addEventListener('click', (e) => { if (e.target.closest('button[type="button"]')) invalidate(); }); // add/remove line rows
+            document.getElementById('estimate-preview')?.scrollIntoView({ block: 'center' });
         })();
     </script>
 @endsection

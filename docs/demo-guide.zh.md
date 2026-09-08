@@ -57,6 +57,10 @@ php artisan migrate:fresh --seed && php artisan db:seed --class=DemoFlowSeeder
 | finance@erp.local | 财务 | 计费、发票、收款、财务锁、价目表审批 |
 | client@erp.local | 客户(Edward) | 客户门户 /portal,只看自己的数据 |
 
+**客户自助注册(反馈 #8):** 登录页有"注册新客户"链接(/register)。填公司名、ABN、联系人、地址、邮箱、密码后提交,状态为"待审核";管理员 / 客服 / 财务在 /admin/clients 看到待审核客户排在最前,点"审核通过"后该公司即可登录客户门户,只看到自己的订单、库存和发票,发票 Bill-to 用注册时的公司名 / ABN / 地址。不想开放注册时在 `.env` 设 `ALLOW_SIGNUP=false`。
+
+**客户下单两步走(反馈 #10):** 客户门户"新建订单"先点"获取估价",页面显示各项仓库费用(客户价、含 GST 合计;运费在提交后另行报价),确认无误再点"确认提交订单";改动任何内容后需重新获取估价。
+
 ## 5. 页面地图
 
 | 模块 | 入口 | 主要页面 |

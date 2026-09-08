@@ -75,6 +75,33 @@ class PortalOrdersTest extends TestCase
         $this->actingAs($this->staff('customer_service'))->get(route('portal.orders.create'))->assertForbidden();
     }
 
+    public function test_client_gets_an_estimate_before_confirming_and_the_preview_creates_no_order(): void
+    {
+        // Tester feedback #10: "获取估价" prices the form without saving anything; "确认提交订单" then creates the order.
+        $client = $this->client();
+        $user = $this->clientUser($client);
+        $payload = [
+            'order_type' => 'from_stock', 'external_ref' => 'PORTAL-PREVIEW-1',
+            'deliver_to_name' => 'Amazon BWU2', 'deliver_to_phone' => '0400000000', 'deliver_to_address' => '1 Distribution Drive', 'deliver_to_suburb' => 'Kemps Creek',
+            'deliver_to_state' => 'NSW', 'deliver_to_postcode' => '2178', 'deliver_to_address_type' => 'fba',
+            'requested_date' => today()->addDays(3)->toDateString(), 'service_level' => 'standard',
+            'lines' => [['description_cn' => '展示架', 'package_type' => 'carton', 'carton_qty' => 5, 'actual_weight_kg' => 12]],
+        ];
+
+        $this->actingAs($user)->get(route('portal.orders.create'))->assertOk()
+            ->assertSee(__('portal.actions.get_estimate'))->assertDontSee(__('portal.estimate.preview_title'));
+
+        $this->actingAs($user)->post(route('portal.orders.preview'), $payload)->assertOk()
+            ->assertSee(__('portal.estimate.preview_title'))->assertSee('WH-ORDER-DESPATCH')->assertSee(__('portal.actions.confirm_submit'))
+            ->assertSee('PORTAL-PREVIEW-1'); // the typed values survive the round trip
+        $this->assertSame(0, Order::query()->withoutGlobalScopes()->count());
+
+        $this->actingAs($user)->post(route('portal.orders.preview'), ['order_type' => 'from_stock'])->assertSessionHasErrors(['deliver_to_name', 'requested_date', 'lines']);
+
+        $this->actingAs($user)->post(route('portal.orders.store'), $payload)->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertSame(1, Order::query()->withoutGlobalScopes()->where('external_ref', 'PORTAL-PREVIEW-1')->count());
+    }
+
     public function test_client_downloads_only_its_own_pod_and_never_sees_internal_notes(): void
     {
         Storage::fake('local');

@@ -12,6 +12,9 @@ return [
         'title' => '客户',
         'create' => '新建客户',
         'edit' => '编辑客户',
+        'approve' => '审核通过',
+        'approved' => '客户 :name 已审核通过,其账号现在可以登录。',
+        'pending_hint' => ':count 个客户在 /register 自助注册,等待审核。',
         'billing_section' => '计费设置(每个客户可不同)',
         'payment_terms_hint' => 'prepaid(预付)/ eom(月末)/ net_N(N 天,如 net_30)。只决定发票到期日,不会阻止预订或发运。',
         'markup_hint' => '第三方运费的默认加成百分比;价目表可按承运商 × 服务等级覆盖。',
@@ -47,5 +50,5 @@ return [
     'invoice_modes' => ['per_job' => '按 Job 开票', 'monthly' => '月结汇总'],
     'invoice_periods' => ['weekly' => '每周', 'fortnightly' => '每两周', 'monthly' => '每月'],
     'invoice_groupings' => ['job' => '按 Job 分组', 'order' => '按订单分组'],
-    'statuses' => ['active' => '启用', 'inactive' => '停用'],
+    'statuses' => ['active' => '启用', 'inactive' => '停用', 'pending' => '待审核'],
 ];

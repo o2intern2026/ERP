@@ -2,6 +2,7 @@
 
 namespace App\Modules\Orders\Services;
 
+use App\Modules\Billing\Models\ChargeCode;
 use App\Modules\Billing\Models\CustomerQuote;
 use App\Modules\Billing\Models\CustomerQuoteLine;
 use App\Modules\Billing\Services\QuoteService;
@@ -86,6 +87,34 @@ final class OrderEstimateService
 
             return $quote;
         });
+    }
+
+    /**
+     * Tester feedback #10: price an order that is not saved yet (portal "获取估价" before "确认提交"). Same lines as estimate(),
+     * priced through RateService, nothing written. Freight cannot exist yet (Transport quotes after confirmation).
+     *
+     * @return array{lines: list<array{charge_code:string, description:string, qty:float, uom:?string, amount_cents:?int, missing:bool}>, subtotal_cents:int, gst_cents:int, total_cents:int, unpriced:bool}
+     */
+    public function preview(Order $order): array
+    {
+        $rows = [];
+        $subtotal = 0;
+        $gst = 0;
+        $unpriced = false;
+        foreach ($this->lines($order) as $line) {
+            $code = ChargeCode::query()->where('code', $line['charge_code'])->first();
+            $priced = $this->rates->price($order->client_id, $line['charge_code'], (float) $line['qty'], $line['context'] ?? []);
+            $amount = $priced['missing_rate'] || $priced['is_poa'] ? null : $priced['amount_cents'];
+            if ($amount === null) {
+                $unpriced = true;
+            } else {
+                $subtotal += $amount;
+                $gst += $code && $code->gstRate() > 0 ? (int) round($amount * $code->gstRate()) : 0;
+            }
+            $rows[] = ['charge_code' => $line['charge_code'], 'description' => $line['description'] ?? ($code?->customer_description ?? $line['charge_code']), 'qty' => (float) ($priced['qty'] ?? $line['qty']), 'uom' => $priced['uom'] ?? $code?->default_uom, 'amount_cents' => $amount, 'missing' => $amount === null];
+        }
+
+        return ['lines' => $rows, 'subtotal_cents' => $subtotal, 'gst_cents' => $gst, 'total_cents' => $subtotal + $gst, 'unpriced' => $unpriced];
     }
 
     /**

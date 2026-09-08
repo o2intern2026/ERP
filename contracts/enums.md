@@ -154,7 +154,8 @@ Currency `AUD`, money as integer cents (`app/Support/Money`); timezone `Australi
 | field | values |
 |---|---|
 | `clients.leg_type` | `first_leg` \| `last_leg` \| `both` (§2.2 "头程/尾程类型") |
-| `clients.status`, `suppliers.status`, `carriers.status` | `active` \| `inactive` |
+| `clients.status` | `pending` \| `active` \| `inactive` (`pending` = self-registered at `/register`, waiting for staff approval — tester feedback #8, CHANGE_REQUESTS #89; `Enums::CLIENT_STATUSES`) |
+| `suppliers.status`, `carriers.status` | `active` \| `inactive` (`Enums::MASTER_STATUSES`) |
 | `order_events.actor_type` | `user` \| `system` |
 | `order_imports.source` | `excel` \| `pdf` |
 | `order_imports.status`, `asn_imports.status` | `pending` \| `imported` \| `failed` |

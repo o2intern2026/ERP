@@ -14,6 +14,8 @@ return [
         'back' => '返回订单列表',
         'select' => '请选择',
         'submit_order' => '提交订单',
+        'get_estimate' => '获取估价',
+        'confirm_submit' => '确认提交订单',
     ],
     'filters' => [
         'search' => '订单号 / 参考号 / 唛头',
@@ -121,6 +123,17 @@ return [
     ],
     'estimate' => [
         'created' => '估价已生成(客户价,不含 GST)。',
+        'preview_title' => '估价(客户价)',
+        'preview_hint' => '按当前填写内容估算仓库操作费用;运费需在提交后由运输报价确定。请核对后点击"确认提交订单",修改任何内容后需重新获取估价。',
+        'preview_freight' => '运费:提交后另行报价',
+        'preview_unpriced' => '部分项目暂无价目,以客服确认为准。',
+        'preview_subtotal' => '小计(不含 GST)',
+        'preview_gst' => 'GST',
+        'preview_total' => '合计(含 GST)',
+        'preview_qty' => '数量',
+        'preview_amount' => '金额',
+        'preview_item' => '项目',
+        'preview_poa' => 'POA(面议)',
     ],
     'quotes' => [
         'title' => '运输方案确认',

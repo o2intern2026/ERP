@@ -22,7 +22,7 @@
             </label>
             <label>{{ __('masterdata.fields.status') }}
                 <select name="status">
-                    @foreach (\App\Support\Enums::MASTER_STATUSES as $v)
+                    @foreach (\App\Support\Enums::CLIENT_STATUSES as $v)
                         <option value="{{ $v }}" @selected(old('status', $client->status ?? 'active') === $v)>{{ __('masterdata.statuses.'.$v) }}</option>
                     @endforeach
                 </select>

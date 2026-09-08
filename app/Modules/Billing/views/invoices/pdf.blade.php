@@ -32,15 +32,15 @@
             @php($lines = $group['lines'])
             <tr class="job"><td colspan="6">{{ $invoice->group_by === 'order' ? 'Order' : 'Job' }} {{ $group['title'] }}</td></tr>
             @foreach ($lines as $line)
-                <tr><td>{{ $line->charge_code }}</td><td>{{ $line->description }} <span class="small">#{{ $line->charge_id }}</span></td><td class="num">{{ rtrim(rtrim(number_format($line->qty, 3), '0'), '.') }}</td><td>{{ $line->uom }}</td><td class="num">{{ number_format($line->amount_cents / 100, 2) }}</td><td class="num">{{ number_format($line->gst_cents / 100, 2) }}</td></tr>
+                <tr><td>{{ $line->charge_code }}</td><td>{{ $line->description }} <span class="small">#{{ $line->charge_id }}</span></td><td class="num">{{ rtrim(rtrim(number_format($line->qty, 3), '0'), '.') }}</td><td>{{ $line->uom }}</td><td class="num">{{ \App\Support\Money::cents((int) round($line->amount_cents))->format() }}</td><td class="num">{{ \App\Support\Money::cents((int) round($line->gst_cents))->format() }}</td></tr>
             @endforeach
         @endforeach
         </tbody>
     </table>
     <table class="totals">
-        <tr><td>Subtotal (ex GST)</td><td class="num">{{ number_format($invoice->subtotal_cents / 100, 2) }}</td></tr>
-        <tr><td>GST</td><td class="num">{{ number_format($invoice->gst_cents / 100, 2) }}</td></tr>
-        <tr><td><strong>Total AUD</strong></td><td class="num"><strong>{{ number_format($invoice->total_cents / 100, 2) }}</strong></td></tr>
+        <tr><td>Subtotal (ex GST)</td><td class="num">{{ \App\Support\Money::cents((int) round($invoice->subtotal_cents))->format() }}</td></tr>
+        <tr><td>GST</td><td class="num">{{ \App\Support\Money::cents((int) round($invoice->gst_cents))->format() }}</td></tr>
+        <tr><td><strong>Total AUD</strong></td><td class="num"><strong>{{ \App\Support\Money::cents((int) round($invoice->total_cents))->format() }}</strong></td></tr>
     </table>
     <p class="small">Every line refers to a charge (#) that links back to its source document in the ERP. Amounts in AUD; GST at 10% where applicable.</p>
 </body>

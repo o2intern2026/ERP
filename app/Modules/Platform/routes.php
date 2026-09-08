@@ -7,6 +7,7 @@ use App\Modules\Platform\Http\Controllers\ExceptionController;
 use App\Modules\Platform\Http\Controllers\IntegrationController;
 use App\Modules\Platform\Http\Controllers\JobController;
 use App\Modules\Platform\Http\Controllers\LoginController;
+use App\Modules\Platform\Http\Controllers\RegistrationController;
 use App\Modules\Platform\Http\Controllers\SearchController;
 use App\Modules\Platform\Http\Controllers\UserController;
 use App\Modules\Platform\Http\Controllers\WebhookController;
@@ -18,6 +19,8 @@ $staff = 'role:admin|customer_service|dispatcher|warehouse_supervisor|warehouse_
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('platform.login');
     Route::post('/login', [LoginController::class, 'store'])->name('platform.login.store');
+    Route::get('/register', [RegistrationController::class, 'show'])->name('platform.register'); // tester feedback #8: client self-registration
+    Route::post('/register', [RegistrationController::class, 'store'])->name('platform.register.store');
 });
 
 Route::post('/logout', [LoginController::class, 'destroy'])->middleware('auth')->name('platform.logout');

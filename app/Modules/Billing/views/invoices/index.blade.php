@@ -19,7 +19,7 @@
                 <tr>
                     <td><a href="{{ route('billing.invoices.show', $i) }}">{{ $i->invoice_no }}</a></td><td>{{ __('billing.invoices.types.'.$i->invoice_type) }}</td><td>{{ $i->client->name }}</td>
                     <td>{{ $i->issued_at?->format('Y-m-d') ?? '—' }}</td><td>{{ $i->due_at?->format('Y-m-d') ?? '—' }} @if ($i->is_overdue)<span class="badge" data-tone="danger">{{ __('billing.invoices.overdue') }}</span>@endif</td>
-                    <td class="num">{{ number_format($i->total_cents / 100, 2) }}</td><td class="num">{{ number_format($i->paid_amount_cents / 100, 2) }}</td>
+                    <td class="num">{{ \App\Support\Money::cents((int) round($i->total_cents))->format() }}</td><td class="num">{{ \App\Support\Money::cents((int) round($i->paid_amount_cents))->format() }}</td>
                     <td><span class="badge" data-tone="{{ ['draft' => 'muted', 'issued' => 'warn', 'part_paid' => 'warn', 'paid' => 'ok', 'void' => 'muted'][$i->status] }}">{{ __('billing.invoices.statuses.'.$i->status) }}</span></td>
                 </tr>
             @endforeach

@@ -3,9 +3,12 @@
 namespace App\Modules\Portal\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\MasterData\Models\Client;
 use App\Modules\Orders\Http\OrderFormRows;
 use App\Modules\Orders\Models\ClientAddress;
+use App\Modules\Orders\Models\DeclaredPackage;
 use App\Modules\Orders\Models\Order;
+use App\Modules\Orders\Models\OrderLine;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Orders\Services\OrderEstimateService;
@@ -68,9 +71,13 @@ final class PortalOrderController extends Controller
 
     public function create(Request $request, RateService $rates): View
     {
-        $clientId = $this->clientId($request);
+        return view('portal::orders.create', $this->formData($this->clientId($request), $rates) + ['preview' => null]);
+    }
 
-        return view('portal::orders.create', [
+    /** @return array<string, mixed> */
+    private function formData(int $clientId, RateService $rates): array
+    {
+        return [
             // Item 6: the tailgate checkbox auto-ticks from the client's TR-TAILGATE threshold (rate card parameter, default 25 kg).
             'tailgateThresholdKg' => (float) ($rates->thresholds($clientId, 'TR-TAILGATE')['tailgate_weight_kg'] ?? TailgateRule::DEFAULT_WEIGHT_KG),
             'types' => ['from_stock', 'pickup_deliver'],
@@ -78,7 +85,7 @@ final class PortalOrderController extends Controller
             'addressTypes' => OrderEnums::ADDRESS_TYPES,
             'states' => Enums::STATES,
             'addresses' => ClientAddress::query()->orderByDesc('usage_count')->orderByDesc('last_used_at')->orderBy('label')->get(), // A17 address book, client-scoped
-        ]);
+        ];
     }
 
     public function store(Request $request, OrderCreationService $orders): RedirectResponse
@@ -87,7 +94,48 @@ final class PortalOrderController extends Controller
         $this->mergeSavedAddress($request, $clientId);
         OrderFormRows::prune($request); // spare form rows (package type select always has a value) are not lines
 
-        $data = $request->validate([
+        $data = $request->validate($this->rules($clientId));
+
+        $pickup = collect(['name' => 'pickup_name', 'phone' => 'pickup_phone', 'address' => 'pickup_address_line', 'suburb' => 'pickup_suburb', 'state' => 'pickup_state', 'postcode' => 'pickup_postcode'])
+            ->map(fn ($field) => $data[$field] ?? null);
+        $data['pickup_address'] = $pickup->filter(fn ($v) => filled($v))->isEmpty() ? null : $pickup->all();
+        $data['client_id'] = $clientId; // never from the request: the signed-in client is the only possible owner
+
+        $order = $orders->create($data, $request->user()->id, 'portal');
+        try {
+            app(OrderEstimateService::class)->estimate($order->fresh(), $request->user()->id); // the confirmed estimate travels with the order (tester feedback #10)
+        } catch (\Throwable) {
+            // estimate is informational — never block the order
+        }
+
+        return redirect()->route('portal.orders.show', $order)->with('status', __('portal.messages.created', ['order_no' => $order->order_no]));
+    }
+
+    /**
+     * Tester feedback #10: "获取估价" before "确认提交订单" — validate the form, price it as a transient order (nothing saved) and
+     * show the estimate on the same form so the client decides with the numbers in front of them.
+     */
+    public function preview(Request $request, RateService $rates, OrderEstimateService $estimates): View
+    {
+        $clientId = $this->clientId($request);
+        $this->mergeSavedAddress($request, $clientId);
+        OrderFormRows::prune($request);
+        $data = $request->validate($this->rules($clientId));
+        $request->flash(); // old() keeps every field the client typed
+
+        $order = new Order(collect($data)->only((new Order)->getFillable())->all());
+        $order->client_id = $clientId;
+        $order->setRelation('client', Client::query()->findOrFail($clientId));
+        $order->setRelation('lines', collect($data['lines'] ?? [])->map(fn (array $line) => new OrderLine(collect($line)->only((new OrderLine)->getFillable())->all())));
+        $order->setRelation('declaredPackages', collect($data['declared_packages'] ?? [])->map(fn (array $p) => new DeclaredPackage(collect($p)->only((new DeclaredPackage)->getFillable())->all())));
+
+        return view('portal::orders.create', $this->formData($clientId, $rates) + ['preview' => $estimates->preview($order)]);
+    }
+
+    /** @return array<string, mixed> */
+    private function rules(int $clientId): array
+    {
+        return [
             'order_type' => ['required', Rule::in(['from_stock', 'pickup_deliver'])],
             'external_ref' => ['nullable', 'string', 'max:255', Rule::unique('orders', 'external_ref')->where(fn ($q) => $q->where('client_id', $clientId))],
             'consignment_mark' => ['nullable', 'string', 'max:255'],
@@ -128,16 +176,7 @@ final class PortalOrderController extends Controller
             'declared_packages.*.length_mm' => ['nullable', 'integer', 'min:0'],
             'declared_packages.*.width_mm' => ['nullable', 'integer', 'min:0'],
             'declared_packages.*.height_mm' => ['nullable', 'integer', 'min:0'],
-        ]);
-
-        $pickup = collect(['name' => 'pickup_name', 'phone' => 'pickup_phone', 'address' => 'pickup_address_line', 'suburb' => 'pickup_suburb', 'state' => 'pickup_state', 'postcode' => 'pickup_postcode'])
-            ->map(fn ($field) => $data[$field] ?? null);
-        $data['pickup_address'] = $pickup->filter(fn ($v) => filled($v))->isEmpty() ? null : $pickup->all();
-        $data['client_id'] = $clientId; // never from the request: the signed-in client is the only possible owner
-
-        $order = $orders->create($data, $request->user()->id, 'portal');
-
-        return redirect()->route('portal.orders.show', $order)->with('status', __('portal.messages.created', ['order_no' => $order->order_no]));
+        ];
     }
 
     public function show(int $order, OrderEstimateService $estimates, PortalTransportQuotes $transportQuotes): View

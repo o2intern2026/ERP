@@ -11,8 +11,8 @@
     <div class="grid">
         <article><header>{{ __('billing.invoices.bill_to') }}</header>{{ $invoice->bill_to_name }}<br>{{ $invoice->bill_to_address }}<br>@if ($invoice->bill_to_abn) ABN {{ $invoice->bill_to_abn }} @endif</article>
         <article><header>{{ __('billing.invoices.total') }}</header>
-            {{ __('billing.invoices.subtotal') }}: {{ number_format($invoice->subtotal_cents / 100, 2) }}<br>{{ __('billing.invoices.gst') }}: {{ number_format($invoice->gst_cents / 100, 2) }}<br><strong>{{ __('billing.invoices.total') }}: {{ number_format($invoice->total_cents / 100, 2) }} {{ __('billing.money') }}</strong><br>
-            {{ __('billing.invoices.paid') }}: {{ number_format($invoice->paid_amount_cents / 100, 2) }} · {{ __('billing.invoices.outstanding') }}: <strong>{{ number_format($invoice->outstandingCents() / 100, 2) }}</strong><br>
+            {{ __('billing.invoices.subtotal') }}: {{ \App\Support\Money::cents((int) round($invoice->subtotal_cents))->format() }}<br>{{ __('billing.invoices.gst') }}: {{ \App\Support\Money::cents((int) round($invoice->gst_cents))->format() }}<br><strong>{{ __('billing.invoices.total') }}: {{ \App\Support\Money::cents((int) round($invoice->total_cents))->format() }} {{ __('billing.money') }}</strong><br>
+            {{ __('billing.invoices.paid') }}: {{ \App\Support\Money::cents((int) round($invoice->paid_amount_cents))->format() }} · {{ __('billing.invoices.outstanding') }}: <strong>{{ \App\Support\Money::cents((int) round($invoice->outstandingCents()))->format() }}</strong><br>
             {{ __('billing.invoices.issued_at') }}: {{ $invoice->issued_at?->format('Y-m-d') ?? '—' }} · {{ __('billing.invoices.due_at') }}: {{ $invoice->due_at?->format('Y-m-d') ?? '—' }}
         </article>
         <article>
@@ -42,7 +42,7 @@
             @php($lines = $group['lines'])
             <tr><td colspan="7"><strong>{{ $group['title'] }}</strong> <small class="text-muted">{{ __('billing.invoices.group_by.'.$invoice->group_by) }}</small></td></tr>
             @foreach ($lines as $l)
-                <tr><td><code>{{ $l->charge_code }}</code></td><td>{{ $l->description }}</td><td class="num">{{ rtrim(rtrim(number_format($l->qty, 3), '0'), '.') }}</td><td>{{ $l->uom }}</td><td class="num">{{ number_format($l->amount_cents / 100, 2) }}</td><td class="num">{{ number_format($l->gst_cents / 100, 2) }}</td><td><small>@if ($l->charge)<a href="{{ route('billing.index', ['job_no' => $l->job?->job_no]) }}">#{{ $l->charge_id }}</a> · {{ $l->charge->source_type }} #{{ $l->charge->source_id }}@endif</small></td></tr>
+                <tr><td><code>{{ $l->charge_code }}</code></td><td>{{ $l->description }}</td><td class="num">{{ rtrim(rtrim(number_format($l->qty, 3), '0'), '.') }}</td><td>{{ $l->uom }}</td><td class="num">{{ \App\Support\Money::cents((int) round($l->amount_cents))->format() }}</td><td class="num">{{ \App\Support\Money::cents((int) round($l->gst_cents))->format() }}</td><td><small>@if ($l->charge)<a href="{{ route('billing.index', ['job_no' => $l->job?->job_no]) }}">#{{ $l->charge_id }}</a> · {{ $l->charge->source_type }} #{{ $l->charge->source_id }}@endif</small></td></tr>
             @endforeach
         @endforeach
         </tbody>
@@ -52,12 +52,12 @@
         <div class="grid">
             <article>
                 <header>{{ __('billing.invoices.payments') }}</header>
-                @forelse ($invoice->payments as $p)<p>{{ $p->paid_at->format('Y-m-d') }} · {{ __('billing.invoices.methods.'.$p->method) }} · {{ $p->reference }} · <strong>{{ number_format($p->amount_cents / 100, 2) }}</strong></p>@empty<p class="text-muted">—</p>@endforelse
+                @forelse ($invoice->payments as $p)<p>{{ $p->paid_at->format('Y-m-d') }} · {{ __('billing.invoices.methods.'.$p->method) }} · {{ $p->reference }} · <strong>{{ \App\Support\Money::cents((int) round($p->amount_cents))->format() }}</strong></p>@empty<p class="text-muted">—</p>@endforelse
             </article>
             <article>
                 <header>{{ __('billing.credit_notes.title') }}</header>
                 @foreach ($invoice->creditNotes as $n)
-                    <p>{{ $n->credit_note_no }} · {{ $n->reason }} · {{ number_format(($n->amount_cents + $n->gst_cents) / 100, 2) }} · <span class="badge" data-tone="{{ $n->status === 'issued' ? 'ok' : 'warn' }}">{{ __('billing.credit_notes.statuses.'.$n->status) }}</span>
+                    <p>{{ $n->credit_note_no }} · {{ $n->reason }} · {{ \App\Support\Money::cents((int) round(($n->amount_cents + $n->gst_cents)))->format() }} · <span class="badge" data-tone="{{ $n->status === 'issued' ? 'ok' : 'warn' }}">{{ __('billing.credit_notes.statuses.'.$n->status) }}</span>
                         @if ($n->status !== 'issued')<form method="post" action="{{ route('billing.credit_notes.issue', $n) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('billing.credit_notes.issue') }}</button></form>@endif</p>
                 @endforeach
                 <details>
@@ -66,7 +66,7 @@
                         @csrf
                         <input type="text" name="reason" placeholder="{{ __('billing.credit_notes.reason') }}" required>
                         @foreach ($invoice->lines as $i => $l)
-                            <div class="grid"><span>{{ $l->charge_code }} · {{ $l->description }} ({{ number_format($l->amount_cents / 100, 2) }})</span><input type="hidden" name="lines[{{ $i }}][invoice_line_id]" value="{{ $l->id }}"><input type="number" step="0.01" min="0" max="{{ $l->amount_cents / 100 }}" name="lines[{{ $i }}][amount]" placeholder="{{ __('billing.credit_notes.line_amount') }}"></div>
+                            <div class="grid"><span>{{ $l->charge_code }} · {{ $l->description }} ({{ \App\Support\Money::cents((int) round($l->amount_cents))->format() }})</span><input type="hidden" name="lines[{{ $i }}][invoice_line_id]" value="{{ $l->id }}"><input type="number" step="0.01" min="0" max="{{ $l->amount_cents / 100 }}" name="lines[{{ $i }}][amount]" placeholder="{{ __('billing.credit_notes.line_amount') }}"></div>
                         @endforeach
                         <button type="submit" class="secondary">{{ __('billing.credit_notes.new') }}</button>
                     </form>

@@ -13,6 +13,7 @@ Route::prefix('admin')->name('masterdata.')->middleware('role:admin|customer_ser
     Route::post('/clients', [ClientController::class, 'store'])->name('clients.store');
     Route::get('/clients/{client}/edit', [ClientController::class, 'edit'])->name('clients.edit');
     Route::put('/clients/{client}', [ClientController::class, 'update'])->name('clients.update');
+    Route::post('/clients/{client}/approve', [ClientController::class, 'approve'])->name('clients.approve'); // tester feedback #8: activate a self-registered client + its users
 
     Route::get('/suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
     Route::get('/suppliers/create', [SupplierController::class, 'create'])->name('suppliers.create');
