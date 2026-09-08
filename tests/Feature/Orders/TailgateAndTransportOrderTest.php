@@ -72,6 +72,61 @@ class TailgateAndTransportOrderTest extends TestCase
         $this->assertSame('manual', $event->payload['tailgate_reason']);
     }
 
+    /** Tester feedback item 6: the form's 尾板车 checkbox — automatic unless a person changed it (tailgate_manual → reason manual). */
+    public function test_the_order_form_checkbox_overrides_the_automatic_tailgate_rule_only_when_a_person_changed_it(): void
+    {
+        $user = $this->staff('customer_service');
+        $client = $this->client();
+        $job = app(JobService::class)->create($client->id, 'loose')['job_id'];
+
+        $this->actingAs($user)->get(route('orders.create'))->assertOk()
+            ->assertSee('name="tailgate_required"', false)->assertSee('name="tailgate_manual"', false)->assertSee('id="tailgate-required"', false)
+            ->assertSee(__('orders.tailgate.form_label'))->assertSee(__('orders.tailgate.form_hint', ['kg' => 25]))->assertSee('data-tailgate-kg="25"', false);
+
+        $heavy = ['lines' => [['carton_qty' => 2, 'actual_weight_kg' => 60]]]; // 30 kg pieces
+
+        // Untouched checkbox (browser sends the hidden 0 / auto-ticked 1, manual 0): the automatic rule decides.
+        $this->actingAs($user)->post('/orders', $this->payload($client, $job, $heavy + ['tailgate_required' => 1, 'tailgate_manual' => 0]))->assertSessionHasNoErrors();
+        $auto = Order::query()->latest('id')->firstOrFail();
+        $this->assertSame([true, 'heavy_item'], [$auto->tailgate_required, $auto->tailgate_reason]);
+
+        // The person unticked the auto-ticked box: stays off with reason manual, survives confirmation, is what the event carries.
+        $this->actingAs($user)->post('/orders', $this->payload($client, $job, $heavy + ['tailgate_required' => 0, 'tailgate_manual' => 1]))->assertSessionHasNoErrors();
+        $off = Order::query()->latest('id')->firstOrFail();
+        $this->assertSame([false, 'manual'], [$off->tailgate_required, $off->tailgate_reason]);
+        $this->assertDatabaseHas('order_events', ['order_id' => $off->id, 'actor_id' => $user->id, 'note' => __('orders.tailgate.timeline.manual_off_entry')]);
+        $off->lines()->update(['asn_line_id' => 1]);
+        $this->actingAs($user)->post(route('orders.confirm', $off))->assertSessionHasNoErrors();
+        $this->assertSame([false, 'manual'], [$off->fresh()->tailgate_required, $off->fresh()->tailgate_reason]);
+        $event = OutboxEvent::query()->where('event_name', 'order.confirmed')->where('payload->order_id', $off->id)->firstOrFail();
+        $this->assertFalse($event->payload['tailgate_required']);
+        $this->assertSame('manual', $event->payload['tailgate_reason']);
+
+        // Light order, person ticked the box: on with reason manual.
+        $this->actingAs($user)->post('/orders', $this->payload($client, $job, ['tailgate_required' => 1, 'tailgate_manual' => 1]))->assertSessionHasNoErrors();
+        $on = Order::query()->latest('id')->firstOrFail();
+        $this->assertSame([true, 'manual'], [$on->tailgate_required, $on->tailgate_reason]);
+        $this->assertDatabaseHas('order_events', ['order_id' => $on->id, 'note' => __('orders.tailgate.timeline.manual_on_entry')]);
+        $this->actingAs($user)->get(route('orders.show', $on))->assertOk()->assertSee(__('orders.tailgate.required'))->assertSee(__('orders.tailgate.reasons.manual'));
+
+        // Portal form: same checkbox, same rule; the client's order page shows the flag.
+        $portalUser = $this->clientUser($client);
+        $this->actingAs($portalUser)->get(route('portal.orders.create'))->assertOk()->assertSee('id="tailgate-required"', false)->assertSee(__('orders.tailgate.form_hint', ['kg' => 25]));
+        $portal = fn (array $extra) => [
+            'order_type' => 'from_stock', 'external_ref' => 'PORTAL-TG-'.uniqid(), 'deliver_to_name' => 'Receiver', 'deliver_to_address' => '1 Test St', 'deliver_to_suburb' => 'Melbourne',
+            'deliver_to_state' => 'VIC', 'deliver_to_postcode' => '3000', 'deliver_to_address_type' => 'business', 'requested_date' => today()->addDays(3)->toDateString(), 'service_level' => 'standard',
+            'lines' => [['description_cn' => '灯具', 'package_type' => 'carton', 'carton_qty' => 1, 'actual_weight_kg' => 5]],
+        ] + $extra;
+        $this->actingAs($portalUser)->post(route('portal.orders.store'), $portal(['tailgate_required' => 1, 'tailgate_manual' => 1]))->assertSessionHasNoErrors();
+        $portalOn = Order::query()->withoutGlobalScopes()->latest('id')->firstOrFail();
+        $this->assertSame([true, 'manual', 'portal'], [$portalOn->tailgate_required, $portalOn->tailgate_reason, $portalOn->source]);
+        $this->actingAs($portalUser)->get(route('portal.orders.show', $portalOn))->assertOk()->assertSee(__('portal.fields.tailgate'))->assertSee(__('portal.tailgate.required'));
+        $this->actingAs($portalUser)->post(route('portal.orders.store'), $portal(['tailgate_required' => 0, 'tailgate_manual' => 0]))->assertSessionHasNoErrors();
+        $portalAuto = Order::query()->withoutGlobalScopes()->latest('id')->firstOrFail();
+        $this->assertSame([false, null], [$portalAuto->tailgate_required, $portalAuto->tailgate_reason]);
+        $this->actingAs($portalUser)->get(route('portal.orders.show', $portalAuto))->assertOk()->assertSee(__('portal.tailgate.not_required'));
+    }
+
     public function test_a_pure_transport_order_needs_no_goods_lines_opens_its_own_job_and_confirms_straight_to_transport(): void
     {
         $user = $this->staff('customer_service');

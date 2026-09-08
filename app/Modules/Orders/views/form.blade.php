@@ -28,7 +28,7 @@
                 <select name="client_id" required>
                     <option value="">{{ __('orders.actions.select') }}</option>
                     @foreach ($clients as $client)
-                        <option value="{{ $client->id }}" @selected((int) old('client_id') === $client->id)>{{ $client->code }} — {{ $client->name }}</option>
+                        <option value="{{ $client->id }}" data-tailgate-kg="{{ ($tailgateThresholds[$client->id] ?? $tailgateThresholdKg) + 0 }}" @selected((int) old('client_id') === $client->id)>{{ $client->code }} — {{ $client->name }}</option>
                     @endforeach
                 </select>
             </label>
@@ -117,6 +117,7 @@
                 </select>
             </label>
         </div>
+        @include('orders::partials.tailgate', ['tailgateThresholdKg' => $tailgateThresholdKg])
 
         {{-- A11b: pure transport orders carry a pickup address and declared packages instead of stock lines. --}}
         <fieldset id="pickup-fields" hidden>

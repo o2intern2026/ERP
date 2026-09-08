@@ -22,6 +22,7 @@
         <dt>{{ __('portal.fields.fba_reference') }}</dt><dd>{{ $order->fba_reference ?: __('portal.not_provided') }}</dd>
         <dt>{{ __('portal.fields.requested_date') }}</dt><dd>{{ $order->requested_date->format('Y-m-d') }}</dd>
         <dt>{{ __('portal.fields.service_level') }}</dt><dd>{{ __('orders.service_levels.'.$order->service_level) }}</dd>
+        <dt>{{ __('portal.fields.tailgate') }}</dt><dd>{{ $order->tailgate_required ? __('portal.tailgate.required') : __('portal.tailgate.not_required') }}</dd>
     </dl>
 
     <h2>{{ __($order->order_type === 'return' ? 'portal.returns.pickup_title' : 'portal.sections.delivery') }}</h2>

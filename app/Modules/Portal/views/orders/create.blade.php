@@ -67,6 +67,7 @@
                 </select>
             </label>
         </div>
+        @include('orders::partials.tailgate', ['tailgateThresholdKg' => $tailgateThresholdKg])
 
         <fieldset id="pickup-fields" hidden>
             <legend>{{ __('portal.sections.pickup') }}</legend>

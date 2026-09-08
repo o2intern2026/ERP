@@ -9,8 +9,10 @@ use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Orders\Services\OrderEstimateService;
+use App\Modules\Orders\Services\TailgateRule;
 use App\Modules\Portal\Services\PortalTransportQuotes;
 use App\Modules\Transport\Models\Shipment;
+use App\Support\Contracts\RateService;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -64,11 +66,13 @@ final class PortalOrderController extends Controller
         ]);
     }
 
-    public function create(Request $request): View
+    public function create(Request $request, RateService $rates): View
     {
-        $this->clientId($request);
+        $clientId = $this->clientId($request);
 
         return view('portal::orders.create', [
+            // Item 6: the tailgate checkbox auto-ticks from the client's TR-TAILGATE threshold (rate card parameter, default 25 kg).
+            'tailgateThresholdKg' => (float) ($rates->thresholds($clientId, 'TR-TAILGATE')['tailgate_weight_kg'] ?? TailgateRule::DEFAULT_WEIGHT_KG),
             'types' => ['from_stock', 'pickup_deliver'],
             'serviceLevels' => OrderEnums::SERVICE_LEVELS,
             'addressTypes' => OrderEnums::ADDRESS_TYPES,
@@ -99,6 +103,8 @@ final class PortalOrderController extends Controller
             'delivery_instructions' => ['nullable', 'string', 'max:2000'],
             'requested_date' => ['required', 'date', 'after_or_equal:today'],
             'service_level' => ['required', Rule::in(OrderEnums::SERVICE_LEVELS)],
+            'tailgate_required' => ['nullable', 'boolean'], // item 6: checkbox state; only stored as given when tailgate_manual is set
+            'tailgate_manual' => ['nullable', 'boolean'],
             'pickup_name' => ['nullable', 'string', 'max:255'],
             'pickup_phone' => ['nullable', 'string', 'max:40'],
             'pickup_address_line' => ['nullable', 'required_if:order_type,pickup_deliver', 'string', 'max:255'],

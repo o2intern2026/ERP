@@ -53,6 +53,7 @@ return [
         'height_mm' => '高（mm）',
         'declared_package' => '申报包裹',
         'tracking_number' => '追踪号',
+        'tailgate' => '尾板车',
     ],
     'sections' => [
         'instruction' => '订单信息',
@@ -74,6 +75,10 @@ return [
         'phone' => '取货电话',
         'address' => '取货地址',
         'packages_title' => '申报包裹',
+    ],
+    'tailgate' => [
+        'required' => '需要',
+        'not_required' => '不需要',
     ],
     'shipment_statuses' => [
         'quoting' => '报价中',

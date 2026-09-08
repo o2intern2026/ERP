@@ -19,6 +19,7 @@ use App\Modules\Orders\Services\OrderHoldService;
 use App\Modules\Orders\Services\OrderStatusService;
 use App\Modules\Orders\Services\TailgateRule;
 use App\Modules\Platform\Models\Job;
+use App\Support\Contracts\RateService;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -59,12 +60,16 @@ final class OrderController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(RateService $rates): View
     {
         $this->authorizeOrderEntry();
+        $clients = Client::query()->where('status', 'active')->orderBy('name')->get(['id', 'code', 'name']);
 
         return view('orders::form', [
-            'clients' => Client::query()->where('status', 'active')->orderBy('name')->get(['id', 'code', 'name']),
+            'clients' => $clients,
+            // Item 6: the tailgate checkbox auto-ticks from each client's TR-TAILGATE threshold (rate card parameter, default 25 kg).
+            'tailgateThresholds' => $clients->mapWithKeys(fn (Client $client) => [$client->id => (float) ($rates->thresholds($client->id, 'TR-TAILGATE')['tailgate_weight_kg'] ?? TailgateRule::DEFAULT_WEIGHT_KG)])->all(),
+            'tailgateThresholdKg' => TailgateRule::DEFAULT_WEIGHT_KG,
             'jobs' => Job::query()->with('client')->where('operational_status', '!=', 'cancelled')->latest('id')->get(),
             'types' => OrderEnums::TYPES,
             'serviceLevels' => OrderEnums::SERVICE_LEVELS,
@@ -209,6 +214,8 @@ final class OrderController extends Controller
             ],
             'requested_date' => ['required', 'date'],
             'service_level' => ['required', Rule::in(OrderEnums::SERVICE_LEVELS)],
+            'tailgate_required' => ['nullable', 'boolean'], // item 6: checkbox state; only stored as given when tailgate_manual is set
+            'tailgate_manual' => ['nullable', 'boolean'],
             'pickup_name' => ['nullable', 'string', 'max:255'],
             'pickup_phone' => ['nullable', 'string', 'max:40'],
             'pickup_address_line' => ['nullable', 'required_if:order_type,pickup_deliver', 'string', 'max:255'],

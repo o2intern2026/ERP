@@ -324,7 +324,15 @@ return [
         'reason' => '覆盖原因（必填，写入时间线）',
         'save' => '保存判定',
         'reasons' => ['heavy_item' => '重货（超过阈值）', 'residential_address' => '住宅地址', 'manual' => '人工指定'],
-        'timeline' => ['forced' => '人工勾选尾板车：:reason', 'cleared' => '人工取消尾板车：:reason'],
+        // Item 6 (tester feedback): checkbox on the order forms; a hand-changed box is saved as given with reason manual.
+        'form_label' => '尾板车',
+        'form_hint' => '按单件重量超过 :kg kg 自动勾选,可取消',
+        'timeline' => [
+            'forced' => '人工勾选尾板车：:reason',
+            'cleared' => '人工取消尾板车：:reason',
+            'manual_on_entry' => '建单时人工指定：需要尾板车（不再按重量 / 地址自动判定）',
+            'manual_off_entry' => '建单时人工指定：不需要尾板车（不再按重量 / 地址自动判定）',
+        ],
         'messages' => ['saved' => '尾板车判定已更新。', 'locked' => '已发运的订单不能再改尾板车判定。'],
     ],
     'holds' => [
