@@ -58,3 +58,29 @@ nav.erp-nav .erp-search { width: 13rem; margin: 0; padding: .25rem .6rem; }
 nav.erp-nav .erp-user { white-space: nowrap; }
 nav.erp-nav .erp-logout { padding: .25rem .7rem; margin: 0; white-space: nowrap; }
 @media (max-width: 1100px) { nav.erp-nav .erp-search { width: 9rem; } nav.erp-nav .erp-user { display: none; } }
+
+/* Shared form / layout classes (tester feedback round 1, CHANGE_REQUESTS #80). */
+dl.kv { display: grid; grid-template-columns: 9rem minmax(0, 1fr); column-gap: 1rem; row-gap: .4rem; align-items: baseline; margin: 0 0 1.25rem; }
+dl.kv dt { margin: 0; color: var(--erp-muted); font-weight: 400; }
+dl.kv dd { margin: 0; overflow-wrap: anywhere; }
+@media (min-width: 768px) { dl.kv.kv-2 { grid-template-columns: 9rem minmax(0, 1fr) 9rem minmax(0, 1fr); } }
+form.filter-row { display: flex; flex-wrap: nowrap; gap: .5rem; align-items: center; margin-bottom: 1rem; }
+form.filter-row > * { margin-bottom: 0; }
+form.filter-row input[type="search"] { flex: 1 1 14rem; min-width: 0; }
+form.filter-row select, form.filter-row button { flex: 0 0 auto; width: auto; }
+form.filter-row select { min-width: 9rem; }
+@media (max-width: 640px) { form.filter-row { flex-wrap: wrap; } form.filter-row input[type="search"] { flex-basis: 100%; } }
+table.form-rows { margin-bottom: .5rem; }
+table.form-rows th, table.form-rows td { padding: .2rem .25rem; vertical-align: middle; white-space: nowrap; font-size: .85rem; }
+table.form-rows th { font-weight: 500; color: var(--erp-muted); }
+table.form-rows input, table.form-rows select { margin-bottom: 0; padding: .3rem .5rem; font-size: .9rem; height: auto; }
+table.form-rows td.desc input { min-width: 11rem; }
+table.form-rows td.type select { min-width: 9.5rem; }
+table.form-rows td.num input { width: 5.5rem; }
+table.form-rows button.remove-row { width: auto; margin: 0; padding: .15rem .6rem; line-height: 1.2; }
+button.form-rows-add { width: auto; margin-bottom: 1.5rem; }
+.suggest-wrap { position: relative; }
+.suggest-list { position: absolute; z-index: 20; left: 0; right: 0; margin: 0; padding: .25rem 0; list-style: none; background: var(--pico-background-color); border: 1px solid var(--pico-muted-border-color); border-radius: var(--pico-border-radius); box-shadow: 0 6px 18px rgba(0, 0, 0, .12); max-height: 18rem; overflow-y: auto; }
+.suggest-list li { padding: .4rem .75rem; cursor: pointer; font-size: .9rem; line-height: 1.35; }
+.suggest-list li[aria-selected="true"], .suggest-list li:hover { background: var(--pico-secondary-focus); }
+.suggest-list li small { display: block; color: var(--erp-muted); }

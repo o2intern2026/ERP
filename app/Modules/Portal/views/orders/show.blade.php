@@ -15,14 +15,6 @@
         </p>
     </header>
 
-    <style>
-        /* Item 2 (tester feedback): label / value grids — label left (muted, 9rem), value right, one field per row; .kv-2 puts two
-           pairs per row on desktop. Inline until app.css gets shared classes (CHANGE_REQUESTS #80). */
-        dl.kv { display: grid; grid-template-columns: 9rem minmax(0, 1fr); column-gap: 1rem; row-gap: .4rem; align-items: baseline; margin: 0 0 1.25rem; }
-        dl.kv dt { margin: 0; color: var(--erp-muted); font-weight: 400; }
-        dl.kv dd { margin: 0; overflow-wrap: anywhere; }
-        @media (min-width: 768px) { dl.kv.kv-2 { grid-template-columns: 9rem minmax(0, 1fr) 9rem minmax(0, 1fr); } }
-    </style>
 
     <h2>{{ __('portal.sections.instruction') }}</h2>
     <dl class="kv kv-2">

@@ -6,17 +6,6 @@
     $extended = $extended ?? false;
     $rows = array_values(array_filter((array) old('lines', []), 'is_array')) ?: [['package_type' => 'carton', 'carton_qty' => 1]];
 @endphp
-<style>
-    table.form-rows { margin-bottom: .5rem; }
-    table.form-rows th, table.form-rows td { padding: .2rem .25rem; vertical-align: middle; white-space: nowrap; font-size: .85rem; }
-    table.form-rows th { font-weight: 500; color: var(--erp-muted); }
-    table.form-rows input, table.form-rows select { margin-bottom: 0; padding: .3rem .5rem; font-size: .9rem; height: auto; }
-    table.form-rows td.desc input { min-width: 11rem; }
-    table.form-rows td.type select { min-width: 9.5rem; }
-    table.form-rows td.num input { width: 5.5rem; }
-    table.form-rows button.remove-row { width: auto; margin: 0; padding: .15rem .6rem; line-height: 1.2; }
-    button.form-rows-add { width: auto; margin-bottom: 1.5rem; }
-</style>
 <p class="text-muted"><small>{{ __('orders.lines.hint') }}</small></p>
 <div class="overflow-auto">
     <table class="form-rows" id="goods-lines">

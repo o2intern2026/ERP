@@ -33,6 +33,8 @@
 | Orders | `POST /orders/{order}/estimate` (A7b 估价 → Billing QuoteService) | `orders.estimate` | — |
 | Portal | `POST /portal/orders/{order}/estimate` (client estimate, 客户价 only) | `portal.orders.estimate` | — |
 | Portal | `POST /portal/orders/{order}/quotes/{quote}/confirm` (client confirms the final transport quote → QuoteSelectionService, §5.7 #2) | `portal.orders.quotes.confirm` | — |
+| Orders | `GET /orders/addresses/suggest?q=&client_id=` (JSON address suggestions from the client's address book + past orders) | `orders.addresses.suggest` | — |
+| Portal | `GET /portal/addresses/suggest?q=` (same, for the signed-in client) | `portal.addresses.suggest` | — |
 | Portal | `GET /portal/reports/export/{table}` (CSV of the client report) | `portal.reports.export` | — |
 | Portal | `GET /portal/invoices`, `GET /portal/invoices/{invoice}/download` (own issued invoices, PDF via DocumentDownloader) | `portal.invoices.index`, `portal.invoices.download` | `portal::invoices.index` |
 | Portal | `GET /portal/stock` (own stock, read-only) | `portal.stock.index` | `portal::stock.index` |

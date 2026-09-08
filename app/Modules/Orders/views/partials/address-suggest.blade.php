@@ -2,13 +2,6 @@
      (JSON from $suggestUrl: address book + past orders, max 8). Choosing one fills name / phone / address / suburb / state /
      postcode / address type. Nothing appears when the typed text matches no history. $clientField (staff form) is the selector
      of the client <select> whose value is sent as client_id. CSS is inline (CHANGE_REQUESTS #80). --}}
-<style>
-    .suggest-wrap { position: relative; }
-    .suggest-list { position: absolute; z-index: 20; left: 0; right: 0; margin: 0; padding: .25rem 0; list-style: none; background: var(--pico-background-color); border: 1px solid var(--pico-muted-border-color); border-radius: var(--pico-border-radius); box-shadow: var(--pico-box-shadow); max-height: 18rem; overflow-y: auto; }
-    .suggest-list li { padding: .4rem .75rem; cursor: pointer; font-size: .9rem; line-height: 1.35; }
-    .suggest-list li[aria-selected="true"], .suggest-list li:hover { background: var(--pico-secondary-focus); }
-    .suggest-list li small { display: block; color: var(--erp-muted); }
-</style>
 <script>
     (() => {
         const input = document.getElementById('deliver-to-address');

@@ -8,16 +8,6 @@
         <p class="text-muted"><small>{{ __('portal.stock.hint') }}</small></p>
     </header>
 
-    <style>
-        /* Item 1 (tester feedback): search box + 货物状态 + 可用性 + 筛选 on one row on desktop (wraps only on phones). Inline until
-           app.css gets shared classes (CHANGE_REQUESTS #80). */
-        form.filter-row { display: flex; flex-wrap: nowrap; gap: .5rem; align-items: center; margin-bottom: 1rem; }
-        form.filter-row > * { margin-bottom: 0; }
-        form.filter-row input[type="search"] { flex: 1 1 14rem; min-width: 0; }
-        form.filter-row select { flex: 0 0 auto; width: auto; min-width: 9rem; }
-        form.filter-row button { flex: 0 0 auto; width: auto; }
-        @media (max-width: 640px) { form.filter-row { flex-wrap: wrap; } form.filter-row input[type="search"] { flex-basis: 100%; } }
-    </style>
     <form method="get" class="filter-row">
         <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="{{ __('portal.stock.search') }}" aria-label="{{ __('portal.stock.search') }}">
         <select name="condition" aria-label="{{ __('portal.stock.filters.condition') }}">
