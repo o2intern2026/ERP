@@ -19,7 +19,7 @@ class Asn extends Model
 
     protected $fillable = [
         'asn_no', 'job_id', 'client_id', 'warehouse_id', 'expected_date', 'inbound_type', 'status', 'created_by_type',
-        'created_by', 'unplanned', 'unplanned_confirmed', 'arrived_at', 'putaway_completed_at', 'closed_at', 'notes',
+        'created_by', 'unplanned', 'unplanned_confirmed', 'arrived_at', 'receiving_completed_at', 'putaway_completed_at', 'closed_at', 'notes',
     ];
 
     protected function casts(): array
@@ -29,6 +29,7 @@ class Asn extends Model
             'unplanned' => 'boolean',
             'unplanned_confirmed' => 'boolean',
             'arrived_at' => 'datetime',
+            'receiving_completed_at' => 'datetime',
             'putaway_completed_at' => 'datetime',
             'closed_at' => 'datetime',
         ];
@@ -57,6 +58,12 @@ class Asn extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(AsnLine::class);
+    }
+
+    /** 入库单 batches of this ASN (预报单), ordered by batch_no. */
+    public function goodsReceipts(): HasMany
+    {
+        return $this->hasMany(GoodsReceipt::class)->orderBy('batch_no');
     }
 
     public function isContainer(): bool

@@ -20,7 +20,7 @@ class StockUnit extends Model
     use LogsActivity;
 
     protected $fillable = [
-        'client_id', 'job_id', 'asn_line_id', 'warehouse_id', 'unit_type', 'label_code', 'location_id',
+        'client_id', 'job_id', 'asn_line_id', 'goods_receipt_id', 'warehouse_id', 'unit_type', 'label_code', 'location_id',
         'qty_on_hand', 'qty_reserved', 'qty_inbound', 'pallet_class', 'pallet_class_overridden_reason',
         'length_mm', 'width_mm', 'height_mm', 'weight_kg', 'pallet_source', 'condition', 'condition_reason', 'condition_changed_at', 'putaway_completed', 'received_at',
     ];
@@ -36,6 +36,11 @@ class StockUnit extends Model
     public function asnLine(): BelongsTo
     {
         return $this->belongsTo(AsnLine::class);
+    }
+
+    public function goodsReceipt(): BelongsTo
+    {
+        return $this->belongsTo(GoodsReceipt::class);
     }
 
     public function location(): BelongsTo

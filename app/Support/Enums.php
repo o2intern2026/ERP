@@ -26,7 +26,7 @@ final class Enums
 
     public const HOLD_TYPES = ['stock', 'financial', 'address', 'transport', 'client_confirmation'];
 
-    public const DOCUMENT_TYPES = ['pod', 'docket', 'photo', 'waybill', 'invoice', 'packing_list', 'consignment_note', 'label'];
+    public const DOCUMENT_TYPES = ['pod', 'docket', 'photo', 'waybill', 'invoice', 'packing_list', 'consignment_note', 'label', 'goods_receipt'];
 
     public const OUTBOX_STATUSES = ['pending', 'published', 'failed', 'dead'];
 
