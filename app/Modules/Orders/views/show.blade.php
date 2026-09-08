@@ -119,7 +119,7 @@
                 <thead><tr><th>{{ __('orders.pickup.package_type') }}</th><th>{{ __('orders.pickup.qty') }}</th><th>{{ __('orders.pickup.weight_kg') }}</th><th>{{ __('orders.pickup.dims') }}</th></tr></thead>
                 <tbody>
                     @foreach ($order->declaredPackages as $package)
-                        <tr><td>{{ $package->package_type }}</td><td>{{ $package->qty }}</td><td>{{ $package->weight_kg ?? __('orders.not_provided') }}</td><td>{{ $package->length_mm && $package->width_mm && $package->height_mm ? $package->length_mm.' × '.$package->width_mm.' × '.$package->height_mm : __('orders.not_provided') }}</td></tr>
+                        <tr><td>{{ \App\Modules\Orders\OrderEnums::packageTypeLabel($package->package_type) }}</td><td>{{ $package->qty }}</td><td>{{ $package->weight_kg ?? __('orders.not_provided') }}</td><td>{{ $package->length_mm && $package->width_mm && $package->height_mm ? $package->length_mm.' × '.$package->width_mm.' × '.$package->height_mm : __('orders.not_provided') }}</td></tr>
                     @endforeach
                 </tbody>
             </table>
@@ -207,7 +207,7 @@
                                         @method('PATCH')
                                         <input name="description_cn" value="{{ $line->description_cn }}" placeholder="{{ __('orders.fields.description_cn') }}">
                                         <input name="description_en" value="{{ $line->description_en }}" placeholder="{{ __('orders.fields.description_en') }}">
-                                        <input name="package_type" value="{{ $line->package_type }}" placeholder="{{ __('orders.fields.package_type') }}">
+                                        @include('orders::partials.package-type-select', ['name' => 'package_type', 'value' => $line->package_type])
                                         <input type="number" min="1" name="carton_qty" value="{{ $line->carton_qty }}" required>
                                         <input type="number" min="0" step="0.001" name="actual_weight_kg" value="{{ $line->actual_weight_kg }}" placeholder="{{ __('orders.fields.weight_kg') }}">
                                         @if ($asnLineOptions->isNotEmpty())
@@ -223,7 +223,7 @@
                                 </details>
                             @endif
                         </td>
-                        <td>{{ $line->package_type }}</td>
+                        <td>{{ \App\Modules\Orders\OrderEnums::packageTypeLabel($line->package_type) }}</td>
                         <td>{{ $line->carton_qty }}</td>
                         <td>{{ $line->unit_qty ?? __('orders.not_provided') }}</td>
                         <td>{{ $line->actual_weight_kg ?? __('orders.not_provided') }}</td>
@@ -249,7 +249,7 @@
                 @csrf
                 <input name="description_cn" placeholder="{{ __('orders.fields.description_cn') }}">
                 <input name="description_en" placeholder="{{ __('orders.fields.description_en') }}">
-                <input name="package_type" value="carton" placeholder="{{ __('orders.fields.package_type') }}">
+                @include('orders::partials.package-type-select', ['name' => 'package_type', 'value' => 'carton'])
                 <input type="number" min="1" name="carton_qty" value="1" required>
                 <input type="number" min="0" step="0.001" name="actual_weight_kg" placeholder="{{ __('orders.fields.weight_kg') }}">
                 <button type="submit" class="secondary">{{ __('orders.drafts.add_line') }}</button>

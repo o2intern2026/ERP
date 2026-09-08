@@ -5,6 +5,7 @@ namespace App\Modules\Orders\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Orders\Exceptions\OrderRuleViolation;
+use App\Modules\Orders\Http\OrderFormRows;
 use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderEvent;
@@ -81,6 +82,7 @@ final class OrderController extends Controller
     {
         $this->authorizeOrderEntry();
         $this->mergeSavedAddress($request);
+        OrderFormRows::prune($request); // spare form rows (package type select always has a value) are not lines
         $data = $this->validated($request);
         $order = $orders->createManual($data, $request->user()?->id);
 
@@ -216,7 +218,7 @@ final class OrderController extends Controller
             'lines' => ['nullable', 'required_unless:order_type,pickup_deliver', 'array'],
             'lines.*.description_cn' => ['nullable', 'string', 'max:255', 'required_without:lines.*.description_en'],
             'lines.*.description_en' => ['nullable', 'string', 'max:255', 'required_without:lines.*.description_cn'],
-            'lines.*.package_type' => ['required', 'string', 'max:30'],
+            'lines.*.package_type' => ['required', Rule::in(OrderEnums::PACKAGE_TYPES)],
             'lines.*.carton_qty' => ['required', 'integer', 'min:1'],
             'lines.*.unit_qty' => ['nullable', 'integer', 'min:0'],
             'lines.*.actual_weight_kg' => ['nullable', 'numeric', 'min:0'],
@@ -225,7 +227,7 @@ final class OrderController extends Controller
             'lines.*.height_mm' => ['nullable', 'integer', 'min:0'],
             'lines.*.cbm' => ['nullable', 'numeric', 'min:0'],
             'declared_packages' => ['nullable', 'required_if:order_type,pickup_deliver', 'array'],
-            'declared_packages.*.package_type' => ['required_with:declared_packages.*.qty', 'nullable', 'string', 'max:30'],
+            'declared_packages.*.package_type' => ['required_with:declared_packages.*.qty', 'nullable', Rule::in(OrderEnums::PACKAGE_TYPES)],
             'declared_packages.*.qty' => ['required_with:declared_packages.*.package_type', 'nullable', 'integer', 'min:1'],
             'declared_packages.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
             'declared_packages.*.length_mm' => ['nullable', 'integer', 'min:0'],

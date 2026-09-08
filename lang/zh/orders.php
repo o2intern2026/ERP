@@ -177,6 +177,16 @@ return [
         'fba' => 'FBA仓库',
         'residential' => '住宅地址',
     ],
+    // Item 5 (tester feedback): the package type dropdown shows Chinese + code; OrderEnums::PACKAGE_TYPES is the value list.
+    'package_types' => [
+        'carton' => '纸箱 carton',
+        'satchel' => '快递袋 satchel',
+        'pallet' => '托盘 pallet',
+        'crate' => '木箱 crate',
+        'tube' => '圆筒 tube',
+        'flat_pack' => '扁平件 flat_pack',
+        'skid' => '栈板 skid',
+    ],
     'dimensions' => [
         'operational' => '运营',
         'fulfilment' => '履约',
