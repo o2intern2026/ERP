@@ -30,6 +30,13 @@
 | Orders | `GET /orders` | `orders.index` | `orders::index` |
 | Portal | `GET /portal` | `portal.index` | `portal::index` |
 | Portal | `GET /portal/reports` (client view of A21, client users only — ClientScope confines them to `/portal/**`, CHANGE_REQUESTS #52) | `portal.reports.index` | `reports::client` |
+| Orders | `POST /orders/{order}/estimate` (A7b 估价 → Billing QuoteService) | `orders.estimate` | — |
+| Portal | `POST /portal/orders/{order}/estimate` (client estimate, 客户价 only) | `portal.orders.estimate` | — |
+| Portal | `POST /portal/orders/{order}/quotes/{quote}/confirm` (client confirms the final transport quote → QuoteSelectionService, §5.7 #2) | `portal.orders.quotes.confirm` | — |
+| Portal | `GET /portal/reports/export/{table}` (CSV of the client report) | `portal.reports.export` | — |
+| Portal | `GET /portal/invoices`, `GET /portal/invoices/{invoice}/download` (own issued invoices, PDF via DocumentDownloader) | `portal.invoices.index`, `portal.invoices.download` | `portal::invoices.index` |
+| Portal | `GET /portal/stock` (own stock, read-only) | `portal.stock.index` | `portal::stock.index` |
+| Reports | `GET /reports` (boss view, admin \| finance), `GET /reports/client?client_id=` (staff client view), CSV exports | `reports.index`, `reports.client`, `reports.*.export` | `reports::index`, `reports::client` |
 | Reports | `GET /reports` | `reports.index` | `reports::index` |
 | Transport | `GET /transport` and `GET /driver` | `transport.index`, `transport.driver` | `transport::index`, `transport::driver` |
 
