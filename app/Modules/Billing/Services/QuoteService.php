@@ -32,7 +32,10 @@ final class QuoteService
             $gst = 0;
             foreach ($lines as $line) {
                 $code = ChargeCode::query()->where('code', $line['charge_code'])->firstOrFail();
-                $priced = $this->rates->price($clientId, $code->code, (float) $line['qty'], $line['context'] ?? []);
+                // CHANGE_REQUESTS #50 / #68: a line priced elsewhere (Transport's customer freight price) is taken as given — never re-priced from the card.
+                $priced = array_key_exists('amount_cents', $line)
+                    ? ['amount_cents' => (int) $line['amount_cents'], 'qty' => (float) ($line['qty'] ?? 1), 'uom' => $line['uom'] ?? $code->default_uom, 'is_poa' => false, 'missing_rate' => false, 'rate_item_id' => null, 'calculation_snapshot' => ['pre_priced' => true, 'source' => $line['source'] ?? 'transport', 'transport_quote_id' => $line['transport_quote_id'] ?? null]]
+                    : $this->rates->price($clientId, $code->code, (float) $line['qty'], $line['context'] ?? []);
                 $amount = $priced['amount_cents'];
                 CustomerQuoteLine::query()->create([
                     'customer_quote_id' => $quote->id, 'charge_code' => $code->code, 'description' => $line['description'] ?? $code->customer_description,
