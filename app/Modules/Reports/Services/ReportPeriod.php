@@ -40,21 +40,30 @@ final class ReportPeriod
         return new self($today->startOfMonth(), $today->endOfMonth()->startOfDay());
     }
 
-    /** The ISO week (Monday – Sunday) before the given day — what the Monday 07:00 weekly mail covers. */
-    public static function lastWeek(?CarbonImmutable $today = null): self
+    /** The ISO week (Monday – Sunday) containing the day. */
+    public static function weekOf(CarbonImmutable $day): self
     {
-        $today ??= CarbonImmutable::today();
-        $monday = $today->startOfWeek(CarbonImmutable::MONDAY)->subWeek();
+        $monday = $day->startOfWeek(CarbonImmutable::MONDAY)->startOfDay();
 
         return new self($monday, $monday->addDays(6));
     }
 
-    public static function lastMonth(?CarbonImmutable $today = null): self
+    public static function monthOf(CarbonImmutable $day): self
     {
-        $today ??= CarbonImmutable::today();
-        $first = $today->startOfMonth()->subMonth();
+        $first = $day->startOfMonth()->startOfDay();
 
         return new self($first, $first->endOfMonth()->startOfDay());
+    }
+
+    /** The ISO week before the given day — what the Monday 07:00 weekly mail covers. */
+    public static function lastWeek(?CarbonImmutable $today = null): self
+    {
+        return self::weekOf(($today ?? CarbonImmutable::today())->subWeek());
+    }
+
+    public static function lastMonth(?CarbonImmutable $today = null): self
+    {
+        return self::monthOf(($today ?? CarbonImmutable::today())->startOfMonth()->subMonth());
     }
 
     /** Exclusive upper bound for `created_at < ?` comparisons. */
