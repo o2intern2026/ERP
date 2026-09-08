@@ -60,7 +60,7 @@ class KarrioAdapterTest extends TestCase
     {
         Http::fake([
             'http://karrio.test:5002/v1/shipments' => Http::sequence()
-                ->push(['id' => 'shp_1', 'status' => 'purchased', 'tracking_number' => 'DEMO0001', 'label_url' => '/v1/documents/doc_1.pdf', 'carrier_name' => 'generic', 'tracker_id' => 'trk_1'])
+                ->push(['id' => 'shp_1', 'status' => 'created', 'tracking_number' => 'DEMO0001', 'label_url' => '/v1/shipments/shp_1/label.pdf', 'carrier_name' => 'generic', 'tracker_id' => 'trk_1']) // Karrio 2026.x says `created` once the label is bought
                 ->push(['id' => 'shp_2', 'status' => 'draft', 'rates' => [['id' => 'rat_9', 'carrier_id' => 'demo-freight', 'service' => 'road_standard', 'total_charge' => 80]]]),
             'http://karrio.test:5002/v1/shipments/shp_2/purchase' => Http::response(['id' => 'shp_2', 'status' => 'purchased', 'tracking_number' => 'DEMO0002', 'label_url' => 'http://karrio.test:5002/v1/documents/doc_2.pdf']),
             'http://karrio.test:5002/v1/shipments/shp_1/cancel' => Http::response(['id' => 'shp_1', 'status' => 'cancelled']),
@@ -68,7 +68,8 @@ class KarrioAdapterTest extends TestCase
         $adapter = app(KarrioAdapter::class);
 
         $first = $adapter->book($this->request(), 'demo-freight::road_standard', ['quote_ref' => 'rat_1', 'pickup_date' => '2026-09-08']);
-        $this->assertSame(['shp_1', 'DEMO0001', '/v1/documents/doc_1.pdf', 'booked'], [$first['booking_ref'], $first['tracking_number'], $first['label_path'], $first['status']]);
+        $this->assertSame(['shp_1', 'DEMO0001', '/v1/shipments/shp_1/label.pdf', 'booked'], [$first['booking_ref'], $first['tracking_number'], $first['label_path'], $first['status']]);
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/v1/shipments/shp_1/purchase')); // never "purchase again" a created shipment
 
         $second = $adapter->book($this->request(), 'demo-freight::road_standard');
         $this->assertSame(['shp_2', 'DEMO0002', 'booked'], [$second['booking_ref'], $second['tracking_number'], $second['status']]);

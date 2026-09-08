@@ -23,6 +23,9 @@ final class KarrioAdapter implements CarrierAdapter
     /** Karrio `service_code` = "<connection carrier_id>::<service>" so book() can target the same connection. */
     private const CODE_SEPARATOR = '::';
 
+    /** Shipment statuses that mean the label was bought (Karrio 2026.x reports `created`, older builds `purchased`). */
+    private const BOOKED_STATUSES = ['purchased', 'created', 'in_transit', 'shipped', 'delivered'];
+
     public function __construct(private readonly HttpFactory $http) {}
 
     public function source(): string
@@ -106,7 +109,7 @@ final class KarrioAdapter implements CarrierAdapter
             $shipment = $created->json();
             $shipmentId = (string) ($shipment['id'] ?? '');
 
-            if (($shipment['status'] ?? 'draft') !== 'purchased') {
+            if (! $this->isBooked($shipment)) {
                 $rate = collect($shipment['rates'] ?? [])->first(fn ($r) => is_array($r) && ($r['service'] ?? null) === $service && ($carrierId === '' || ($r['carrier_id'] ?? null) === $carrierId))
                     ?? collect($shipment['rates'] ?? [])->first();
                 if ($shipmentId === '' || ! is_array($rate)) {
@@ -126,7 +129,7 @@ final class KarrioAdapter implements CarrierAdapter
             'booking_ref' => (string) ($shipment['id'] ?? ''),
             'tracking_number' => isset($shipment['tracking_number']) ? (string) $shipment['tracking_number'] : null,
             'label_path' => isset($shipment['label_url']) ? (string) $shipment['label_url'] : null,
-            'status' => ($shipment['status'] ?? '') === 'purchased' ? 'booked' : (string) ($shipment['status'] ?? 'request_failed'),
+            'status' => $this->isBooked($shipment) ? 'booked' : (string) ($shipment['status'] ?? 'request_failed'),
             'raw' => ['shipment' => $shipment],
         ];
     }
@@ -204,6 +207,12 @@ final class KarrioAdapter implements CarrierAdapter
         }
 
         return $events;
+    }
+
+    /** @param array<string, mixed> $shipment */
+    private function isBooked(array $shipment): bool
+    {
+        return in_array($shipment['status'] ?? '', self::BOOKED_STATUSES, true) || filled($shipment['tracking_number'] ?? null);
     }
 
     private function configured(): bool
