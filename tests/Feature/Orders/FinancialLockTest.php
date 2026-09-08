@@ -55,6 +55,7 @@ class FinancialLockTest extends TestCase
         $this->assertSame('dispatched', $order->operational_status);
 
         $this->actingAs($finance)->get(route('orders.show', $order))->assertOk()
+            ->assertSee(route('transport.orders.margin', $order->id)) // X2 handoff: staff-only link to "收 − 付 = 毛利" (never rendered in the portal, see PortalOrdersTest)
             ->assertSee(__('orders.holds.timeline.placed', ['type' => __('orders.holds.types.financial'), 'reason' => 'deposit outstanding']))
             ->assertSee(__('orders.holds.timeline.released', ['type' => __('orders.holds.types.financial'), 'note' => 'deposit received']))
             ->assertSeeInOrder(['Fiona Finance', 'Dan Dispatcher']);

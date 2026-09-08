@@ -2,7 +2,6 @@
 
 namespace App\Modules\Orders\Services;
 
-use App\Modules\Orders\Exceptions\OrderRuleViolation;
 use App\Modules\Orders\Models\Fulfilment;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderEvent;
@@ -191,7 +190,7 @@ final class FulfilmentService
         return $this->advanceBatch($payload, 'delivered', 'orders.fulfilments.timeline.delivered', array_filter(['shipment_id' => $payload['shipment_id'] ?? null]));
     }
 
-    /** Re-derive the operational status from the batches, e.g. after a financial hold that blocked `dispatched` is released. */
+    /** Re-derive the operational status from the batches, e.g. after a quantity reduction shrank the fulfilment lines (A11). */
     public function resyncOperationalStatus(Order $order): Order
     {
         return DB::transaction(function () use ($order): Order {
@@ -356,7 +355,8 @@ final class FulfilmentService
 
     /**
      * Walk the order forward step by step so the timeline shows every implied stage (events may arrive out of order).
-     * A financial hold stops the walk in front of `dispatched`; the release re-runs it (resyncOperationalStatus).
+     * A financial hold refuses `dispatched` (OrderRuleViolation) — since CHANGE_REQUESTS #40 / #46 Warehouse refuses the
+     * handover itself, so such an event is a fault: it propagates, the delivery is retried and dead-lettered (never swallowed).
      */
     private function stepOperational(Order $order, ?string $target, string $note): void
     {
@@ -375,13 +375,7 @@ final class FulfilmentService
         }
 
         foreach ($steps as $status) {
-            try {
-                $this->statuses->transitionOperational($order, $status, null, $note);
-            } catch (OrderRuleViolation $blocked) {
-                $this->statuses->note($order, null, $blocked->getMessage());
-
-                break;
-            }
+            $this->statuses->transitionOperational($order, $status, null, $note);
             $order->refresh();
         }
     }

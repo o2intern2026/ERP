@@ -56,11 +56,8 @@ final class OrderHoldService
         DB::transaction(function () use ($order, $hold, $note, $actorId): void {
             $this->exceptions->resolve((int) $hold->id, $actorId, $note);
             $this->timeline($order, $actorId, __('orders.holds.timeline.released', ['type' => __('orders.holds.types.'.$hold->hold_type), 'note' => $note]));
-
-            // A13: a dispatch the warehouse already reported while the lock was active now goes through.
-            if ($hold->hold_type === 'financial' && ! $this->hasActiveFinancialHold($order)) {
-                app(FulfilmentService::class)->resyncOperationalStatus($order);
-            }
+            // No re-sync needed any more: Warehouse refuses the handover while the hold is active (CHANGE_REQUESTS #40 / #46), so no
+            // dispatch can have been reported in the meantime; the next outbound.dispatched moves the order on its own.
         });
     }
 
