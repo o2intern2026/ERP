@@ -44,5 +44,10 @@
 | Reports | `GET /reports` (boss view, admin \| finance), `GET /reports/client?client_id=` (staff client view), CSV exports | `reports.index`, `reports.client`, `reports.*.export` | `reports::index`, `reports::client` |
 | Reports | `GET /reports` | `reports.index` | `reports::index` |
 | Transport | `GET /transport` and `GET /driver` | `transport.index`, `transport.driver` | `transport::index`, `transport::driver` |
+| Warehouse | `GET /warehouse/receiving` (待收货 worklist: every ASN line still awaiting receipt; admin \| warehouse_supervisor \| warehouse_operator \| customer_service — the 收货 button only for the three warehouse roles; CHANGE_REQUESTS #90) | `warehouse.receiving.index` | `warehouse::receiving.index` |
+| Warehouse | `GET /warehouse/receiving/unplanned`, `POST /warehouse/receiving/unplanned` (无预报收货: one screen → unplanned ASN + lines + units + completed 入库单; admin \| warehouse_supervisor \| warehouse_operator; #91) | `warehouse.receiving.unplanned.form`, `warehouse.receiving.unplanned.store` | `warehouse::receiving.unplanned` |
+| Warehouse | `GET /warehouse/receipts` (入库单 list with client / status / date filters), `GET /warehouse/receipts/{receipt}` (page with the ASN roll-up); admin \| warehouse_supervisor \| warehouse_operator \| customer_service \| finance (#90) | `warehouse.receipts.index`, `warehouse.receipts.show` | `warehouse::receipts.index`, `warehouse::receipts.show` |
+| Warehouse | `GET /warehouse/receipts/{receipt}/pdf` (rendered live from the DB, open → 草稿 label, `application/pdf` inline `{receipt_no}.pdf`; the file stored at completion is what the document centre / portal serve) | `warehouse.receipts.pdf` | `warehouse::receipts.pdf` |
+| Warehouse | `POST /warehouse/receipts/{receipt}/complete` (入库完成, optional `notes`; open receipt with ≥ 1 line; admin \| warehouse_supervisor \| warehouse_operator) | `warehouse.receipts.complete` | — |
 
 Until M1 lands authentication, placeholders are reachable without login; M1 puts them behind `auth`.

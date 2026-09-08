@@ -36,7 +36,7 @@ Conventions: store enums as string columns (not MySQL `ENUM`) so values can be a
 ### documents (§2.4 A29, §5.2)
 | field | values |
 |---|---|
-| `type` ※ | `pod` \| `docket` \| `photo` \| `waybill` \| `invoice` \| `packing_list` \| `consignment_note` \| `label` |
+| `type` ※ | `pod` \| `docket` \| `photo` \| `waybill` \| `invoice` \| `packing_list` \| `consignment_note` \| `label` \| `goods_receipt` (入库单 PDF, related_type `asn`, client_visible; CHANGE_REQUESTS #90) |
 
 ### outbox_events / consumed_events (§0.2 rule 4; built in M1/A31)
 | field | values |
@@ -90,7 +90,8 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 |---|---|
 | `locations.type` | `receiving` \| `storage` \| `pickface` \| `packing` \| `staging` \| `quarantine` |
 | `asns.inbound_type` | `container` \| `loose_truck` \| `parcel` |
-| `asns.status` | `booked` → `arrived` → `receiving` → `putaway` → `closed` |
+| `asns.status` | `booked` → `arrived` → `receiving` → `putaway` → `closed` — **terminology (lead decision 2026-09-08, #92): ASN = 预报单 (ASN) in every UI string; 入库单 is reserved for `goods_receipts`** |
+| `goods_receipts.status` | `open` (lines are being received) → `completed` (入库完成: totals snapshotted, PDF filed) — one batch per delivery, `receipt_no = {asn_no}-R{batch_no}` (#90) |
 | `asns.created_by_type` | `client` \| `coordinator` |
 | `containers.size` | `20` \| `40` |
 | `containers.unpack_mode` | `pallet` \| `loose` \| `mixed` (mixed = POA) |
