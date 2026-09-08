@@ -35,14 +35,16 @@ Conventions: `job_id` on every business record (§0.2 rule 1); `client_id` on ev
 ## 3. Orders (owner X1) — §3.3
 | table | columns |
 |---|---|
-| `orders` | id, order_no (unique, `ORD-YYYYMMDD-NNNN`), client_id, job_id, order_type, source, external_ref, consignment_mark, fba_reference, pickup_address (json, pickup_deliver), deliver_to_name, deliver_to_phone, deliver_to_address, deliver_to_suburb, deliver_to_state, deliver_to_postcode, deliver_to_address_type, requested_date, operational_status, fulfilment_status, billing_status, service_level, tailgate_required (bool), tailgate_reason, customer_quote_id (nullable → customer_quotes), created_by, timestamps |
-| `order_lines` | id, order_id, description_cn, description_en, hs_code, material, usage, brand, package_type, carton_qty, unit_qty, unit_price_cents, total_price_cents, actual_weight_kg, length_mm, width_mm, height_mm, cbm, qty_shipped, qty_backordered, asn_line_id (nullable → asn_lines), stock_unit_ref (nullable), timestamps |
+| `orders` | id, order_no (unique, `ORD-YYYYMMDD-NNNN`), client_id, job_id, order_type, source, external_ref, consignment_mark, fba_reference, pickup_address (json, pickup_deliver), deliver_to_name, deliver_to_phone, deliver_to_address, deliver_to_suburb, deliver_to_state, deliver_to_postcode, deliver_to_address_type, requested_date, operational_status, fulfilment_status, billing_status, service_level, tailgate_required (bool), tailgate_reason, customer_quote_id (nullable → customer_quotes), created_by, timestamps, original_order_id (nullable → orders; return orders, A11), return_inspected_at, return_decision (credit \| no_credit), return_decided_by, return_decided_at, return_decision_note (A11 — CHANGE_REQUESTS #38) |
+| `order_lines` | id, order_id, description_cn, description_en, hs_code, material, usage, brand, package_type, carton_qty, unit_qty, unit_price_cents, total_price_cents, actual_weight_kg, length_mm, width_mm, height_mm, cbm, qty_shipped, qty_backordered, asn_line_id (nullable → asn_lines), stock_unit_ref (nullable), timestamps, original_order_line_id (nullable; return orders, A11 — CHANGE_REQUESTS #38) |
 | `declared_packages` | id, order_id, package_type, qty, weight_kg, length_mm, width_mm, height_mm |
 | `fulfilments` | id, order_id, seq (`F1`, `F2`…), warehouse_id, status, shipment_id (nullable → shipments), timestamps |
 | `fulfilment_lines` | id, fulfilment_id, order_line_id, qty |
 | `client_addresses` | id, client_id, label, contact_name, phone, address, suburb, state, postcode, address_type, default_instructions, usage_count, last_used_at, timestamps (§3.3 OMS-14; owner per `CHANGE_REQUESTS.md` #9) |
 | `order_events` | id, order_id, from_status, to_status, actor_type (user \| system), actor_id, note, created_at (append-only) |
 | `order_imports` | id, client_id, source (excel \| pdf), document_id (nullable → documents), status, row_count, error_count, errors (json), created_by, timestamps |
+| `order_api_tokens` | id, client_id, name, token_hash (sha256 of the bearer token; plain value shown once), last_used_at, revoked_at, created_by, timestamps (A4b — CHANGE_REQUESTS #39) |
+| `order_api_idempotency_keys` | id, client_id, idempotency_key, order_id, created_at (unique per client; replay returns the first order — A4b) |
 Not tables: **holds** = `exceptions` rows with `type = hold`; **order_documents** = `documents`; **return requests** = `orders` with `order_type = return` (`CHANGE_REQUESTS.md` #10).
 
 ## 4. Warehouse (owner C) — §4.2

@@ -4,6 +4,7 @@ use App\Support\Tenancy\ClientScope;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
@@ -22,6 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
         ]);
+
+        // CHANGE_REQUESTS #41: implicit route-model binding must see the tenant, so the client scope runs before SubstituteBindings.
+        $middleware->prependToPriorityList(SubstituteBindings::class, ClientScope::class);
 
         $middleware->redirectGuestsTo(fn () => route('platform.login'));
         $middleware->redirectUsersTo(fn () => auth()->user()?->isClientUser() ? route('portal.index') : route('platform.index'));
