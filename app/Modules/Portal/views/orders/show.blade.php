@@ -72,6 +72,62 @@
         @endforeach
     @endif
 
+    @if ($order->order_type !== 'return' && $transportQuotes !== [])
+        <h2>{{ __('portal.quotes.title') }}</h2>
+        <p class="text-muted"><small>{{ __('portal.quotes.hint') }}</small></p>
+        @foreach ($transportQuotes as $entry)
+            <article>
+                <header><strong>{{ $entry['shipment']->shipment_no }}</strong>
+                    @if ($entry['shipment']->fulfilment_id) · {{ __('portal.quotes.batch') }} @endif
+                    · <span class="badge" data-tone="{{ $entry['can_confirm'] ? 'warn' : 'ok' }}">{{ __('portal.shipment_statuses.'.$entry['shipment']->status) }}</span>
+                </header>
+                @if ($entry['quotes']->isEmpty())
+                    <p class="text-muted">{{ __('portal.quotes.awaiting') }}</p>
+                @elseif (! $entry['can_confirm'] && $entry['selected'])
+                    <p>
+                        <strong>{{ __('portal.quotes.confirmed_choice') }}:</strong>
+                        {{ $entry['selected']->carrier_name ?: __('orders.estimate.sources.'.$entry['selected']->source) }} · {{ __('orders.service_levels.'.$entry['selected']->service_level) }}
+                        · {{ \App\Support\Money::cents((int) $entry['selected']->customer_price_cents)->format() }}
+                        @if ($entry['selected']->eta_days !== null) · {{ __('orders.estimate.eta_days', ['days' => $entry['selected']->eta_days]) }}@endif
+                        @if ($entry['selected']->selected_by) · <small class="text-muted">{{ __('portal.quotes.confirmed_by.'.$entry['selected']->selected_by) }}</small>@endif
+                    </p>
+                @else
+                    <div class="overflow-auto">
+                        <table class="dense">
+                            <thead><tr><th>{{ __('portal.quotes.fields.carrier') }}</th><th>{{ __('portal.quotes.fields.service_level') }}</th><th>{{ __('portal.quotes.fields.eta') }}</th><th class="num">{{ __('portal.quotes.fields.price') }}</th><th>{{ __('portal.quotes.fields.flags') }}</th><th>{{ __('portal.quotes.fields.expires') }}</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach ($entry['quotes'] as $quote)
+                                    <tr>
+                                        <td>{{ $quote->carrier_name ?: __('orders.estimate.sources.'.$quote->source) }}</td>
+                                        <td>{{ __('orders.service_levels.'.$quote->service_level) }}</td>
+                                        <td>{{ $quote->eta_days === null ? __('portal.not_provided') : __('orders.estimate.eta_days', ['days' => $quote->eta_days]) }}</td>
+                                        <td class="num">{{ \App\Support\Money::cents((int) $quote->customer_price_cents)->format() }}</td>
+                                        <td>
+                                            @if ($quote->is_recommended)<span class="badge" data-tone="ok">{{ __('orders.estimate.freight_flags.recommended') }}</span>@endif
+                                            @if ($quote->is_cheapest)<span class="badge" data-tone="muted">{{ __('orders.estimate.freight_flags.cheapest') }}</span>@endif
+                                            @if ($quote->is_fastest)<span class="badge" data-tone="muted">{{ __('orders.estimate.freight_flags.fastest') }}</span>@endif
+                                        </td>
+                                        <td>{{ $quote->expires_at ? \Carbon\Carbon::parse($quote->expires_at)->format('Y-m-d H:i') : __('portal.not_provided') }}</td>
+                                        <td>
+                                            @if ($quote->status === 'selected')
+                                                <span class="badge" data-tone="ok">{{ __('portal.quotes.confirmed_choice') }}</span>
+                                            @elseif ($entry['can_confirm'] && auth()->user()->isClientUser())
+                                                <form method="post" action="{{ route('portal.orders.quotes.confirm', [$order, $quote->id]) }}" class="inline">
+                                                    @csrf
+                                                    <button type="submit" class="{{ $quote->is_recommended ? '' : 'secondary' }}">{{ __('portal.quotes.confirm') }}</button>
+                                                </form>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </article>
+        @endforeach
+    @endif
+
     <h2>{{ __('portal.sections.tracking') }}</h2>
     @forelse ($shipments as $shipment)
         <article>

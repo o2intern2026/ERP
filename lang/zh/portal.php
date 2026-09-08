@@ -116,6 +116,17 @@ return [
     'estimate' => [
         'created' => '估价已生成(客户价,不含 GST)。',
     ],
+    'quotes' => [
+        'title' => '运输方案确认',
+        'hint' => '打包实测后的最终运输报价(客户价,不含 GST)。请确认推荐方案,或改选其他方案;确认后我们安排预订。费用以确认的方案计入账单。',
+        'batch' => '发货批次运输单',
+        'awaiting' => '等待运输报价……',
+        'confirm' => '确认此方案',
+        'confirmed' => '运输单 :shipment_no 的运输方案已确认。',
+        'confirmed_choice' => '已确认方案',
+        'confirmed_by' => ['client' => '由贵公司确认', 'coordinator' => '由客服代为确认', 'system' => '系统确认(与初步估价一致)'],
+        'fields' => ['carrier' => '承运商', 'service_level' => '服务等级', 'eta' => '预计时效', 'price' => '客户价(不含 GST)', 'flags' => '标记', 'expires' => '报价有效期至'],
+    ],
     'reports' => [
         'nav' => '我的报表',
         'title' => '我的报表',

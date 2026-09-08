@@ -8,6 +8,7 @@ use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Orders\Services\OrderEstimateService;
+use App\Modules\Portal\Services\PortalTransportQuotes;
 use App\Modules\Transport\Models\Shipment;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
@@ -131,7 +132,7 @@ final class PortalOrderController extends Controller
         return redirect()->route('portal.orders.show', $order)->with('status', __('portal.messages.created', ['order_no' => $order->order_no]));
     }
 
-    public function show(int $order, OrderEstimateService $estimates): View
+    public function show(int $order, OrderEstimateService $estimates, PortalTransportQuotes $transportQuotes): View
     {
         // Resolved here, not by implicit binding: SubstituteBindings runs before the client.scope middleware sets the tenant,
         // so only a query issued inside the action is filtered to the signed-in client (another client's order → 404).
@@ -148,6 +149,8 @@ final class PortalOrderController extends Controller
             // A7b: the client's estimate — customer prices only (OrderEstimateService never selects cost).
             'estimate' => $estimates->current($order),
             'canEstimate' => $estimates->canEstimate($order) && auth()->user()->isClientUser(),
+            // §5.7 #2: final carrier quotes to confirm (customer price only; confirmation goes through Transport's QuoteSelectionService).
+            'transportQuotes' => $transportQuotes->forOrder($order),
         ]);
     }
 
