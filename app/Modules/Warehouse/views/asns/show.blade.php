@@ -5,7 +5,7 @@
 @section('content')
     <p><a href="{{ route('warehouse.asns.index') }}">← {{ __('platform.common.back') }}</a></p>
     <header>
-        <h1>{{ $asn->asn_no }} <span class="badge" data-tone="{{ in_array($asn->status, ['putaway', 'closed']) ? 'ok' : 'warn' }}">{{ __('warehouse.asn_statuses.'.$asn->status) }}</span> @if ($asn->unplanned)<span class="badge" data-tone="{{ $asn->unplanned_confirmed ? 'muted' : 'danger' }}">{{ __('warehouse.asns.unplanned_badge') }}</span>@endif</h1>
+        <h1>{{ $asn->asn_no }} <span class="badge" data-tone="{{ in_array($asn->status, ['putaway', 'closed']) ? 'ok' : 'warn' }}">{{ __('warehouse.asn_statuses.'.$asn->status) }}</span> @if ($asn->unplanned)<span class="badge" data-tone="{{ $asn->unplanned_confirmed ? 'muted' : 'danger' }}">{{ __('warehouse.asns.unplanned_badge') }}</span>@endif @if ($asn->receiving_completed_at)<span class="badge" data-tone="ok">{{ __('warehouse.asns.receiving_completed_badge') }}</span>@endif</h1>
         <p>{{ $asn->client->name }} · <a href="{{ route('platform.jobs.show', $asn->job) }}">{{ $asn->job->job_no }}</a> · {{ $asn->warehouse->code }} · {{ __('warehouse.inbound_types.'.$asn->inbound_type) }} · {{ __('warehouse.asns.expected_date') }}: {{ $asn->expected_date?->format('Y-m-d') ?? '—' }}</p>
     </header>
 
@@ -41,6 +41,7 @@
     <h2>{{ __('warehouse.asns.lines') }}</h2>
     @if ($asn->lines->isEmpty())
         <p class="text-muted">{{ __('warehouse.asns.no_lines') }}</p>
+        <p class="text-muted"><small>{{ __('warehouse.asns.no_lines_hint') }}</small></p>
     @else
         <div class="overflow-auto"><table class="dense">
             <thead><tr><th>#</th><th>{{ __('warehouse.stock.mark') }}</th><th>{{ __('warehouse.stock.description') }}</th><th>{{ __('warehouse.asns.container_no') }}</th><th class="num">{{ __('warehouse.asns.expected') }}</th><th class="num">{{ __('warehouse.asns.received') }}</th><th class="num">{{ __('warehouse.asns.damaged') }}</th><th class="num">{{ __('warehouse.asns.units') }}</th><th>{{ __('platform.common.actions') }}</th></tr></thead>
@@ -51,9 +52,9 @@
                     <td class="num">{{ $l->expected_cartons }}</td><td class="num">{{ $l->received_cartons }}</td><td class="num">{{ $l->damaged_cartons }}</td><td class="num">{{ $l->stockUnits->count() }}</td>
                     <td>
                         @role('admin|warehouse_supervisor|warehouse_operator')
-                            @if (in_array($asn->status, ['booked', 'arrived', 'receiving']) && $l->stockUnits->isEmpty())
-                                <a href="{{ route('warehouse.receiving.form', [$asn, $l]) }}">{{ __('warehouse.asns.receive') }}</a>
-                            @elseif ($l->stockUnits->isNotEmpty())
+                            @if (in_array($asn->status, ['booked', 'arrived', 'receiving']) && ! $l->isReceived())
+                                <a role="button" class="secondary" href="{{ route('warehouse.receiving.form', [$asn, $l]) }}" style="padding:.2rem .7rem">{{ __('warehouse.asns.receive') }}</a>
+                            @elseif ($l->isReceived())
                                 <span class="text-muted">{{ __('warehouse.asns.received_ok') }}</span>
                             @endif
                         @endrole
@@ -63,6 +64,9 @@
             </tbody>
         </table></div>
     @endif
+
+    <h2>{{ __('warehouse.asns.receipts') }}</h2>
+    @include('warehouse::receipts._batches', ['asn' => $asn, 'batches' => $receipts, 'rollup' => $rollup])
 
     @role('admin|warehouse_supervisor|warehouse_operator|customer_service')
         @if (in_array($asn->status, ['booked', 'arrived', 'receiving']))

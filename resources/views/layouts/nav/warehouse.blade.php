@@ -1,6 +1,15 @@
 {{-- Owner: seat C. Only the Warehouse module edits this include (contracts/routes.md). --}}
 @role('admin|warehouse_supervisor|warehouse_operator|dispatcher|customer_service|finance')
     <li><a href="{{ route('warehouse.asns.index') }}">{{ __('warehouse.nav_asns') }}</a></li>
+    @role('admin|warehouse_supervisor|warehouse_operator|customer_service')
+        <li><a href="{{ route('warehouse.receiving.index') }}">{{ __('warehouse.nav_receiving') }}</a></li>
+    @endrole
+    @role('admin|warehouse_supervisor|warehouse_operator')
+        <li><a href="{{ route('warehouse.receiving.unplanned.form') }}">{{ __('warehouse.nav_unplanned') }}</a></li>
+    @endrole
+    @role('admin|warehouse_supervisor|warehouse_operator|customer_service|finance')
+        <li><a href="{{ route('warehouse.receipts.index') }}">{{ __('warehouse.nav_receipts') }}</a></li>
+    @endrole
     <li><a href="{{ route('warehouse.index') }}">{{ __('warehouse.nav') }}</a></li>
     @role('admin|warehouse_supervisor|warehouse_operator')
         <li><a href="{{ route('warehouse.putaway.index') }}">{{ __('warehouse.nav_putaway') }}</a></li>
