@@ -8,7 +8,7 @@
 |---|---|---|
 | **A. 在这台 Mac 上自己试** | 你自己 | 第 2 节启动,浏览器打开 http://localhost:8000 |
 | **B. 同一 Wi-Fi 的同事试** | 办公室里的人 | 启动时用 `php artisan serve --host=0.0.0.0 --port=8000`,把这台 Mac 的 IP 告诉对方(系统设置 → 网络,例如 `http://192.168.1.23:8000`)。Mac 不能休眠;先按第 6 节改掉默认密码 |
-| **C. 外部人员 / 长期试用** | 客户、外部同事 | 需要一台服务器(PHP 8.2+、MySQL 8、可跑 cron)。步骤:克隆仓库 → `composer install --no-dev` → 复制 `.env.example` 为 `.env` 并设置 `APP_ENV=production`、`APP_DEBUG=false`、`APP_URL`、数据库、`SEED_DEMO_PASSWORD`、`USE_FAKE_SERVICES=false`、邮件服务 → `php artisan key:generate && php artisan migrate --seed` → 用 Nginx/Apache 指向 `public/` → 系统 cron 每分钟跑 `php artisan schedule:run`。这一步我可以在你有服务器时直接做 |
+| **C. 外部人员 / 长期试用(现用)** | 客户、外部同事 | 试用服务器已上线:**http://103.6.171.144**(Kamatera 悉尼,Ubuntu 24.04 + nginx + PHP 8.3 + MySQL 8,cron 每分钟跑调度和队列,无守护进程)。账号密码与第 4 节相同;数据于 2026-09-08 从本机试用库整体搬入。合入 main 后同步服务器:`bash deploy/deploy-trial.sh`(推送 main,服务器执行 `deploy/server/deploy.sh`:拉代码、依赖、增量迁移、重建缓存,不重置数据)。SSH:`ssh -i ~/.ssh/erp-oracle root@103.6.171.144`。PDF 中文字体在服务器 `storage/fonts/cjk.ttf`(git 忽略,换机器要重新放)。Karrio 未装在服务器上,第三方运输报价走人工承运商。 |
 
 ## 2. 每次启动(方式 A / B)
 
