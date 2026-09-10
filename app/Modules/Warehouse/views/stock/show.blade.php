@@ -80,6 +80,6 @@
     <h2>{{ __('warehouse.stock.reservations') }}</h2>
     <table class="dense">
         <thead><tr><th>{{ __('warehouse.stock.order') }}</th><th class="num">{{ __('warehouse.stock.qty') }}</th><th>{{ __('warehouse.stock.condition') }}</th><th>{{ __('warehouse.reservations.created_at') }}</th></tr></thead>
-        <tbody>@foreach ($reservations as $r)<tr><td>#{{ $r->order_id }} / line {{ $r->order_line_id }}</td><td class="num">{{ $r->qty }}</td><td>{{ $r->status }}</td><td>{{ $r->created_at->format('Y-m-d H:i') }}</td></tr>@endforeach</tbody>
+        <tbody>@foreach ($reservations as $r)<tr><td>{{ __('warehouse.stock.order_line_ref', ['order' => $r->order_id, 'line' => $r->order_line_id]) }}</td><td class="num">{{ $r->qty }}</td><td>{{ __('warehouse.reservation_statuses.'.$r->status) }}</td><td>{{ $r->created_at->format('Y-m-d H:i') }}</td></tr>@endforeach</tbody>
     </table>
 @endsection
