@@ -3,6 +3,7 @@
 namespace App\Modules\Portal\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Portal\Http\PortalValidation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +30,7 @@ final class PortalStockController extends Controller
             'q' => ['nullable', 'string', 'max:100'],
             'condition' => ['nullable', Rule::in(self::CONDITION_FILTERS)],
             'availability' => ['nullable', Rule::in(self::AVAILABILITY_FILTERS)],
-        ]);
+        ], PortalValidation::messages(), PortalValidation::attributes()); // Chinese field names for a hand-edited filter URL
 
         $rows = DB::table('stock_units as u')
             ->join('asn_lines as l', 'l.id', '=', 'u.asn_line_id')

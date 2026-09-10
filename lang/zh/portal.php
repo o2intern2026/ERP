@@ -27,7 +27,7 @@ return [
         'order_no' => '订单号',
         'reference' => '您的参考号',
         'consignment_mark' => '唛头',
-        'fba_reference' => 'FBA Shipment ID',
+        'fba_reference' => 'FBA 货件编号（Shipment ID）',
         'order_type' => '订单类型',
         'destination' => '目的地',
         'requested_date' => '要求送达日',
@@ -118,6 +118,13 @@ return [
         'heading' => '请修正以下内容：',
         // 2026-09-10 audit: portal-specific field names / messages on top of the Orders row-aware ones (PortalValidation).
         'attributes' => [
+            // 2026-09-10 i18n sweep: order-list / stock filter keys, so a hand-edited ?condition=… never prints the raw query key.
+            'q' => '搜索关键词',
+            'status' => '状态',
+            'from' => '要求送达日（从）',
+            'to' => '要求送达日（到）',
+            'condition' => '货物状态',
+            'availability' => '可用性',
             'reason' => '退货原因',
             'quantities' => '退回箱数',
             'quantities.*' => '退回箱数',
@@ -145,7 +152,7 @@ return [
     'messages' => [
         'created' => '订单 :order_no 已提交，客服确认后开始处理。',
         'return_requested' => '退货申请已提交，退货单 :order_no。',
-        'client_only' => '门户下单只对客户账号开放；员工请使用订单模块。',
+        'client_only' => '客户门户只对客户账号开放；员工请使用对应的内部模块（订单 / 仓库 / 账务 / 报表）。',
     ],
     'estimate' => [
         'created' => '估价已生成(客户价,不含 GST)。',
