@@ -259,4 +259,18 @@ return [
         'empty' => '没有事件。',
         'statuses' => ['pending' => '待投递', 'published' => '已投递', 'failed' => '失败(将重试)', 'dead' => '死信(需人工)'],
     ],
+
+    // Friendly "no permission" page (resources/views/errors/403.blade.php) instead of a bare 403 — tester feedback 2026-09-10.
+    'errors' => [
+        'forbidden' => [
+            'title' => '您没有此操作的权限',
+            'body' => '当前账号无法访问这个页面或执行这个操作。',
+            'you_are' => '当前账号 :name,角色 :roles。',
+            'required' => '此操作需要以下角色之一::roles。',
+            'client_hint' => '客户账号只能使用客户门户,请从"我的订单"进入。',
+            'contact' => '如需开通权限,请联系管理员。',
+            'back' => '返回上一页',
+            'home' => '回到首页',
+        ],
+    ],
 ];
