@@ -115,6 +115,12 @@ return [
     ],
     'validation' => [
         'heading' => '请修正以下内容：',
+        'lines_required' => '请至少填写一行货物。',
+        'line_name_required' => '第 :position 行货物:请输入中文或英文品名。',
+        'line_qty_required' => '第 :position 行货物:请输入箱数(至少 1 箱)。',
+        'line_package_required' => '第 :position 行货物:请选择包装类型。',
+        'package_qty_required' => '第 :position 个提货包裹:请输入件数。',
+        'package_type_required' => '第 :position 个提货包裹:请选择包装类型。',
     ],
     'messages' => [
         'created' => '订单 :order_no 已提交，客服确认后开始处理。',

@@ -98,6 +98,14 @@ class PortalOrdersTest extends TestCase
 
         $this->actingAs($user)->post(route('portal.orders.preview'), ['order_type' => 'from_stock'])->assertSessionHasErrors(['deliver_to_name', 'requested_date', 'lines']);
 
+        // A goods row without either name is refused before any estimate, in plain Chinese (tester feedback 2026-09-10).
+        $noName = $payload;
+        $noName['lines'] = [['description_cn' => '', 'description_en' => '', 'package_type' => 'carton', 'carton_qty' => 2]];
+        $this->actingAs($user)->from(route('portal.orders.create'))->post(route('portal.orders.preview'), $noName)
+            ->assertRedirect(route('portal.orders.create'))->assertSessionHasErrors(['lines.0.description_cn' => '第 1 行货物:请输入中文或英文品名。']);
+        $this->actingAs($user)->get(route('portal.orders.create'))->assertOk()->assertSee('第 1 行货物:请输入中文或英文品名。')->assertDontSee('description_cn field');
+        $this->assertSame(0, Order::query()->withoutGlobalScopes()->count());
+
         $this->actingAs($user)->post(route('portal.orders.store'), $payload)->assertSessionHasNoErrors()->assertRedirect();
         $this->assertSame(1, Order::query()->withoutGlobalScopes()->where('external_ref', 'PORTAL-PREVIEW-1')->count());
     }
