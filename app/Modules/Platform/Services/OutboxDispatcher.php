@@ -29,6 +29,50 @@ final class OutboxDispatcher
         private readonly ExceptionService $exceptions,
     ) {}
 
+    /** True while dispatchOne() runs, so consumers that publish follow-up events do not schedule nested dispatches. */
+    private static bool $dispatching = false;
+
+    public static function isDispatching(): bool
+    {
+        return self::$dispatching;
+    }
+
+    /**
+     * Immediate delivery for events a person is waiting for (config erp.outbox_dispatch_now): called after the business
+     * transaction commits, delivers that event and then the follow-up events of the same Job, hop by hop, until nothing is
+     * due or the time budget is spent. Never throws — cron's dispatchDue() is the safety net for anything left behind.
+     *
+     * @return array{published:int, failed:int, dead:int, hops:int}
+     */
+    public function dispatchNow(int $outboxEventId, ?int $jobId, ?int $hops = null, ?float $maxSeconds = null): array
+    {
+        $hops ??= (int) config('erp.outbox_dispatch_now_hops', 3);
+        $maxSeconds ??= (float) config('erp.outbox_dispatch_now_seconds', 2.0);
+        $counts = ['published' => 0, 'failed' => 0, 'dead' => 0, 'hops' => 0];
+        $started = microtime(true);
+
+        try {
+            $ids = [$outboxEventId];
+            for ($hop = 0; $hop < $hops && $ids !== []; $hop++) {
+                $counts['hops']++;
+                foreach ($ids as $id) {
+                    $result = $this->dispatchOne((int) $id);
+                    if (isset($counts[$result])) {
+                        $counts[$result]++;
+                    }
+                }
+                if ($jobId === null || microtime(true) - $started > $maxSeconds) {
+                    break;
+                }
+                $ids = OutboxEvent::query()->where('job_id', $jobId)->where('status', 'pending')->where('available_at', '<=', now())->orderBy('id')->limit(50)->pluck('id')->all();
+            }
+        } catch (Throwable $e) {
+            Log::warning('outbox: dispatchNow stopped, cron will deliver the rest', ['event_row' => $outboxEventId, 'job_id' => $jobId, 'error' => $e->getMessage()]);
+        }
+
+        return $counts;
+    }
+
     /**
      * @return array{published:int, failed:int, dead:int}
      */
@@ -55,6 +99,16 @@ final class OutboxDispatcher
 
     /** @return string resulting status: published | failed | dead | skipped */
     public function dispatchOne(int $outboxEventId): string
+    {
+        self::$dispatching = true;
+        try {
+            return $this->dispatchOneInner($outboxEventId);
+        } finally {
+            self::$dispatching = false;
+        }
+    }
+
+    private function dispatchOneInner(int $outboxEventId): string
     {
         return DB::transaction(function () use ($outboxEventId): string {
             /** @var OutboxEvent|null $event */

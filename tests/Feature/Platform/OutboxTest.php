@@ -29,6 +29,7 @@ class OutboxTest extends TestCase
 
     public function test_publish_writes_a_pending_row_inside_the_business_transaction(): void
     {
+        config(['erp.outbox_dispatch_now' => []]); // this test checks the row itself, not immediate delivery (OutboxDispatchNowTest covers that)
         $event = new TestEvent(['order_id' => 7], 'order.confirmed', jobId: 3, clientId: 2);
 
         DB::transaction(fn () => app(OutboxPublisher::class)->publish($event));

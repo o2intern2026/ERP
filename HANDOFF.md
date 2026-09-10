@@ -108,3 +108,7 @@ Lead decisions (binding, CHANGE_REQUESTS #90–#92): **ASN = 预报单 (ASN), �
 ### 2026-09-10 · main · 作业登记 (CR #95) · C added one link in X1's `orders::show`
 
 - `app/Modules/Orders/views/show.blade.php`: a warehouse-roles-only button 登记缠膜 / 人工时 → `warehouse.tasks.create?order_id=…&task_type=wrap` (lang `orders.actions.register_vas`). Nothing else in the Orders zone changed.
+
+### 2026-09-10 · main · immediate outbox dispatch (CR #105) · C touched two X1 tests
+
+- `tests/Feature/Orders/OrderManagementTest.php`: the order.confirmed row is delivered immediately now, so the test no longer asserts `status = pending`. `tests/Feature/Orders/QueueAndBatchTest.php`: the queue-preset test disables `erp.outbox_dispatch_now` because it pins statuses by hand. No production code in the Orders zone changed.

@@ -85,10 +85,9 @@ class OrderManagementTest extends TestCase
         $this->assertSame(8, $order->events()->where('actor_id', $user->id)->count());
 
         $this->assertDatabaseHas('outbox_events', [
-            'event_name' => 'order.confirmed',
+            'event_name' => 'order.confirmed', // delivered immediately since CR #105, so no status assertion here
             'job_id' => $job['job_id'],
             'client_id' => $client->id,
-            'status' => 'pending',
         ]);
 
         $this->actingAs($user)->get(route('orders.show', $order))

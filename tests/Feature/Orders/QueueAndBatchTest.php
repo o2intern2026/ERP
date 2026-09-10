@@ -31,6 +31,7 @@ class QueueAndBatchTest extends TestCase
 
     public function test_queue_presets_show_the_right_orders(): void
     {
+        config(['erp.outbox_dispatch_now' => []]); // this test pins each order's status by hand; immediate dispatch (CR #105) would move confirmed orders on to allocated
         $client = $this->client();
         $job = app(JobService::class)->create($client->id, 'loose')['job_id'];
         $dispatcher = $this->staff('dispatcher');

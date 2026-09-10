@@ -12,7 +12,7 @@
 
 ## 2. 每次启动(方式 A / B)
 
-方式 C 的服务器不需要这些步骤:网站常驻,调度和队列由 cron 每分钟自动执行。
+方式 C 的服务器不需要这些步骤:网站常驻,调度和队列由 cron 执行:事件每十秒派送一次,确认订单等关键动作即时处理。
 
 1. **数据库**:`brew services start mysql@8.4`(已在跑就跳过)。
 2. **网站**(终端 1):
@@ -90,7 +90,7 @@ php artisan migrate:fresh --seed && php artisan db:seed --class=DemoFlowSeeder
 
 1. **入库**(warehouse-supervisor):/warehouse/asns/create 新建预报单 (ASN)(整柜)→ 进入预报单页 → "Excel 导入" 上传 `data/需派送货物清单.xlsx` → 逐行"收货"(或用顶栏"收货"的待收货列表;试着少收 2 箱并填原因,看 /admin/exceptions 出现差异)。收的行自动归到一张入库单(编号 = 预报单号-R1;下次到货再收的行会开 -R2)→ 全部收完后在预报单页或入库单页点"入库完成"→ "打印入库单 (PDF)"(单据中心 /admin/documents 可下载;客户门户暂无入口,见 HANDOFF 的 X1 待办)→ /warehouse/putaway 输入库位码上架 → 预报单页点"从预报单 (ASN) 生成派送订单"。
    - **1b. 无预报收货**(warehouse-operator):货到了但没有预报单时,顶栏"无预报收货"(/warehouse/receiving/unplanned):选客户、仓库、送货参考、收货库位,逐行填唛头 / 品名 / 实收 / 破损 / 托盘数,提交即生成临时预报单和一张已完成的入库单;上架前 customer-service 在预报单页点"确认无预报到货"。
-2. **订单**(customer-service):/orders 看到刚生成的订单 → 打开一张 → "确认"。等一分钟(或跑 `php artisan outbox:dispatch`),/warehouse/reservations 出现预留,/transport 出现运单和初步报价。
+2. **订单**(customer-service):/orders 看到刚生成的订单 → 打开一张 → "确认"。几秒内(确认时系统即时预留库存;其他事件每十秒派送一次,本机没开 schedule:work 时可手动跑 `php artisan outbox:dispatch`),/warehouse/reservations 出现预留,/transport 出现运单和初步报价。
 3. **出库**(warehouse-operator):/warehouse/outbound → 勾选订单"释放波次" → 进波次页逐行"确认"拣货(试一次少拣,看 Pick Short 异常)→ "打包" 录包裹重量尺寸(录一个 25kg 以上的看尾板)→ 回到出库页。
 4. **运输**(dispatcher):/transport 打开该运单 → 方案列表(自有车队 / Karrio / 人工录价)→ 选一个 → "订舱"。自有车队:/transport/runs/create 建今天的班次、加入运单;然后 warehouse-operator 在 /warehouse/outbound "发运交接"。
 5. **司机签收**(transport-operator,手机或电脑):/driver → 选停靠点 → 签名 + 拍照 → 送达。订单变"已送达";签收邮件内容在 `storage/logs/laravel.log`。

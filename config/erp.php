@@ -20,6 +20,12 @@ return [
     // while the file is missing — the stored 入库单 PDF is a client-visible document and would otherwise print every Chinese label blank.
     'pdf_cjk_font' => env('PDF_CJK_FONT', storage_path('fonts/cjk.ttf')),
 
+    // Events a person is waiting for at the screen are delivered right after the business transaction commits, in the same
+    // request, up to N hops for that Job (order.confirmed → stock.reserved → fulfilment). Cron's outbox:dispatch stays the safety net.
+    'outbox_dispatch_now' => ['order.confirmed'],
+    'outbox_dispatch_now_hops' => 3,
+    'outbox_dispatch_now_seconds' => 2.0,
+
     // Storage is billed per pallet·week; the billing week starts on this day (ERP_PLAN §4.2 stock_snapshots).
     'storage_week_starts_on' => 'monday',
 
