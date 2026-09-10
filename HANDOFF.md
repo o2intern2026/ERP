@@ -108,3 +108,9 @@ Lead decisions (binding, CHANGE_REQUESTS #90–#92): **ASN = 预报单 (ASN), �
 ### 2026-09-10 · main · 作业登记 (CR #95) · C added one link in X1's `orders::show`
 
 - `app/Modules/Orders/views/show.blade.php`: a warehouse-roles-only button 登记缠膜 / 人工时 → `warehouse.tasks.create?order_id=…&task_type=wrap` (lang `orders.actions.register_vas`). Nothing else in the Orders zone changed.
+
+### 2026-09-10 · fix/audit-x-2026-09-10 · audit lane B (Orders / Portal / Transport / Reports) · C as integrator, X1 / X2 zones
+
+Fixes for the confirmed 2026-09-10 audit findings in the X1 / X2 zones. Every file touched is listed per package so X1 / X2 can rebase and review.
+
+- **B1 · blockers.** `GET /orders/batches` (nav link 入库批次, no query string) 500ed with `Undefined array key "ref"` — `(string) $validated['ref'] ?? ''` cast before the coalesce and `validate()` omits an absent key. Coalesce now happens before the cast; `?ref=` and `?ref=<value>` behave as before. Files: `app/Modules/Orders/Http/Controllers/BatchController.php`, `tests/Feature/Orders/QueueAndBatchTest.php` (+1 `test_batch_page_opens_without_a_reference`).
