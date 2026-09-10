@@ -23,6 +23,14 @@ final class TaskService
         ]));
     }
 
+    /** Cancels a pending / in-progress task without a billing event (legacy hand-made 收货/上架/移库 records, mistaken VAS entries). */
+    public function cancel(WarehouseTask $task, ?string $reason = null): WarehouseTask
+    {
+        $task->forceFill(['status' => 'cancelled', 'cancel_reason' => $reason])->save();
+
+        return $task;
+    }
+
     /**
      * @param  array{billable_qty?:float, billable_uom?:string, hours_business?:float, hours_after_hours?:float, scan_count?:int, notes?:string}  $completion
      */

@@ -104,3 +104,7 @@ Lead decisions (binding, CHANGE_REQUESTS #90–#92): **ASN = 预报单 (ASN), �
 ### 2026-09-10 · main · no-permission page (CR #93) · C touched X1/X2 controllers
 
 - Mechanical replacement only: `abort_unless(<user>->hasAnyRole(ROLES), 403[, MSG])` → `RequiredRoles::requireAny(ROLES[, MSG])` (`App\Support\Auth\RequiredRoles`) in Orders / Reports / Transport controllers so `errors/403` can list the allowed roles. Same 403 status, same messages. New code-level role checks should call the helper.
+
+### 2026-09-10 · main · 作业登记 (CR #95) · C added one link in X1's `orders::show`
+
+- `app/Modules/Orders/views/show.blade.php`: a warehouse-roles-only button 登记缠膜 / 人工时 → `warehouse.tasks.create?order_id=…&task_type=wrap` (lang `orders.actions.register_vas`). Nothing else in the Orders zone changed.

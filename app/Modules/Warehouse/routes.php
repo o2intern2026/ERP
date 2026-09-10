@@ -73,6 +73,7 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::get('/tasks/create', [TaskController::class, 'create'])->name('tasks.create');
         Route::post('/tasks', [TaskController::class, 'store'])->name('tasks.store');
         Route::post('/tasks/{task}/complete', [TaskController::class, 'complete'])->name('tasks.complete');
+        Route::post('/tasks/{task}/cancel', [TaskController::class, 'cancel'])->name('tasks.cancel'); // hand-made records only (tester feedback #6)
         Route::post('/config/locations', [LocationController::class, 'store'])->name('locations.store');
         Route::post('/config/warehouses', [WarehouseController::class, 'store'])->name('warehouses.store');
         Route::get('/stocktakes/create', [StocktakeController::class, 'create'])->name('stocktakes.create');

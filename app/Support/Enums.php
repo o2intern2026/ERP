@@ -67,6 +67,12 @@ final class Enums
 
     public const TASK_TYPES = ['receiving', 'putaway', 'move', 'pick', 'pack', 'load', 'count', 'return_inspection', 'devanning', 'wrap', 'scanning', 'labour', 'waste', 'vas_other'];
 
+    /** Task types a person creates by hand on 作业登记 (VAS, billed via task.completed). Every other type is written by its own operation (receiving, wave, pack, dispatch, returns) — tester feedback #6, 2026-09-10. */
+    public const VAS_TASK_TYPES = ['devanning', 'wrap', 'scanning', 'labour', 'waste', 'vas_other'];
+
+    /** Task types only the system writes; the generic 完成 / 取消 buttons never apply to them. */
+    public const SYSTEM_TASK_TYPES = ['pick', 'pack', 'load', 'return_inspection'];
+
     public const TASK_SOURCE_TYPES = ['order', 'fulfilment', 'asn', 'container', 'stocktake', 'wave'];
 
     public const TASK_STATUSES = ['pending', 'in_progress', 'done', 'cancelled', 'exception'];

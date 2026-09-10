@@ -43,6 +43,10 @@
         </form>
     @endif
 
+    @role('admin|warehouse_supervisor|warehouse_operator')
+        <p><a role="button" class="secondary outline" href="{{ route('warehouse.tasks.create', ['order_id' => $order->id, 'task_type' => 'wrap']) }}">{{ __('orders.actions.register_vas') }}</a></p>
+    @endrole
+
     <h2>{{ __('orders.sections.instruction') }}</h2>
     <dl>
         <dt>{{ __('orders.fields.order_type') }}</dt><dd>{{ __('orders.types.'.$order->order_type) }}</dd>

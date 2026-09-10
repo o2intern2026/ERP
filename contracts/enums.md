@@ -100,6 +100,7 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 | `stock_units.pallet_source` | `client_own` \| `warehouse_plain` \| `chep` \| `loscam` |
 | `stock_units.condition` | `good` \| `quarantine` \| `damaged` |
 | `warehouse_tasks.task_type` | `receiving` \| `putaway` \| `move` \| `pick` \| `pack` \| `load` \| `count` \| `return_inspection` \| `devanning` \| `wrap` \| `scanning` \| `labour` \| `waste` \| `vas_other` |
+| hand-made task types (`Enums::VAS_TASK_TYPES`) | `devanning` \| `wrap` \| `scanning` \| `labour` \| `waste` \| `vas_other` — the only types a person creates on 作业登记; `receiving` (unload), `pick`, `pack`, `load`, `return_inspection` are written by their operations, `putaway` / `move` / `count` are no longer created at all (tester feedback #6, CHANGE_REQUESTS #95) |
 | `warehouse_tasks.source_type` | `order` \| `fulfilment` \| `asn` \| `container` \| `stocktake` \| `wave` |
 | `warehouse_tasks.status` | `pending` \| `in_progress` \| `done` \| `cancelled` \| `exception` |
 | `warehouse_tasks.billable_uom` | `container` \| `pallet` \| `carton` \| `scan` \| `man_hour` \| `cbm` \| `label` |

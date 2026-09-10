@@ -7,6 +7,7 @@ return [
     'empty' => '没有符合条件的订单。',
     'not_provided' => '未提供',
     'actions' => [
+        'register_vas' => '登记缠膜 / 人工时(仓库作业登记)',
         'create' => '新建订单',
         'filter' => '筛选',
         'back' => '返回订单列表',
