@@ -136,6 +136,7 @@ return [
         'quote_count' => '方案数',
         'tailgate' => '需要尾板',
         'tracking_number' => '追踪号码',
+        'margin_link' => '收付毛利',
         'back' => '返回运输列表',
     ],
     'quotes' => [

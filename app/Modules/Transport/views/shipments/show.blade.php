@@ -3,23 +3,32 @@
 @section('title', $shipment->shipment_no)
 
 @section('content')
-    <p><a href="{{ route('transport.index') }}">{{ __('transport.shipments.back') }}</a></p>
-    <h1>{{ $shipment->shipment_no }}</h1>
+    <p><a href="{{ route('transport.index') }}">← {{ __('transport.shipments.back') }}</a></p>
+    @php($statusTone = ['delivered' => 'ok', 'arrived_warehouse' => 'ok', 'booked' => 'ok', 'dispatched' => 'ok', 'in_transit' => 'ok', 'failed' => 'danger', 'booking_cancelled' => 'danger'][$shipment->status] ?? 'warn')
+    <h1 style="margin-bottom:.25rem">{{ $shipment->shipment_no }} <span class="badge" data-tone="{{ $statusTone }}">{{ __('transport.statuses.'.$shipment->status) }}</span></h1>
+    <p class="text-muted" style="margin-bottom:1rem">{{ __('transport.shipment_types.'.$shipment->shipment_type) }} · {{ $shipment->client->name }}</p>
 
-    <dl>
-        <dt>{{ __('transport.shipments.job') }}</dt>
-        <dd>{{ $shipment->job?->job_no ?? $shipment->job_id }}</dd>
-        <dt>{{ __('transport.shipments.client') }}</dt>
-        <dd>{{ $shipment->client->name }}</dd>
-        <dt>{{ __('transport.shipments.order') }}</dt>
-        <dd><a href="{{ route('transport.orders.margin', $shipment->order_id) }}">{{ $shipment->order_id }}</a></dd>
-        <dt>{{ __('transport.shipments.type') }}</dt>
-        <dd>{{ __('transport.shipment_types.'.$shipment->shipment_type) }}</dd>
-        <dt>{{ __('transport.shipments.status') }}</dt>
-        <dd>{{ __('transport.statuses.'.$shipment->status) }}</dd>
-        <dt>{{ __('transport.shipments.tracking_number') }}</dt>
-        <dd>{{ $shipment->tracking_number ?: __('transport.not_selected') }}</dd>
-    </dl>
+    {{-- Tester feedback 2026-09-10 (#9 UI): the header facts sit in the shared two-column label/value grid (dl.kv, app.css) instead of a bare <dl>. --}}
+    <article style="padding:.9rem 1.1rem .4rem">
+        <dl class="kv kv-2">
+            <dt>{{ __('transport.shipments.job') }}</dt>
+            <dd>@if ($shipment->job)<a href="{{ route('platform.jobs.show', $shipment->job) }}">{{ $shipment->job->job_no }}</a>@else{{ $shipment->job_id }}@endif</dd>
+            <dt>{{ __('transport.shipments.status') }}</dt>
+            <dd><span class="badge" data-tone="{{ $statusTone }}">{{ __('transport.statuses.'.$shipment->status) }}</span></dd>
+            <dt>{{ __('transport.shipments.client') }}</dt>
+            <dd>{{ $shipment->client->name }}</dd>
+            <dt>{{ __('transport.shipments.carrier') }}</dt>
+            <dd>{{ $shipment->carrier?->name ?? __('transport.not_selected') }}</dd>
+            <dt>{{ __('transport.shipments.order') }}</dt>
+            <dd><a href="{{ route('orders.show', $shipment->order_id) }}">{{ $orderNo ?? '#'.$shipment->order_id }}</a> <small class="text-muted">· <a href="{{ route('transport.orders.margin', $shipment->order_id) }}">{{ __('transport.shipments.margin_link') }}</a></small></dd>
+            <dt>{{ __('transport.shipments.service_level') }}</dt>
+            <dd>{{ $shipment->service_level ? __('transport.service_levels.'.$shipment->service_level) : '—' }}</dd>
+            <dt>{{ __('transport.shipments.type') }}</dt>
+            <dd>{{ __('transport.shipment_types.'.$shipment->shipment_type) }}</dd>
+            <dt>{{ __('transport.shipments.tracking_number') }}</dt>
+            <dd>{{ $shipment->tracking_number ?: __('transport.not_selected') }}</dd>
+        </dl>
+    </article>
 
     {{-- 2026-09-10 audit: every action form below is gated by the same roles its controller accepts, so no role is offered a form the server refuses. --}}
     @if ($shipment->status === 'quote_confirmed' && $shipment->selectedQuote !== null)

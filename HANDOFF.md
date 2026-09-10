@@ -144,3 +144,4 @@ Not touched: `contracts/*.md` (only `CHANGE_REQUESTS.md` rows #100–#104 append
 ### 2026-09-10 · main · item 4 B/C/D (CR #106) · C touched Orders zone
 
 - `app/Modules/Orders/Services/FulfilmentService.php` (resolveOpen('stock_shortage') once no line is backordered), `app/Modules/Orders/Http/Controllers/OrderController.php` (`shortages` for the order page), `app/Modules/Orders/views/show.blade.php` (缺货 banner), `lang/zh/orders.php` (`fulfilments.shortage_*`).
+- `app/Modules/Transport/views/shipments/show.blade.php` header + `ShipmentController::show` (`orderNo`) + lang `transport.shipments.margin_link` (X2 zone, integrator): title with status badge, two-column dl.kv card, order number linked to the order page. Tester feedback 2026-09-10.

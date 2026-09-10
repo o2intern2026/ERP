@@ -9,6 +9,7 @@ use App\Modules\Transport\Services\ShipmentLabelService;
 use App\Modules\Transport\Services\ShipmentMarginService;
 use App\Modules\Transport\Services\ShipmentQuoteRequestFactory;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\DB;
 
 class ShipmentController extends Controller
 {
@@ -34,6 +35,7 @@ class ShipmentController extends Controller
 
         return view('transport::shipments.show', [
             'shipment' => $shipment,
+            'orderNo' => DB::table('orders')->where('id', $shipment->order_id)->value('order_no'), // header link text (tester feedback 2026-09-10)
             'margin' => $margins->shipment($shipment),
             'manualServices' => CarrierService::query()
                 ->with('carrier')
