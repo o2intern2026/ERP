@@ -34,7 +34,11 @@
                 @endforeach
                 </tbody>
             </table></div>
-            @if ($task->status === 'done')
+            @if ($task->status === 'done' && in_array($task->fulfilment_id, $dispatchedFulfilments, true))
+                <footer><span class="badge" data-tone="ok">{{ __('warehouse.outbound.dispatched_badge') }}</span></footer>
+            @elseif ($task->status === 'done' && in_array($task->fulfilment_id, $packedFulfilments, true))
+                <footer><span class="badge" data-tone="ok">{{ __('warehouse.outbound.packed_badge') }}</span> <a href="{{ route('warehouse.outbound.index') }}">{{ __('warehouse.outbound.go_dispatch') }}</a></footer>
+            @elseif ($task->status === 'done' && $task->lines->isNotEmpty())
                 @role('admin|warehouse_supervisor|warehouse_operator')<footer><a role="button" class="secondary" href="{{ route('warehouse.outbound.pack.form', $task->fulfilment_id) }}">{{ __('warehouse.outbound.pack') }}</a></footer>@endrole
             @endif
         </article>

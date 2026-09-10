@@ -61,6 +61,12 @@ class OutboundPagesTest extends TestCase
         $this->assertSame(1, Package::query()->count());
         $this->assertDatabaseHas('outbox_events', ['event_name' => 'outbound.packed', 'job_id' => $asn->job_id]);
 
+        // Tester feedback #9: once packed, the wave page no longer offers 打包 and the pack form explains instead of a bare 409.
+        $this->actingAs($operator)->get(route('warehouse.outbound.waves.show', $wave))->assertOk()
+            ->assertSee(__('warehouse.outbound.packed_badge'))->assertDontSee(route('warehouse.outbound.pack.form', $fulfilment));
+        $this->actingAs($operator)->get(route('warehouse.outbound.pack.form', $fulfilment))->assertRedirect(route('warehouse.outbound.index'))
+            ->assertSessionHasErrors(['pack' => __('warehouse.outbound.already_packed', ['id' => $fulfilment])]);
+
         $this->actingAs($operator)->get(route('warehouse.outbound.index'))->assertOk()->assertSee('PKG-'.$fulfilment.'-01');
         $this->actingAs($operator)->post(route('warehouse.outbound.dispatch', $fulfilment), ['pallet_count' => 0, 'handed_to' => 'carrier'])->assertRedirect()->assertSessionHasNoErrors();
         $this->assertSame(1, OutboundDispatch::query()->count());

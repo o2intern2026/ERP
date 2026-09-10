@@ -70,7 +70,15 @@ class OutboundController extends Controller
     {
         $wave->load(['warehouse', 'tasks.lines.stockUnit', 'tasks.lines.location']);
 
-        return view('warehouse::outbound.wave', ['wave' => $wave, 'orderNos' => DB::table('orders')->whereIn('id', $wave->tasks->pluck('order_id'))->pluck('order_no', 'id')]);
+        $fulfilmentIds = $wave->tasks->pluck('fulfilment_id')->filter()->unique()->values();
+
+        return view('warehouse::outbound.wave', [
+            'wave' => $wave,
+            'orderNos' => DB::table('orders')->whereIn('id', $wave->tasks->pluck('order_id'))->pluck('order_no', 'id'),
+            // Tester feedback #9: 打包 only while the fulfilment is not packed yet; afterwards the card says so and points to 发运交接.
+            'packedFulfilments' => Package::query()->whereIn('fulfilment_id', $fulfilmentIds)->distinct()->pluck('fulfilment_id')->all(),
+            'dispatchedFulfilments' => OutboundDispatch::query()->whereIn('fulfilment_id', $fulfilmentIds)->distinct()->pluck('fulfilment_id')->all(),
+        ]);
     }
 
     public function pick(Request $request, WarehouseTaskLine $line, OutboundService $outbound): RedirectResponse
@@ -86,10 +94,16 @@ class OutboundController extends Controller
         return back()->with('status', __('warehouse.outbound.pick_confirmed'));
     }
 
-    public function packForm(int $fulfilment): View
+    public function packForm(int $fulfilment): View|RedirectResponse
     {
         $task = WarehouseTask::query()->where('task_type', 'pick')->where('fulfilment_id', $fulfilment)->with('lines.stockUnit.asnLine')->firstOrFail();
-        abort_if($task->status !== 'done' || Package::query()->where('fulfilment_id', $fulfilment)->exists(), 409);
+        // Not a 409 page any more (tester feedback #9): say why in Chinese and go back to the board.
+        if (Package::query()->where('fulfilment_id', $fulfilment)->exists()) {
+            return redirect()->route('warehouse.outbound.index')->withErrors(['pack' => __('warehouse.outbound.already_packed', ['id' => $fulfilment])]);
+        }
+        if ($task->status !== 'done') {
+            return redirect()->route('warehouse.outbound.waves.show', $task->wave_id)->withErrors(['pack' => __('warehouse.outbound.pack_after_pick', ['id' => $fulfilment])]);
+        }
 
         return view('warehouse::outbound.pack', ['task' => $task, 'order' => DB::table('orders')->where('id', $task->order_id)->first(), 'packageTypes' => Enums::PACKAGE_TYPES]);
     }
