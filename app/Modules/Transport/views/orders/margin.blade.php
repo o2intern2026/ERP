@@ -6,7 +6,9 @@
     <p><a href="{{ route('transport.index') }}">{{ __('transport.shipments.back') }}</a></p>
     <h1>{{ __('transport.costs.order_title', ['order' => $orderNo]) }}</h1>
 
-    @if ($summary['margin_cents'] === null)
+    @if ($summary['shipments'] === [])
+        <p class="text-muted">{{ __('transport.costs.order_no_shipments') }}</p>
+    @elseif ($summary['margin_cents'] === null)
         <p><span class="badge" data-tone="warn">{{ __('transport.costs.statuses.missing') }}</span> {{ __('transport.costs.order_incomplete') }}</p>
     @else
         <article>
@@ -22,6 +24,7 @@
         </article>
     @endif
 
+    @if ($summary['shipments'] !== [])
     <table class="dense">
         <thead>
             <tr>
@@ -48,4 +51,5 @@
             @endforeach
         </tbody>
     </table>
+    @endif
 @endsection

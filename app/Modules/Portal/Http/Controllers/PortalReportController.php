@@ -4,6 +4,7 @@ namespace App\Modules\Portal\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Reports\Http\ReportValidation;
 use App\Modules\Reports\Services\ReportCsv;
 use App\Modules\Reports\Services\ReportPeriod;
 use App\Modules\Reports\Services\ReportService;
@@ -20,7 +21,7 @@ final class PortalReportController extends Controller
     public function index(Request $request, ReportService $reports): View
     {
         $client = $this->client($request);
-        $period = ReportPeriod::fromInput($request->validate(ReportPeriod::rules()));
+        $period = ReportPeriod::fromInput($request->validate(ReportPeriod::rules(), ReportValidation::messages(), ReportValidation::attributes()));
         $report = $reports->client($client->id, $period);
 
         return view('reports::client', [
@@ -41,7 +42,7 @@ final class PortalReportController extends Controller
     {
         $client = $this->client($request);
         abort_unless(in_array($table, ReportService::TABLES, true), 404);
-        $period = ReportPeriod::fromInput($request->validate(ReportPeriod::rules()));
+        $period = ReportPeriod::fromInput($request->validate(ReportPeriod::rules(), ReportValidation::messages(), ReportValidation::attributes()));
         $rows = $reports->client($client->id, $period)[$table];
         $content = $csv->render($reports->columns($table, true), $rows, $reports->totals($table, $rows, true));
 

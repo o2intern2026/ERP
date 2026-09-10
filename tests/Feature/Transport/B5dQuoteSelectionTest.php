@@ -96,7 +96,7 @@ class B5dQuoteSelectionTest extends TestCase
         $this->actingAs($coordinator)
             ->post(route('transport.shipments.quotes.select', [$shipment, $quote]))
             ->assertRedirect()
-            ->assertSessionHas('success', __('transport.selection.saved'));
+            ->assertSessionHas('status', __('transport.selection.saved'));
 
         $this->assertDatabaseHas('shipments', [
             'id' => $shipment->id,

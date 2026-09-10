@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\DB;
 /** Human-entered quote path used while no live carrier account is configured. */
 final class ManualQuoteService
 {
+    /** Largest value transport_quotes.markup_percent (decimal 5,2) can hold. */
+    public const MAX_MARKUP_PERCENT = 999.99;
+
     public function __construct(
         private readonly ManualCarrierAdapter $adapter,
         private readonly ShipmentQuoteRequestFactory $requests,
@@ -40,6 +43,10 @@ final class ManualQuoteService
             || $customerPriceCents < 1
             || $etaDays < 0) {
             throw new DomainException(__('transport.manual_quote.invalid_values'));
+        }
+        // 2026-09-10 audit: transport_quotes.markup_percent is decimal(5,2); anything above 999.99 % used to escape as a 500.
+        if ((($customerPriceCents / $costCents) - 1) * 100 > self::MAX_MARKUP_PERCENT) {
+            throw new DomainException(__('transport.manual_quote.markup_too_high'));
         }
 
         $request = $this->requests->build($shipment, $stage);

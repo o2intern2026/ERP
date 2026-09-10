@@ -4,6 +4,7 @@ namespace App\Modules\Orders\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Orders\Http\OrderValidation;
 use App\Modules\Orders\Models\OrderApiToken;
 use App\Modules\Orders\Services\OrderApiTokenService;
 use App\Support\Auth\RequiredRoles;
@@ -32,7 +33,7 @@ final class ApiTokenController extends Controller
         $data = $request->validate([
             'client_id' => ['required', 'integer', Rule::exists('clients', 'id')->where('status', 'active')],
             'name' => ['required', 'string', 'max:100'],
-        ]);
+        ], OrderValidation::messages(), OrderValidation::attributes());
 
         $issued = $tokens->issue((int) $data['client_id'], $data['name'], $request->user()->id);
 

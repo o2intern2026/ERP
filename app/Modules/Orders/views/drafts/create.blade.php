@@ -15,7 +15,7 @@
         <div class="grid">
             <label>{{ __('orders.fields.client') }}<select name="client_id" id="draft-client" required><option value="">{{ __('orders.actions.select') }}</option>@foreach ($clients as $client)<option value="{{ $client->id }}" @selected((int) old('client_id') === $client->id)>{{ $client->name }}</option>@endforeach</select></label>
             <label>{{ __('orders.fields.job') }}<select name="job_id" id="draft-job"><option value="">{{ __('orders.pickup.new_job') }}</option>@foreach ($jobs as $job)<option value="{{ $job->id }}" data-client-id="{{ $job->client_id }}" @selected((int) old('job_id') === $job->id)>{{ $job->job_no }}</option>@endforeach</select></label>
-            <label>{{ __('orders.fields.service_level') }}<select name="service_level" required>@foreach ($serviceLevels as $level)<option value="{{ $level }}">{{ __('orders.service_levels.'.$level) }}</option>@endforeach</select></label>
+            <label>{{ __('orders.fields.service_level') }}<select name="service_level" required>@foreach ($serviceLevels as $level)<option value="{{ $level }}" @selected(old('service_level', 'standard') === $level)>{{ __('orders.service_levels.'.$level) }}</option>@endforeach</select></label>
         </div>
         <label>{{ __('orders.drafts.file') }}<input type="file" name="document" accept=".pdf,.eml,.txt" required></label>
         <button type="submit">{{ __('orders.drafts.submit') }}</button>

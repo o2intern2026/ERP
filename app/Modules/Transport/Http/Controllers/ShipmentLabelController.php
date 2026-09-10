@@ -5,23 +5,25 @@ namespace App\Modules\Transport\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Services\ShipmentLabelService;
+use App\Support\Auth\RequiredRoles;
 use DomainException;
-use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class ShipmentLabelController extends Controller
 {
-    public function __invoke(Request $request, Shipment $shipment, ShipmentLabelService $labels): Response
+    public const ROLES = ['admin', 'customer_service', 'dispatcher', 'transport_operator'];
+
+    public function __invoke(Shipment $shipment, ShipmentLabelService $labels): Response
     {
-        abort_unless(
-            $request->user()?->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'transport_operator']),
-            403,
-        );
+        RequiredRoles::requireAny(self::ROLES);
 
         try {
             $document = $labels->document($shipment);
         } catch (DomainException $exception) {
-            abort(422, $exception->getMessage());
+            // 2026-09-10 audit: back on the shipment page with the reason instead of a bare 422 error page.
+            return redirect()
+                ->route('transport.shipments.show', $shipment)
+                ->withErrors(['label' => $exception->getMessage()]);
         }
 
         return response($document['content'], 200, [

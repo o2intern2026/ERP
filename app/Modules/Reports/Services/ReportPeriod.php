@@ -2,6 +2,7 @@
 
 namespace App\Modules\Reports\Services;
 
+use App\Modules\Reports\Rules\MaxPeriodSpan;
 use Carbon\CarbonImmutable;
 
 /** An inclusive date range (Australia/Melbourne business days) for A21 / A22 reports; defaults to the current month. */
@@ -11,10 +12,13 @@ final class ReportPeriod
 
     public function __construct(public readonly CarbonImmutable $from, public readonly CarbonImmutable $to) {}
 
-    /** Validation rules for the from / to query parameters (dates, to ≥ from; span checked in fromInput). */
+    /**
+     * Validation rules for the from / to query parameters: dates, to ≥ from, and at most MAX_DAYS apart (2026-09-10 audit — the
+     * span used to be clamped silently in fromInput(); the clamp is kept there only as a defence for programmatic callers).
+     */
     public static function rules(): array
     {
-        return ['from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from']];
+        return ['from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from', new MaxPeriodSpan(self::MAX_DAYS)]];
     }
 
     /** @param array{from?:?string, to?:?string} $input */

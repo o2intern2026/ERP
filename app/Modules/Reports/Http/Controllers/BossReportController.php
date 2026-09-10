@@ -3,6 +3,7 @@
 namespace App\Modules\Reports\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Reports\Http\ReportValidation;
 use App\Modules\Reports\Services\ReportCsv;
 use App\Modules\Reports\Services\ReportPeriod;
 use App\Modules\Reports\Services\ReportService;
@@ -19,7 +20,7 @@ final class BossReportController extends Controller
     public function index(Request $request, ReportService $reports): View
     {
         $this->authorizeBoss($request);
-        $period = ReportPeriod::fromInput($request->validate(ReportPeriod::rules()));
+        $period = ReportPeriod::fromInput($request->validate(ReportPeriod::rules(), ReportValidation::messages(), ReportValidation::attributes()));
         $report = $reports->boss($period);
 
         return view('reports::index', [
@@ -36,7 +37,7 @@ final class BossReportController extends Controller
     {
         $this->authorizeBoss($request);
         abort_unless(in_array($table, ReportService::TABLES, true), 404);
-        $period = ReportPeriod::fromInput($request->validate(ReportPeriod::rules()));
+        $period = ReportPeriod::fromInput($request->validate(ReportPeriod::rules(), ReportValidation::messages(), ReportValidation::attributes()));
         $rows = $reports->boss($period)[$table];
         $content = $csv->render($reports->columns($table, false), $rows, $reports->totals($table, $rows, false));
 

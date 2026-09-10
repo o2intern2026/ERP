@@ -4,6 +4,7 @@ namespace App\Modules\Transport\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Carrier;
+use App\Modules\Transport\Http\TransportValidation;
 use App\Modules\Transport\Models\CarrierInvoice;
 use App\Modules\Transport\Services\CarrierInvoiceService;
 use App\Support\Auth\RequiredRoles;
@@ -45,7 +46,7 @@ class CarrierInvoiceController extends Controller
             'period_to' => ['required', 'date_format:Y-m-d', 'after_or_equal:period_from'],
             'total_cents' => ['required', 'integer', 'min:0'],
             'statement' => ['required', 'file', 'mimes:csv,txt', 'max:10240'],
-        ]);
+        ], TransportValidation::messages(), TransportValidation::attributes());
 
         try {
             $invoice = $invoices->import(

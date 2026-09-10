@@ -178,6 +178,52 @@ class OrderFormAuditFixesTest extends TestCase
     }
 
     /** @return array<string, mixed> */
+    /** Finding (B5): the 确认订单 button rendered for every staff role while POST /confirm accepts only admin / customer_service / dispatcher. */
+    public function test_confirm_button_is_offered_only_to_the_order_entry_roles(): void
+    {
+        $cs = $this->staff('customer_service');
+        $client = $this->client();
+        $job = app(JobService::class)->create($client->id, 'loose')['job_id'];
+        $this->actingAs($cs)->post('/orders', $this->payload($client, $job))->assertSessionHasNoErrors();
+        $order = Order::query()->sole();
+        $confirmUrl = route('orders.confirm', $order);
+
+        foreach (['finance', 'warehouse_supervisor', 'warehouse_operator', 'transport_operator'] as $role) {
+            $this->actingAs($this->staff($role))->get(route('orders.show', $order))->assertOk()
+                ->assertDontSee('action="'.$confirmUrl.'"', false)
+                ->assertSee(__('orders.actions.confirm_needs_role'));
+            $this->actingAs($this->staff($role))->post($confirmUrl)->assertForbidden();
+        }
+        foreach (['admin', 'customer_service', 'dispatcher'] as $role) {
+            $this->actingAs($this->staff($role))->get(route('orders.show', $order))->assertOk()
+                ->assertSee('action="'.$confirmUrl.'"', false)
+                ->assertDontSee(__('orders.actions.confirm_needs_role'));
+        }
+    }
+
+    /** Finding (B5): the API-token form came back empty after a rejected 名称, the PDF-draft form reset 服务等级 to 标准. */
+    public function test_api_token_and_draft_forms_keep_their_input_after_a_validation_error(): void
+    {
+        $admin = $this->staff('admin');
+        $client = $this->client(['name' => 'Token Client']);
+
+        $tooLong = str_repeat('长', 101);
+        $response = $this->actingAs($admin)->from(route('orders.api-tokens.index'))->post(route('orders.api-tokens.store'), ['client_id' => $client->id, 'name' => $tooLong]);
+        $response->assertRedirect(route('orders.api-tokens.index'))->assertSessionHasErrors('name');
+        $this->assertStringContainsString('令牌名称', session('errors')->first('name'));
+        $this->assertStringNotContainsString('The name', session('errors')->first('name'));
+        $page = $this->actingAs($admin)->get(route('orders.api-tokens.index'))->assertOk();
+        $page->assertSee('<option value="'.$client->id.'" selected>', false)->assertSee('value="'.$tooLong.'"', false);
+
+        $cs = $this->staff('customer_service');
+        $this->actingAs($cs)->from(route('orders.drafts.create'))->post(route('orders.drafts.store'), [
+            'client_id' => $client->id, 'service_level' => 'express', 'document' => UploadedFile::fake()->create('order.exe', 10),
+        ])->assertRedirect(route('orders.drafts.create'))->assertSessionHasErrors('document');
+        $this->actingAs($cs)->get(route('orders.drafts.create'))->assertOk()
+            ->assertSee('<option value="express" selected>', false)
+            ->assertSee('<option value="'.$client->id.'" selected>', false);
+    }
+
     private function payload(Client $client, ?int $jobId, array $overrides = []): array
     {
         return array_replace([

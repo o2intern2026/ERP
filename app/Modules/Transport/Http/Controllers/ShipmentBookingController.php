@@ -3,6 +3,7 @@
 namespace App\Modules\Transport\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Transport\Http\TransportValidation;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Services\ShipmentBookingService;
 use App\Support\Auth\RequiredRoles;
@@ -19,7 +20,7 @@ class ShipmentBookingController extends Controller
             'booking_reference' => ['nullable', 'string', 'max:255'],
             'tracking_number' => ['nullable', 'string', 'max:255'],
             'pickup_date' => ['nullable', 'date_format:Y-m-d'],
-        ]);
+        ], TransportValidation::messages(), TransportValidation::attributes());
 
         try {
             $bookings->book(
@@ -29,7 +30,7 @@ class ShipmentBookingController extends Controller
                 $data['pickup_date'] ?? null,
             );
         } catch (DomainException $exception) {
-            return back()->withErrors(['booking' => $exception->getMessage()]);
+            return back()->withInput()->withErrors(['booking' => $exception->getMessage()]);
         }
 
         return back()->with('status', __('transport.booking.booked'));

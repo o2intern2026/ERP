@@ -74,7 +74,10 @@ class B6ShipmentLabelTest extends TestCase
             $mock->shouldReceive('forShipment')->once()->andReturn([]);
         });
 
-        $this->get(route('transport.shipments.label', $shipment))->assertUnprocessable();
+        // 2026-09-10 audit: the failure comes back on the shipment page as an inline error, no longer a bare 422 page.
+        $this->get(route('transport.shipments.label', $shipment))
+            ->assertRedirect(route('transport.shipments.show', $shipment))
+            ->assertSessionHasErrors(['label' => __('transport.labels.no_packages')]);
         $this->assertNull($shipment->fresh()->waybill_document_id);
         $this->assertDatabaseCount('documents', 0);
 
@@ -82,7 +85,9 @@ class B6ShipmentLabelTest extends TestCase
         $this->mock(PackageManifest::class, function (MockInterface $mock): void {
             $mock->shouldNotReceive('forShipment');
         });
-        $this->get(route('transport.shipments.label', $shipment))->assertUnprocessable();
+        $this->get(route('transport.shipments.label', $shipment))
+            ->assertRedirect(route('transport.shipments.show', $shipment))
+            ->assertSessionHasErrors(['label' => __('transport.labels.receiver_missing')]);
         $this->assertDatabaseCount('documents', 0);
     }
 
