@@ -145,3 +145,4 @@ Not touched: `contracts/*.md` (only `CHANGE_REQUESTS.md` rows #100–#104 append
 
 - `app/Modules/Orders/Services/FulfilmentService.php` (resolveOpen('stock_shortage') once no line is backordered), `app/Modules/Orders/Http/Controllers/OrderController.php` (`shortages` for the order page), `app/Modules/Orders/views/show.blade.php` (缺货 banner), `lang/zh/orders.php` (`fulfilments.shortage_*`).
 - `app/Modules/Transport/views/shipments/show.blade.php` header + `ShipmentController::show` (`orderNo`) + lang `transport.shipments.margin_link` (X2 zone, integrator): title with status badge, two-column dl.kv card, order number linked to the order page. Tester feedback 2026-09-10.
+- Detail-page facts as two-column cards (tester feedback 2026-09-10): `orders::show` 订单指令 + 收货信息, `transport::runs.show`, `transport::carrier-invoices.show`, `transport::shipments.show` use `article.kv-card` + `dl.kv-2`; app.css now styles every `<dl>` as the grid by default (C, frozen zone).

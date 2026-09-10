@@ -6,7 +6,7 @@
     <p><a href="{{ route('transport.runs.index') }}">{{ __('transport.runs.back') }}</a></p>
     <h1>{{ $run->run_no }}</h1>
 
-    <dl>
+    <article class="kv-card"><dl class="kv-2">
         <dt>{{ __('transport.runs.date') }}</dt>
         <dd>{{ $run->run_date->format('Y-m-d') }}</dd>
         <dt>{{ __('transport.runs.driver') }}</dt>
@@ -15,7 +15,7 @@
         <dd>{{ $run->vehicle }}</dd>
         <dt>{{ __('transport.runs.status') }}</dt>
         <dd>{{ __('transport.run_statuses.'.$run->status) }}</dd>
-    </dl>
+    </dl></article>
 
     @if ($run->status === 'planned')
         <h2>{{ __('transport.runs.add_shipment') }}</h2>

@@ -69,7 +69,8 @@
     @endrole
 
     <h2>{{ __('orders.sections.instruction') }}</h2>
-    <dl>
+    {{-- Tester feedback 2026-09-10: label/value facts sit in the shared two-column card (dl.kv-2 / article.kv-card, app.css). --}}
+    <article class="kv-card"><dl class="kv-2">
         <dt>{{ __('orders.fields.order_type') }}</dt><dd>{{ __('orders.types.'.$order->order_type) }}</dd>
         <dt>{{ __('orders.fields.source') }}</dt><dd>{{ __('orders.sources.'.$order->source) }}</dd>
         <dt>{{ __('orders.fields.job_reference') }}</dt><dd>{{ $order->job->reference ?: __('orders.not_provided') }}</dd>
@@ -78,13 +79,14 @@
         <dt>{{ __('orders.fields.fba_reference') }}</dt><dd>{{ $order->fba_reference ?: __('orders.not_provided') }}</dd>
         <dt>{{ __('orders.fields.requested_date') }}</dt><dd>{{ $order->requested_date->format('Y-m-d') }}</dd>
         <dt>{{ __('orders.fields.service_level') }}</dt><dd>{{ __('orders.service_levels.'.$order->service_level) }}</dd>
-    </dl>
+    </dl></article>
 
     <h2>{{ __('orders.sections.delivery') }}</h2>
-    <p><strong>{{ __('orders.fields.delivery_instructions') }}:</strong> {{ $order->delivery_instructions ?: __('orders.not_provided') }}</p>
-    <p>{{ $order->deliver_to_name }}@if ($order->deliver_to_phone) · {{ $order->deliver_to_phone }}@endif<br>
-        {{ $order->deliver_to_address }}, {{ $order->deliver_to_suburb }} {{ $order->deliver_to_state }} {{ $order->deliver_to_postcode }}
-    </p>
+    <article class="kv-card"><dl class="kv-2">
+        <dt>{{ __('orders.fields.deliver_to_name') }}</dt><dd>{{ $order->deliver_to_name }}@if ($order->deliver_to_phone) · {{ $order->deliver_to_phone }}@endif</dd>
+        <dt>{{ __('orders.fields.address') }}</dt><dd>{{ $order->deliver_to_address }}, {{ $order->deliver_to_suburb }} {{ $order->deliver_to_state }} {{ $order->deliver_to_postcode }}</dd>
+        <dt>{{ __('orders.fields.delivery_instructions') }}</dt><dd>{{ $order->delivery_instructions ?: __('orders.not_provided') }}</dd>
+    </dl></article>
 
     @if ($canChange)
         <p class="text-muted"><small>{{ __($requiresReason ? 'orders.changes.hint_supervised' : 'orders.changes.hint_free') }}</small></p>

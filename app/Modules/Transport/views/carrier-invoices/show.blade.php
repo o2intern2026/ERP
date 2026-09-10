@@ -6,14 +6,14 @@
     <p><a href="{{ route('transport.carrier-invoices.index') }}">{{ __('transport.reconciliation.back') }}</a></p>
     <h1>{{ __('transport.reconciliation.invoice_title', ['invoice' => $invoice->invoice_no]) }}</h1>
 
-    <dl>
+    <article class="kv-card"><dl class="kv-2">
         <dt>{{ __('transport.reconciliation.carrier') }}</dt><dd>{{ $invoice->carrier->name }}</dd>
         <dt>{{ __('transport.reconciliation.period') }}</dt><dd>{{ $invoice->period_from->toDateString() }} — {{ $invoice->period_to->toDateString() }}</dd>
         <dt>{{ __('transport.reconciliation.total') }}</dt><dd>{{ \App\Support\Money::cents($invoice->total_cents)->format() }}</dd>
         <dt>{{ __('transport.reconciliation.line_total') }}</dt><dd>{{ \App\Support\Money::cents($lineTotalCents)->format() }}</dd>
         <dt>{{ __('transport.reconciliation.total_variance') }}</dt><dd>{{ \App\Support\Money::cents($totalVarianceCents)->format() }}</dd>
         <dt>{{ __('transport.reconciliation.status') }}</dt><dd>{{ __('transport.reconciliation.statuses.'.$invoice->status) }}</dd>
-    </dl>
+    </dl></article>
 
     @if ($totalVarianceCents !== 0)
         <p><span class="badge" data-tone="warn">{{ __('transport.reconciliation.invoice_total_mismatch') }}</span></p>

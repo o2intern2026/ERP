@@ -9,8 +9,8 @@
     <p class="text-muted" style="margin-bottom:1rem">{{ __('transport.shipment_types.'.$shipment->shipment_type) }} · {{ $shipment->client->name }}</p>
 
     {{-- Tester feedback 2026-09-10 (#9 UI): the header facts sit in the shared two-column label/value grid (dl.kv, app.css) instead of a bare <dl>. --}}
-    <article style="padding:.9rem 1.1rem .4rem">
-        <dl class="kv kv-2">
+    <article class="kv-card">
+        <dl class="kv-2">
             <dt>{{ __('transport.shipments.job') }}</dt>
             <dd>@if ($shipment->job)<a href="{{ route('platform.jobs.show', $shipment->job) }}">{{ $shipment->job->job_no }}</a>@else{{ $shipment->job_id }}@endif</dd>
             <dt>{{ __('transport.shipments.status') }}</dt>
