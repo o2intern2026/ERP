@@ -9,7 +9,7 @@
     @if ($errors->any())
         <article>
             <strong>{{ __('orders.validation.heading') }}</strong>
-            <ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+            <ul>@foreach (array_unique($errors->all()) as $error)<li>{{ $error }}</li>@endforeach</ul>
         </article>
     @endif
 

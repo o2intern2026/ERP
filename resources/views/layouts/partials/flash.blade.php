@@ -4,7 +4,7 @@
 @if ($errors->any())
     <article class="flash flash-error" role="alert">
         <ul>
-            @foreach ($errors->all() as $error)
+            @foreach (array_unique($errors->all()) as $error)
                 <li>{{ $error }}</li>
             @endforeach
         </ul>

@@ -10,7 +10,7 @@
         <article>
             <strong>{{ __('orders.validation.heading') }}</strong>
             <ul>
-                @foreach ($errors->all() as $error)
+                @foreach (array_unique($errors->all()) as $error)
                     <li>{{ $error }}</li>
                 @endforeach
             </ul>

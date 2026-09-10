@@ -162,7 +162,7 @@ final class PortalOrderController extends Controller
             'pickup_postcode' => ['nullable', 'required_if:order_type,pickup_deliver', 'string', 'max:10'],
             'lines' => ['nullable', 'required_unless:order_type,pickup_deliver', 'array'],
             'lines.*.description_cn' => ['nullable', 'string', 'max:255', 'required_without:lines.*.description_en'],
-            'lines.*.description_en' => ['nullable', 'string', 'max:255', 'required_without:lines.*.description_cn'],
+            'lines.*.description_en' => ['nullable', 'string', 'max:255'], // the either/or check sits on description_cn so the person sees ONE message
             'lines.*.package_type' => ['required', Rule::in(OrderEnums::PACKAGE_TYPES)],
             'lines.*.carton_qty' => ['required', 'integer', 'min:1'],
             'lines.*.unit_qty' => ['nullable', 'integer', 'min:0'],

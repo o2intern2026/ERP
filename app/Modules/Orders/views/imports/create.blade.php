@@ -6,7 +6,7 @@
     <h1>{{ __('orders.imports.create_title') }}</h1>
     <p>{{ __('orders.imports.hint') }}</p>
     @if ($errors->any())
-        <article><strong>{{ __('orders.validation.heading') }}</strong><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></article>
+        <article><strong>{{ __('orders.validation.heading') }}</strong><ul>@foreach (array_unique($errors->all()) as $error)<li>{{ $error }}</li>@endforeach</ul></article>
     @endif
     <form method="post" action="{{ route('orders.imports.preview') }}" enctype="multipart/form-data">
         @csrf

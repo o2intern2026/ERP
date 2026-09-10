@@ -7,7 +7,7 @@
     <h1>{{ __('orders.drafts.title') }}</h1>
     <p class="text-muted"><small>{{ __('orders.drafts.hint') }}</small></p>
     @if ($errors->any())
-        <article><strong>{{ __('orders.validation.heading') }}</strong><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></article>
+        <article><strong>{{ __('orders.validation.heading') }}</strong><ul>@foreach (array_unique($errors->all()) as $error)<li>{{ $error }}</li>@endforeach</ul></article>
     @endif
 
     <form method="post" action="{{ route('orders.drafts.store') }}" enctype="multipart/form-data">

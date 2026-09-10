@@ -103,7 +103,8 @@ class PortalOrdersTest extends TestCase
         $noName['lines'] = [['description_cn' => '', 'description_en' => '', 'package_type' => 'carton', 'carton_qty' => 2]];
         $this->actingAs($user)->from(route('portal.orders.create'))->post(route('portal.orders.preview'), $noName)
             ->assertRedirect(route('portal.orders.create'))->assertSessionHasErrors(['lines.0.description_cn' => '第 1 行货物:请输入中文或英文品名。']);
-        $this->actingAs($user)->get(route('portal.orders.create'))->assertOk()->assertSee('第 1 行货物:请输入中文或英文品名。')->assertDontSee('description_cn field');
+        $page = $this->actingAs($user)->get(route('portal.orders.create'))->assertOk()->assertSee('第 1 行货物:请输入中文或英文品名。')->assertDontSee('description_cn field');
+        $this->assertSame(1, substr_count($page->getContent(), '第 1 行货物:请输入中文或英文品名。'), 'the missing-name message must appear exactly once');
         $this->assertSame(0, Order::query()->withoutGlobalScopes()->count());
 
         $this->actingAs($user)->post(route('portal.orders.store'), $payload)->assertSessionHasNoErrors()->assertRedirect();

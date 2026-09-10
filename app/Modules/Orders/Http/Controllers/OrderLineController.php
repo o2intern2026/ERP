@@ -55,7 +55,7 @@ final class OrderLineController extends Controller
 
         return $request->validate([
             'description_cn' => ['nullable', 'string', 'max:255', 'required_without:description_en'],
-            'description_en' => ['nullable', 'string', 'max:255', 'required_without:description_cn'],
+            'description_en' => ['nullable', 'string', 'max:255'], // either/or check on description_cn only (one message)
             'package_type' => ['nullable', 'string', 'max:30'],
             'carton_qty' => ['required', 'integer', 'min:1'],
             'unit_qty' => ['nullable', 'integer', 'min:0'],
