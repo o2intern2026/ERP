@@ -215,6 +215,7 @@
                 document.querySelectorAll('.goods-required').forEach(el => { el.required = !pure; });
             };
             orderType.addEventListener('change', toggleType);
+            document.getElementById('add-goods-line')?.addEventListener('click', toggleType); // added rows carry `required`; keep them in step with the order type
             toggleType();
         })();
     </script>

@@ -6,10 +6,7 @@
     <p><a href="{{ route('portal.index') }}">← {{ __('portal.actions.back') }}</a></p>
     <h1>{{ __('portal.create.title') }}</h1>
     <p class="text-muted"><small>{{ __('portal.create.hint') }}</small></p>
-
-    @if ($errors->any())
-        <article><strong>{{ __('portal.validation.heading') }}</strong><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></article>
-    @endif
+    {{-- Validation errors are rendered once, by layouts/partials/flash (2026-09-10 audit: the page used to print the list twice). --}}
 
     <form method="post" action="{{ route('portal.orders.preview') }}" id="portal-order-form">
         @csrf
@@ -65,7 +62,7 @@
         </div>
         <label>{{ __('portal.fields.delivery_instructions') }}<textarea id="delivery-instructions" name="delivery_instructions" rows="2">{{ old('delivery_instructions') }}</textarea></label>
         <div class="grid">
-            <label>{{ __('portal.fields.requested_date') }}<input type="date" name="requested_date" value="{{ old('requested_date') }}" required></label>
+            <label>{{ __('portal.fields.requested_date') }}<input type="date" name="requested_date" value="{{ old('requested_date') }}" min="{{ today()->toDateString() }}" required></label>
             <label>{{ __('portal.fields.service_level') }}
                 <select name="service_level" required>
                     @foreach ($serviceLevels as $level)<option value="{{ $level }}" @selected(old('service_level', 'standard') === $level)>{{ __('orders.service_levels.'.$level) }}</option>@endforeach
@@ -147,9 +144,12 @@
             const toggleType = () => {
                 const pure = orderType.value === 'pickup_deliver';
                 pickup.hidden = !pure;
+                pickup.disabled = !pure; // 2026-09-10 audit: a hidden fieldset still submits its 包裹 rows; a disabled one does not
                 document.querySelectorAll('.goods-required').forEach(el => { el.required = !pure; });
             };
             orderType.addEventListener('change', toggleType);
+            // Rows added with 添加货物行 are rendered with `required`; re-apply the order-type rule to them (this listener runs after the partial's own).
+            document.getElementById('add-goods-line')?.addEventListener('click', toggleType);
             toggleType();
 
             const confirm = document.getElementById('confirm-submit');

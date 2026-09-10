@@ -369,6 +369,9 @@
             </details>
         @elseif (! $order->isShipped())
             <p class="text-muted"><small>{{ __('orders.returns.messages.not_shipped') }}</small></p>
+        @elseif ($order->lines->isEmpty())
+            {{-- 2026-09-10 audit: a pure transport order carries declared packages only; the return chain (ReturnRequestService) needs goods lines. --}}
+            <p class="text-muted"><small>{{ __('orders.returns.messages.pure_transport') }}</small></p>
         @endif
     @endif
 

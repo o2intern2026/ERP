@@ -111,7 +111,7 @@ final class OrderController extends Controller
             'tailgate' => $tailgate->evaluate($order),
             'canChange' => $changes->canChange($order, auth()->user()),        // A11: stage + role rule decided server side
             'requiresReason' => $changes->requiresReason($order),
-            'canRequestReturn' => $order->acceptsReturnRequest() && auth()->user()->hasAnyRole(OrderChangeService::COORDINATOR_ROLES),
+            'canRequestReturn' => $order->acceptsReturnRequest() && $order->lines->isNotEmpty() && auth()->user()->hasAnyRole(OrderChangeService::COORDINATOR_ROLES), // 2026-09-10 audit: a line-less pure transport order has nothing the return chain can pick
             // A7b: the customer quote / estimate (Billing QuoteService + Transport preliminary freight, customer prices only).
             'estimate' => $estimates->current($order),
             'canEstimate' => $estimates->canEstimate($order) && auth()->user()->hasAnyRole(OrderEstimateService::STAFF_ROLES),

@@ -13,6 +13,7 @@ use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Orders\Services\OrderEstimateService;
 use App\Modules\Orders\Services\TailgateRule;
+use App\Modules\Portal\Http\PortalValidation;
 use App\Modules\Portal\Services\PortalTransportQuotes;
 use App\Modules\Transport\Models\Shipment;
 use App\Support\Contracts\RateService;
@@ -94,7 +95,7 @@ final class PortalOrderController extends Controller
         $this->mergeSavedAddress($request, $clientId);
         OrderFormRows::prune($request); // spare form rows (package type select always has a value) are not lines
 
-        $data = $request->validate($this->rules($clientId));
+        $data = $request->validate($this->rules($clientId), PortalValidation::messages(), PortalValidation::attributes());
 
         $pickup = collect(['name' => 'pickup_name', 'phone' => 'pickup_phone', 'address' => 'pickup_address_line', 'suburb' => 'pickup_suburb', 'state' => 'pickup_state', 'postcode' => 'pickup_postcode'])
             ->map(fn ($field) => $data[$field] ?? null);
@@ -120,7 +121,7 @@ final class PortalOrderController extends Controller
         $clientId = $this->clientId($request);
         $this->mergeSavedAddress($request, $clientId);
         OrderFormRows::prune($request);
-        $data = $request->validate($this->rules($clientId));
+        $data = $request->validate($this->rules($clientId), PortalValidation::messages(), PortalValidation::attributes());
         $request->flash(); // old() keeps every field the client typed
 
         $order = new Order(collect($data)->only((new Order)->getFillable())->all());
@@ -192,7 +193,9 @@ final class PortalOrderController extends Controller
             'order' => $order,
             'timeline' => $order->events()->where('dimension', 'operational')->where(fn ($q) => $q->whereColumn('from_status', '!=', 'to_status')->orWhereNull('from_status'))->get(), // status steps only — no internal notes
             'shipments' => $shipments,
-            'canRequestReturn' => $order->acceptsReturnRequest(),
+            // 2026-09-10 audit: a pure transport order has declared packages but no goods lines, and ReturnRequestService builds the
+            // return from lines — so the panel is only offered when there is something to return (the page says 请联系客服 otherwise).
+            'canRequestReturn' => $order->acceptsReturnRequest() && $order->lines->isNotEmpty(),
             // A7b: the client's estimate — customer prices only (OrderEstimateService never selects cost).
             'estimate' => $estimates->current($order),
             'canEstimate' => $estimates->canEstimate($order) && auth()->user()->isClientUser(),

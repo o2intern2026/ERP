@@ -10,8 +10,9 @@
 <tr class="goods-line" data-index="{{ $index }}">
     <td class="desc"><input name="{{ $name('description_cn') }}" value="{{ $line['description_cn'] ?? '' }}" placeholder="{{ __($prefix.'.fields.description_cn') }}" aria-label="{{ __($prefix.'.fields.description_cn') }}"></td>
     <td class="desc"><input name="{{ $name('description_en') }}" value="{{ $line['description_en'] ?? '' }}" placeholder="{{ __($prefix.'.fields.description_en') }}" aria-label="{{ __($prefix.'.fields.description_en') }}"></td>
-    <td class="type">@include('orders::partials.package-type-select', ['name' => $name('package_type'), 'value' => $line['package_type'] ?? 'carton', 'class' => $first ? 'goods-required' : '', 'required' => $first, 'ariaLabel' => __($prefix.'.fields.package_type')])</td>
-    <td class="num"><input type="number" min="1" name="{{ $name('carton_qty') }}" value="{{ $line['carton_qty'] ?? '' }}" class="{{ $first ? 'goods-required' : '' }}" @required($first) placeholder="{{ __($prefix.'.fields.carton_qty') }}" aria-label="{{ __($prefix.'.fields.carton_qty') }}"></td>
+    {{-- 2026-09-10 audit: 包装类型 / 箱数 are required on EVERY row (server rule is per row), not only the first; the form's toggleType() flips them off for pure transport. --}}
+    <td class="type">@include('orders::partials.package-type-select', ['name' => $name('package_type'), 'value' => $line['package_type'] ?? 'carton', 'class' => 'goods-required', 'required' => true, 'ariaLabel' => __($prefix.'.fields.package_type')])</td>
+    <td class="num"><input type="number" min="1" name="{{ $name('carton_qty') }}" value="{{ $line['carton_qty'] ?? '' }}" class="goods-required" required placeholder="{{ __($prefix.'.fields.carton_qty') }}" aria-label="{{ __($prefix.'.fields.carton_qty') }}"></td>
     @if ($extended)
         <td class="num"><input type="number" min="0" name="{{ $name('unit_qty') }}" value="{{ $line['unit_qty'] ?? '' }}" placeholder="{{ __('orders.fields.unit_qty') }}" aria-label="{{ __('orders.fields.unit_qty') }}"></td>
     @endif

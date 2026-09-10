@@ -120,11 +120,16 @@
                                             @if ($quote->is_cheapest)<span class="badge" data-tone="muted">{{ __('orders.estimate.freight_flags.cheapest') }}</span>@endif
                                             @if ($quote->is_fastest)<span class="badge" data-tone="muted">{{ __('orders.estimate.freight_flags.fastest') }}</span>@endif
                                         </td>
-                                        <td>{{ $quote->expires_at ? \Carbon\Carbon::parse($quote->expires_at)->format('Y-m-d H:i') : __('portal.not_provided') }}</td>
+                                        <td>
+                                            {{ $quote->expires_at ? \Carbon\Carbon::parse($quote->expires_at)->format('Y-m-d H:i') : __('portal.not_provided') }}
+                                            @if ($quote->expired)<span class="badge" data-tone="warn">{{ __('portal.quotes.expired') }}</span>@endif
+                                        </td>
                                         <td>
                                             @if ($quote->status === 'selected')
                                                 <span class="badge" data-tone="ok">{{ __('portal.quotes.confirmed_choice') }}</span>
-                                            @elseif ($entry['can_confirm'] && auth()->user()->isClientUser())
+                                            @elseif ($quote->expired)
+                                                <small class="text-muted">{{ __('portal.quotes.expired') }}</small>
+                                            @elseif ($quote->can_confirm && auth()->user()->isClientUser())
                                                 <form method="post" action="{{ route('portal.orders.quotes.confirm', [$order, $quote->id]) }}" class="inline">
                                                     @csrf
                                                     <button type="submit" class="{{ $quote->is_recommended ? '' : 'secondary' }}">{{ __('portal.quotes.confirm') }}</button>
@@ -136,6 +141,10 @@
                             </tbody>
                         </table>
                     </div>
+                    @if ($entry['all_expired'])
+                        {{-- 2026-09-10 audit: QuoteSelectionService refuses expired quotes and the portal has no re-quote action — say so instead of a dead button. --}}
+                        <p class="text-muted"><small>{{ __('portal.quotes.expired_hint') }}</small></p>
+                    @endif
                 @endif
             </article>
         @endforeach
@@ -180,20 +189,24 @@
         </ul>
     @endif
     @if ($canRequestReturn && auth()->user()->isClientUser())
-        <details>
+        {{-- 2026-09-10 audit: a rejected request comes back with the panel open and the typed reason / quantities kept. --}}
+        <details{{ $errors->has('return') ? ' open' : '' }}>
             <summary>{{ __('portal.returns.request') }}</summary>
             <p class="text-muted"><small>{{ __('portal.returns.hint') }}</small></p>
             <form method="post" action="{{ route('portal.orders.returns.store', $order) }}">
                 @csrf
                 @foreach ($order->lines as $line)
                     <label>{{ $line->description_cn ?: $line->description_en }} · {{ __('portal.returns.return_qty') }}
-                        <input type="number" name="quantities[{{ $line->id }}]" min="0" max="{{ $line->qty_shipped ?: $line->carton_qty }}" value="{{ $line->qty_shipped ?: $line->carton_qty }}">
+                        <input type="number" name="quantities[{{ $line->id }}]" min="0" max="{{ $line->qty_shipped ?: $line->carton_qty }}" value="{{ old('quantities.'.$line->id, $line->qty_shipped ?: $line->carton_qty) }}">
                     </label>
                 @endforeach
-                <input type="text" name="reason" placeholder="{{ __('portal.returns.reason') }}" required>
+                <input type="text" name="reason" value="{{ old('reason') }}" placeholder="{{ __('portal.returns.reason') }}" required>
                 <button type="submit" class="secondary">{{ __('portal.returns.submit') }}</button>
             </form>
         </details>
+    @elseif ($order->acceptsReturnRequest() && $order->lines->isEmpty() && auth()->user()->isClientUser())
+        {{-- Pure transport order: declared packages only, so the return chain has no goods line to pick — ask 客服 instead of showing a dead form. --}}
+        <p class="text-muted"><small>{{ __('portal.returns.pure_transport') }}</small></p>
     @endif
 
     <h2>{{ __('portal.sections.timeline') }}</h2>
