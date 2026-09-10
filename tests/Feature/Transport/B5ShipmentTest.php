@@ -46,6 +46,7 @@ class B5ShipmentTest extends TestCase
         $this->assertSame('quote_confirmed', $shipment->status);
 
         $this->expectException(DomainException::class);
+        $this->expectExceptionMessage(__('transport.tracking.invalid_transition', ['from' => 'quote_confirmed', 'to' => 'delivered']));
         $machine->transition($shipment, 'delivered');
     }
 

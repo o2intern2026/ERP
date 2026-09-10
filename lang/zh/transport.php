@@ -180,6 +180,19 @@ return [
         'invalid_status' => '只有已确认的最终运输方案可以预订。',
         'unknown_status' => '承运商没有返回预订状态。',
         'failed' => '承运商预订失败：:reason',
+        'manual_reference_required' => '人工预订必须填写人工预订参考号。',
+        // Gateway / carrier status codes that the booking service treats as "not booked"; the raw code stays in brackets
+        // so the dispatcher can quote it to the carrier.
+        'carrier_status_reason' => ':label（:status）',
+        'carrier_detail' => ':reason，承运商返回：:detail',
+        'carrier_statuses' => [
+            'new' => '承运商尚未确认预订',
+            'pending_payment' => '承运商等待付款',
+            'pending_review' => '承运商审核中',
+            'request_failed' => '网关请求失败',
+            'cancelled' => '承运商已取消预订',
+        ],
+        'carrier_status_other' => '承运商返回未预订状态',
     ],
     'manual_quote' => [
         'title' => '人工录入运输报价',

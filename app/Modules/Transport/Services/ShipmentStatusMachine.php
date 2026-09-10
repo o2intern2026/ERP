@@ -51,7 +51,10 @@ final class ShipmentStatusMachine
             $locked = Shipment::query()->lockForUpdate()->findOrFail($shipment->getKey());
 
             if (! $this->canTransition($locked, $target)) {
-                throw new DomainException("Cannot move {$locked->shipment_type} shipment from {$locked->status} to {$target}");
+                throw new DomainException(__('transport.tracking.invalid_transition', [
+                    'from' => $locked->status,
+                    'to' => $target,
+                ]));
             }
 
             $locked->status = $target;

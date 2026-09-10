@@ -79,7 +79,7 @@ final class ShipmentBookingService
         $bookingRef = trim((string) ($result['booking_ref'] ?? ''));
         $carrierStatus = trim((string) ($result['status'] ?? ''));
         if ($bookingRef === '' || in_array($carrierStatus, ['', 'new', 'pending_payment', 'pending_review', 'request_failed', 'cancelled'], true)) {
-            return $this->bookingFailure($shipment, $carrierStatus ?: __('transport.booking.unknown_status'));
+            return $this->bookingFailure($shipment, $this->carrierReason($carrierStatus, $result['raw'] ?? null));
         }
 
         return DB::transaction(function () use ($shipment, $quote, $result, $bookingRef): Shipment {
@@ -133,6 +133,45 @@ final class ShipmentBookingService
             || $quote->status !== 'selected') {
             throw new DomainException(__('transport.booking.invalid_status'));
         }
+    }
+
+    /**
+     * Chinese reason for a booking the carrier did not confirm: the status label with the raw code in brackets, plus the
+     * first human-readable message the gateway returned (Karrio `errors[].message`, Transdirect `message`) when present.
+     */
+    private function carrierReason(string $carrierStatus, mixed $raw): string
+    {
+        if ($carrierStatus === '') {
+            $reason = __('transport.booking.unknown_status');
+        } else {
+            $labels = __('transport.booking.carrier_statuses');
+            $label = is_array($labels) && isset($labels[$carrierStatus])
+                ? $labels[$carrierStatus]
+                : __('transport.booking.carrier_status_other');
+            $reason = __('transport.booking.carrier_status_reason', ['label' => $label, 'status' => $carrierStatus]);
+        }
+
+        $detail = $this->carrierDetail($raw);
+
+        return $detail === null ? $reason : __('transport.booking.carrier_detail', ['reason' => $reason, 'detail' => $detail]);
+    }
+
+    private function carrierDetail(mixed $raw): ?string
+    {
+        if (! is_array($raw)) {
+            return null;
+        }
+
+        foreach ($raw as $key => $value) {
+            if (is_string($key) && in_array($key, ['message', 'detail', 'error'], true) && is_string($value) && trim($value) !== '') {
+                return str(trim($value))->limit(200)->toString();
+            }
+            if (is_array($value) && ($detail = $this->carrierDetail($value)) !== null) {
+                return $detail;
+            }
+        }
+
+        return null;
     }
 
     private function bookingFailure(Shipment $shipment, string $reason): never
