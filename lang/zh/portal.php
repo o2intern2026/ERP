@@ -27,7 +27,7 @@ return [
         'order_no' => '订单号',
         'reference' => '您的参考号',
         'consignment_mark' => '唛头',
-        'fba_reference' => 'FBA 货件编号（Shipment ID）',
+        'fba_reference' => 'FBA 货件编号',
         'order_type' => '订单类型',
         'destination' => '目的地',
         'requested_date' => '要求送达日',
