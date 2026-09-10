@@ -233,15 +233,16 @@ return [
         'timeline' => ['invoiced' => '计费模块已开出发票 :invoice_no(:type),订单转为已开票。'],
         'invoice_types' => ['service' => '服务发票', 'storage' => '周仓储发票', 'supplementary' => '补充发票', 'monthly' => '月结汇总'],
     ],
+    // Client-facing coarse status (ERP_PLAN §3.4; the contracts/enums.md keys are unchanged) — Chinese labels per the 2026-09-10 rule.
     'customer_statuses' => [
-        'received' => 'Received',
-        'confirmed' => 'Confirmed',
-        'in_warehouse' => 'In warehouse',
-        'out_for_delivery' => 'Out for delivery',
-        'delivered' => 'Delivered',
-        'returned' => 'Returned',
-        'cancelled' => 'Cancelled',
-        'invoiced' => 'Invoiced',
+        'received' => '已接收',
+        'confirmed' => '已确认',
+        'in_warehouse' => '仓库处理中',
+        'out_for_delivery' => '派送中',
+        'delivered' => '已送达',
+        'returned' => '已退回',
+        'cancelled' => '已取消',
+        'invoiced' => '已开票',
     ],
     'timeline' => [
         'title' => '状态时间线',
@@ -458,6 +459,7 @@ return [
             'finance_only' => '财务锁只能由财务或管理员置锁。',
             'release_roles' => '财务锁只能由财务、管理员或调度放行。',
             'dispatch_blocked' => '订单 :order_no 有生效中的财务锁，不能预订 / 发运；请财务放行后再试。',
+            'not_active' => '该挂起已不再生效（可能已被他人放行），请刷新页面。',
         ],
     ],
     'changes' => [

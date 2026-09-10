@@ -135,7 +135,10 @@ class OrderManagementTest extends TestCase
         $this->actingAs($user)->get(route('orders.show', $order))
             ->assertOk()
             ->assertSee(__('orders.changes.hint_shipped')) // A11: shipped orders only accept a return
-            ->assertDontSee(__('orders.actions.edit_delivery'));
+            ->assertDontSee(__('orders.actions.edit_delivery'))
+            // 2026-09-10 i18n sweep: the client-facing coarse status reads Chinese on the staff page too (ERP_PLAN §3.4 mapping unchanged).
+            ->assertSee(__('orders.customer_statuses.out_for_delivery'))
+            ->assertDontSee('Out for delivery');
     }
 
     private function createOrder(User $user, Client $client, int $jobId): Order
