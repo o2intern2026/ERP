@@ -31,7 +31,7 @@
                     <td class="num">{{ $c->rate_snapshot_cents !== null ? \App\Support\Money::cents((int) round($c->rate_snapshot_cents))->format() : __('billing.rate_cards.poa') }}</td>
                     <td class="num">{{ \App\Support\Money::cents((int) round($c->amount_cents))->format() }}</td>
                     <td><span class="badge" data-tone="{{ ['pending' => 'warn', 'needs_review' => 'danger', 'approved' => 'ok', 'invoiced' => 'ok', 'disputed' => 'danger', 'reversed' => 'muted'][$c->status] }}">{{ __('billing.charge_statuses.'.$c->status) }}</span></td>
-                    <td><small>{{ $c->source_type }} #{{ $c->source_id }}<br>{{ $c->source_activity_id }} v{{ $c->activity_version }}</small></td>
+                    <td><small>{{ \Illuminate\Support\Facades\Lang::has('platform.source_types.'.$c->source_type) ? __('platform.source_types.'.$c->source_type) : $c->source_type }} #{{ $c->source_id }}<br>{{ $c->source_activity_id }} v{{ $c->activity_version }}</small></td>
                     <td>@if (in_array($c->status, ['pending', 'approved', 'invoiced']) && ! $c->reversal_of_charge_id)<form method="post" action="{{ route('billing.charges.reverse', $c) }}" class="inline">@csrf<input type="text" name="reason" placeholder="{{ __('billing.charges.reverse_reason') }}" style="width:10rem" required><button type="submit" class="secondary outline">{{ __('billing.charges.reverse') }}</button></form>@endif</td>
                 </tr>
             @endforeach

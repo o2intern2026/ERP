@@ -294,6 +294,16 @@ class Audit20260910MinorsTest extends TestCase
             ->assertDontSee('action="'.route('warehouse.outbound.dispatch', $fulfilment).'"', false);
         $this->actingAs($operator)->post(route('warehouse.outbound.dispatch', $fulfilment), ['pallet_count' => 0, 'handed_to' => 'carrier'])
             ->assertSessionHasErrors(['pallet_count' => __('warehouse.outbound.errors.financial_hold')]);
+
+        // i18n/zh sweep review: the stock unit page names the reservation line and status and the ledger source in Chinese, not "line 3" / "consumed" / "task #1".
+        $unit = StockUnit::query()->where('asn_line_id', $asnLines[0]->id)->firstOrFail();
+        $reservation = DB::table('stock_reservations')->where('stock_unit_id', $unit->id)->orderByDesc('id')->first(['order_line_id', 'status']);
+        $this->actingAs($operator)->get(route('warehouse.stock.show', $unit))->assertOk()
+            ->assertSee(__('warehouse.stock.reservation_ref', ['order' => $order->id, 'line' => $reservation->order_line_id]))
+            ->assertSee(__('warehouse.reservation_statuses.'.$reservation->status))
+            ->assertSee(__('platform.source_types.task').' #')
+            ->assertDontSee('/ line ')
+            ->assertDontSee('<td>'.$reservation->status.'</td>', false);
     }
 
     /**

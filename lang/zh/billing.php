@@ -66,7 +66,7 @@ return [
         'create' => '新建客户专属价目表', 'created' => '价目表已创建(草稿)。', 'new_version' => '复制为新版本', 'new_version_created' => '新版本 v:version 已创建(草稿),改价后送审批。', 'notes' => '备注',
         'item_saved' => '费率项已保存。', 'request_activation' => '送审批(第二人批准后生效)', 'activation_requested' => '已送审批。', 'activate' => '生效(替换旧版本)', 'activated' => '版本 v:version 已生效,旧版本已归档;历史费用金额不变。',
         'approved_badge' => '已批准,可生效', 'pending_badge' => '审批中', 'draft_hint' => '草稿可编辑费率;生效后不可修改,改价请复制为新版本。', 'add_item' => '添加费率项',
-        'rate' => '单价 (AUD)', 'min_charge' => '最低收费', 'poa' => 'POA(面议)', 'pricing_mode' => '计价方式', 'markup' => '加成 %', 'pallet_class' => '托盘类型', 'band' => '重量分档 (kg)', 'zone' => '分区', 'service_level' => '服务等级', 'thresholds' => '阈值参数 (JSON)',
+        'rate' => '单价 (AUD)', 'min_charge' => '最低收费', 'poa' => 'POA(面议)', 'pricing_mode' => '计价方式', 'markup' => '加成 %', 'pallet_class' => '托盘类型', 'band' => '重量分档 (kg)', 'zone' => '分区', 'service_level' => '服务等级', 'thresholds' => '阈值参数 (JSON)', 'thresholds_placeholder' => '阈值参数 (JSON),例如 {"tailgate_weight_kg":25}',
         'band_min' => '下限 (kg)', 'band_max' => '上限 (kg)', 'approval_note' => ':name v:version,:date 起生效',
         'errors' => [
             'active_immutable' => '已生效的价目表不能改费率,请「复制为新版本」后再改价。',

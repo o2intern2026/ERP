@@ -49,7 +49,7 @@
         <article>
             <header>{{ __('platform.jobs.panel_orders') }} <small class="text-muted">{{ $panels['orders']->count() }}</small></header>
             @forelse ($panels['orders'] as $o)
-                <p><a href="{{ route('orders.show', $o->id) }}">{{ $o->order_no }}</a> · {{ __('orders.statuses.'.$o->operational_status) }} · <small class="text-muted">{{ $o->billing_status }}</small></p>
+                <p><a href="{{ route('orders.show', $o->id) }}">{{ $o->order_no }}</a> · {{ __('orders.statuses.operational.'.$o->operational_status) }} · <small class="text-muted">{{ __('orders.statuses.billing.'.$o->billing_status) }}</small></p>
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse
@@ -57,7 +57,7 @@
         <article>
             <header>{{ __('platform.jobs.panel_shipments') }} <small class="text-muted">{{ $panels['shipments']->count() }}</small></header>
             @forelse ($panels['shipments'] as $s)
-                <p>@if (Route::has('transport.shipments.show'))<a href="{{ route('transport.shipments.show', $s->id) }}">{{ $s->shipment_no }}</a>@else{{ $s->shipment_no }}@endif · {{ $s->status }} @if ($s->tracking_number)· {{ __('platform.jobs.tracking') }} {{ $s->tracking_number }}@endif</p>
+                <p>@if (Route::has('transport.shipments.show'))<a href="{{ route('transport.shipments.show', $s->id) }}">{{ $s->shipment_no }}</a>@else{{ $s->shipment_no }}@endif · {{ __('transport.statuses.'.$s->status) }} @if ($s->tracking_number)· {{ __('platform.jobs.tracking') }} {{ $s->tracking_number }}@endif</p>
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse
@@ -65,7 +65,7 @@
         <article>
             <header>{{ __('platform.jobs.panel_documents') }} <small class="text-muted">{{ $panels['documents']->count() }}</small></header>
             @forelse ($panels['documents'] as $d)
-                <p>{{ $d->type }} · {{ $d->original_name ?? basename((string) $d->storage_path) }}</p>
+                <p>{{ __('platform.documents.types.'.$d->type) }} · {{ $d->original_name ?? basename((string) $d->storage_path) }}</p>
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse
@@ -74,7 +74,7 @@
         <article>
             <header>{{ __('platform.jobs.panel_invoices') }} <small class="text-muted">{{ $panels['invoices']->count() }}</small></header>
             @forelse ($panels['invoices'] as $inv)
-                <p>{{ $inv->invoice_no ?? __('platform.jobs.draft') }} · {{ $inv->invoice_type }} · {{ $inv->status }} · {{ \App\Support\Money::cents($inv->total_cents ?? 0) }}</p>
+                <p>{{ $inv->invoice_no ?? __('platform.jobs.draft') }} · {{ __('billing.invoices.types.'.$inv->invoice_type) }} · {{ __('billing.invoices.statuses.'.$inv->status) }} · {{ \App\Support\Money::cents($inv->total_cents ?? 0) }}</p>
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse

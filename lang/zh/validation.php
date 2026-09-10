@@ -254,7 +254,7 @@ return [
         'description_cn' => '中文品名',
         'description_en' => '英文品名',
         'consignment_mark' => '唛头',
-        'fba_reference' => 'FBA Shipment ID',
+        'fba_reference' => 'FBA 货件编号 (Shipment ID)',
         'service_level' => '服务等级',
         'requested_date' => '要求送达日',
         'package_type' => '包装类型',

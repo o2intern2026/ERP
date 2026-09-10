@@ -44,6 +44,7 @@ return [
         'time' => '时间',
         'reservations' => '预留',
         'order' => '订单',
+        'reservation_ref' => '订单 #:order / 第 :line 行',
         'pallet' => '托盘',
         'dims' => '尺寸 (mm)',
         'weight' => '重量 (kg)',
@@ -54,6 +55,7 @@ return [
         ],
     ],
     'reservations' => ['title' => '预留列表', 'empty' => '没有活动预留。', 'created_at' => '预留时间'],
+    'reservation_statuses' => ['active' => '有效', 'released' => '已释放', 'consumed' => '已出库'],
 
     'asns' => [
         'title' => '预报单 (ASN)',
@@ -92,6 +94,7 @@ return [
         'import_button' => '导入',
         'imported' => '导入完成::rows 行,:errors 行报错,:warnings 条警告。',
         'imports' => '导入记录',
+        'import_statuses' => ['imported' => '已导入', 'failed' => '导入失败'],
         'expected' => '预报箱数',
         'received' => '实收',
         'damaged' => '破损',

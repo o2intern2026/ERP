@@ -19,7 +19,7 @@
         @if ($unit->unit_type === 'pallet')
             <article>
                 <p>{{ __('warehouse.stock.dims') }}: {{ $unit->length_mm }} × {{ $unit->width_mm }} × {{ $unit->height_mm }} · {{ __('warehouse.stock.weight') }}: {{ $unit->weight_kg }}<br>
-                   {{ __('warehouse.stock.pallet_class') }}: {{ $unit->pallet_class ? __('warehouse.pallet_classes.'.$unit->pallet_class) : 'POA' }} · {{ __('warehouse.stock.pallet_source') }}: {{ $unit->pallet_source ? __('warehouse.pallet_sources.'.$unit->pallet_source) : '—' }}</p>
+                   {{ __('warehouse.stock.pallet_class') }}: {{ $unit->pallet_class ? __('warehouse.pallet_classes.'.$unit->pallet_class) : __('billing.rate_cards.poa') }} · {{ __('warehouse.stock.pallet_source') }}: {{ $unit->pallet_source ? __('warehouse.pallet_sources.'.$unit->pallet_source) : '—' }}</p>
             </article>
         @endif
     </div>
@@ -73,13 +73,13 @@
         <thead><tr><th>{{ __('warehouse.stock.time') }}</th><th>{{ __('warehouse.stock.movement') }}</th><th class="num">{{ __('warehouse.stock.qty') }}</th><th class="num">{{ __('warehouse.stock.before') }}</th><th class="num">{{ __('warehouse.stock.after') }}</th><th>{{ __('warehouse.stock.from') }} → {{ __('warehouse.stock.to') }}</th><th>{{ __('warehouse.stock.source') }}</th></tr></thead>
         <tbody>
         @foreach ($ledger as $e)
-            <tr><td>{{ $e->created_at->format('Y-m-d H:i') }}</td><td>{{ __('warehouse.movement_types.'.$e->movement_type) }}</td><td class="num">{{ $e->qty }}</td><td class="num">{{ $e->qty_before }}</td><td class="num">{{ $e->qty_after }}</td><td>{{ $e->from_location_id ?? '—' }} → {{ $e->to_location_id ?? '—' }}</td><td>{{ $e->source_type }} #{{ $e->source_id }}</td></tr>
+            <tr><td>{{ $e->created_at->format('Y-m-d H:i') }}</td><td>{{ __('warehouse.movement_types.'.$e->movement_type) }}</td><td class="num">{{ $e->qty }}</td><td class="num">{{ $e->qty_before }}</td><td class="num">{{ $e->qty_after }}</td><td>{{ $e->from_location_id ?? '—' }} → {{ $e->to_location_id ?? '—' }}</td><td>{{ \Illuminate\Support\Facades\Lang::has('platform.source_types.'.$e->source_type) ? __('platform.source_types.'.$e->source_type) : $e->source_type }} #{{ $e->source_id }}</td></tr>
         @endforeach
         </tbody>
     </table></div>
     <h2>{{ __('warehouse.stock.reservations') }}</h2>
     <table class="dense">
         <thead><tr><th>{{ __('warehouse.stock.order') }}</th><th class="num">{{ __('warehouse.stock.qty') }}</th><th>{{ __('warehouse.stock.condition') }}</th><th>{{ __('warehouse.reservations.created_at') }}</th></tr></thead>
-        <tbody>@foreach ($reservations as $r)<tr><td>#{{ $r->order_id }} / line {{ $r->order_line_id }}</td><td class="num">{{ $r->qty }}</td><td>{{ $r->status }}</td><td>{{ $r->created_at->format('Y-m-d H:i') }}</td></tr>@endforeach</tbody>
+        <tbody>@foreach ($reservations as $r)<tr><td>{{ __('warehouse.stock.reservation_ref', ['order' => $r->order_id, 'line' => $r->order_line_id]) }}</td><td class="num">{{ $r->qty }}</td><td>{{ __('warehouse.reservation_statuses.'.$r->status) }}</td><td>{{ $r->created_at->format('Y-m-d H:i') }}</td></tr>@endforeach</tbody>
     </table>
 @endsection

@@ -80,7 +80,8 @@ class Audit20260910MinorsTest extends TestCase
             ->assertSessionHasErrors('threshold_json');
         $this->actingAs($finance)->get(route('billing.rate_cards.show', $card))->assertOk()->assertSee('<details open>', false)
             ->assertSee('value="12.50"', false)->assertSee('value="METRO"', false)->assertSee('<option value="oversize_high" selected>', false)->assertSee('<option value="'.$code->id.'" selected>', false)
-            ->assertSee('value="{tailgate_weight_kg: 25}"', false);
+            ->assertSee('value="{tailgate_weight_kg: 25}"', false)
+            ->assertSee(__('billing.rate_cards.thresholds_placeholder'))->assertDontSee('e.g.'); // i18n/zh sweep review: the JSON example hint is Chinese
         $this->assertSame(0, RateItem::query()->where('rate_card_id', $card->id)->count());
     }
 

@@ -42,7 +42,7 @@
             @php($lines = $group['lines'])
             <tr><td colspan="7"><strong>{{ $group['title'] }}</strong> <small class="text-muted">{{ __('billing.invoices.group_by.'.$invoice->group_by) }}</small></td></tr>
             @foreach ($lines as $l)
-                <tr><td><code>{{ $l->charge_code }}</code></td><td>{{ $l->description }}</td><td class="num">{{ rtrim(rtrim(number_format($l->qty, 3), '0'), '.') }}</td><td>{{ $l->uom }}</td><td class="num">{{ \App\Support\Money::cents((int) round($l->amount_cents))->format() }}</td><td class="num">{{ \App\Support\Money::cents((int) round($l->gst_cents))->format() }}</td><td><small>@if ($l->charge)<a href="{{ route('billing.index', ['job_no' => $l->job?->job_no]) }}">#{{ $l->charge_id }}</a> · {{ $l->charge->source_type }} #{{ $l->charge->source_id }}@endif</small></td></tr>
+                <tr><td><code>{{ $l->charge_code }}</code></td><td>{{ $l->description }}</td><td class="num">{{ rtrim(rtrim(number_format($l->qty, 3), '0'), '.') }}</td><td>{{ $l->uom }}</td><td class="num">{{ \App\Support\Money::cents((int) round($l->amount_cents))->format() }}</td><td class="num">{{ \App\Support\Money::cents((int) round($l->gst_cents))->format() }}</td><td><small>@if ($l->charge)<a href="{{ route('billing.index', ['job_no' => $l->job?->job_no]) }}">#{{ $l->charge_id }}</a> · {{ \Illuminate\Support\Facades\Lang::has('platform.source_types.'.$l->charge->source_type) ? __('platform.source_types.'.$l->charge->source_type) : $l->charge->source_type }} #{{ $l->charge->source_id }}@endif</small></td></tr>
             @endforeach
         @endforeach
         </tbody>

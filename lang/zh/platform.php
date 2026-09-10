@@ -123,7 +123,7 @@ return [
     'nav_documents' => '文档中心',
     'nav_approvals' => '审批',
     'nav_activity' => '审计日志',
-    'nav_webhooks' => 'Webhooks',
+    'nav_webhooks' => 'Webhook 推送',
     'search_placeholder' => '搜 Job / ASN / 唛头 / 柜号 / 条码 / 客户',
 
     'exceptions' => [
@@ -217,7 +217,7 @@ return [
             'not_pending' => '只有待审批的申请可以撤回。',
             'cancel_not_allowed' => '只有申请人或管理员可以撤回申请。',
         ],
-        'types' => ['rate_card_change' => '价目表变更', 'credit_note' => 'Credit note', 'stock_adjustment' => '大额库存调整', 'financial_release' => '财务放行', 'price_override' => '价格覆盖', 'poa_quote' => 'POA 报价'],
+        'types' => ['rate_card_change' => '价目表变更', 'credit_note' => 'Credit note(冲减单)', 'stock_adjustment' => '大额库存调整', 'financial_release' => '财务放行', 'price_override' => '价格覆盖', 'poa_quote' => 'POA 报价'],
         'statuses' => ['pending' => '待审批', 'approved' => '已批准', 'rejected' => '已拒绝', 'cancelled' => '已撤回'],
     ],
 
@@ -236,7 +236,7 @@ return [
     ],
 
     'webhooks' => [
-        'title' => 'Webhooks',
+        'title' => 'Webhook 推送',
         'hint' => '把系统事件推送到外部地址(客户系统、BI、通知机器人)。请求体是事件信封 JSON,头部 X-ERP-Signature 是用密钥做的 HMAC-SHA256,失败会按发件箱的节奏自动重试。',
         'name' => '名称',
         'url' => '地址 (https)',
@@ -271,6 +271,9 @@ return [
         'empty' => '没有事件。',
         'statuses' => ['pending' => '待投递', 'published' => '已投递', 'failed' => '失败(将重试)', 'dead' => '死信(需人工)'],
     ],
+
+    // Source references ("task #12", "asn #3") shown next to ledger rows, charges, invoice lines and exceptions — one map for every module.
+    'source_types' => ['job' => 'Job', 'asn' => '预报单', 'asn_line' => '预报单行', 'container' => '柜', 'goods_receipt' => '入库单', 'stock_unit' => '库存单元', 'move' => '移库', 'stocktake' => '盘点', 'task' => '作业任务', 'order' => '订单', 'fulfilment' => '发货批次', 'shipment' => '运单', 'snapshot' => '仓储快照', 'return_receipt' => '退货单', 'outbox_event' => '出站事件', 'manual' => '手工', 'other' => '其它'],
 
     // Friendly error pages (resources/views/errors/*.blade.php) instead of Laravel's English defaults — tester feedback 2026-09-10,
     // "整个系统的每一处报错都用中文" (i18n/zh sweep, CHANGE_REQUESTS #107). 403 keeps its own wording below.

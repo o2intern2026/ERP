@@ -18,7 +18,7 @@
             @foreach ($rows as $r)
                 <tr>
                     <td>{{ $r['client'] }}</td><td>{{ $r['warehouse'] }}</td><td class="num">{{ $r['pallets'] }}</td>
-                    <td>@foreach ($r['pallets_by_class'] as $k => $n)<span class="badge" data-tone="muted">{{ $k === 'poa' ? 'POA' : __('warehouse.pallet_classes.'.$k) }} × {{ $n }}</span> @endforeach</td>
+                    <td>@foreach ($r['pallets_by_class'] as $k => $n)<span class="badge" data-tone="muted">{{ $k === 'poa' ? __('billing.rate_cards.poa') : __('warehouse.pallet_classes.'.$k) }} × {{ $n }}</span> @endforeach</td>
                     <td>@foreach ($r['pallets_by_source'] as $k => $n)<span class="badge" data-tone="muted">{{ $k === 'unknown' ? '—' : __('warehouse.pallet_sources.'.$k) }} × {{ $n }}</span> @endforeach</td>
                     <td class="num">{{ $r['carton_units'] }}</td><td class="num">{{ $r['cartons'] }}</td><td class="num">{{ $r['pickface_slots'] }}</td><td class="num">{{ $r['damaged_units'] }}</td>
                 </tr>
