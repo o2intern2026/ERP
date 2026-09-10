@@ -27,6 +27,29 @@ final class ShipmentLabelService
         }
     }
 
+    /**
+     * 2026-09-10 audit: whether document() can succeed for this shipment, without producing anything — the shipment page
+     * offers the print button only when this is true (a manual carrier declares label = false, so the button used to
+     * dead-end on a 422 for the module's primary quoting path). Own-fleet package / receiver completeness is still
+     * checked at render time.
+     */
+    public function available(Shipment $shipment): bool
+    {
+        $quote = $shipment->selectedQuote;
+        if ($quote === null || $quote->quote_stage !== 'final' || $quote->status !== 'selected') {
+            return false;
+        }
+        if ($shipment->waybill_document_id !== null || $quote->source === 'own_fleet') {
+            return true;
+        }
+
+        $adapter = $this->adapters[$quote->source] ?? null;
+
+        return trim((string) $shipment->booking_ref) !== ''
+            && $adapter !== null
+            && (bool) ($adapter->capabilities()['label'] ?? false);
+    }
+
     /** @return array{content:string, filename:string, document_type:string} */
     public function document(Shipment $shipment): array
     {

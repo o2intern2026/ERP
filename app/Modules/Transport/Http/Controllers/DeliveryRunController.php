@@ -4,9 +4,11 @@ namespace App\Modules\Transport\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Modules\Transport\Http\TransportValidation;
 use App\Modules\Transport\Models\DeliveryRun;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Services\DeliveryRunService;
+use App\Support\Auth\RequiredRoles;
 use DomainException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -48,7 +50,7 @@ class DeliveryRunController extends Controller
             'run_date' => ['required', 'date_format:Y-m-d'],
             'driver_id' => ['required', 'integer', 'exists:users,id'],
             'vehicle' => ['required', 'string', 'max:100'],
-        ]);
+        ], TransportValidation::messages(), TransportValidation::attributes());
 
         try {
             $run = $service->create(
@@ -87,9 +89,6 @@ class DeliveryRunController extends Controller
 
     private function authorizeCoordinator(Request $request): void
     {
-        abort_unless(
-            $request->user()?->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'transport_operator']),
-            403,
-        );
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'transport_operator']);
     }
 }

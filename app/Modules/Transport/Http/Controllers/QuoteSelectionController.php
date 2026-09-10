@@ -28,6 +28,7 @@ class QuoteSelectionController extends Controller
             return back()->withErrors(['quote' => $exception->getMessage()]);
         }
 
-        return back()->with('success', __('transport.selection.saved'));
+        // 2026-09-10 audit: the layout flash renders session('status') only — 'success' was never shown.
+        return back()->with('status', __('transport.selection.saved'));
     }
 }

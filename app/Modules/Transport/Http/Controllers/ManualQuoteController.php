@@ -3,6 +3,7 @@
 namespace App\Modules\Transport\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Transport\Http\TransportValidation;
 use App\Modules\Transport\Models\CarrierService;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Services\ManualQuoteService;
@@ -23,7 +24,7 @@ class ManualQuoteController extends Controller
             'cost_cents' => ['required', 'integer', 'min:1'],
             'customer_price_cents' => ['required', 'integer', 'min:1'],
             'eta_days' => ['required', 'integer', 'min:0', 'max:365'],
-        ]);
+        ], TransportValidation::messages(), TransportValidation::attributes());
 
         try {
             $quotes->record(
@@ -35,7 +36,7 @@ class ManualQuoteController extends Controller
                 (int) $data['eta_days'],
             );
         } catch (DomainException $exception) {
-            return back()->withErrors(['manual_quote' => $exception->getMessage()]);
+            return back()->withInput()->withErrors(['manual_quote' => $exception->getMessage()]);
         }
 
         return back()->with('status', __('transport.manual_quote.saved'));

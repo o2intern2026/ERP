@@ -29,7 +29,7 @@
                     <select name="shipment_id" required>
                         <option value="">{{ __('transport.runs.choose_shipment') }}</option>
                         @foreach ($eligibleShipments as $shipment)
-                            <option value="{{ $shipment->id }}">
+                            <option value="{{ $shipment->id }}" @selected((string) old('shipment_id') === (string) $shipment->id)>
                                 {{ $shipment->shipment_no }} — {{ $shipment->client->name }}
                             </option>
                         @endforeach
@@ -51,6 +51,9 @@
         <form method="post" action="{{ route('transport.runs.stops.reorder', $run) }}">
             @csrf
             @method('patch')
+            @if ($run->status === 'planned')
+                <p><small>{{ __('transport.runs.reorder_hint') }}</small></p>
+            @endif
             <table class="dense">
                 <thead>
                     <tr>
@@ -66,7 +69,7 @@
                         <tr>
                             <td>
                                 @if ($run->status === 'planned')
-                                    <input type="number" name="positions[{{ $stop->id }}]" value="{{ $stop->seq }}" min="1" required>
+                                    <input type="number" name="positions[{{ $stop->id }}]" value="{{ old('positions.'.$stop->id, $stop->seq) }}" min="1" required aria-label="{{ __('transport.runs.sequence') }}">
                                 @else
                                     {{ $stop->seq }}
                                 @endif

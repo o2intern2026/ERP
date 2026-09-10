@@ -3,8 +3,10 @@
 namespace App\Modules\Transport\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Transport\Http\TransportValidation;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Services\ExtraChargeService;
+use App\Support\Auth\RequiredRoles;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,17 +16,14 @@ class ExtraChargeController extends Controller
 {
     public function __invoke(Request $request, Shipment $shipment, ExtraChargeService $service): RedirectResponse
     {
-        abort_unless(
-            $request->user()?->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'transport_operator']),
-            403,
-        );
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'transport_operator']);
         $validated = $request->validate([
             'charge_type' => ['required', 'string', Rule::in(ExtraChargeService::CHARGE_TYPES)],
             'qty' => ['required', 'numeric', 'gt:0'],
             'uom' => ['required', 'string', Rule::in(ExtraChargeService::UOMS)],
             'cost_cents' => ['nullable', 'integer', 'min:0'],
             'note' => ['required', 'string', 'max:1000'],
-        ]);
+        ], TransportValidation::messages(), TransportValidation::attributes());
 
         try {
             $service->report(

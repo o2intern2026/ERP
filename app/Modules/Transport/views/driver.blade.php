@@ -76,7 +76,9 @@
                                 <label>{{ __('transport.driver.signature') }}</label>
                                 <canvas width="640" height="240" data-signature-pad
                                         style="width:100%;max-width:640px;border:2px solid currentColor;touch-action:none"></canvas>
-                                <input type="hidden" name="signature_data" data-signature-data required>
+                                <input type="hidden" name="signature_data" data-signature-data>
+                                {{-- 2026-09-10 audit: `required` on a hidden input is inert, so the missing-signature message is rendered here instead. --}}
+                                <p role="alert" data-signature-error hidden><strong>{{ __('transport.driver.signature_required') }}</strong></p>
                                 <button type="button" class="secondary" data-signature-clear>{{ __('transport.driver.clear_signature') }}</button>
                                 <label>
                                     {{ __('transport.driver.photos') }}
@@ -114,6 +116,7 @@
             const canvas = form.querySelector('[data-signature-pad]');
             const input = form.querySelector('[data-signature-data]');
             const clear = form.querySelector('[data-signature-clear]');
+            const signatureError = form.querySelector('[data-signature-error]');
             const context = canvas.getContext('2d');
             let drawing = false;
             let signed = false;
@@ -129,6 +132,7 @@
             canvas.addEventListener('pointerdown', (event) => {
                 drawing = true;
                 signed = true;
+                signatureError.hidden = true;
                 canvas.setPointerCapture(event.pointerId);
                 const start = point(event);
                 context.beginPath();
@@ -151,13 +155,13 @@
             });
             form.addEventListener('submit', (event) => {
                 if (!signed) {
-                    input.setCustomValidity(@json(__('transport.driver.signature_required')));
-                    input.reportValidity();
+                    signatureError.hidden = false;
+                    canvas.scrollIntoView({ block: 'center', behavior: 'smooth' });
                     event.preventDefault();
                     return;
                 }
 
-                input.setCustomValidity('');
+                signatureError.hidden = true;
                 input.value = canvas.toDataURL('image/png');
             });
         });
