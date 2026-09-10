@@ -144,3 +144,20 @@ Not touched: `contracts/*.md` (only `CHANGE_REQUESTS.md` rows #100–#104 append
 ### 2026-09-10 · main · item 4 B/C/D (CR #106) · C touched Orders zone
 
 - `app/Modules/Orders/Services/FulfilmentService.php` (resolveOpen('stock_shortage') once no line is backordered), `app/Modules/Orders/Http/Controllers/OrderController.php` (`shortages` for the order page), `app/Modules/Orders/views/show.blade.php` (缺货 banner), `lang/zh/orders.php` (`fulfilments.shortage_*`).
+
+### 2026-09-10 · i18n/zh-sweep-x · i18n sweep lane B (Orders / Portal / Reports / Transport) · C as integrator, X1 / X2 zones
+
+Wording sweep for the lead's 2026-09-10 rule (整个系统的每一处报错都用中文): every message a person can see in the X1 / X2 modules is Chinese. Behaviour is unchanged except that carrier booking failures now carry a Chinese status label with the raw carrier status and the gateway's own message appended. CHANGE_REQUESTS rows #109 (Orders / Portal / Reports) and #110 (Transport). Lane A owns `lang/zh/validation.php` and the framework error pages — untouched here.
+
+- **B1 · Orders.** `orders.customer_statuses.*` → Chinese labels (enum keys unchanged); `OrderHoldService::release()` stale-hold refusal → `orders.holds.messages.not_active` (flashed by `HoldController`).
+- **B2 · Portal / Reports.** Estimate preview uom key → `orders.estimate.uoms.*`; portal order-list / stock filters use `PortalValidation::messages()/attributes()`; `portal.messages.client_only` covers the whole portal; `fba_reference` = FBA 货件编号（Shipment ID）.
+- **B3 · Transport.** `ManualCarrierAdapter::book()` missing-reference refusal → `transport.booking.manual_reference_required`; `ShipmentStatusMachine::transition()` refusal → `transport.tracking.invalid_transition`; `ShipmentBookingService` builds the booking-failure reason as Chinese label（raw status）+ gateway detail (`booking.carrier_status_reason`, `booking.carrier_detail`, `booking.carrier_statuses.*`, `booking.carrier_status_other`).
+
+#### Notes — every X1 / X2-zone file touched by the i18n sweep (B1–B3), for rebase and review
+
+Orders (X1): `app/Modules/Orders/Services/OrderHoldService.php`, `lang/zh/orders.php` (`customer_statuses.*`, `holds.messages.not_active`, `estimate.uoms.*`, `fba_reference` labels), `tests/Feature/Orders/FinancialLockTest.php`, `tests/Feature/Orders/OrderManagementTest.php`.
+Portal (X1): `app/Modules/Portal/Http/Controllers/PortalOrderController.php`, `app/Modules/Portal/Http/Controllers/PortalStockController.php`, `app/Modules/Portal/views/orders/create.blade.php`, `lang/zh/portal.php`, `tests/Feature/Portal/PortalInvoicesAndStockTest.php`, `tests/Feature/Portal/PortalQuoteConfirmationTest.php`.
+Reports (X1): `tests/Feature/Reports/ReportsTest.php` (asserts the Chinese reversed-range message on the page; no production file changed — Reports was already through `lang/zh`).
+Transport (X2): `app/Modules/Transport/Adapters/ManualCarrierAdapter.php`, `app/Modules/Transport/Services/ShipmentStatusMachine.php`, `app/Modules/Transport/Services/ShipmentBookingService.php`, `lang/zh/transport.php`, `tests/Feature/Transport/B5ShipmentTest.php`, `tests/Feature/Transport/B9aCarrierCostMarginTest.php`.
+Left English on purpose: consignment note / own-fleet label / waybill PDFs (third-party documents), Transport / Orders model enum guards and consumer guards no browser user reaches, `SyncTrackingCommand` description, `ClientReportMailer` frequency guard, console summary keys, carrier tracking status text (third-party data), `Log::*`.
+Not touched: `contracts/*.md` other than `CHANGE_REQUESTS.md` rows #109–#110, `app/Support/**`, `lang/zh/validation.php`, routes, migrations, seeders, lane A modules.
