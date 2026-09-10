@@ -176,13 +176,14 @@ class B9aCarrierCostMarginTest extends TestCase
         $this->assertDatabaseHas('shipments', ['id' => $manual->id, 'status' => 'quote_confirmed']);
 
         // Gateway that answers request_failed with an error body: Chinese label, raw code in brackets, carrier detail appended.
+        // The machine code sits in `error` BEFORE the sentence in `message`: the sentence must still win (ordered lookup).
         $gateway = $this->shipment('transdirect');
         $adapter = new B9aCarrierAdapter('transdirect', [
             'booking_ref' => '',
             'tracking_number' => null,
             'label_path' => null,
             'status' => 'request_failed',
-            'raw' => ['confirm' => ['errors' => [['code' => 'insufficient_funds', 'message' => 'Insufficient account balance']]]],
+            'raw' => ['confirm' => ['errors' => [['code' => 'insufficient_funds', 'error' => 'INSUFFICIENT_FUNDS', 'message' => 'Insufficient account balance']]]],
         ]);
         $requests = Mockery::mock(ShipmentQuoteRequestFactory::class);
         $requests->shouldReceive('build')->once()->andReturn(['requested_date' => '2026-09-10']);
@@ -206,6 +207,30 @@ class B9aCarrierCostMarginTest extends TestCase
             'source_id' => $gateway->id,
             'message' => __('transport.booking.failed', ['reason' => $reason]),
         ]);
+
+        // Carrier says "booked" but returns no booking reference: the refusal names the missing reference, not a
+        // "not booked" status label, and still carries the raw status in brackets.
+        $unreferenced = $this->shipment('transdirect');
+        $adapter = new B9aCarrierAdapter('transdirect', [
+            'booking_ref' => '   ',
+            'tracking_number' => null,
+            'label_path' => null,
+            'status' => 'booked',
+            'raw' => ['status' => 'booked'],
+        ]);
+        $requests = Mockery::mock(ShipmentQuoteRequestFactory::class);
+        $requests->shouldReceive('build')->once()->andReturn(['requested_date' => '2026-09-10']);
+        $this->app->instance(ShipmentBookingService::class, $this->bookingService($adapter, $requests));
+        $missing = __('transport.booking.failed', ['reason' => __('transport.booking.missing_reference', ['status' => 'booked'])]);
+        $this->assertSame('承运商预订失败：承运商未返回预订参考号（booked）', $missing);
+        $this->actingAs($operator)
+            ->from(route('transport.shipments.show', $unreferenced))
+            ->followingRedirects()
+            ->post(route('transport.shipments.book', $unreferenced), ['pickup_date' => '2026-09-10'])
+            ->assertOk()
+            ->assertSee($missing)
+            ->assertDontSee(__('transport.booking.carrier_status_other'));
+        $this->assertDatabaseHas('shipments', ['id' => $unreferenced->id, 'status' => 'quote_confirmed']);
     }
 
     public function test_own_fleet_is_booked_when_assigned_and_its_cost_is_entered_manually(): void

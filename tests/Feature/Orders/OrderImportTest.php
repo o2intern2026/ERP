@@ -78,7 +78,7 @@ class OrderImportTest extends TestCase
         $this->assertSame([2, 3], $ready['row_numbers']);
         $this->assertSame('FBA-READY', $ready['fba_reference']);
         $this->assertNotNull($ready['client_address_id']);
-        $this->assertStringContainsString('地址或 FBA 引用不一致', $blocked['message']);
+        $this->assertStringContainsString('地址或 FBA 货件编号不一致', $blocked['message']);
 
         $this->actingAs($user)->get(route('orders.imports.show', $import))
             ->assertOk()->assertSee('FBA-READY')->assertSee('已阻断')->assertSee('预约卸货');

@@ -113,7 +113,7 @@ return [
         'create_title' => '导入配送清单',
         'show_title' => '订单导入 #:id',
         'empty' => '暂无订单导入记录。',
-        'hint' => '支持 XLSX 或 CSV；系统按“唛头 + 收件地址 + FBA 引用”分组，并在正式建单前显示阻断项和重复项。',
+        'hint' => '支持 XLSX 或 CSV；系统按“唛头 + 收件地址 + FBA 货件编号”分组，并在正式建单前显示阻断项和重复项。',
         'address_matched' => '已匹配地址簿',
         'warning_title' => '请注意：',
         'actions' => [
@@ -156,7 +156,7 @@ return [
             'required' => ':field 不能为空。',
             'positive_number' => ':field 必须是大于 0 的数字。',
             'invalid_state' => '州必须是有效的澳大利亚州缩写。',
-            'inconsistent_group' => '唛头 :mark 下的收件地址或 FBA 引用不一致，已阻断，请人工修正。',
+            'inconsistent_group' => '唛头 :mark 下的收件地址或 FBA 货件编号不一致，已阻断，请人工修正。',
             'matching_asn' => '唛头 :mark 已存在于所选 Job 的 ASN，请从 ASN 生成订单，避免重复导入。',
             'duplicate_order' => '唛头 :mark 已有相同订单，本组未重复生成。',
             'duplicate_file' => '这份文件与导入 #:id 相同；系统仍会逐组检查重复，绝不会重复建单。',
@@ -263,7 +263,7 @@ return [
 
         'title' => '订单 :order_no 的履约批次',
         'availability_title' => '在库校验',
-        'batches_title' => '分批履约与 Backorder',
+        'batches_title' => '分批履约与缺货',
         'empty' => '尚未生成履约批次。订单确认后，系统会根据 WMS 的实际预留结果自动生成。',
         'actions' => [
             'open' => '查看完整履约批次',
@@ -274,7 +274,7 @@ return [
             'ordered' => '下单箱数',
             'allocated' => '已分配',
             'available' => '当前可用库存',
-            'backordered' => 'Backorder',
+            'backordered' => '缺货箱数',
             'stock_result' => '校验结果',
             'warehouse' => '仓库',
             'batch_qty' => '本批箱数',
@@ -532,6 +532,7 @@ return [
         'asn_filter_matches' => '匹配 :count 行。',
         'no_asn_lines_yet' => '该客户尚无可关联的 ASN 货物行：请先在仓库模块为该客户建立 ASN（预报单）并录入货物行，或改为从 ASN 生成订单。',
         'asn_filter_placeholder' => '搜索唛头 / 品名 / 预报单号',
+        'asn_option_cartons' => ':count 箱', // carton count shown in brackets after each ASN goods-line option
         'asn_link_hint' => '先在左边输入唛头、品名或预报单号缩小范围,再在右边下拉框选中;只剩一条时会自动选中。每行货物都要对应一条预报单货物行,确认订单时按行核对库存。',
         'unlinked_warning' => '还有 :count 行货物未关联 ASN 货物行，现在确认会被拒绝；请先在下方货物明细里逐行关联。',
         'fields' => [

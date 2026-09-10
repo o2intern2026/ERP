@@ -92,7 +92,10 @@ class FulfilmentAllocationTest extends TestCase
             ->assertOk()
             ->assertSee($order->order_no.'-F1')
             ->assertSee($order->order_no.'-F2')
-            ->assertSee(__('orders.statuses.fulfilment.fulfilled'));
+            ->assertSee(__('orders.statuses.fulfilment.fulfilled'))
+            // 2026-09-10 i18n sweep: the availability table header is Chinese (was the English "Backorder").
+            ->assertSee(__('orders.fulfilments.fields.backordered'))
+            ->assertDontSee('Backorder');
     }
 
     public function test_reservations_from_two_warehouses_create_one_batch_per_warehouse(): void

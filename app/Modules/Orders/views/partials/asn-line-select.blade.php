@@ -11,7 +11,7 @@
         <select name="asn_line_id" aria-label="{{ __('orders.fulfilments.fields.asn_line') }}" style="margin-bottom:0">
             <option value="">{{ __('orders.drafts.no_asn_line') }}</option>
             @foreach ($asnLineOptions as $option)
-                <option value="{{ $option->id }}" @selected((int) $selected === (int) $option->id)>{{ $option->asn_no }} · {{ $option->consignment_mark }} · {{ $option->description }} ({{ $option->received_cartons ?? $option->expected_cartons }} 箱)</option>
+                <option value="{{ $option->id }}" @selected((int) $selected === (int) $option->id)>{{ $option->asn_no }} · {{ $option->consignment_mark }} · {{ $option->description }} ({{ __('orders.drafts.asn_option_cartons', ['count' => $option->received_cartons ?? $option->expected_cartons]) }})</option>
             @endforeach
         </select>
     </div>
