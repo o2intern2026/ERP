@@ -156,7 +156,7 @@ class PortalAuditFixesTest extends TestCase
             ->post(route('portal.orders.returns.store', $order), ['quantities' => [$line->id => 0], 'reason' => '外箱破损，货物受潮'])
             ->assertOk();
         $page->assertSee(__('orders.returns.messages.no_lines'))
-            ->assertSee('<details open>', false)
+            ->assertSee('<details id="return-request" open>', false)
             ->assertSee('name="reason" value="外箱破损，货物受潮"', false)
             ->assertSee('name="quantities['.$line->id.']" min="0" max="3" value="0"', false);
         $this->assertSame(0, Order::query()->withoutGlobalScopes()->where('order_type', 'return')->count());
