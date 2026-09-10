@@ -18,7 +18,7 @@
                     <td>{{ $e->created_at->format('m-d H:i') }}<br><small class="text-muted">{{ $e->created_at->diffForHumans() }}</small></td>
                     <td>@if ($e->order)<a href="{{ route('orders.show', $e->order) }}#cancel-request">{{ $e->order->order_no }}</a>@else #{{ $e->order_id }}@endif</td>
                     <td>{{ $e->order?->client?->name }}</td>
-                    <td>@if ($e->order)<span class="badge" data-tone="warn">{{ __('orders.statuses.'.$e->order->operational_status) }}</span>@endif</td>
+                    <td>@if ($e->order)<span class="badge" data-tone="warn">{{ __('orders.statuses.operational.'.$e->order->operational_status) }}</span>@endif</td>
                     <td style="white-space:normal;min-width:16rem">{{ $e->message }}</td>
                     <td>{{ $e->creator?->name ?? '—' }}</td>
                     <td style="white-space:normal;min-width:18rem">
@@ -65,7 +65,7 @@
                     <td>{{ $r->client?->name }}</td>
                     <td class="num">{{ $r->lines->sum('carton_qty') }}</td>
                     <td style="white-space:normal;min-width:16rem">{{ $r->request_note ?? '—' }}</td>
-                    <td><span class="badge" data-tone="warn">{{ __('orders.statuses.'.$r->operational_status) }}</span></td>
+                    <td><span class="badge" data-tone="warn">{{ __('orders.statuses.operational.'.$r->operational_status) }}</span></td>
                 </tr>
             @endforeach
             </tbody>
@@ -95,7 +95,7 @@
                     <td>{{ __('orders.requests.kind_return') }}</td>
                     <td><a href="{{ route('orders.show', $r) }}">{{ $r->order_no }}</a>@if ($r->originalOrder) <small class="text-muted">← {{ $r->originalOrder->order_no }}</small>@endif</td>
                     <td>{{ $r->client?->name }}</td>
-                    <td><span class="badge" data-tone="ok">{{ __('orders.statuses.'.$r->operational_status) }}</span></td>
+                    <td><span class="badge" data-tone="ok">{{ __('orders.statuses.operational.'.$r->operational_status) }}</span></td>
                     <td>—</td>
                 </tr>
             @endforeach

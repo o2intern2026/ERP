@@ -23,7 +23,7 @@
             <label>{{ __('warehouse.tasks.order') }}
                 <select name="order_id" id="order_id">
                     <option value="">—</option>
-                    @foreach ($orders as $o)<option value="{{ $o->id }}" @selected((int) old('order_id', $selectedOrder) === $o->id)>{{ $o->order_no }} · {{ $o->client?->name }} · {{ __('orders.statuses.'.$o->operational_status) }}</option>@endforeach
+                    @foreach ($orders as $o)<option value="{{ $o->id }}" @selected((int) old('order_id', $selectedOrder) === $o->id)>{{ $o->order_no }} · {{ $o->client?->name }} · {{ __('orders.statuses.operational.'.$o->operational_status) }}</option>@endforeach
                 </select>
             </label>
         </div>

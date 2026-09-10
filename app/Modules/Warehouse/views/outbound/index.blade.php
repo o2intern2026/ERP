@@ -43,7 +43,7 @@
             <tbody>
             @foreach ($shortages as $s)
                 <tr>
-                    <td><a href="{{ route('orders.show', $s->order_id) }}">{{ $s->order_no }}</a><br><small class="text-muted">{{ __('orders.statuses.'.$s->status) }}</small></td>
+                    <td><a href="{{ route('orders.show', $s->order_id) }}">{{ $s->order_no }}</a><br><small class="text-muted">{{ __('orders.statuses.operational.'.$s->status) }}</small></td>
                     <td>{{ $s->client_name }}</td>
                     <td>{{ $s->requested_date ? \Illuminate\Support\Carbon::parse($s->requested_date)->format('Y-m-d') : '—' }}</td>
                     <td style="white-space:normal">
