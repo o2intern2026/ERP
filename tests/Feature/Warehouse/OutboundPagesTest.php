@@ -8,6 +8,7 @@ use App\Modules\Warehouse\Models\Package;
 use App\Modules\Warehouse\Models\ReturnReceipt;
 use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Modules\Warehouse\Models\Wave;
+use App\Modules\Warehouse\Services\WarehouseContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\BuildsOutboundOrders;
@@ -68,6 +69,27 @@ class OutboundPagesTest extends TestCase
 
         // Read-only roles see the board but not the buttons.
         $this->actingAs($this->staff('finance'))->get(route('warehouse.outbound.index'))->assertOk()->assertDontSee('<button type="submit">'.__('warehouse.outbound.release'), false);
+    }
+
+    /** Audit 2026-09-10 blocker: the board eager-loads task.wave; without the inverse relation any un-confirmed pick task 500s the page. */
+    public function test_outbound_board_renders_while_a_wave_has_unconfirmed_picks(): void
+    {
+        $client = $this->client();
+        $warehouse = $this->warehouse();
+        $operator = $this->staff('warehouse_operator');
+        ['asn' => $asn, 'lines' => $asnLines] = $this->stockedAsn($client, $warehouse, [['mark' => 'WV1', 'cartons' => 6, 'weight_kg' => 30]]);
+        $order = $this->confirmedOrder($client, $asn->job_id, [['asn_line_id' => $asnLines[0]->id, 'qty' => 2]]);
+
+        $this->actingAs($operator)->post(route('warehouse.outbound.waves.release'), ['warehouse_id' => $warehouse->id, 'order_ids' => [$order->id]])->assertRedirect();
+        $wave = Wave::query()->firstOrFail();
+        $task = WarehouseTask::query()->where('task_type', 'pick')->firstOrFail();
+        $this->assertSame('pending', $task->status);
+
+        // Board with no warehouse filter and with the wave's warehouse selected: both must render and link the wave.
+        $this->actingAs($operator)->get(route('warehouse.outbound.index'))->assertOk()->assertSee($wave->wave_no)->assertSee(route('warehouse.outbound.waves.show', $wave));
+        $this->actingAs($operator)->withSession([WarehouseContext::SESSION_KEY => $warehouse->id])->get(route('warehouse.outbound.index'))->assertOk()->assertSee($wave->wave_no);
+        $this->actingAs($this->staff('finance'))->get(route('warehouse.outbound.index'))->assertOk()->assertSee($wave->wave_no);
+        $this->assertSame($wave->id, $task->wave->id);
     }
 
     public function test_return_receipt_pages(): void
