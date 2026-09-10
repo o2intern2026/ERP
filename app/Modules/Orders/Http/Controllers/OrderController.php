@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Orders\Exceptions\OrderRuleViolation;
 use App\Modules\Orders\Http\OrderFormRows;
+use App\Modules\Orders\Http\OrderValidation;
 use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderEvent;
@@ -28,6 +29,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 final class OrderController extends Controller
 {
@@ -114,9 +116,13 @@ final class OrderController extends Controller
             'estimate' => $estimates->current($order),
             'canEstimate' => $estimates->canEstimate($order) && auth()->user()->hasAnyRole(OrderEstimateService::STAFF_ROLES),
             // A12: while received, a draft's lines may be corrected and linked to the client's ASN goods lines (Warehouse tables, read-only).
+            // 2026-09-10 audit: the control is rendered even when the list is empty (the page then says why), so a from_stock order is never stuck.
             'asnLineOptions' => $order->operational_status === 'received' && $order->order_type === 'from_stock'
                 ? DB::table('asn_lines')->join('asns', 'asns.id', '=', 'asn_lines.asn_id')->where('asns.client_id', $order->client_id)
                     ->orderByDesc('asn_lines.id')->limit(200)->get(['asn_lines.id', 'asns.asn_no', 'asn_lines.consignment_mark', 'asn_lines.description', 'asn_lines.received_cartons', 'asn_lines.expected_cartons'])
+                : collect(),
+            'unlinkedLines' => $order->operational_status === 'received' && $order->order_type === 'from_stock'
+                ? $order->lines->whereNull('asn_line_id')->values()
                 : collect(),
         ]);
     }
@@ -148,8 +154,15 @@ final class OrderController extends Controller
             return back()->withErrors(['order' => __('orders.validation.confirm_received_only')]);
         }
 
-        if ($order->order_type === 'from_stock' && $order->lines()->whereNull('asn_line_id')->exists()) {
-            return back()->withErrors(['order' => __('orders.validation.unlinked_stock')]);
+        if ($order->order_type === 'from_stock') {
+            $unlinked = $order->lines()->whereNull('asn_line_id')->get();
+            if ($unlinked->isNotEmpty()) {
+                // 2026-09-10 audit: say which lines block the confirmation instead of a generic refusal.
+                return back()->withErrors(['order' => __('orders.validation.unlinked_stock_lines', [
+                    'count' => $unlinked->count(),
+                    'lines' => $unlinked->map(fn ($line) => ($line->description_cn ?: $line->description_en) ?: '#'.$line->id)->implode('、'),
+                ])]);
+            }
         }
 
         $statuses->transitionOperational($order, 'confirmed', auth()->id(), __('orders.fulfilments.timeline.confirmed'));
@@ -176,7 +189,7 @@ final class OrderController extends Controller
             'delivery_instructions' => ['nullable', 'string', 'max:2000'],
             'requested_date' => ['required', 'date'],
             'reason' => [$changes->requiresReason($order) ? 'required' : 'nullable', 'string', 'max:255'],
-        ]);
+        ], OrderValidation::messages(), OrderValidation::attributes());
 
         try {
             $changes->updateDelivery($order, Arr::except($data, ['reason']), $request->user(), $data['reason'] ?? null);
@@ -241,7 +254,7 @@ final class OrderController extends Controller
             'declared_packages.*.length_mm' => ['nullable', 'integer', 'min:0'],
             'declared_packages.*.width_mm' => ['nullable', 'integer', 'min:0'],
             'declared_packages.*.height_mm' => ['nullable', 'integer', 'min:0'],
-        ]);
+        ], OrderValidation::messages(), OrderValidation::attributes());
 
         $jobMatchesClient = blank($data['job_id'] ?? null) || Job::query()
             ->whereKey($data['job_id'])
@@ -249,7 +262,8 @@ final class OrderController extends Controller
             ->exists();
 
         if (! $jobMatchesClient) {
-            abort(422, __('orders.validation.job_client_mismatch'));
+            // 2026-09-10 audit: a field error that returns the person to the filled form, not a bare 422 page.
+            throw ValidationException::withMessages(['job_id' => __('orders.validation.job_client_mismatch')]);
         }
 
         $pickupFields = collect(['name', 'phone', 'address', 'suburb', 'state', 'postcode'])

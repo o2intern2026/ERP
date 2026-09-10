@@ -4,7 +4,7 @@
 @php
     $prefix = $prefix ?? 'orders';
     $extended = $extended ?? false;
-    $rows = array_values(array_filter((array) old('lines', []), 'is_array')) ?: [['package_type' => 'carton', 'carton_qty' => 1]];
+    $rows = array_values(array_filter((array) old('lines', []), 'is_array')) ?: [['package_type' => 'carton']]; // no pre-filled 箱数: a typed quantity is content (OrderFormRows)
 @endphp
 <p class="text-muted"><small>{{ __('orders.lines.hint') }}</small></p>
 <div class="overflow-auto">

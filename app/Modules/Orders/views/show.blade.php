@@ -37,6 +37,10 @@
         @if ($order->source === 'pdf')
             <article class="flash" role="note"><strong>{{ __('orders.drafts.banner_title') }}</strong> {{ __('orders.drafts.banner') }}</article>
         @endif
+        @if ($unlinkedLines->isNotEmpty())
+            {{-- 2026-09-10 audit: confirm() refuses a from_stock order with unlinked lines — say so here, before the click. --}}
+            <p class="text-muted"><small>{{ __('orders.drafts.unlinked_warning', ['count' => $unlinkedLines->count()]) }}</small></p>
+        @endif
         <form method="post" action="{{ route('orders.confirm', $order) }}">
             @csrf
             <button type="submit">{{ __('orders.actions.confirm') }}</button>
@@ -214,13 +218,8 @@
                                         @include('orders::partials.package-type-select', ['name' => 'package_type', 'value' => $line->package_type])
                                         <input type="number" min="1" name="carton_qty" value="{{ $line->carton_qty }}" required>
                                         <input type="number" min="0" step="0.001" name="actual_weight_kg" value="{{ $line->actual_weight_kg }}" placeholder="{{ __('orders.fields.weight_kg') }}">
-                                        @if ($asnLineOptions->isNotEmpty())
-                                            <select name="asn_line_id" aria-label="{{ __('orders.fulfilments.fields.asn_line') }}">
-                                                <option value="">{{ __('orders.drafts.no_asn_line') }}</option>
-                                                @foreach ($asnLineOptions as $option)
-                                                    <option value="{{ $option->id }}" @selected($line->asn_line_id === $option->id)>{{ $option->asn_no }} · {{ $option->consignment_mark }} · {{ $option->description }} ({{ $option->received_cartons ?? $option->expected_cartons }})</option>
-                                                @endforeach
-                                            </select>
+                                        @if ($order->order_type === 'from_stock')
+                                            @include('orders::partials.asn-line-select', ['asnLineOptions' => $asnLineOptions, 'selected' => $line->asn_line_id])
                                         @endif
                                         <button type="submit" class="secondary">{{ __('orders.actions.save_changes') }}</button>
                                     </form>
@@ -256,9 +255,32 @@
                 @include('orders::partials.package-type-select', ['name' => 'package_type', 'value' => 'carton'])
                 <input type="number" min="1" name="carton_qty" value="1" required>
                 <input type="number" min="0" step="0.001" name="actual_weight_kg" placeholder="{{ __('orders.fields.weight_kg') }}">
+                @if ($order->order_type === 'from_stock')
+                    @include('orders::partials.asn-line-select', ['asnLineOptions' => $asnLineOptions, 'selected' => null])
+                @endif
                 <button type="submit" class="secondary">{{ __('orders.drafts.add_line') }}</button>
             </form>
         </details>
+        @if ($order->order_type === 'from_stock')
+            <script>
+                (() => {
+                    // 2026-09-10 audit: the ASN goods-line pickers are searchable — typing in the box hides options whose 唛头 / 品名 / ASN 号 do not match.
+                    document.querySelectorAll('input[data-asn-filter]').forEach(input => {
+                        const select = input.parentElement.querySelector('select[name="asn_line_id"]');
+                        if (!select) return;
+                        input.addEventListener('input', () => {
+                            const needle = input.value.trim().toLowerCase();
+                            Array.from(select.options).slice(1).forEach(option => {
+                                const off = needle !== '' && !option.textContent.toLowerCase().includes(needle);
+                                option.hidden = off;
+                                option.disabled = off;
+                            });
+                            if (select.selectedOptions[0]?.disabled) select.value = '';
+                        });
+                    });
+                })();
+            </script>
+        @endif
     @endif
 
     @if ($canChange)

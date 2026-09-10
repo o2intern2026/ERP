@@ -69,6 +69,8 @@ final class OrderCreationService
             ]);
 
             foreach ($attributes['lines'] ?? [] as $line) {
+                // order_lines.package_type is NOT NULL: the API / other callers may omit it (2026-09-10 audit) — carton is the form default too.
+                $line['package_type'] = filled($line['package_type'] ?? null) ? $line['package_type'] : 'carton';
                 $order->lines()->create(Arr::only($line, [
                     'description_cn', 'description_en', 'hs_code', 'material', 'usage', 'brand', 'package_type',
                     'carton_qty', 'unit_qty', 'unit_price_cents', 'total_price_cents', 'actual_weight_kg',

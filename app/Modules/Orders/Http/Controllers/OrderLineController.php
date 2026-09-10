@@ -3,6 +3,7 @@
 namespace App\Modules\Orders\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Orders\Http\OrderValidation;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderLine;
 use App\Modules\Orders\Services\OrderChangeService;
@@ -25,7 +26,8 @@ final class OrderLineController extends Controller
         $data = $this->validated($request);
 
         DB::transaction(function () use ($order, $data, $request, $statuses): void {
-            $line = $order->lines()->create(['package_type' => 'carton'] + array_filter($data, fn ($v) => $v !== null));
+            // 2026-09-10 audit: the submitted package type wins; 'carton' is only the fallback (array union keeps the LEFT key).
+            $line = $order->lines()->create(array_filter($data, fn ($v) => $v !== null) + ['package_type' => 'carton']);
             $statuses->note($order, $request->user()->id, __('orders.drafts.timeline.line_added', ['description' => $line->description_cn ?: $line->description_en, 'qty' => $line->carton_qty]));
         });
 
@@ -60,7 +62,7 @@ final class OrderLineController extends Controller
             'actual_weight_kg' => ['nullable', 'numeric', 'min:0'],
             // A7 needs a goods line (asn_line_id) before a from_stock order can be confirmed: the coordinator links the draft line to the client's ASN line (read-only lookup).
             'asn_line_id' => ['nullable', 'integer', Rule::exists('asn_lines', 'id')->where(fn ($q) => $q->whereIn('asn_id', DB::table('asns')->where('client_id', $order->client_id)->select('id')))],
-        ]);
+        ], OrderValidation::messages(), OrderValidation::attributes());
     }
 
     private function authorizeDraft(Order $order): void

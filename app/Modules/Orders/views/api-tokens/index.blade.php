@@ -48,5 +48,5 @@ Authorization: Bearer &lt;token&gt;
 Idempotency-Key: &lt;{{ __('orders.api.idempotency_hint') }}&gt;
 Content-Type: application/json
 
-{"order_type":"from_stock","external_ref":"PO-1001","deliver_to_name":"…","deliver_to_address":"…","deliver_to_suburb":"…","deliver_to_state":"VIC","deliver_to_postcode":"3000","requested_date":"2026-10-01","lines":[{"description_en":"…","carton_qty":10,"asn_line_id":null}]}</code></pre>
+{"order_type":"from_stock","external_ref":"PO-1001","deliver_to_name":"…","deliver_to_address":"…","deliver_to_suburb":"…","deliver_to_state":"VIC","deliver_to_postcode":"3000","requested_date":"2026-10-01","lines":[{"description_en":"…","package_type":"carton","carton_qty":10,"asn_line_id":null}]}</code></pre>
 @endsection
