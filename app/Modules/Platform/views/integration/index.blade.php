@@ -23,7 +23,7 @@
                     <tr>
                         <th>#</th>
                         <th>{{ __('platform.integration.event') }}</th>
-                        <th>Job</th>
+                        <th>{{ __('platform.integration.job') }}</th>
                         <th>{{ __('platform.integration.status') }}</th>
                         <th>{{ __('platform.integration.attempts') }}</th>
                         <th>{{ __('platform.integration.available_at') }}</th>

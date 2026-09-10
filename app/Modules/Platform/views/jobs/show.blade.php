@@ -49,7 +49,7 @@
         <article>
             <header>{{ __('platform.jobs.panel_orders') }} <small class="text-muted">{{ $panels['orders']->count() }}</small></header>
             @forelse ($panels['orders'] as $o)
-                <p><a href="{{ route('orders.show', $o->id) }}">{{ $o->order_no }}</a> · {{ __('orders.statuses.'.$o->operational_status) }} · <small class="text-muted">{{ $o->billing_status }}</small></p>
+                <p><a href="{{ route('orders.show', $o->id) }}">{{ $o->order_no }}</a> · {{ __('orders.statuses.operational.'.$o->operational_status) }} · <small class="text-muted">{{ __('orders.statuses.billing.'.$o->billing_status) }}</small></p>
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse
@@ -65,7 +65,7 @@
         <article>
             <header>{{ __('platform.jobs.panel_documents') }} <small class="text-muted">{{ $panels['documents']->count() }}</small></header>
             @forelse ($panels['documents'] as $d)
-                <p>{{ $d->type }} · {{ $d->original_name ?? basename((string) $d->storage_path) }}</p>
+                <p>{{ __('platform.documents.types.'.$d->type) }} · {{ $d->original_name ?? basename((string) $d->storage_path) }}</p>
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse

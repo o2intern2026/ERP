@@ -21,7 +21,9 @@ return [
         'manual_title' => '手工加费', 'manual_hint' => '一次性费用必须填原因;留空金额则按价目表自动计价。', 'manual_reason' => '原因(必填)', 'manual_amount' => '金额(留空按价目表)', 'manual_add' => '添加费用',
         'manual_added' => '手工费用 #:id 已添加(:status)。', 'reverse' => '冲销', 'reverse_reason' => '冲销原因', 'reversed' => '费用 #:id 已冲销。', 'not_reversible' => '该费用行不能冲销(已是冲销或已冲销)。',
         'empty' => '没有费用行。', 'snapshot' => '计算快照', 'from' => '从', 'to' => '到',
+        'errors' => ['review_only' => '只有「待报价 / 复核」状态的费用行可以人工定价。'],
     ],
+    'exceptions' => ['missing_rate' => '费用编码 :code(数量 :qty)缺费率:客户价目表和标准价目表都没有这一项,请补充费率或人工定价。'],
     'charge_statuses' => ['pending' => '待开票', 'needs_review' => '待报价 / 复核', 'approved' => '已确认', 'invoiced' => '已开票', 'disputed' => '有争议', 'reversed' => '已冲销'],
     'categories' => ['warehouse' => '仓库操作', 'vas' => '增值服务', 'transport' => '运输', 'storage' => '仓储', 'other' => '其它'],
 
@@ -49,7 +51,7 @@ return [
         'methods' => ['bank' => '银行转账', 'card' => '刷卡', 'cash' => '现金', 'other' => '其它'],
     ],
     'credit_notes' => [
-        'title' => 'Credit notes', 'new' => '新建 credit note', 'reason' => '原因(必填)', 'line_amount' => '冲减金额(不含 GST)', 'drafted' => 'Credit note #:id 草稿已建立并送审批(需第二人批准)。', 'issue' => '开出 credit note', 'issued' => 'Credit note :no 已开出。', 'status' => '状态',
+        'title' => 'Credit note(冲减单)', 'new' => '新建 credit note', 'reason' => '原因(必填)', 'line_amount' => '冲减金额(不含 GST)', 'drafted' => 'Credit note #:id 草稿已建立并送审批(需第二人批准)。', 'issue' => '开出 credit note', 'issued' => 'Credit note :no 已开出。', 'status' => '状态',
         'approved_badge' => '已批准,可开出', 'pending_hint' => '审批中 → 审批中心', 'no_approval_hint' => '尚无待审批申请 → 审批中心',
         'errors' => ['not_issued' => '只能对已开出的发票建 credit note。', 'positive_amount' => 'Credit note 金额必须大于 0:至少填一行冲减金额。', 'not_approved' => '这张 credit note 还没有第二人批准,批准后才能开出。'],
         'statuses' => ['draft' => '草稿(待审批)', 'approved' => '已批准', 'issued' => '已开出', 'cancelled' => '已取消'],
@@ -64,7 +66,15 @@ return [
         'create' => '新建客户专属价目表', 'created' => '价目表已创建(草稿)。', 'new_version' => '复制为新版本', 'new_version_created' => '新版本 v:version 已创建(草稿),改价后送审批。', 'notes' => '备注',
         'item_saved' => '费率项已保存。', 'request_activation' => '送审批(第二人批准后生效)', 'activation_requested' => '已送审批。', 'activate' => '生效(替换旧版本)', 'activated' => '版本 v:version 已生效,旧版本已归档;历史费用金额不变。',
         'approved_badge' => '已批准,可生效', 'pending_badge' => '审批中', 'draft_hint' => '草稿可编辑费率;生效后不可修改,改价请复制为新版本。', 'add_item' => '添加费率项',
-        'rate' => '单价 (AUD)', 'min_charge' => '最低收费', 'poa' => 'POA(面议)', 'pricing_mode' => '计价方式', 'markup' => '加成 %', 'pallet_class' => '托盘类型', 'band' => '重量分档 (kg)', 'zone' => '分区', 'service_level' => '服务等级', 'thresholds' => '阈值参数 (JSON)',
+        'rate' => '单价 (AUD)', 'min_charge' => '最低收费', 'poa' => 'POA(面议)', 'pricing_mode' => '计价方式', 'markup' => '加成 %', 'pallet_class' => '托盘类型', 'band' => '重量分档 (kg)', 'zone' => '分区', 'service_level' => '服务等级', 'thresholds' => '阈值参数 (JSON)', 'thresholds_placeholder' => '阈值参数 (JSON),例如 {"tailgate_weight_kg":25}',
+        'band_min' => '下限 (kg)', 'band_max' => '上限 (kg)', 'approval_note' => ':name v:version,:date 起生效',
+        'errors' => [
+            'active_immutable' => '已生效的价目表不能改费率,请「复制为新版本」后再改价。',
+            'draft_only_items' => '只有草稿状态的价目表可以添加费率项。',
+            'draft_only_submit' => '只有草稿状态的价目表可以送审批。',
+            'draft_only_activate' => '只有草稿状态的价目表可以生效。',
+            'not_approved' => '这个版本还没有第二人批准(PLT-7),批准后才能生效。',
+        ],
         'statuses' => ['draft' => '草稿', 'active' => '生效', 'superseded' => '已归档'], 'pricing_modes' => ['fixed' => '固定单价', 'cost_plus' => '成本 + 加成', 'percent' => '百分比附加'],
     ],
 

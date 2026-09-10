@@ -8,6 +8,7 @@ use App\Modules\Warehouse\Models\GoodsReceipt;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Modules\Warehouse\Services\GoodsReceiptService;
 use App\Modules\Warehouse\Services\WarehouseContext;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -58,7 +59,7 @@ class GoodsReceiptController extends Controller
         try {
             $receipts->complete($receipt, $request->user()?->id, $data['notes'] ?? null);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['complete' => $e->getMessage()]);
+            return back()->withErrors(['complete' => RuleViolation::display($e)]);
         }
 
         return redirect()->route('warehouse.receipts.show', $receipt)->with('status', __('warehouse.receipts.completed', ['no' => $receipt->receipt_no]));

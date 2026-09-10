@@ -6,6 +6,7 @@ use App\Modules\Warehouse\Models\Location;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Support\Contracts\DocumentService;
 use App\Support\Contracts\ExceptionService;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -28,7 +29,7 @@ final class QuarantineService
             throw new InvalidArgumentException("Condition must be damaged or quarantine, got {$condition}.");
         }
         if ($unit->qty_reserved > 0) {
-            throw new InvalidArgumentException("{$unit->label_code} has {$unit->qty_reserved} cartons reserved — release the reservations before quarantining.");
+            throw new RuleViolation("{$unit->label_code} has {$unit->qty_reserved} cartons reserved — release the reservations before quarantining.", 'warehouse.moves.errors.reserved', ['label' => $unit->label_code, 'qty' => $unit->qty_reserved]);
         }
 
         return DB::transaction(function () use ($unit, $condition, $reason, $photos, $to): StockUnit {

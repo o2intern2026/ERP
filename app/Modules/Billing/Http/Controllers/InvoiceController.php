@@ -102,7 +102,7 @@ class InvoiceController extends Controller
         try {
             $invoices->issue($invoice);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['invoice' => $e->getMessage()]);
+            return back()->withErrors(['invoice' => RuleViolation::display($e)]);
         }
 
         return redirect()->route('billing.invoices.show', $invoice)->with('status', __('billing.invoices.issued', ['no' => $invoice->fresh()->invoice_no]));
@@ -113,7 +113,7 @@ class InvoiceController extends Controller
         try {
             $invoices->discardDraft($invoice);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['invoice' => $e->getMessage()]);
+            return back()->withErrors(['invoice' => RuleViolation::display($e)]);
         }
 
         return redirect()->route('billing.unbilled')->with('status', __('billing.invoices.discarded'));
@@ -130,7 +130,7 @@ class InvoiceController extends Controller
         try {
             $invoices->recordPayment($invoice, (int) round($data['amount'] * 100), Carbon::parse($data['paid_at']), $data['method'], $data['reference'] ?? null);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['amount' => $e->getMessage()]);
+            return back()->withErrors(['amount' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('billing.invoices.payment_recorded'));
@@ -165,7 +165,7 @@ class InvoiceController extends Controller
         try {
             $invoice = $draft();
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['invoice' => $e->getMessage()]);
+            return back()->withErrors(['invoice' => RuleViolation::display($e)]);
         }
 
         return redirect()->route('billing.invoices.show', $invoice)->with('status', __('billing.invoices.drafted'));

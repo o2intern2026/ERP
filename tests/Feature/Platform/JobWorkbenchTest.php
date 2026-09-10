@@ -100,9 +100,16 @@ class JobWorkbenchTest extends TestCase
         $warehouse = $this->warehouse();
         ['asn' => $asn, 'lines' => $asnLines] = $this->stockedAsn($client, $warehouse, [['mark' => 'JOB1', 'cartons' => 4]]);
         $order = $this->confirmedOrder($client, $asn->job_id, [['asn_line_id' => $asnLines[0]->id, 'qty' => 2]]);
-        $shipmentNo = DB::table('shipments')->where('order_id', $order->id)->value('shipment_no');
+        $shipment = DB::table('shipments')->where('order_id', $order->id)->first(['shipment_no', 'status']);
 
         $page = $this->actingAs($this->staff('customer_service'))->get(route('platform.jobs.show', $asn->job_id))->assertOk();
-        $page->assertSee($asn->asn_no)->assertSee($order->order_no)->assertSee((string) $shipmentNo)->assertSee(__('platform.jobs.panel_stock'))->assertDontSee(__('platform.jobs.panel_pending', ['module' => 'Orders', 'checkpoint' => 'M3']));
+        $page->assertSee($asn->asn_no)->assertSee($order->order_no)->assertSee((string) $shipment->shipment_no)->assertSee(__('platform.jobs.panel_stock'))->assertDontSee(__('platform.jobs.panel_pending', ['module' => 'Orders', 'checkpoint' => 'M3']));
+
+        // i18n/zh sweep review: the panels show translated statuses, never raw enum values or raw lang keys.
+        $page->assertSee(__('orders.statuses.operational.'.$order->fresh()->operational_status))
+            ->assertSee(__('orders.statuses.billing.'.$order->fresh()->billing_status))
+            ->assertSee(__('transport.statuses.'.$shipment->status))
+            ->assertDontSee('orders.statuses.')
+            ->assertDontSee(' · '.$shipment->status.' ');
     }
 }

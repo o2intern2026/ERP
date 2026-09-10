@@ -26,7 +26,7 @@
                     <td>{{ __('platform.exceptions.modules.'.$e->source_module) }}</td>
                     <td>{{ $e->client?->name ?? '—' }}</td>
                     <td>@if ($e->job)<a href="{{ route('platform.jobs.show', $e->job) }}">{{ $e->job->job_no }}</a>@endif</td>
-                    <td>{{ $e->message }} @if ($url = $sourceUrl($e))<br><a href="{{ $url }}"><small>{{ __('platform.exceptions.source') }}: {{ $e->source_type }} #{{ $e->source_id }}</small></a>@endif</td>
+                    <td>{{ $e->message }} @if ($url = $sourceUrl($e))<br><a href="{{ $url }}"><small>{{ __('platform.exceptions.source') }}: {{ \Illuminate\Support\Facades\Lang::has('platform.source_types.'.$e->source_type) ? __('platform.source_types.'.$e->source_type) : $e->source_type }} #{{ $e->source_id }}</small></a>@endif</td>
                     <td>{{ $e->owner?->name ?? '—' }}</td>
                     <td><span class="badge" data-tone="{{ ['open' => 'danger', 'in_progress' => 'warn', 'resolved' => 'ok'][$e->status] }}">{{ __('platform.exceptions.statuses.'.$e->status) }}</span></td>
                     <td>{{ $e->created_at->format('m-d H:i') }}</td>

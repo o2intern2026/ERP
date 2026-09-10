@@ -29,7 +29,7 @@ final class ReturnService
     {
         $order = DB::table('orders')->where('id', $data['original_order_id'])->first();
         if ($order === null) {
-            throw new InvalidArgumentException('Original order not found.');
+            throw new RuleViolation('Original order not found.', 'warehouse.returns.errors.order_missing');
         }
 
         return DB::transaction(function () use ($data, $order): ReturnReceipt {
@@ -59,7 +59,7 @@ final class ReturnService
         }
         $receipt = $line->receipt;
         if ($receipt->status !== 'expected') {
-            throw new InvalidArgumentException('This receipt is no longer receiving.');
+            throw new RuleViolation('This receipt is no longer receiving.', 'warehouse.returns.errors.not_receiving');
         }
 
         $line->update(['received_qty' => $receivedQty, 'condition' => $condition, 'received_at' => now()]);
@@ -95,10 +95,10 @@ final class ReturnService
         }
         $receipt = $line->receipt;
         if ($receipt->status !== 'received') {
-            throw new InvalidArgumentException('Complete receiving before inspecting.');
+            throw new RuleViolation('Complete receiving before inspecting.', 'warehouse.returns.errors.receive_first');
         }
         if ($line->inspected_at !== null) {
-            throw new InvalidArgumentException('This line is already inspected.');
+            throw new RuleViolation('This line is already inspected.', 'warehouse.returns.errors.already_inspected');
         }
 
         return DB::transaction(function () use ($line, $receipt, $disposition, $userId): ReturnReceiptLine {

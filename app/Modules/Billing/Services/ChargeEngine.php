@@ -11,6 +11,7 @@ use App\Modules\MasterData\Models\Client;
 use App\Modules\Platform\Models\Job;
 use App\Support\Contracts\ExceptionService;
 use App\Support\Contracts\RateService;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -86,7 +87,7 @@ final class ChargeEngine
                 }
                 $this->exceptions->raise('missing_rate', 'billing', [
                     'job_id' => Job::query()->whereKey($jobId)->exists() ? $jobId : null, 'client_id' => $clientId, 'source_type' => $source['type'], 'source_id' => $source['id'],
-                    'message' => "No rate for {$code->code} (qty {$qty}) — client card and standard card both lack it",
+                    'message' => __('billing.exceptions.missing_rate', ['code' => $code->code, 'qty' => $qty]),
                 ]);
 
                 return null;
@@ -137,7 +138,7 @@ final class ChargeEngine
     public function review(Charge $charge, int $amountCents, string $note): Charge
     {
         if ($charge->status !== 'needs_review') {
-            throw new \InvalidArgumentException('Only charges awaiting review can be priced by hand.');
+            throw new RuleViolation('Only charges awaiting review can be priced by hand.', 'billing.charges.errors.review_only');
         }
         $charge->update(['amount_cents' => $amountCents, 'status' => 'approved', 'calculation_snapshot_json' => ($charge->calculation_snapshot_json ?? []) + ['reviewed' => ['amount_cents' => $amountCents, 'note' => $note, 'by' => auth()->id(), 'at' => now()->toIso8601String()]]]);
 

@@ -80,7 +80,8 @@ class Audit20260910MinorsTest extends TestCase
             ->assertSessionHasErrors('threshold_json');
         $this->actingAs($finance)->get(route('billing.rate_cards.show', $card))->assertOk()->assertSee('<details open>', false)
             ->assertSee('value="12.50"', false)->assertSee('value="METRO"', false)->assertSee('<option value="oversize_high" selected>', false)->assertSee('<option value="'.$code->id.'" selected>', false)
-            ->assertSee('value="{tailgate_weight_kg: 25}"', false);
+            ->assertSee('value="{tailgate_weight_kg: 25}"', false)
+            ->assertSee(__('billing.rate_cards.thresholds_placeholder'))->assertDontSee('e.g.'); // i18n/zh sweep review: the JSON example hint is Chinese
         $this->assertSame(0, RateItem::query()->where('rate_card_id', $card->id)->count());
     }
 
@@ -135,5 +136,52 @@ class Audit20260910MinorsTest extends TestCase
         // Storage-only pool → 仓储费 preselected.
         $engine->manual($job, $client->id, 'WH-STORAGE-PLT-WK', 1, 'storage again', null, $finance->id);
         $this->actingAs($finance)->get(route('billing.unbilled'))->assertOk()->assertSee('<option value="storage" selected>', false);
+    }
+
+    /** i18n sweep 2026-09-10 (A3): every Billing refusal a person can read renders from lang/zh, never the developer message. */
+    public function test_billing_refusals_render_in_chinese(): void
+    {
+        $client = $this->client();
+        $finance = $this->staff('finance');
+        $standard = RateCard::query()->where('is_standard', true)->firstOrFail();
+        $standardItem = RateItem::query()->where('rate_card_id', $standard->id)->whereHas('chargeCode', fn ($q) => $q->where('code', 'WH-PUTAWAY-PLT'))->firstOrFail();
+
+        // Active card: items immutable, no new items, cannot be re-submitted or re-activated.
+        $this->actingAs($finance)->from(route('billing.rate_cards.show', $standard))->post("/billing/rate-items/{$standardItem->id}", ['rate' => 9.99])->assertRedirect();
+        $this->actingAs($finance)->get(route('billing.rate_cards.show', $standard))->assertOk()
+            ->assertSee(__('billing.rate_cards.errors.active_immutable'))->assertDontSee('Rate items of an active card are immutable');
+        $this->actingAs($finance)->from(route('billing.rate_cards.show', $standard))->post("/billing/rate-cards/{$standard->id}/items", ['charge_code_id' => $standardItem->charge_code_id, 'rate' => 1])->assertRedirect();
+        $this->actingAs($finance)->get(route('billing.rate_cards.show', $standard))->assertOk()
+            ->assertSee(__('billing.rate_cards.errors.draft_only_items'))->assertDontSee('Only draft cards accept new items');
+        $this->actingAs($finance)->from(route('billing.rate_cards.show', $standard))->post("/billing/rate-cards/{$standard->id}/request-activation")->assertRedirect();
+        $this->actingAs($finance)->get(route('billing.rate_cards.show', $standard))->assertOk()
+            ->assertSee(__('billing.rate_cards.errors.draft_only_submit'))->assertDontSee('Only drafts can be submitted');
+        $this->actingAs($finance)->from(route('billing.rate_cards.show', $standard))->post("/billing/rate-cards/{$standard->id}/activate")->assertRedirect();
+        $this->actingAs($finance)->get(route('billing.rate_cards.show', $standard))->assertOk()
+            ->assertSee(__('billing.rate_cards.errors.draft_only_activate'))->assertDontSee('Only drafts can be activated');
+
+        // Draft without the second person's approval; the default approval note on the approvals page is Chinese.
+        $this->actingAs($finance)->post("/billing/rate-cards/{$standard->id}/new-version", ['effective_from' => today()->toDateString()])->assertRedirect();
+        $v2 = RateCard::query()->where('is_standard', true)->where('version', 2)->firstOrFail();
+        $this->actingAs($finance)->from(route('billing.rate_cards.show', $v2))->post("/billing/rate-cards/{$v2->id}/activate")->assertRedirect();
+        $this->actingAs($finance)->get(route('billing.rate_cards.show', $v2))->assertOk()
+            ->assertSee(__('billing.rate_cards.errors.not_approved'))->assertDontSee('A second person must approve');
+        $this->actingAs($finance)->post("/billing/rate-cards/{$v2->id}/request-activation")->assertRedirect();
+        $this->actingAs($finance)->get('/admin/approvals')->assertOk()
+            ->assertSee(__('billing.rate_cards.approval_note', ['name' => $v2->name, 'version' => 2, 'date' => today()->toDateString()]))->assertDontSee(' effective ');
+
+        // Review queue: a charge that is not awaiting review cannot be priced by hand.
+        $job = app(JobService::class)->create($client->id, 'loose')['job_id'];
+        $charge = app(ChargeEngine::class)->manual($job, $client->id, 'WH-PUTAWAY-PLT', 1, 'demo', null, $finance->id);
+        $this->assertSame('pending', $charge->status);
+        $this->actingAs($finance)->from(route('billing.charges.review'))->post("/billing/charges/{$charge->id}/review", ['amount' => 5, 'note' => 'x'])->assertRedirect();
+        $this->actingAs($finance)->get(route('billing.charges.review'))->assertOk()
+            ->assertSee(__('billing.charges.errors.review_only'))->assertDontSee('Only charges awaiting review');
+
+        // Missing-rate exception on the exceptions board is Chinese.
+        $client->update(['standard_rate_card_id' => null]);
+        app(ChargeEngine::class)->applyEvent(['event_name' => 'task.completed', 'job_id' => $job, 'client_id' => $client->id, 'payload' => ['task_id' => 777, 'task_type' => 'labour', 'hours_business' => 2, 'hours_after_hours' => 0]]);
+        $this->actingAs($finance)->get('/admin/exceptions')->assertOk()
+            ->assertSee(__('billing.exceptions.missing_rate', ['code' => 'VAS-LABOUR-HR', 'qty' => 2]))->assertDontSee('client card and standard card both lack it');
     }
 }

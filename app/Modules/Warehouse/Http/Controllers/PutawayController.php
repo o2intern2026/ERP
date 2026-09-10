@@ -7,6 +7,7 @@ use App\Modules\Warehouse\Models\Location;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Modules\Warehouse\Services\PutawayService;
 use App\Modules\Warehouse\Services\WarehouseContext;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -40,7 +41,7 @@ class PutawayController extends Controller
         try {
             $putaway->putaway($unit, $location);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['location_code' => $e->getMessage()])->withInput(['location_code' => $data['location_code'], 'putaway_unit' => $unit->id]);
+            return back()->withErrors(['location_code' => RuleViolation::display($e)])->withInput(['location_code' => $data['location_code'], 'putaway_unit' => $unit->id]);
         }
 
         return back()->with('status', __('warehouse.putaway.done', ['label' => $unit->label_code, 'location' => $location->full_code]));

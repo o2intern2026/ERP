@@ -122,7 +122,7 @@
 
     @if ($imports->isNotEmpty())
         <h3>{{ __('warehouse.asns.imports') }}</h3>
-        <ul>@foreach ($imports as $i)<li>{{ $i->created_at->format('Y-m-d H:i') }} · {{ __('warehouse.import_statuses.'.$i->status) }} · {{ __('warehouse.asns.imported', ['rows' => $i->row_count, 'errors' => $i->error_count, 'warnings' => count($i->warnings ?? [])]) }}</li>@endforeach</ul>
+        <ul>@foreach ($imports as $i)<li>{{ $i->created_at->format('Y-m-d H:i') }} · {{ __('warehouse.asns.import_statuses.'.$i->status) }} · {{ __('warehouse.asns.imported', ['rows' => $i->row_count, 'errors' => $i->error_count, 'warnings' => count($i->warnings ?? [])]) }}</li>@endforeach</ul>
     @endif
 
     @if ($tasks->isNotEmpty())

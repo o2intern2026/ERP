@@ -4,8 +4,8 @@ namespace App\Modules\Warehouse\Services;
 
 use App\Modules\Warehouse\Models\Asn;
 use App\Support\Contracts\OrderService;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
 
 /**
  * B2c: after putaway, one click turns an ASN's goods lines into delivery orders through OMS's
@@ -20,7 +20,7 @@ final class AsnOrderGeneration
     public function generate(Asn $asn): array
     {
         if (! in_array($asn->status, ['putaway', 'closed'], true)) {
-            throw new InvalidArgumentException('Orders are generated after putaway is complete.');
+            throw new RuleViolation('Orders are generated after putaway is complete.', 'warehouse.asns.errors.generate_after_putaway');
         }
 
         return DB::transaction(function () use ($asn): array {

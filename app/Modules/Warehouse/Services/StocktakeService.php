@@ -8,7 +8,6 @@ use App\Modules\Warehouse\Models\StockUnit;
 use App\Support\Contracts\ExceptionService;
 use App\Support\Exceptions\RuleViolation;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
 
 /** B10b stocktake (WMS-4): count by scan or by hand, review variances, close = adjust with a mandatory reason. */
 final class StocktakeService
@@ -47,7 +46,7 @@ final class StocktakeService
     public function count(StocktakeLine $line, int $countedQty, ?string $reason = null, bool $scanned = false): StocktakeLine
     {
         if ($line->stocktake->status !== 'counting') {
-            throw new InvalidArgumentException('This stocktake is no longer counting.');
+            throw new RuleViolation('This stocktake is no longer counting.', 'warehouse.stocktakes.errors.not_counting');
         }
 
         $line->update([

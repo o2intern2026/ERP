@@ -13,6 +13,7 @@ use App\Modules\Warehouse\Services\ReceivingService;
 use App\Modules\Warehouse\Services\TaskService;
 use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -154,7 +155,7 @@ class ReceivingController extends Controller
         try {
             $receipt = $receipts->receiveLines($asn, $data['rows'], Location::query()->findOrFail($data['receiving_location_id']), (int) $request->user()->id, (bool) ($data['complete'] ?? false), $data['delivery_reference'] ?? null);
         } catch (InvalidArgumentException $e) {
-            return back()->withInput()->withErrors(['rows' => $e->getMessage()]);
+            return back()->withInput()->withErrors(['rows' => RuleViolation::display($e)]);
         }
 
         $count = count($data['rows']);

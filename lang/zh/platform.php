@@ -123,7 +123,7 @@ return [
     'nav_documents' => '文档中心',
     'nav_approvals' => '审批',
     'nav_activity' => '审计日志',
-    'nav_webhooks' => 'Webhooks',
+    'nav_webhooks' => 'Webhook 推送',
     'search_placeholder' => '搜 Job / ASN / 唛头 / 柜号 / 条码 / 客户',
 
     'exceptions' => [
@@ -217,7 +217,7 @@ return [
             'not_pending' => '只有待审批的申请可以撤回。',
             'cancel_not_allowed' => '只有申请人或管理员可以撤回申请。',
         ],
-        'types' => ['rate_card_change' => '价目表变更', 'credit_note' => 'Credit note', 'stock_adjustment' => '大额库存调整', 'financial_release' => '财务放行', 'price_override' => '价格覆盖', 'poa_quote' => 'POA 报价'],
+        'types' => ['rate_card_change' => '价目表变更', 'credit_note' => 'Credit note(冲减单)', 'stock_adjustment' => '大额库存调整', 'financial_release' => '财务放行', 'price_override' => '价格覆盖', 'poa_quote' => 'POA 报价'],
         'statuses' => ['pending' => '待审批', 'approved' => '已批准', 'rejected' => '已拒绝', 'cancelled' => '已撤回'],
     ],
 
@@ -236,7 +236,7 @@ return [
     ],
 
     'webhooks' => [
-        'title' => 'Webhooks',
+        'title' => 'Webhook 推送',
         'hint' => '把系统事件推送到外部地址(客户系统、BI、通知机器人)。请求体是事件信封 JSON,头部 X-ERP-Signature 是用密钥做的 HMAC-SHA256,失败会按发件箱的节奏自动重试。',
         'name' => '名称',
         'url' => '地址 (https)',
@@ -264,6 +264,7 @@ return [
         'status' => '状态',
         'attempts' => '尝试次数',
         'available_at' => '下次投递',
+        'job' => 'Job',
         'last_error' => '最近错误',
         'retry' => '立即重试',
         'retried' => '事件已重新排队,下一分钟投递。',
@@ -271,8 +272,73 @@ return [
         'statuses' => ['pending' => '待投递', 'published' => '已投递', 'failed' => '失败(将重试)', 'dead' => '死信(需人工)'],
     ],
 
-    // Friendly "no permission" page (resources/views/errors/403.blade.php) instead of a bare 403 — tester feedback 2026-09-10.
+    // Source references ("task #12", "asn #3") shown next to ledger rows, charges, invoice lines and exceptions — one map for every module.
+    'source_types' => ['job' => 'Job', 'asn' => '预报单', 'asn_line' => '预报单行', 'container' => '柜', 'goods_receipt' => '入库单', 'stock_unit' => '库存单元', 'move' => '移库', 'stocktake' => '盘点', 'task' => '作业任务', 'order' => '订单', 'fulfilment' => '发货批次', 'shipment' => '运单', 'snapshot' => '仓储快照', 'return_receipt' => '退货单', 'outbox_event' => '出站事件', 'manual' => '手工', 'other' => '其它'],
+
+    // Friendly error pages (resources/views/errors/*.blade.php) instead of Laravel's English defaults — tester feedback 2026-09-10,
+    // "整个系统的每一处报错都用中文" (i18n/zh sweep, CHANGE_REQUESTS #107). 403 keeps its own wording below.
     'errors' => [
+        'back' => '返回上一页',
+        'home' => '回到首页',
+        'retry' => '返回上一页重试',
+        'reason' => '原因::reason',
+        'contact' => '如果问题持续出现,请把出错时间和当时的操作告诉管理员。',
+        'not_found' => [
+            'title' => '找不到该页面',
+            'body' => '您访问的地址不存在,或对应的记录已被删除、移动或不属于当前账号。',
+            'hint' => '请检查链接是否正确,或从首页重新进入。',
+        ],
+        'page_expired' => [
+            'title' => '页面已过期',
+            'body' => '这个页面打开的时间太久,或您已在别处退出登录,表单的安全令牌已失效,刚才的提交没有生效。',
+            'hint' => '请返回上一页,刷新后重新提交;如果已退出登录,请重新登录。',
+        ],
+        'too_many_requests' => [
+            'title' => '操作过于频繁',
+            'body' => '短时间内的请求次数过多,系统暂时拒绝了这次请求。',
+            'hint' => '请稍等片刻再试。',
+            'wait' => '请等待 :seconds 秒后再试。',
+        ],
+        'server_error' => [
+            'title' => '系统出错了',
+            'body' => '处理您的请求时发生了内部错误,刚才的操作可能没有保存。',
+            'hint' => '请返回上一页重试。',
+        ],
+        'maintenance' => [
+            'title' => '系统维护中',
+            'body' => '系统正在维护或升级,暂时无法使用。',
+            'hint' => '请稍后再试,维护完成后会自动恢复。',
+        ],
+        'unavailable' => [
+            'title' => '服务暂时不可用',
+            'body' => '系统暂时无法处理请求。',
+            'hint' => '请稍后再试。',
+        ],
+        'method_not_allowed' => [
+            'title' => '该地址不支持这种访问方式',
+            'body' => '这个地址只接受表单提交,不能直接在浏览器里打开(例如刷新了一个提交结果页,或直接输入了提交地址)。',
+            'hint' => '请返回上一页,从页面上的按钮重新操作。',
+        ],
+        'conflict' => [
+            'title' => '操作与当前状态冲突',
+            'body' => '这条记录的状态已经改变,刚才的操作不能再执行。',
+            'hint' => '请返回上一页刷新,确认当前状态后再操作。',
+        ],
+        'too_large' => [
+            'title' => '上传的内容过大',
+            'body' => '提交的文件或数据超过了服务器允许的大小,这次提交没有生效。',
+            'hint' => '请压缩或缩小文件后重新上传;多个文件请分次提交。',
+        ],
+        'request_failed' => [
+            'title' => '请求无法处理',
+            'body' => '系统无法按这个请求继续处理。',
+            'hint' => '请返回上一页重试;如果反复出现,请联系管理员。',
+        ],
+        'system_failed' => [
+            'title' => '系统暂时无法处理',
+            'body' => '系统在处理这个请求时遇到了问题,刚才的操作可能没有保存。',
+            'hint' => '请稍后再试。',
+        ],
         'forbidden' => [
             'title' => '您没有此操作的权限',
             'body' => '当前账号无法访问这个页面或执行这个操作。',
