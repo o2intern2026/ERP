@@ -31,6 +31,7 @@ class OrderFormAuditFixesTest extends TestCase
 
         // No ASN for this client yet: the control is still there (edit + add-line forms) with a Chinese hint, and the confirm button says why it would fail.
         $page = $this->actingAs($cs)->get(route('orders.show', $order))->assertOk();
+        $page->assertSee('form="asn-filter-none"', false); // the search box owns no form: Enter cannot submit the line (tester feedback 2026-09-10)
         $page->assertSee('name="asn_line_id"', false)->assertSee(__('orders.drafts.no_asn_lines_yet'))->assertSee(__('orders.drafts.asn_filter_placeholder'))
             ->assertSee(__('orders.drafts.unlinked_warning', ['count' => 2]));
         $this->assertSame(3, substr_count($page->getContent(), '<select name="asn_line_id"'), 'two edit forms + the add-line form each carry the select');

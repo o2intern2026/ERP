@@ -271,16 +271,24 @@
                 (() => {
                     // 2026-09-10 audit: the ASN goods-line pickers are searchable — typing in the box hides options whose 唛头 / 品名 / ASN 号 do not match.
                     document.querySelectorAll('input[data-asn-filter]').forEach(input => {
-                        const select = input.parentElement.querySelector('select[name="asn_line_id"]');
+                        const picker = input.closest('.asn-line-picker');
+                        const select = picker?.querySelector('select[name="asn_line_id"]');
+                        const count = picker?.querySelector('[data-asn-count]');
                         if (!select) return;
+                        // Enter in the search box must never submit the line form (it used to save the line and leave the page).
+                        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); select.focus(); } });
                         input.addEventListener('input', () => {
                             const needle = input.value.trim().toLowerCase();
+                            let shown = 0;
                             Array.from(select.options).slice(1).forEach(option => {
                                 const off = needle !== '' && !option.textContent.toLowerCase().includes(needle);
                                 option.hidden = off;
                                 option.disabled = off;
+                                if (!off) shown++;
                             });
                             if (select.selectedOptions[0]?.disabled) select.value = '';
+                            if (count) count.textContent = needle === '' ? '' : @json(__('orders.drafts.asn_filter_matches')).replace(':count', String(shown)) + ' ';
+                            if (needle !== '' && shown === 1) select.value = Array.from(select.options).find(o => !o.disabled && o.value !== '')?.value ?? '';
                         });
                     });
                 })();
