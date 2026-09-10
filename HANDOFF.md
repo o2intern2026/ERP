@@ -112,3 +112,8 @@ Lead decisions (binding, CHANGE_REQUESTS #90–#92): **ASN = 预报单 (ASN), �
 ### 2026-09-10 · main · immediate outbox dispatch (CR #105) · C touched two X1 tests
 
 - `tests/Feature/Orders/OrderManagementTest.php`: the order.confirmed row is delivered immediately now, so the test no longer asserts `status = pending`. `tests/Feature/Orders/QueueAndBatchTest.php`: the queue-preset test disables `erp.outbox_dispatch_now` because it pins statuses by hand. No production code in the Orders zone changed.
+### 2026-09-10 · fix/audit-x-2026-09-10 · audit lane B (Orders / Portal / Transport / Reports) · C as integrator, X1 / X2 zones
+
+Fixes for the confirmed 2026-09-10 audit findings in the X1 / X2 zones. Every file touched is listed per package so X1 / X2 can rebase and review.
+
+- **B1 · blockers.** `GET /orders/batches` (nav link 入库批次, no query string) 500ed with `Undefined array key "ref"` — `(string) $validated['ref'] ?? ''` cast before the coalesce and `validate()` omits an absent key. Coalesce now happens before the cast; `?ref=` and `?ref=<value>` behave as before. Files: `app/Modules/Orders/Http/Controllers/BatchController.php`, `tests/Feature/Orders/QueueAndBatchTest.php` (+1 `test_batch_page_opens_without_a_reference`).

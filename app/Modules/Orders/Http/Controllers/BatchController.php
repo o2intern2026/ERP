@@ -12,7 +12,8 @@ final class BatchController extends Controller
 {
     public function index(Request $request, OrderBatchService $batches): View
     {
-        $reference = trim((string) $request->validate(['ref' => ['nullable', 'string', 'max:40']])['ref'] ?? '');
+        $validated = $request->validate(['ref' => ['nullable', 'string', 'max:40']]);
+        $reference = trim((string) ($validated['ref'] ?? '')); // validate() omits an absent key: coalesce before the cast, or the bare nav link 500s
 
         return view('orders::batches.index', ['reference' => $reference] + ($reference !== '' ? $batches->lookup($reference) : ['asns' => collect(), 'containers' => collect(), 'orders' => collect(), 'totals' => null]));
     }

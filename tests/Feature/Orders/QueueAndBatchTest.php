@@ -93,6 +93,14 @@ class QueueAndBatchTest extends TestCase
         $this->assertDatabaseHas('exceptions', ['order_id' => $order->id, 'hold_type' => 'financial', 'status' => 'resolved', 'release_reason' => 'paid today']);
     }
 
+    public function test_batch_page_opens_without_a_reference(): void
+    {
+        // Audit 2026-09-10 blocker: the nav link opens /orders/batches with no query string at all; `(string) $validated['ref'] ?? ''`
+        // read a missing key before the null-coalesce applied, so the page 500ed. The empty lookup form must render.
+        $this->actingAs($this->staff('customer_service'))->get('/orders/batches')->assertOk()->assertSee(__('orders.batches.title'))->assertDontSee(__('orders.batches.not_found', ['ref' => '']));
+        $this->actingAs($this->staff('customer_service'))->get('/orders/batches?ref=')->assertOk();
+    }
+
     public function test_batch_page_lists_every_order_generated_from_one_container(): void
     {
         $client = $this->client();
