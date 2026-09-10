@@ -11,6 +11,7 @@ use App\Modules\MasterData\Models\Client;
 use App\Modules\Platform\Models\Approval;
 use App\Modules\Platform\Services\ApprovalService;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -62,7 +63,7 @@ class RateCardController extends Controller
         try {
             $service->addItem($card, $data);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['item' => $e->getMessage()]);
+            return back()->withErrors(['item' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('billing.rate_cards.item_saved'));
@@ -74,7 +75,7 @@ class RateCardController extends Controller
         try {
             $service->updateItem($item, $data);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['item' => $e->getMessage()]);
+            return back()->withErrors(['item' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('billing.rate_cards.item_saved'));
@@ -85,7 +86,7 @@ class RateCardController extends Controller
         try {
             $service->requestActivation($card, $request->user(), $request->input('note'));
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['card' => $e->getMessage()]);
+            return back()->withErrors(['card' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('billing.rate_cards.activation_requested'));
@@ -96,7 +97,7 @@ class RateCardController extends Controller
         try {
             $service->activate($card, $request->user());
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['card' => $e->getMessage()]);
+            return back()->withErrors(['card' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('billing.rate_cards.activated', ['version' => $card->version]));

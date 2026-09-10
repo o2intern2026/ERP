@@ -9,6 +9,7 @@ use App\Modules\Billing\Services\ChargeEngine;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Platform\Models\Job;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,7 +54,7 @@ class ChargeController extends Controller
         try {
             $engine->review($charge, (int) round($data['amount'] * 100), $data['note']);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['amount' => $e->getMessage()]);
+            return back()->withErrors(['amount' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('billing.charges.reviewed'));

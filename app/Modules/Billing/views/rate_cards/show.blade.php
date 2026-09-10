@@ -26,7 +26,7 @@
             <tr>
                 <td><code>{{ $item->chargeCode->code }}</code><br><small class="text-muted">{{ $item->chargeCode->customer_description }}</small></td>
                 <td>{{ __('billing.rate_cards.pricing_modes.'.$item->pricing_mode) }} @if ($item->markup_percent !== null) {{ $item->markup_percent }}% @endif</td>
-                <td class="num">{{ $item->is_poa ? 'POA' : ($item->rate_cents !== null ? \App\Support\Money::cents((int) round($item->rate_cents))->format() : '—') }}</td>
+                <td class="num">{{ $item->is_poa ? __('billing.rate_cards.poa') : ($item->rate_cents !== null ? \App\Support\Money::cents((int) round($item->rate_cents))->format() : '—') }}</td>
                 <td class="num">{{ $item->min_charge_cents !== null ? \App\Support\Money::cents((int) round($item->min_charge_cents))->format() : '—' }}</td>
                 <td>{{ $item->pallet_class ? __('warehouse.pallet_classes.'.$item->pallet_class) : '—' }}</td>
                 <td>{{ $item->weight_band_min !== null || $item->weight_band_max !== null ? ($item->weight_band_min ?? 0).' – '.($item->weight_band_max ?? '∞') : '—' }}</td>
@@ -54,7 +54,7 @@
                 <div class="grid">
                     <input type="number" step="0.01" min="0" name="min_charge" placeholder="{{ __('billing.rate_cards.min_charge') }}" value="{{ old('min_charge') }}">
                     <select name="pallet_class"><option value="">{{ __('billing.rate_cards.pallet_class') }}</option>@foreach ($palletClasses as $pc)<option value="{{ $pc }}" @selected(old('pallet_class') === $pc)>{{ __('warehouse.pallet_classes.'.$pc) }}</option>@endforeach</select>
-                    <input type="number" step="0.01" min="0" name="weight_band_min" placeholder="{{ __('billing.rate_cards.band') }} min" value="{{ old('weight_band_min') }}"><input type="number" step="0.01" min="0" name="weight_band_max" placeholder="max" value="{{ old('weight_band_max') }}">
+                    <input type="number" step="0.01" min="0" name="weight_band_min" placeholder="{{ __('billing.rate_cards.band_min') }}" value="{{ old('weight_band_min') }}"><input type="number" step="0.01" min="0" name="weight_band_max" placeholder="{{ __('billing.rate_cards.band_max') }}" value="{{ old('weight_band_max') }}">
                     <input type="text" name="zone" placeholder="{{ __('billing.rate_cards.zone') }}" value="{{ old('zone') }}"><input type="text" name="service_level" placeholder="{{ __('billing.rate_cards.service_level') }}" value="{{ old('service_level') }}">
                 </div>
                 <input type="text" name="threshold_json" placeholder='{{ __('billing.rate_cards.thresholds') }} e.g. {"tailgate_weight_kg":25}' value="{{ old('threshold_json') }}" @error('threshold_json') aria-invalid="true" @enderror>

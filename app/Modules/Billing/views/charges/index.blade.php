@@ -28,7 +28,7 @@
                     <td>{{ $c->charge_date->format('Y-m-d') }}</td><td>{{ $c->client->name }}</td><td><a href="{{ route('platform.jobs.show', $c->job) }}">{{ $c->job->job_no }}</a></td>
                     <td><code>{{ $c->chargeCode->code }}</code><br><small class="text-muted">{{ $c->chargeCode->customer_description }}@if ($c->is_manual) · {{ __('billing.charges.manual') }}: {{ $c->manual_reason }}@endif</small></td>
                     <td class="num">{{ rtrim(rtrim(number_format($c->qty, 3), '0'), '.') }}</td><td>{{ $c->uom }}</td>
-                    <td class="num">{{ $c->rate_snapshot_cents !== null ? \App\Support\Money::cents((int) round($c->rate_snapshot_cents))->format() : 'POA' }}</td>
+                    <td class="num">{{ $c->rate_snapshot_cents !== null ? \App\Support\Money::cents((int) round($c->rate_snapshot_cents))->format() : __('billing.rate_cards.poa') }}</td>
                     <td class="num">{{ \App\Support\Money::cents((int) round($c->amount_cents))->format() }}</td>
                     <td><span class="badge" data-tone="{{ ['pending' => 'warn', 'needs_review' => 'danger', 'approved' => 'ok', 'invoiced' => 'ok', 'disputed' => 'danger', 'reversed' => 'muted'][$c->status] }}">{{ __('billing.charge_statuses.'.$c->status) }}</span></td>
                     <td><small>{{ $c->source_type }} #{{ $c->source_id }}<br>{{ $c->source_activity_id }} v{{ $c->activity_version }}</small></td>

@@ -7,9 +7,9 @@ use App\Modules\Billing\Models\RateCard;
 use App\Modules\Billing\Models\RateItem;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Platform\Services\ApprovalService;
+use App\Support\Exceptions\RuleViolation;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
 
 /**
  * A5 versioning: a price change is a new draft version copied from the current one; activating it (after a second
@@ -44,7 +44,7 @@ final class RateCardService
     public function updateItem(RateItem $item, array $data): RateItem
     {
         if ($item->rateCard->status !== 'draft') {
-            throw new InvalidArgumentException('Rate items of an active card are immutable — create a new version.');
+            throw new RuleViolation('Rate items of an active card are immutable — create a new version.', 'billing.rate_cards.errors.active_immutable');
         }
         $item->update($data);
 
@@ -54,7 +54,7 @@ final class RateCardService
     public function addItem(RateCard $card, array $data): RateItem
     {
         if ($card->status !== 'draft') {
-            throw new InvalidArgumentException('Only draft cards accept new items.');
+            throw new RuleViolation('Only draft cards accept new items.', 'billing.rate_cards.errors.draft_only_items');
         }
 
         return RateItem::query()->create($data + ['rate_card_id' => $card->id, 'pricing_mode' => $data['pricing_mode'] ?? 'fixed']);
@@ -63,18 +63,18 @@ final class RateCardService
     public function requestActivation(RateCard $card, User $by, ?string $note = null): void
     {
         if ($card->status !== 'draft') {
-            throw new InvalidArgumentException('Only drafts can be submitted for approval.');
+            throw new RuleViolation('Only drafts can be submitted for approval.', 'billing.rate_cards.errors.draft_only_submit');
         }
-        $this->approvals->request('rate_card_change', 'rate_card', $card->id, $by, ['client_id' => $card->client_id, 'request_note' => $note ?? "{$card->name} v{$card->version} effective {$card->effective_from->toDateString()}"]);
+        $this->approvals->request('rate_card_change', 'rate_card', $card->id, $by, ['client_id' => $card->client_id, 'request_note' => $note ?? __('billing.rate_cards.approval_note', ['name' => $card->name, 'version' => $card->version, 'date' => $card->effective_from->toDateString()])]);
     }
 
     public function activate(RateCard $card, User $by): RateCard
     {
         if ($card->status !== 'draft') {
-            throw new InvalidArgumentException('Only drafts can be activated.');
+            throw new RuleViolation('Only drafts can be activated.', 'billing.rate_cards.errors.draft_only_activate');
         }
         if (! $this->approvals->isApproved('rate_card_change', 'rate_card', $card->id)) {
-            throw new InvalidArgumentException('A second person must approve this rate card version first (PLT-7).');
+            throw new RuleViolation('A second person must approve this rate card version first (PLT-7).', 'billing.rate_cards.errors.not_approved');
         }
 
         return DB::transaction(function () use ($card, $by): RateCard {
