@@ -576,8 +576,6 @@ return [
     'pallet_classes' => ['standard' => '标准托', 'oversize_wide' => '超宽托', 'oversize_high' => '超高托', 'overweight' => '超重托 (POA)', 'pickface' => '拣货位'],
     'pallet_sources' => ['client_own' => '客户自带', 'warehouse_plain' => '仓库木托', 'chep' => 'CHEP', 'loscam' => 'LOSCAM'],
     'conditions' => ['good' => '正常', 'quarantine' => '隔离', 'damaged' => '破损'],
-    'reservation_statuses' => ['active' => '预留中', 'released' => '已释放', 'consumed' => '已拣出'],
-    'import_statuses' => ['imported' => '已导入', 'failed' => '导入失败'],
     'location_types' => ['receiving' => '收货区', 'storage' => '存储', 'pickface' => 'Pickface', 'packing' => '打包区', 'staging' => '待发区', 'quarantine' => '隔离区'],
     'task_types' => ['receiving' => '收货', 'putaway' => '上架', 'move' => '移库', 'pick' => '拣货', 'pack' => '打包', 'load' => '装车', 'count' => '盘点', 'return_inspection' => '退货验收', 'devanning' => '拆柜', 'wrap' => '缠膜 / 打带', 'scanning' => '序列号扫描', 'labour' => '人工时', 'waste' => '废弃物处理', 'vas_other' => '其它 VAS'],
     'task_statuses' => ['pending' => '待处理', 'in_progress' => '进行中', 'done' => '已完成', 'cancelled' => '已取消', 'exception' => '异常'],
