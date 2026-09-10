@@ -11,7 +11,9 @@ use App\Modules\Warehouse\Models\WarehouseTaskLine;
 use App\Modules\Warehouse\Models\Wave;
 use App\Modules\Warehouse\Services\OutboundService;
 use App\Modules\Warehouse\Services\WarehouseContext;
+use App\Support\Contracts\ExceptionService;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,7 +24,7 @@ use InvalidArgumentException;
 /** B4 pages: one outbound board (release wave → pick → pack → dispatch) plus a wave sheet and a packing form. */
 class OutboundController extends Controller
 {
-    public function index(): View
+    public function index(ExceptionService $exceptions): View
     {
         $warehouseId = WarehouseContext::currentId();
         $pickTasks = WarehouseTask::query()->where('task_type', 'pick')->whereNotNull('fulfilment_id');
@@ -45,6 +47,8 @@ class OutboundController extends Controller
             'warehouses' => Warehouse::query()->where('active', true)->orderBy('code')->get(),
             'currentWarehouseId' => $warehouseId,
             'handedTo' => Enums::HANDED_TO,
+            // Audit 2026-09-10: a financial hold lets the batch be picked and packed but refuses the handover — say so on the board instead of after the click.
+            'heldFulfilments' => $toDispatch->filter(fn ($packages) => $exceptions->hasActiveHold('financial', $packages->first()->client_id, $packages->first()->order_id))->keys()->all(),
         ]);
     }
 
@@ -135,7 +139,7 @@ class OutboundController extends Controller
         try {
             $dispatch = $outbound->dispatch($fulfilment, (int) $data['pallet_count'], $data['handed_to'], $data['shipment_id'] ?? null, auth()->id());
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['pallet_count' => $e->getMessage()]);
+            return back()->withErrors(['pallet_count' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('warehouse.outbound.dispatched', ['packages' => $dispatch->package_count, 'pallets' => $dispatch->pallet_count]));

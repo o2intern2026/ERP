@@ -37,6 +37,11 @@ final class RateService implements RateServiceContract
         if ($item->is_poa) {
             return array_replace($result, ['is_poa' => true, 'amount_cents' => 0, 'calculation_snapshot' => $snapshot + ['poa' => true]]);
         }
+        // Audit 2026-09-10: a percent surcharge (e.g. TR-FUEL 10 %) needs the amount it is a percentage of; without it the line is
+        // unpriceable and must show as POA / needs review — never as a priced-looking $0 (contracts/services.md §4 "never 0").
+        if ($item->pricing_mode === 'percent' && ! isset($context['base_cents'])) {
+            return array_replace($result, ['is_poa' => true, 'amount_cents' => 0, 'calculation_snapshot' => $snapshot + ['poa' => true, 'reason' => 'no_base_cents']]);
+        }
 
         $minQty = (float) $item->threshold('min_billable_qty', 0);
         $billedQty = max($qty, $minQty);

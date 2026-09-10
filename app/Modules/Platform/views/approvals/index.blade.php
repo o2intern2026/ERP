@@ -27,10 +27,15 @@
                     <td>{{ $a->decider?->name }} <small class="text-muted">{{ $a->decision_note }}</small></td>
                     <td>
                         @if ($a->isPending())
-                            @role('admin|finance')
-                                <form method="post" action="{{ route('platform.approvals.approve', $a) }}" class="inline">@csrf<input type="text" name="note" placeholder="{{ __('platform.approvals.decision_note') }}" style="width:12rem"><button type="submit">{{ __('platform.approvals.approve') }}</button></form>
-                                <form method="post" action="{{ route('platform.approvals.reject', $a) }}" class="inline">@csrf<button type="submit" class="secondary">{{ __('platform.approvals.reject') }}</button></form>
-                            @endrole
+                            {{-- Audit 2026-09-10: PLT-7 — the requester never gets the decision buttons (ApprovalService::decide refuses them); they see why instead. --}}
+                            @if ($a->requested_by === auth()->id())
+                                <small class="text-muted">{{ __('platform.approvals.awaiting_second_person') }}</small>
+                            @else
+                                @role('admin|finance')
+                                    <form method="post" action="{{ route('platform.approvals.approve', $a) }}" class="inline">@csrf<input type="text" name="note" placeholder="{{ __('platform.approvals.decision_note') }}" style="width:12rem"><button type="submit">{{ __('platform.approvals.approve') }}</button></form>
+                                    <form method="post" action="{{ route('platform.approvals.reject', $a) }}" class="inline">@csrf<button type="submit" class="secondary">{{ __('platform.approvals.reject') }}</button></form>
+                                @endrole
+                            @endif
                             @if ($a->requested_by === auth()->id())
                                 <form method="post" action="{{ route('platform.approvals.cancel', $a) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('platform.approvals.cancel') }}</button></form>
                             @endif

@@ -18,6 +18,7 @@
         <li><a href="{{ route('warehouse.returns.index') }}">{{ __('warehouse.nav_returns') }}</a></li>
         <li><a href="{{ route('warehouse.stocktakes.index') }}">{{ __('warehouse.nav_stocktakes') }}</a></li>
         <li><a href="{{ route('warehouse.scan.index') }}">{{ __('warehouse.nav_scan') }}</a></li>
+        <li><a href="{{ route('warehouse.locations.index') }}">{{ __('warehouse.nav_locations') }}</a></li>
     @endrole
     <li><a href="{{ route('warehouse.snapshots.index') }}">{{ __('warehouse.nav_snapshots') }}</a></li>
     @php($navWarehouses = \App\Modules\Warehouse\Models\Warehouse::query()->where('active', true)->orderBy('code')->get(['id', 'code']))

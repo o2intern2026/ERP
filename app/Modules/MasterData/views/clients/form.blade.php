@@ -47,7 +47,7 @@
             <legend>{{ __('masterdata.clients.billing_section') }}</legend>
             <div class="grid">
                 <label>{{ __('masterdata.fields.payment_terms') }}
-                    <input type="text" name="payment_terms" value="{{ old('payment_terms', $client->payment_terms ?? 'eom') }}" pattern="prepaid|eom|net_\d{1,3}" required>
+                    <input type="text" name="payment_terms" value="{{ old('payment_terms', $client->payment_terms ?? 'eom') }}" pattern="prepaid|eom|net_\d{1,3}" title="{{ __('masterdata.clients.payment_terms_hint') }}" required>
                     <small>{{ __('masterdata.clients.payment_terms_hint') }}</small>
                 </label>
                 <label>{{ __('masterdata.fields.invoice_mode') }}
@@ -72,7 +72,7 @@
                     </select>
                 </label>
                 <label>{{ __('masterdata.fields.default_markup_percent') }}
-                    <input type="number" step="0.01" min="0" name="default_markup_percent" value="{{ old('default_markup_percent', $client->default_markup_percent ?? 0) }}" required>
+                    <input type="number" step="0.01" min="0" max="999.99" name="default_markup_percent" value="{{ old('default_markup_percent', $client->default_markup_percent ?? 0) }}" required>
                     <small>{{ __('masterdata.clients.markup_hint') }}</small>
                 </label>
                 <label>{{ __('masterdata.fields.dispatch_cutoff_time') }}

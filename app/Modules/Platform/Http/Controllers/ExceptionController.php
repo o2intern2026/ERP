@@ -68,15 +68,22 @@ class ExceptionController extends Controller
         return back()->with('status', __('platform.exceptions.resolved'));
     }
 
-    /** Where the exception came from — each module's detail page when it exists in this build. */
-    public static function sourceUrl(ExceptionRecord $e): ?string
+    /**
+     * Where the exception came from — each module's detail page when it exists in this build AND the current user's role may open it
+     * (audit 2026-09-10: the centre is open to every staff role, the warehouse pages and the integration monitor are not).
+     */
+    public static function sourceUrl(ExceptionRecord $e, ?User $user = null): ?string
     {
+        $user ??= auth()->user();
+        $can = fn (string $route, array $roles): bool => Route::has($route) && ($user === null || $user->hasAnyRole($roles));
+        $warehouse = ['admin', 'warehouse_supervisor', 'warehouse_operator', 'dispatcher', 'customer_service', 'finance']; // Warehouse read group (routes.php)
+
         return match ($e->source_type) {
-            'asn_line' => Route::has('warehouse.asns.show') && $e->source_id ? url('/warehouse/asns/'.AsnLine::query()->whereKey($e->source_id)->value('asn_id')).'#line-'.$e->source_id : null,
-            'asn' => Route::has('warehouse.asns.show') ? route('warehouse.asns.show', $e->source_id) : null,
-            'stock_unit' => Route::has('warehouse.stock.show') ? route('warehouse.stock.show', $e->source_id) : null,
-            'stocktake' => Route::has('warehouse.stocktakes.show') ? route('warehouse.stocktakes.show', $e->source_id) : null,
-            'outbox_event' => Route::has('platform.integration.index') ? route('platform.integration.index') : null,
+            'asn_line' => $can('warehouse.asns.show', $warehouse) && $e->source_id ? url('/warehouse/asns/'.AsnLine::query()->whereKey($e->source_id)->value('asn_id')).'#line-'.$e->source_id : null,
+            'asn' => $can('warehouse.asns.show', $warehouse) ? route('warehouse.asns.show', $e->source_id) : null,
+            'stock_unit' => $can('warehouse.stock.show', $warehouse) ? route('warehouse.stock.show', $e->source_id) : null,
+            'stocktake' => $can('warehouse.stocktakes.show', $warehouse) ? route('warehouse.stocktakes.show', $e->source_id) : null,
+            'outbox_event' => $can('platform.integration.index', ['admin']) ? route('platform.integration.index') : null,
             'order' => Route::has('orders.show') ? route('orders.show', $e->source_id) : null,
             'shipment' => Route::has('transport.shipments.show') ? route('transport.shipments.show', $e->source_id) : null,
             default => $e->job_id ? route('platform.jobs.show', $e->job_id) : null,

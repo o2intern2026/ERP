@@ -71,15 +71,20 @@
                     <td>@foreach ($packages as $p)<code>{{ $p->carton_label }}</code> {{ __('warehouse.package_types.'.$p->package_type) }} {{ $p->weight_kg }}kg<br>@endforeach</td>
                     <td>{{ $packages->first()->created_at->format('Y-m-d H:i') }}</td>
                     <td>
-                        @role('admin|warehouse_supervisor|warehouse_operator')
-                            <form method="post" action="{{ route('warehouse.outbound.dispatch', $fulfilmentId) }}" class="inline">
-                                @csrf
-                                <input type="number" name="pallet_count" min="0" value="{{ $packages->where('package_type', 'pallet')->count() }}" style="width:6rem" aria-label="{{ __('warehouse.outbound.pallet_count') }}">
-                                <select name="handed_to" style="width:9rem">@foreach ($handedTo as $h)<option value="{{ $h }}">{{ __('warehouse.handed_to.'.$h) }}</option>@endforeach</select>
-                                <input type="number" name="shipment_id" min="1" placeholder="{{ __('warehouse.outbound.shipment_id') }}" style="width:9rem">
-                                <button type="submit">{{ __('warehouse.outbound.dispatch') }}</button>
-                            </form>
-                        @endrole
+                        @if (in_array($fulfilmentId, $heldFulfilments, true))
+                            {{-- Audit 2026-09-10: a financial hold refuses the handover (OutboundService::dispatch) — show it on the board instead of an English refusal after the click. --}}
+                            <span class="badge" data-tone="danger">{{ __('platform.exceptions.hold_types.financial') }}</span> <small class="text-muted">{{ __('warehouse.outbound.errors.financial_hold') }}</small>
+                        @else
+                            @role('admin|warehouse_supervisor|warehouse_operator')
+                                <form method="post" action="{{ route('warehouse.outbound.dispatch', $fulfilmentId) }}" class="inline">
+                                    @csrf
+                                    <input type="number" name="pallet_count" min="0" value="{{ $packages->where('package_type', 'pallet')->count() }}" style="width:6rem" aria-label="{{ __('warehouse.outbound.pallet_count') }}">
+                                    <select name="handed_to" style="width:9rem">@foreach ($handedTo as $h)<option value="{{ $h }}">{{ __('warehouse.handed_to.'.$h) }}</option>@endforeach</select>
+                                    <input type="number" name="shipment_id" min="1" placeholder="{{ __('warehouse.outbound.shipment_id') }}" style="width:9rem">
+                                    <button type="submit">{{ __('warehouse.outbound.dispatch') }}</button>
+                                </form>
+                            @endrole
+                        @endif
                     </td>
                 </tr>
             @endforeach

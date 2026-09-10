@@ -7,9 +7,9 @@ use App\Modules\Billing\Models\CreditNote;
 use App\Modules\Billing\Models\CreditNoteLine;
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Platform\Services\ApprovalService;
+use App\Support\Exceptions\RuleViolation;
 use App\Support\Numbers;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
 
 /** A8b: the only way to reduce an issued invoice; issuing needs a second person's approval (PLT-7). */
 final class CreditNoteService
@@ -20,11 +20,11 @@ final class CreditNoteService
     public function draft(Invoice $invoice, array $lines, string $reason, User $by): CreditNote
     {
         if (! in_array($invoice->status, ['issued', 'part_paid', 'paid'], true)) {
-            throw new InvalidArgumentException('Credit notes apply to issued invoices only.');
+            throw new RuleViolation('Credit notes apply to issued invoices only.', 'billing.credit_notes.errors.not_issued');
         }
         $total = (int) array_sum(array_column($lines, 'amount_cents'));
         if ($total <= 0) {
-            throw new InvalidArgumentException('A credit note needs a positive amount.');
+            throw new RuleViolation('A credit note needs a positive amount.', 'billing.credit_notes.errors.positive_amount');
         }
 
         return DB::transaction(function () use ($invoice, $lines, $reason, $by, $total): CreditNote {
@@ -54,7 +54,7 @@ final class CreditNoteService
             return $note;
         }
         if (! $this->approvals->isApproved('credit_note', 'credit_note', $note->id)) {
-            throw new InvalidArgumentException('This credit note has not been approved by a second person yet.');
+            throw new RuleViolation('This credit note has not been approved by a second person yet.', 'billing.credit_notes.errors.not_approved');
         }
 
         return DB::transaction(function () use ($note, $by): CreditNote {

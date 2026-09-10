@@ -34,6 +34,8 @@
                         @foreach ($list as $loc)<option value="{{ $loc->id }}" data-warehouse="{{ $warehouseId }}" @selected((int) old('receiving_location_id') === $loc->id)>{{ $loc->full_code }}</option>@endforeach
                     @endforeach
                 </select>
+                {{-- Audit 2026-09-10: shown by syncLocations() when the chosen warehouse has no active 收货区; the submit is disabled at the same time. --}}
+                <small id="no-location-notice" hidden><mark>{{ __('warehouse.receiving.no_receiving_location_short') }}</mark> <a href="{{ route('warehouse.locations.index') }}">{{ __('warehouse.locations.title') }}</a></small>
             </label>
         </div>
 
@@ -57,7 +59,7 @@
             <template id="receipt-row-template">@include('warehouse::receiving._unplanned-row', ['index' => '__INDEX__', 'row' => ['unit_type' => 'pallet', 'unit_count' => 1], 'unitTypes' => $unitTypes])</template>
         </fieldset>
         <label>{{ __('warehouse.receipts.notes') }}<textarea name="notes" rows="2">{{ old('notes') }}</textarea></label>
-        <button type="submit">{{ __('warehouse.receiving.unplanned.submit') }}</button>
+        <button type="submit" id="unplanned-submit">{{ __('warehouse.receiving.unplanned.submit') }}</button>
     </form>
 @endsection
 
@@ -67,6 +69,8 @@
         // Receiving locations follow the chosen warehouse (client-side filter; the server validates the pair again).
         const warehouse = document.getElementById('warehouse-select');
         const locations = document.getElementById('location-select');
+        const notice = document.getElementById('no-location-notice');
+        const submit = document.getElementById('unplanned-submit');
         const syncLocations = () => {
             let firstVisible = null;
             Array.from(locations.options).forEach(option => {
@@ -77,7 +81,11 @@
             });
             if (locations.selectedOptions.length === 0 || locations.selectedOptions[0].disabled) {
                 if (firstVisible) firstVisible.selected = true;
+                else locations.selectedIndex = -1; // never post another warehouse's location
             }
+            // No 收货区 in this warehouse: say so and block the submit instead of a silent browser bubble / a foreign location.
+            notice.hidden = firstVisible !== null;
+            submit.disabled = firstVisible === null;
         };
         warehouse.addEventListener('change', syncLocations);
         syncLocations();

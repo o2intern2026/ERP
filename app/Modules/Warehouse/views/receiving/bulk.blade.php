@@ -17,6 +17,9 @@
         <p>{{ __('warehouse.receiving.bulk.not_receivable') }}</p>
     @elseif ($lines->isEmpty())
         <p>{{ __('warehouse.receiving.bulk.nothing') }}</p>
+    @elseif ($receivingLocations->isEmpty())
+        {{-- Audit 2026-09-10: no active 收货区 in this warehouse — the form could never be submitted; point at 库位配置 instead. --}}
+        <p><mark>{{ __('warehouse.receiving.no_receiving_location', ['code' => $asn->warehouse->code]) }}</mark> <a href="{{ route('warehouse.locations.index') }}">{{ __('warehouse.locations.title') }}</a></p>
     @else
         <form method="post" action="{{ route('warehouse.receiving.bulk_store', $asn) }}" id="bulk-receive">
             @csrf

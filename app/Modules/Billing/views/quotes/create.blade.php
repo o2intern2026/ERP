@@ -15,11 +15,14 @@
             <legend>{{ __('billing.quotes.lines') }}</legend>
             <div id="lines">
                 @for ($i = 0; $i < 6; $i++)
-                    <div class="grid quote-line" @if ($i > 2) hidden @endif>
-                        <select name="lines[{{ $i }}][charge_code]"><option value="">{{ __('billing.quotes.line_code') }}</option>@foreach ($codes as $code)<option value="{{ $code->code }}" @selected(old("lines.$i.charge_code") === $code->code)>{{ $code->code }} · {{ $code->customer_description }}</option>@endforeach</select>
-                        <input type="number" step="0.001" min="0" name="lines[{{ $i }}][qty]" placeholder="{{ __('billing.quotes.line_qty') }}" value="{{ old("lines.$i.qty") }}">
+                    {{-- Audit 2026-09-10: a spare row the user touched (or that carries an error) stays open after a validation round trip --}}
+                    @php($collapsed = $i > 2 && old("lines.$i.charge_code") === null && old("lines.$i.qty") === null && ! $errors->has("lines.$i.qty") && ! $errors->has("lines.$i.charge_code"))
+                    <div class="grid quote-line"{{ $collapsed ? ' hidden' : '' }}>
+                        <select name="lines[{{ $i }}][charge_code]" @error("lines.$i.charge_code") aria-invalid="true" @enderror><option value="">{{ __('billing.quotes.line_code') }}</option>@foreach ($codes as $code)<option value="{{ $code->code }}" @selected(old("lines.$i.charge_code") === $code->code)>{{ $code->code }} · {{ $code->customer_description }}</option>@endforeach</select>
+                        <input type="number" step="0.001" min="0.001" name="lines[{{ $i }}][qty]" placeholder="{{ __('billing.quotes.line_qty') }}" value="{{ old("lines.$i.qty") }}" @if (old("lines.$i.charge_code") !== null) required @endif @error("lines.$i.qty") aria-invalid="true" @enderror>
                         <input type="number" step="0.01" min="0" name="lines[{{ $i }}][weight_kg]" placeholder="{{ __('billing.quotes.line_weight') }}" value="{{ old("lines.$i.weight_kg") }}">
                         <input type="number" step="0.01" min="0" name="lines[{{ $i }}][cost]" placeholder="{{ __('billing.quotes.line_cost') }}" value="{{ old("lines.$i.cost") }}">
+                        <input type="number" step="0.01" min="0" name="lines[{{ $i }}][base]" placeholder="{{ __('billing.quotes.line_base') }}" value="{{ old("lines.$i.base") }}">
                     </div>
                 @endfor
             </div>
@@ -31,5 +34,13 @@
 @endsection
 
 @push('scripts')
-<script>document.getElementById('add-line').addEventListener('click', () => { const r = document.querySelector('#lines .quote-line[hidden]'); if (r) r.hidden = false; });</script>
+<script>
+document.getElementById('add-line').addEventListener('click', () => { const r = document.querySelector('#lines .quote-line[hidden]'); if (r) r.hidden = false; });
+// A row with a charge code needs a qty (server rule: exclude_without / required / gt:0) — mirror it in the browser so the field is marked before submit.
+document.querySelectorAll('#lines .quote-line').forEach((row) => {
+    const code = row.querySelector('select[name$="[charge_code]"]'), qty = row.querySelector('input[name$="[qty]"]');
+    const sync = () => { qty.required = code.value !== ''; };
+    code.addEventListener('change', sync); sync();
+});
+</script>
 @endpush

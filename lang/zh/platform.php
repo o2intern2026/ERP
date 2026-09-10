@@ -99,6 +99,7 @@ return [
     ],
 
     'users' => [
+        'role_placeholder' => '— 请选择角色 —',
         'title' => '用户管理',
         'create' => '新建用户',
         'created' => '用户已创建。',
@@ -171,6 +172,9 @@ return [
         'make_visible' => '设为客户可见',
         'make_hidden' => '设为仅内部',
         'visibility_saved' => '可见性已更新。',
+        'client_required' => '勾选「客户可见」时必须选择客户(或填 Job ID,系统取该 Job 的客户);否则客户门户看不到这份单据。',
+        'client_hint' => '客户可见的单据必须归属某个客户;填了 Job ID 可留空,自动取 Job 的客户。',
+        'no_client' => '未归属客户,无法设为客户可见',
         'download' => '下载',
         'size' => '大小',
         'uploaded_at' => '上传时间',
@@ -206,6 +210,13 @@ return [
         'cancelled' => '已撤回。',
         'empty' => '没有记录。',
         'rule' => '敏感动作需要第二人批准后才生效;申请人不能批准自己的申请。',
+        'awaiting_second_person' => '等待第二人审批(申请人不能批准自己的申请)',
+        'errors' => [
+            'self_decide' => '申请人不能批准或拒绝自己的申请,需要第二人审批 (PLT-7)。',
+            'already_decided' => '审批 #:id 已经:status,不能再改。',
+            'not_pending' => '只有待审批的申请可以撤回。',
+            'cancel_not_allowed' => '只有申请人或管理员可以撤回申请。',
+        ],
         'types' => ['rate_card_change' => '价目表变更', 'credit_note' => 'Credit note', 'stock_adjustment' => '大额库存调整', 'financial_release' => '财务放行', 'price_override' => '价格覆盖', 'poa_quote' => 'POA 报价'],
         'statuses' => ['pending' => '待审批', 'approved' => '已批准', 'rejected' => '已拒绝', 'cancelled' => '已撤回'],
     ],

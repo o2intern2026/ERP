@@ -61,13 +61,13 @@ class StockController extends Controller
         $data = $request->validate(['location_code' => ['required', 'string', 'max:40'], 'reason' => ['nullable', 'string', 'max:255']]);
         $to = Location::query()->where('full_code', strtoupper(trim($data['location_code'])))->first();
         if ($to === null) {
-            return back()->withErrors(['location_code' => __('warehouse.putaway.unknown_location', ['code' => $data['location_code']])]);
+            return back()->withErrors(['location_code' => __('warehouse.putaway.unknown_location', ['code' => $data['location_code']])])->withInput();
         }
 
         try {
             $moves->move($unit, $to, $data['reason'] ?? null);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['location_code' => $e->getMessage()]);
+            return back()->withErrors(['location_code' => $e->getMessage()])->withInput();
         }
 
         return back()->with('status', __('warehouse.moves.done', ['label' => $unit->label_code, 'location' => $to->full_code]));
@@ -90,7 +90,7 @@ class StockController extends Controller
         try {
             $quarantine->quarantine($unit, $data['condition'], $data['reason'], $photos);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['reason' => $e->getMessage()]);
+            return back()->withErrors(['reason' => $e->getMessage()])->withInput();
         }
 
         return back()->with('status', __('warehouse.moves.quarantined', ['label' => $unit->label_code]));
@@ -101,13 +101,13 @@ class StockController extends Controller
         $data = $request->validate(['location_code' => ['required', 'string', 'max:40'], 'reason' => ['required', 'string', 'max:255']]);
         $to = Location::query()->where('full_code', strtoupper(trim($data['location_code'])))->first();
         if ($to === null) {
-            return back()->withErrors(['location_code' => __('warehouse.putaway.unknown_location', ['code' => $data['location_code']])]);
+            return back()->withErrors(['location_code' => __('warehouse.putaway.unknown_location', ['code' => $data['location_code']])])->withInput();
         }
 
         try {
             $quarantine->restore($unit, $to, $data['reason']);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['location_code' => $e->getMessage()]);
+            return back()->withErrors(['location_code' => $e->getMessage()])->withInput();
         }
 
         return back()->with('status', __('warehouse.moves.restored', ['label' => $unit->label_code]));

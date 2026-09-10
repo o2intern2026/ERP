@@ -34,13 +34,13 @@ class PutawayController extends Controller
 
         $location = Location::query()->where('warehouse_id', $unit->warehouse_id)->where('full_code', strtoupper(trim($data['location_code'])))->first();
         if ($location === null) {
-            return back()->withErrors(['location_code' => __('warehouse.putaway.unknown_location', ['code' => $data['location_code']])]);
+            return back()->withErrors(['location_code' => __('warehouse.putaway.unknown_location', ['code' => $data['location_code']])])->withInput(['location_code' => $data['location_code'], 'putaway_unit' => $unit->id]);
         }
 
         try {
             $putaway->putaway($unit, $location);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['location_code' => $e->getMessage()]);
+            return back()->withErrors(['location_code' => $e->getMessage()])->withInput(['location_code' => $data['location_code'], 'putaway_unit' => $unit->id]);
         }
 
         return back()->with('status', __('warehouse.putaway.done', ['label' => $unit->label_code, 'location' => $location->full_code]));

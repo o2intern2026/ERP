@@ -7,13 +7,14 @@
         <h1>{{ __('billing.rate_cards.title') }}</h1>
         <p style="text-align:right"><a href="{{ route('billing.charge_codes.index') }}" role="button" class="secondary outline">{{ __('billing.charge_codes.title') }}</a></p>
     </header>
-    <details>
+    {{-- Audit 2026-09-10: reopens with what was typed after a validation error. --}}
+    <details{{ $errors->any() ? ' open' : '' }}>
         <summary role="button" class="secondary outline">{{ __('billing.rate_cards.create') }}</summary>
         <form method="post" action="{{ route('billing.rate_cards.store') }}" class="grid">
             @csrf
-            <select name="client_id" required><option value="">{{ __('billing.rate_cards.client') }}</option>@foreach ($clients as $c)<option value="{{ $c->id }}">{{ $c->name }}</option>@endforeach</select>
-            <input type="text" name="name" placeholder="{{ __('billing.rate_cards.name') }}" required>
-            <input type="date" name="effective_from" value="{{ today()->toDateString() }}" required>
+            <select name="client_id" required><option value="">{{ __('billing.rate_cards.client') }}</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected((int) old('client_id') === $c->id)>{{ $c->name }}</option>@endforeach</select>
+            <input type="text" name="name" placeholder="{{ __('billing.rate_cards.name') }}" value="{{ old('name') }}" required>
+            <input type="date" name="effective_from" value="{{ old('effective_from', today()->toDateString()) }}" required>
             <button type="submit" class="secondary">{{ __('billing.rate_cards.create') }}</button>
         </form>
     </details>

@@ -12,6 +12,7 @@ return [
     'nav_tasks' => '作业登记(VAS)',
     'nav_outbound' => '出库',
     'nav_returns' => '退货',
+    'nav_locations' => '库位配置',
     'placeholder' => '模块占位页 —— 功能在后续检查点交付。',
 
     'stock' => [
@@ -144,6 +145,9 @@ return [
         'worklist_hint' => '所有已预报但还没收的货物行(预报单状态:已预报 / 已到货 / 收货中)。点"收货"逐行登记实收;同一预报单一次到货收的行归到同一张入库单,全部收完后在预报单页或入库单页点"入库完成"。',
         'empty' => '没有待收货的货物行。',
         'arrival_date' => '到货日期',
+        'no_receiving_location' => '仓库 :code 还没有启用的「收货区」库位,无法收货。请先到「库位配置」新建一个类型为收货区的库位。',
+        'no_receiving_location_short' => '所选仓库还没有启用的「收货区」库位,无法收货。请先到「库位配置」新建收货区库位。',
+        'units_required' => '实收箱数大于 0 时,至少要填一行库存单元(箱数 ≥ 1)。',
         'bulk' => [
             'title' => '手动填写入库单(整单收货)',
             'hint' => '勾选本次到货的行,填实收和破损箱数;留空或不勾的行以后再收。提交后所有行计入同一张入库单。',
@@ -317,6 +321,8 @@ return [
 
     'locations' => [
         'title' => '库位配置',
+        'hint' => '每个仓库至少要有一个「收货区」库位才能收货;上架用「存储」/「Pickface」,隔离用「隔离区」。',
+        'no_receiving' => '仓库 :code 还没有收货区库位:收货前请先新建一个类型为「收货区」的库位。',
         'create' => '新建库位',
         'created' => '库位 :code 已创建。',
         'warehouse' => '仓库',
@@ -367,6 +373,12 @@ return [
         'empty' => '还没有盘点。',
         'statuses' => ['counting' => '盘点中', 'closed' => '已关闭'],
         'progress' => '已计 :done / :total',
+        'not_counted' => '未计',
+        'close_blocked' => '还有 :count 个单元未计数,全部记录后才能关闭。',
+        'errors' => [
+            'uncounted' => '还有 :count 个单元未计数(:labels),全部记录后才能关闭。',
+            'reason_missing' => ':count 个单元有差异但没填原因(:labels),请先填原因。',
+        ],
     ],
     'scan' => [
         'title' => '扫码',
@@ -469,6 +481,7 @@ return [
         'labels' => '箱标',
         'empty' => '暂无。',
         'packed_at' => '打包时间',
+        'errors' => ['financial_hold' => '该订单处于财务锁定:财务放行前不能发运交接。'],
     ],
 
     'returns' => [
@@ -501,6 +514,10 @@ return [
         'received_at' => '收货时间',
         'inspected_at' => '验收时间',
         'original_order' => '原订单',
+        'errors' => [
+            'lines_unreceived' => '还有 :count 行未记录收货(可填 0),全部记录后才能进入验收。',
+            'lines_uninspected' => '还有 :count 行未判定去向,全部判定后才能完成验收。',
+        ],
     ],
 
     'receipt_statuses' => ['open' => '进行中', 'completed' => '已完成'],

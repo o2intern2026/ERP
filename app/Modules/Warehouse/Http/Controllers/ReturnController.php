@@ -9,6 +9,7 @@ use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Services\ReturnService;
 use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -85,7 +86,7 @@ class ReturnController extends Controller
         try {
             $action();
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors([$errorField => $e->getMessage()]);
+            return back()->withErrors([$errorField => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('warehouse.returns.'.$statusKey));

@@ -71,7 +71,12 @@ class ReceivingController extends Controller
             'damaged_cartons' => ['nullable', 'integer', 'min:0'],
             'variance_reason' => ['nullable', 'string', 'max:255'],
             'unloaded_pallets' => ['nullable', 'integer', 'min:0'],
-            'units' => ['required_if:received_cartons,>,0', 'array'],
+            // Audit 2026-09-10: required_if has no comparison operators — the old rule fired on 0 and never on a positive count.
+            'units' => ['array', function (string $attribute, mixed $value, \Closure $fail) use ($request) {
+                if ((int) $request->input('received_cartons') > 0 && array_filter((array) $value, fn ($u) => is_array($u) && (int) ($u['carton_qty'] ?? 0) > 0) === []) {
+                    $fail(__('warehouse.receiving.units_required'));
+                }
+            }],
             'units.*.unit_type' => ['required', Rule::in(Enums::UNIT_TYPES)],
             'units.*.carton_qty' => ['required', 'integer', 'min:1'],
             'units.*.length_mm' => ['nullable', 'integer', 'min:1'],

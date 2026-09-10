@@ -30,11 +30,13 @@
     </div>
 
     <h2>{{ __('platform.jobs.panels') }}</h2>
+    {{-- Audit 2026-09-10: cross-module links only for roles the target route group admits (Warehouse read group: routes.php); others see plain text. --}}
+    @php($canOpenWarehouse = auth()->user()->hasAnyRole(['admin', 'warehouse_supervisor', 'warehouse_operator', 'dispatcher', 'customer_service', 'finance']))
     <div class="grid">
         <article>
             <header>{{ __('platform.jobs.panel_asns') }} <small class="text-muted">{{ $panels['asns']->count() }}</small></header>
             @forelse ($panels['asns'] as $a)
-                <p><a href="{{ route('warehouse.asns.show', $a->id) }}">{{ $a->asn_no }}</a> · {{ __('warehouse.asn_statuses.'.$a->status) }} · {{ $a->lines_count }} {{ __('platform.jobs.lines') }}</p>
+                <p>@if ($canOpenWarehouse)<a href="{{ route('warehouse.asns.show', $a->id) }}">{{ $a->asn_no }}</a>@else{{ $a->asn_no }}@endif · {{ __('warehouse.asn_statuses.'.$a->status) }} · {{ $a->lines_count }} {{ __('platform.jobs.lines') }}</p>
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse
@@ -42,7 +44,7 @@
         <article>
             <header>{{ __('platform.jobs.panel_stock') }}</header>
             <p>{{ __('platform.jobs.stock_units') }}: {{ (int) $panels['stock']->units }} · {{ __('platform.jobs.on_hand') }}: {{ (int) $panels['stock']->on_hand }} · {{ __('platform.jobs.reserved') }}: {{ (int) $panels['stock']->reserved }}</p>
-            <p><a href="{{ route('warehouse.index') }}">{{ __('platform.jobs.open_stock') }}</a></p>
+            @if ($canOpenWarehouse)<p><a href="{{ route('warehouse.index') }}">{{ __('platform.jobs.open_stock') }}</a></p>@endif
         </article>
         <article>
             <header>{{ __('platform.jobs.panel_orders') }} <small class="text-muted">{{ $panels['orders']->count() }}</small></header>
@@ -95,7 +97,7 @@
                     <tr><td>{{ $c->charge_date->format('Y-m-d') }}</td><td><code>{{ $c->chargeCode->code }}</code> <small class="text-muted">{{ $c->chargeCode->customer_description }}</small></td><td class="num">{{ rtrim(rtrim(number_format($c->qty, 3), '0'), '.') }}</td><td class="num">{{ number_format($c->amount_cents / 100, 2) }}</td><td>{{ __('billing.charge_statuses.'.$c->status) }}</td></tr>
                 @endforeach
                 </tbody>
-                <tfoot><tr><td colspan="3"><strong>{{ __('billing.job_panel.revenue') }}</strong> · <small class="text-muted">{{ __('billing.job_panel.pending_cost') }}</small></td><td class="num"><strong>{{ number_format($jobCharges->sum('amount_cents') / 100, 2) }}</strong></td><td><a href="{{ route('billing.index', ['job_no' => $job->job_no]) }}">{{ __('billing.job_panel.open') }}</a></td></tr></tfoot>
+                <tfoot><tr><td colspan="3"><strong>{{ __('billing.job_panel.revenue') }}</strong> · <small class="text-muted">{{ __('billing.job_panel.pending_cost') }}</small></td><td class="num"><strong>{{ number_format($jobCharges->sum('amount_cents') / 100, 2) }}</strong></td><td>@role('admin|finance')<a href="{{ route('billing.index', ['job_no' => $job->job_no]) }}">{{ __('billing.job_panel.open') }}</a>@endrole</td></tr></tfoot>
             </table>
         @endif
     @endrole

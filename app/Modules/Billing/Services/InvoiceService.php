@@ -33,7 +33,7 @@ final class InvoiceService
     {
         $charges = $this->unbilled()->where('job_id', $jobId)->whereHas('chargeCode', fn ($q) => $q->where('category', '!=', 'storage'))->get(); // storage goes on the weekly storage invoice
         if ($charges->isEmpty()) {
-            throw new InvalidArgumentException('No unbilled charges on this Job.');
+            throw new InvalidArgumentException(__('billing.errors.no_unbilled_job'));
         }
 
         return $this->draft($charges, $type, null, null);
@@ -53,7 +53,7 @@ final class InvoiceService
             ->when($scope !== 'all', fn ($q) => $q->whereHas('chargeCode', fn ($c) => $scope === 'storage' ? $c->where('category', 'storage') : $c->where('category', '!=', 'storage')))
             ->get();
         if ($charges->isEmpty()) {
-            throw new InvalidArgumentException('No unbilled charges for this client in the period.');
+            throw new InvalidArgumentException(__('billing.errors.no_unbilled_period'));
         }
 
         return $this->draft($charges, $scope === 'storage' ? 'storage' : 'service', $from, $to, $groupBy);
@@ -82,7 +82,7 @@ final class InvoiceService
     {
         $charges = $this->unbilled()->where('client_id', $clientId)->whereBetween('charge_date', [$from->toDateString(), $to->toDateString()])->whereHas('chargeCode', fn ($q) => $q->where('category', '!=', 'storage'))->get();
         if ($charges->isEmpty()) {
-            throw new InvalidArgumentException('No unbilled charges for this client in the period.');
+            throw new InvalidArgumentException(__('billing.errors.no_unbilled_period'));
         }
 
         return $this->draft($charges, 'monthly', $from, $to);
@@ -95,7 +95,7 @@ final class InvoiceService
         $to = $from->copy()->endOfWeek(CarbonInterface::SUNDAY);
         $charges = $this->unbilled()->where('client_id', $clientId)->whereHas('chargeCode', fn ($q) => $q->where('category', 'storage'))->whereBetween('charge_date', [$from->toDateString(), $to->toDateString()])->get();
         if ($charges->isEmpty()) {
-            throw new InvalidArgumentException('No unbilled storage charges for this client in that week.');
+            throw new InvalidArgumentException(__('billing.errors.no_unbilled_storage_week'));
         }
 
         return $this->draft($charges, 'storage', $from, $to);
@@ -104,7 +104,7 @@ final class InvoiceService
     public function issue(Invoice $invoice): Invoice
     {
         if ($invoice->status !== 'draft') {
-            throw new InvalidArgumentException("Invoice {$invoice->invoice_no} is already {$invoice->status}.");
+            throw new InvalidArgumentException(__('billing.errors.already_issued', ['no' => $invoice->invoice_no, 'status' => __('billing.invoices.statuses.'.$invoice->status)]));
         }
 
         return DB::transaction(function () use ($invoice): Invoice {
@@ -153,7 +153,7 @@ final class InvoiceService
     public function discardDraft(Invoice $invoice): void
     {
         if ($invoice->status !== 'draft') {
-            throw new InvalidArgumentException('Only drafts can be discarded.');
+            throw new InvalidArgumentException(__('billing.errors.only_drafts_discard'));
         }
         DB::transaction(function () use ($invoice): void {
             Charge::query()->withoutGlobalScopes()->whereIn('id', $invoice->lines()->pluck('charge_id')->filter())->update(['invoice_line_id' => null]);
@@ -166,10 +166,10 @@ final class InvoiceService
     public function recordPayment(Invoice $invoice, int $amountCents, CarbonInterface $paidAt, string $method, ?string $reference = null): Payment
     {
         if (! in_array($invoice->status, ['issued', 'part_paid'], true)) {
-            throw new InvalidArgumentException('Payments are recorded against issued invoices only.');
+            throw new InvalidArgumentException(__('billing.errors.payment_issued_only'));
         }
         if ($amountCents <= 0) {
-            throw new InvalidArgumentException('Payment amount must be positive.');
+            throw new InvalidArgumentException(__('billing.errors.payment_positive'));
         }
 
         return DB::transaction(function () use ($invoice, $amountCents, $paidAt, $method, $reference): Payment {

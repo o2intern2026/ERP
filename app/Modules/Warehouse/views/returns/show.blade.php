@@ -7,6 +7,8 @@
     <h1>{{ $receipt->receipt_no }} <span class="badge" data-tone="{{ in_array($receipt->status, ['inspected', 'closed'], true) ? 'ok' : 'warn' }}">{{ __('warehouse.return_statuses.'.$receipt->status) }}</span></h1>
     <p class="text-muted">{{ $receipt->client->name }} · {{ __('warehouse.returns.original_order') }} {{ $orderNo }} · {{ $receipt->warehouse->code }} @if ($receipt->notes)· {{ $receipt->notes }}@endif</p>
     @foreach (['received_qty', 'disposition', 'receipt'] as $field)@error($field)<p><mark>{{ $message }}</mark></p>@enderror @endforeach
+    @php($unreceived = $receipt->lines->whereNull('received_at')->count())
+    @php($uninspected = $receipt->lines->whereNull('inspected_at')->count())
 
     <div class="overflow-auto"><table class="dense">
         <thead><tr><th>#</th><th>{{ __('warehouse.stock.description') }}</th><th class="num">{{ __('warehouse.returns.expected') }}</th><th class="num">{{ __('warehouse.returns.received') }}</th><th>{{ __('warehouse.returns.condition') }}</th><th>{{ __('warehouse.returns.disposition') }}</th><th>{{ __('warehouse.returns.stock_unit') }}</th><th>{{ __('platform.common.actions') }}</th></tr></thead>
@@ -42,10 +44,19 @@
     </table></div>
 
     @role('admin|warehouse_supervisor|warehouse_operator')
+        {{-- Audit 2026-09-10: the completion buttons mirror ReturnService's preconditions — disabled with the missing step named, instead of an English refusal after the click. --}}
         @if ($receipt->status === 'expected')
-            <form method="post" action="{{ route('warehouse.returns.complete_receiving', $receipt) }}">@csrf<button type="submit">{{ __('warehouse.returns.complete_receiving') }}</button></form>
+            <form method="post" action="{{ route('warehouse.returns.complete_receiving', $receipt) }}">
+                @csrf
+                <button type="submit" @disabled($unreceived > 0)>{{ __('warehouse.returns.complete_receiving') }}</button>
+                @if ($unreceived > 0)<small class="text-muted">{{ __('warehouse.returns.errors.lines_unreceived', ['count' => $unreceived]) }}</small>@endif
+            </form>
         @elseif ($receipt->status === 'received')
-            <form method="post" action="{{ route('warehouse.returns.complete_inspection', $receipt) }}">@csrf<button type="submit">{{ __('warehouse.returns.complete_inspection') }}</button></form>
+            <form method="post" action="{{ route('warehouse.returns.complete_inspection', $receipt) }}">
+                @csrf
+                <button type="submit" @disabled($uninspected > 0)>{{ __('warehouse.returns.complete_inspection') }}</button>
+                @if ($uninspected > 0)<small class="text-muted">{{ __('warehouse.returns.errors.lines_uninspected', ['count' => $uninspected]) }}</small>@endif
+            </form>
         @endif
     @endrole
 @endsection

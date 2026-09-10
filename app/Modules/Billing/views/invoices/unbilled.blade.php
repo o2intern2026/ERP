@@ -12,16 +12,27 @@
             <article>
                 <header class="grid">
                     <strong>{{ $entry['client']->name }} <small class="text-muted">· {{ __('masterdata.invoice_modes.'.$entry['client']->invoice_mode) }} · {{ $entry['client']->payment_terms }}</small></strong>
-                    <span class="num">{{ \App\Support\Money::cents((int) round($entry['amount_cents']))->format() }} {{ __('billing.money') }}</span>
+                    <span class="num">{{ \App\Support\Money::cents((int) round($entry['amount_cents']))->format() }} {{ __('billing.money') }}
+                        @if ($entry['storage_count'] > 0)<br><small class="text-muted">{{ __('billing.unbilled.service_part') }} {{ \App\Support\Money::cents($entry['service_amount_cents'])->format() }} · {{ __('billing.unbilled.storage_part') }} {{ \App\Support\Money::cents($entry['storage_amount_cents'])->format() }}</small>@endif
+                    </span>
                 </header>
                 <table class="dense">
                     <tbody>
                     @foreach ($entry['jobs'] as $row)
                         <tr>
                             <td><a href="{{ route('platform.jobs.show', $row['job']) }}">{{ $row['job']->job_no }}</a> <small class="text-muted">{{ $row['job']->reference }}</small></td>
-                            <td class="num">{{ $row['count'] }} {{ __('billing.unbilled.lines') }}</td>
-                            <td class="num">{{ \App\Support\Money::cents((int) round($row['amount_cents']))->format() }}</td>
-                            <td><form method="post" action="{{ route('billing.invoices.draft_job', $row['job']) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('billing.unbilled.draft_job') }}</button></form></td>
+                            {{-- Both figures describe the service charges 按此 Job 开票 will draft; storage lines are counted in the note below. --}}
+                            <td class="num">{{ $row['service_count'] }} {{ __('billing.unbilled.lines') }}</td>
+                            <td class="num">{{ \App\Support\Money::cents((int) round($row['service_amount_cents']))->format() }}
+                                @if ($row['storage_count'] > 0)<br><small class="text-muted">{{ __('billing.unbilled.storage_note', ['count' => $row['storage_count'], 'amount' => \App\Support\Money::cents($row['storage_amount_cents'])->format()]) }}</small>@endif
+                            </td>
+                            <td>
+                                @if ($row['service_count'] > 0)
+                                    <form method="post" action="{{ route('billing.invoices.draft_job', $row['job']) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('billing.unbilled.draft_job') }}</button></form>
+                                @else
+                                    <small class="text-muted">{{ __('billing.unbilled.storage_only') }}</small>
+                                @endif
+                            </td>
                         </tr>
                     @endforeach
                     </tbody>
@@ -31,9 +42,10 @@
                         @csrf<input type="hidden" name="client_id" value="{{ $entry['client']->id }}">
                         <p class="text-muted"><small>{{ __('billing.unbilled_period.period_hint', ['period' => __('masterdata.invoice_periods.'.($entry['client']->invoice_period ?? 'monthly')), 'grouping' => __('masterdata.invoice_groupings.'.($entry['client']->invoice_grouping ?? 'job'))]) }}</small></p>
                         <div class="grid">
-                            <label>{{ __('billing.unbilled_period.period_from') }}<input type="date" name="from" value="{{ now()->startOfMonth()->toDateString() }}" required></label>
-                            <label>{{ __('billing.unbilled_period.period_to') }}<input type="date" name="to" value="{{ now()->endOfMonth()->toDateString() }}" required></label>
-                            <label>{{ __('billing.unbilled_period.scope') }}<select name="scope">@foreach (\App\Support\Enums::INVOICE_SCOPES as $scope)<option value="{{ $scope }}">{{ __('billing.unbilled_period.scopes.'.$scope) }}</option>@endforeach</select></label>
+                            {{-- Audit 2026-09-10: defaults follow the pool (its date span and whether it holds storage / service / both) so the header figure and the button agree. --}}
+                            <label>{{ __('billing.unbilled_period.period_from') }}<input type="date" name="from" value="{{ $entry['period_from'] ?? now()->startOfMonth()->toDateString() }}" required></label>
+                            <label>{{ __('billing.unbilled_period.period_to') }}<input type="date" name="to" value="{{ $entry['period_to'] ?? now()->endOfMonth()->toDateString() }}" required></label>
+                            <label>{{ __('billing.unbilled_period.scope') }}<select name="scope">@foreach (\App\Support\Enums::INVOICE_SCOPES as $scope)<option value="{{ $scope }}" @selected(($entry['default_scope'] ?? 'service') === $scope)>{{ __('billing.unbilled_period.scopes.'.$scope) }}</option>@endforeach</select></label>
                             <label>{{ __('billing.unbilled_period.group_by') }}<select name="group_by">@foreach (\App\Support\Enums::INVOICE_GROUPINGS as $g)<option value="{{ $g }}" @selected(($entry['client']->invoice_grouping ?? 'job') === $g)>{{ __('billing.invoices.group_by.'.$g) }}</option>@endforeach</select></label>
                         </div>
                         <div class="grid">

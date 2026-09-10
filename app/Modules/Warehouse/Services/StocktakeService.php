@@ -6,6 +6,7 @@ use App\Modules\Warehouse\Models\Stocktake;
 use App\Modules\Warehouse\Models\StocktakeLine;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Support\Contracts\ExceptionService;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -66,13 +67,14 @@ final class StocktakeService
     {
         $lines = $stocktake->lines()->with('stockUnit')->get();
 
-        $uncounted = $lines->filter(fn (StocktakeLine $l) => ! $l->isCounted())->pluck('id');
+        // Audit 2026-09-10: the person reads label codes, not stocktake_lines ids.
+        $uncounted = $lines->filter(fn (StocktakeLine $l) => ! $l->isCounted());
         if ($uncounted->isNotEmpty()) {
-            throw new InvalidArgumentException('Lines not counted yet: '.$uncounted->implode(', '));
+            throw new RuleViolation('Lines not counted yet: '.$uncounted->pluck('id')->implode(', '), 'warehouse.stocktakes.errors.uncounted', ['count' => $uncounted->count(), 'labels' => $uncounted->map(fn (StocktakeLine $l) => $l->stockUnit->label_code)->take(5)->implode(', ')]);
         }
-        $noReason = $lines->filter(fn (StocktakeLine $l) => $l->variance !== 0 && blank($l->reason))->pluck('id');
+        $noReason = $lines->filter(fn (StocktakeLine $l) => $l->variance !== 0 && blank($l->reason));
         if ($noReason->isNotEmpty()) {
-            throw new InvalidArgumentException('Variances need a reason on lines: '.$noReason->implode(', '));
+            throw new RuleViolation('Variances need a reason on lines: '.$noReason->pluck('id')->implode(', '), 'warehouse.stocktakes.errors.reason_missing', ['count' => $noReason->count(), 'labels' => $noReason->map(fn (StocktakeLine $l) => $l->stockUnit->label_code)->take(5)->implode(', ')]);
         }
 
         return DB::transaction(function () use ($stocktake, $lines): Stocktake {

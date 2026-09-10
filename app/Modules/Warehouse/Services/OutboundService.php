@@ -12,6 +12,7 @@ use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Modules\Warehouse\Models\WarehouseTaskLine;
 use App\Modules\Warehouse\Models\Wave;
 use App\Support\Contracts\ExceptionService;
+use App\Support\Exceptions\RuleViolation;
 use App\Support\Outbox\OutboxPublisher;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -193,7 +194,7 @@ final class OutboundService
         $first = $packages->first();
         if ($this->exceptions->hasActiveHold('financial', $first->client_id, $first->order_id)) {
             // §3.8 #7: a financial hold lets the order be picked and packed, but nothing leaves the warehouse until Finance releases it.
-            throw new InvalidArgumentException('This order is under a financial hold — release it before dispatch.');
+            throw new RuleViolation('This order is under a financial hold — release it before dispatch.', 'warehouse.outbound.errors.financial_hold');
         }
         $task = WarehouseTask::query()->withoutGlobalScopes()->where('task_type', 'pick')->where('fulfilment_id', $fulfilmentId)->firstOrFail();
 

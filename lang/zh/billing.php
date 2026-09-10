@@ -26,7 +26,17 @@ return [
     'categories' => ['warehouse' => '仓库操作', 'vas' => '增值服务', 'transport' => '运输', 'storage' => '仓储', 'other' => '其它'],
 
     'unbilled_period' => ['period_from' => '账期从', 'period_to' => '到', 'scope' => '包含费用', 'group_by' => '分组方式', 'draft_period' => '按账期生成草稿', 'period_hint' => '该客户设置:账期:period,发票:grouping。可临时改成任意区间(一周 / 两周 / 自定义)和分组。', 'scopes' => ['service' => '服务费(不含仓储)', 'storage' => '仓储费', 'all' => '全部费用'], 'presets' => ['this_week' => '本周', 'last_week' => '上周', 'last_fortnight' => '前两周', 'this_month' => '本月', 'last_month' => '上月']],
-    'unbilled' => ['title' => '未开票池', 'hint' => '已完成作业但尚未进入发票的费用,按客户 / Job 汇总。整柜客户按 Job 开服务发票;尾程客户月底汇总;仓储费按周。', 'draft_job' => '按此 Job 开票', 'draft_monthly' => '月结汇总开票', 'draft_storage' => '本周仓储费开票', 'period_from' => '期间从', 'period_to' => '到', 'week' => '周内任一天', 'empty' => '没有未开票费用。', 'lines' => '行数', 'review_pending' => '另有 :n 条待报价 / 复核,不在此池中。'],
+    'unbilled' => ['title' => '未开票池', 'hint' => '已完成作业但尚未进入发票的费用,按客户 / Job 汇总。整柜客户按 Job 开服务发票;尾程客户月底汇总;仓储费按周。', 'draft_job' => '按此 Job 开票', 'draft_monthly' => '月结汇总开票', 'draft_storage' => '本周仓储费开票', 'period_from' => '期间从', 'period_to' => '到', 'week' => '周内任一天', 'empty' => '没有未开票费用。', 'lines' => '行数', 'review_pending' => '另有 :n 条待报价 / 复核,不在此池中。',
+        'service_part' => '服务费', 'storage_part' => '仓储费', 'storage_only' => '只有仓储费:按周开票(下方「本周仓储费开票」或「按账期」选仓储费)', 'storage_note' => '另有仓储费 :count 行 / :amount,按周开票,不在此 Job 发票内'],
+    'errors' => [
+        'no_unbilled_job' => '该 Job 没有未开票的服务费(仓储费按周开票,不在 Job 发票内)。',
+        'no_unbilled_period' => '该客户在此账期内没有符合所选范围的未开票费用,请调整账期或「包含费用」。',
+        'no_unbilled_storage_week' => '该客户在那一周没有未开票的仓储费。',
+        'already_issued' => '发票 :no 已是「:status」状态,不能再次开出。',
+        'only_drafts_discard' => '只有草稿可以放弃;已开出的发票只能用 credit note 冲减。',
+        'payment_issued_only' => '只能对已开出的发票登记收款。',
+        'payment_positive' => '收款金额必须大于 0。',
+    ],
 
     'invoices' => [
         'title' => '发票', 'no' => '发票号', 'type' => '类型', 'client' => '客户', 'period' => '期间', 'status' => '状态', 'issued_at' => '开出日期', 'due_at' => '到期', 'overdue' => '逾期', 'subtotal' => '小计(不含 GST)', 'gst' => 'GST', 'total' => '合计',
@@ -38,7 +48,12 @@ return [
         'statuses' => ['draft' => '草稿', 'issued' => '已开出', 'part_paid' => '部分收款', 'paid' => '已收款', 'void' => '作废'],
         'methods' => ['bank' => '银行转账', 'card' => '刷卡', 'cash' => '现金', 'other' => '其它'],
     ],
-    'credit_notes' => ['title' => 'Credit notes', 'new' => '新建 credit note', 'reason' => '原因(必填)', 'line_amount' => '冲减金额(不含 GST)', 'drafted' => 'Credit note #:id 草稿已建立并送审批(需第二人批准)。', 'issue' => '开出 credit note', 'issued' => 'Credit note :no 已开出。', 'status' => '状态', 'statuses' => ['draft' => '草稿(待审批)', 'approved' => '已批准', 'issued' => '已开出', 'cancelled' => '已取消']],
+    'credit_notes' => [
+        'title' => 'Credit notes', 'new' => '新建 credit note', 'reason' => '原因(必填)', 'line_amount' => '冲减金额(不含 GST)', 'drafted' => 'Credit note #:id 草稿已建立并送审批(需第二人批准)。', 'issue' => '开出 credit note', 'issued' => 'Credit note :no 已开出。', 'status' => '状态',
+        'approved_badge' => '已批准,可开出', 'pending_hint' => '审批中 → 审批中心', 'no_approval_hint' => '尚无待审批申请 → 审批中心',
+        'errors' => ['not_issued' => '只能对已开出的发票建 credit note。', 'positive_amount' => 'Credit note 金额必须大于 0:至少填一行冲减金额。', 'not_approved' => '这张 credit note 还没有第二人批准,批准后才能开出。'],
+        'statuses' => ['draft' => '草稿(待审批)', 'approved' => '已批准', 'issued' => '已开出', 'cancelled' => '已取消'],
+    ],
 
     'receivables' => ['title' => '应收 / 未结余额', 'client' => '客户', 'open_invoices' => '未结发票', 'outstanding' => '未结金额', 'overdue' => '其中逾期', 'hint' => '按发票汇总:合计 − 已收 − 已开出的 credit note。逾期只是提示,不影响预订和发运。', 'empty' => '没有未结发票。'],
 
@@ -55,7 +70,7 @@ return [
 
     'quotes' => [
         'title' => '报价', 'create' => '新建报价', 'created' => '报价 :no 已生成。', 'no' => '报价号', 'client' => '客户', 'stage' => '阶段', 'valid_until' => '有效期至', 'status' => '状态', 'total' => '合计(含 GST)', 'lines' => '报价行',
-        'line_code' => '费用编码', 'line_qty' => '数量', 'line_weight' => '单箱重量 (kg,拣货分档用)', 'line_cost' => '第三方成本 (AUD,cost_plus 用)', 'add_line' => '再加一行', 'no_lines' => '至少填一行有效的费用编码和数量。',
+        'line_code' => '费用编码', 'line_qty' => '数量', 'line_weight' => '单箱重量 (kg,拣货分档用)', 'line_cost' => '第三方成本 (AUD,cost_plus 用)', 'line_base' => '基数金额 (AUD,百分比附加用,如燃油附加费的运费基数)', 'add_line' => '再加一行', 'no_lines' => '至少填一行有效的费用编码和数量。',
         'poa_flag' => 'POA / 缺费率:需财务人工定价', 'status_saved' => '状态已更新。', 'notes' => '备注', 'empty' => '没有报价。', 'assumptions' => '计算依据',
         'stages' => ['preliminary' => '初步', 'final' => '最终'], 'statuses' => ['draft' => '草稿', 'sent' => '已发送', 'accepted' => '已接受', 'rejected' => '已拒绝', 'expired' => '已过期'],
     ],
