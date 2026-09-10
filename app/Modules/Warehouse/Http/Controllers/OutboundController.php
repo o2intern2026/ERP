@@ -12,11 +12,13 @@ use App\Modules\Warehouse\Models\Wave;
 use App\Modules\Warehouse\Services\OutboundService;
 use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Contracts\ExceptionService;
+use App\Support\Contracts\StockService;
 use App\Support\Enums;
 use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
@@ -24,7 +26,7 @@ use InvalidArgumentException;
 /** B4 pages: one outbound board (release wave → pick → pack → dispatch) plus a wave sheet and a packing form. */
 class OutboundController extends Controller
 {
-    public function index(ExceptionService $exceptions): View
+    public function index(ExceptionService $exceptions, StockService $stock): View
     {
         $warehouseId = WarehouseContext::currentId();
         $pickTasks = WarehouseTask::query()->where('task_type', 'pick')->whereNotNull('fulfilment_id');
@@ -49,7 +51,36 @@ class OutboundController extends Controller
             'handedTo' => Enums::HANDED_TO,
             // Audit 2026-09-10: a financial hold lets the batch be picked and packed but refuses the handover — say so on the board instead of after the click.
             'heldFulfilments' => $toDispatch->filter(fn ($packages) => $exceptions->hasActiveHold('financial', $packages->first()->client_id, $packages->first()->order_id))->keys()->all(),
+            'shortages' => $this->shortages($stock),
         ]);
+    }
+
+    /**
+     * Item 4C (2026-09-10): confirmed orders that could not be (fully) reserved — they never reach 待释放, so the board says why.
+     *
+     * @return Collection<int, object{order_id:int, order_no:string, client_name:string, requested_date:?string, status:string, lines:Collection}>
+     */
+    private function shortages(StockService $stock): Collection
+    {
+        $lines = DB::table('order_lines')->join('orders', 'orders.id', '=', 'order_lines.order_id')->join('clients', 'clients.id', '=', 'orders.client_id')
+            ->leftJoin('asn_lines', 'asn_lines.id', '=', 'order_lines.asn_line_id')->leftJoin('asns', 'asns.id', '=', 'asn_lines.asn_id')
+            ->where('order_lines.qty_backordered', '>', 0)->where('orders.order_type', 'from_stock')
+            ->whereNotIn('orders.operational_status', ['dispatched', 'delivered', 'returned', 'cancelled', 'closed'])
+            ->orderBy('orders.requested_date')->orderBy('orders.id')->limit(300)
+            ->get(['orders.id as order_id', 'orders.order_no', 'orders.client_id', 'orders.requested_date', 'orders.operational_status', 'clients.name as client_name',
+                'order_lines.id as line_id', 'order_lines.description_cn', 'order_lines.description_en', 'order_lines.carton_qty', 'order_lines.qty_backordered', 'order_lines.asn_line_id', 'asns.asn_no', 'asns.id as asn_id']);
+
+        return $lines->groupBy('order_id')->map(function ($rows) use ($stock) {
+            $first = $rows->first();
+
+            return (object) [
+                'order_id' => (int) $first->order_id, 'order_no' => $first->order_no, 'client_name' => $first->client_name, 'requested_date' => $first->requested_date, 'status' => $first->operational_status,
+                'lines' => $rows->map(fn ($r) => (object) [
+                    'line_id' => (int) $r->line_id, 'description' => $r->description_cn ?: $r->description_en, 'need' => (int) $r->carton_qty, 'short' => (int) $r->qty_backordered,
+                    'available' => $r->asn_line_id ? $stock->onHand((int) $first->client_id, (int) $r->asn_line_id)['qty_available'] : 0, 'asn_no' => $r->asn_no, 'asn_id' => $r->asn_id,
+                ])->values(),
+            ];
+        })->values();
     }
 
     public function release(Request $request, OutboundService $outbound): RedirectResponse

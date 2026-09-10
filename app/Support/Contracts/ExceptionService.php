@@ -19,6 +19,9 @@ interface ExceptionService
     /** Resolving a hold releases it (released_by/at, release_reason = note). */
     public function resolve(int $exceptionId, int $resolvedBy, ?string $note = null): void;
 
+    /** Resolves every open exception of $type on $orderId (system-driven, e.g. a stock shortage that a later putaway filled). Returns how many were closed. Additive, CHANGE_REQUESTS #106. */
+    public function resolveOpen(string $type, int $orderId, ?int $resolvedBy = null, ?string $note = null): int;
+
     /**
      * Is there an unresolved hold of this type for the client (and, when given, this order or a client-wide hold)?
      * Transport / Orders call this before booking or dispatch: only an active `financial` hold blocks them (§3.4 OMS-11).

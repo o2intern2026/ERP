@@ -18,7 +18,7 @@ final class Enums
 
     public const JOB_COST_STATUSES = ['estimated', 'partially_confirmed', 'confirmed'];
 
-    public const EXCEPTION_TYPES = ['discrepancy', 'pick_short', 'delivery_failed', 'manual_transport', 'missing_rate', 'billing_hold', 'integration_failed', 'hold'];
+    public const EXCEPTION_TYPES = ['discrepancy', 'pick_short', 'delivery_failed', 'manual_transport', 'missing_rate', 'billing_hold', 'integration_failed', 'hold', 'stock_shortage'];
 
     public const EXCEPTION_STATUSES = ['open', 'in_progress', 'resolved'];
 

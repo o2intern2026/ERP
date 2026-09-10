@@ -6,6 +6,7 @@ use App\Modules\Orders\Models\Fulfilment;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderEvent;
 use App\Modules\Orders\Models\OrderLine;
+use App\Support\Contracts\ExceptionService;
 use App\Support\Contracts\StockService;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -142,6 +143,10 @@ final class FulfilmentService
                     'reservations' => $reservations,
                     'shortfalls' => collect($result)->filter(fn ($line) => (int) $line['shortfall_qty'] > 0)->values()->all(),
                 ]);
+                // Nothing left on backorder → close the Warehouse-raised 缺货 exception (CHANGE_REQUESTS #106).
+                if (! OrderLine::query()->where('order_id', $order->id)->where('qty_backordered', '>', 0)->exists()) {
+                    app(ExceptionService::class)->resolveOpen('stock_shortage', $order->id, null, __('orders.fulfilments.shortage_resolved'));
+                }
             }
         }
     }

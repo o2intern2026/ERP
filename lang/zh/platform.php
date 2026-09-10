@@ -150,7 +150,7 @@ return [
         'resolved' => '已解决。',
         'empty' => '没有符合条件的异常。',
         'active' => '待处理 + 处理中',
-        'types' => ['discrepancy' => '收货 / 盘点差异', 'pick_short' => '拣货短缺', 'delivery_failed' => '配送失败', 'manual_transport' => '人工运输处理', 'missing_rate' => '缺费率', 'billing_hold' => '计费暂扣', 'integration_failed' => '集成失败', 'hold' => '订单锁定'],
+        'types' => ['discrepancy' => '收货 / 盘点差异', 'pick_short' => '拣货短缺', 'stock_shortage' => '缺货(未分配)', 'delivery_failed' => '配送失败', 'manual_transport' => '人工运输处理', 'missing_rate' => '缺费率', 'billing_hold' => '计费暂扣', 'integration_failed' => '集成失败', 'hold' => '订单锁定'],
         'statuses' => ['open' => '待处理', 'in_progress' => '处理中', 'resolved' => '已解决'],
         'modules' => ['platform' => '平台', 'masterdata' => '主数据', 'orders' => '订单', 'warehouse' => '仓库', 'transport' => '运输', 'billing' => '计费'],
         'hold_types' => ['stock' => '库存锁定', 'financial' => '财务锁定', 'address' => '地址锁定', 'transport' => '运输锁定', 'client_confirmation' => '待客户确认'],

@@ -8,7 +8,7 @@
 
     <h2>{{ __('warehouse.outbound.ready') }} <small class="text-muted">{{ $ready->count() }}</small></h2>
     @if ($ready->isEmpty())
-        <p class="text-muted">{{ __('warehouse.outbound.empty') }}</p>
+        <p class="text-muted">{{ $shortages->isEmpty() ? __('warehouse.outbound.empty') : __('warehouse.outbound.ready_empty') }}</p>
     @else
         <form method="post" action="{{ route('warehouse.outbound.waves.release') }}">
             @csrf
@@ -21,12 +21,41 @@
                 </tbody>
             </table></div>
             @role('admin|warehouse_supervisor|warehouse_operator')
+                <p class="text-muted"><small>{{ __('warehouse.outbound.filter_hint') }}</small></p>
                 <div class="grid">
+                    <select name="client_id" aria-label="{{ __('warehouse.outbound.client') }}">
+                        <option value="">{{ __('warehouse.outbound.client') }}: {{ __('platform.jobs.all') }}</option>
+                        @foreach ($ready->unique('client_id') as $c)<option value="{{ $c->client_id }}">{{ $c->client_name }}</option>@endforeach
+                    </select>
+                    <input type="date" name="requested_date" aria-label="{{ __('warehouse.outbound.requested_date') }}" title="{{ __('warehouse.outbound.requested_date') }}">
                     <select name="warehouse_id" required>@foreach ($warehouses as $w)<option value="{{ $w->id }}" @selected($w->id === ($currentWarehouseId ?? $ready->first()->warehouse_id))>{{ $w->code }}</option>@endforeach</select>
                     <button type="submit">{{ __('warehouse.outbound.release') }}</button>
                 </div>
             @endrole
         </form>
+    @endif
+
+    @if ($shortages->isNotEmpty())
+        <h3>{{ __('warehouse.outbound.shortage_title') }} <small class="text-muted">{{ $shortages->count() }}</small></h3>
+        <p class="text-muted"><small>{{ __('warehouse.outbound.shortage_hint') }}</small></p>
+        <div class="overflow-auto"><table class="dense" id="shortages">
+            <thead><tr><th>{{ __('warehouse.outbound.order') }}</th><th>{{ __('warehouse.outbound.client') }}</th><th>{{ __('warehouse.outbound.requested_date_col') }}</th><th>{{ __('warehouse.outbound.shortage_lines') }}</th></tr></thead>
+            <tbody>
+            @foreach ($shortages as $s)
+                <tr>
+                    <td><a href="{{ route('orders.show', $s->order_id) }}">{{ $s->order_no }}</a><br><small class="text-muted">{{ __('orders.statuses.'.$s->status) }}</small></td>
+                    <td>{{ $s->client_name }}</td>
+                    <td>{{ $s->requested_date ? \Illuminate\Support\Carbon::parse($s->requested_date)->format('Y-m-d') : '—' }}</td>
+                    <td style="white-space:normal">
+                        @foreach ($s->lines as $l)
+                            <div>{{ __('warehouse.outbound.shortage_line', ['line' => $l->line_id, 'description' => $l->description, 'need' => $l->need, 'available' => $l->available, 'short' => $l->short]) }}
+                                @if ($l->asn_no) · <a href="{{ route('warehouse.asns.show', $l->asn_id) }}">{{ $l->asn_no }}</a>@endif</div>
+                        @endforeach
+                    </td>
+                </tr>
+            @endforeach
+            </tbody>
+        </table></div>
     @endif
 
     <h2>{{ __('warehouse.outbound.picking') }} <small class="text-muted">{{ $picking->count() }}</small></h2>

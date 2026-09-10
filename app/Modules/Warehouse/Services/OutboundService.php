@@ -49,7 +49,7 @@ final class OutboundService
                 ->get(['fulfilments.id as fulfilment_id', 'orders.id as order_id', 'orders.job_id', 'orders.client_id']);
 
             if ($fulfilments->isEmpty()) {
-                throw new InvalidArgumentException('No allocated fulfilments to release for these filters.');
+                throw new InvalidArgumentException(__('warehouse.outbound.errors.no_candidates'));
             }
 
             $wave = Wave::query()->create(['wave_no' => DocumentNumbers::next(Wave::query(), 'wave_no', 'WAV'), 'warehouse_id' => $warehouseId, 'status' => 'released', 'released_by' => $userId, 'released_at' => now()]);
@@ -76,11 +76,11 @@ final class OutboundService
     public function confirmPick(WarehouseTaskLine $line, int $pickedQty, ?int $userId = null): WarehouseTaskLine
     {
         if ($pickedQty < 0 || $pickedQty > $line->required_qty) {
-            throw new InvalidArgumentException("Picked quantity must be between 0 and {$line->required_qty}.");
+            throw new InvalidArgumentException(__('warehouse.outbound.errors.picked_range', ['max' => $line->required_qty]));
         }
         $task = $line->task;
         if ($task->status === 'done' || $line->confirmed_at !== null) {
-            throw new InvalidArgumentException('This pick line is already confirmed.');
+            throw new InvalidArgumentException(__('warehouse.outbound.errors.pick_confirmed'));
         }
 
         return DB::transaction(function () use ($line, $task, $pickedQty, $userId): WarehouseTaskLine {
@@ -130,13 +130,13 @@ final class OutboundService
     {
         $task = WarehouseTask::query()->withoutGlobalScopes()->where('task_type', 'pick')->where('fulfilment_id', $fulfilmentId)->with('lines.stockUnit.asnLine')->firstOrFail();
         if ($task->status !== 'done') {
-            throw new InvalidArgumentException('Pack after every pick line of the fulfilment is confirmed.');
+            throw new InvalidArgumentException(__('warehouse.outbound.errors.pack_after_pick'));
         }
         if (Package::query()->withoutGlobalScopes()->where('fulfilment_id', $fulfilmentId)->exists()) {
-            throw new InvalidArgumentException('This fulfilment is already packed.');
+            throw new InvalidArgumentException(__('warehouse.outbound.errors.already_packed'));
         }
         if ($packages === []) {
-            throw new InvalidArgumentException('At least one package is needed.');
+            throw new InvalidArgumentException(__('warehouse.outbound.errors.need_package'));
         }
 
         return DB::transaction(function () use ($task, $fulfilmentId, $packages, $userId): array {
@@ -186,10 +186,10 @@ final class OutboundService
     {
         $packages = Package::query()->withoutGlobalScopes()->where('fulfilment_id', $fulfilmentId)->get();
         if ($packages->isEmpty()) {
-            throw new InvalidArgumentException('Dispatch after packing.');
+            throw new InvalidArgumentException(__('warehouse.outbound.errors.dispatch_after_pack'));
         }
         if (OutboundDispatch::query()->withoutGlobalScopes()->where('fulfilment_id', $fulfilmentId)->exists()) {
-            throw new InvalidArgumentException('This fulfilment was already dispatched.');
+            throw new InvalidArgumentException(__('warehouse.outbound.errors.already_dispatched'));
         }
         $first = $packages->first();
         if ($this->exceptions->hasActiveHold('financial', $first->client_id, $first->order_id)) {

@@ -53,6 +53,16 @@ final class ExceptionService implements ExceptionServiceContract
         $record->update($update);
     }
 
+    public function resolveOpen(string $type, int $orderId, ?int $resolvedBy = null, ?string $note = null): int
+    {
+        $records = ExceptionRecord::query()->withoutGlobalScopes()->where('type', $type)->where('order_id', $orderId)->whereIn('status', ['open', 'in_progress'])->get();
+        foreach ($records as $record) {
+            $record->update(['status' => 'resolved', 'resolved_by' => $resolvedBy ?? auth()->id(), 'resolved_at' => now(), 'message' => $note ? trim($record->message.' — '.$note) : $record->message]);
+        }
+
+        return $records->count();
+    }
+
     public function assign(int $exceptionId, ?int $ownerId): void
     {
         ExceptionRecord::query()->withoutGlobalScopes()->whereKey($exceptionId)->where('status', '!=', 'resolved')->update(['owner_id' => $ownerId]);

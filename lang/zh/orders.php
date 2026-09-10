@@ -255,6 +255,11 @@ return [
         'delivered' => '已送达',
     ],
     'fulfilments' => [
+        'shortage_banner' => '本订单缺货未分配:',
+        'shortage_line' => '行 #:line :description:需 :need 箱,可用 :available 箱,缺 :short 箱',
+        'shortage_hint' => '到货收货并上架后系统会自动补分配;到货进度见对应的预报单 (ASN)。',
+        'shortage_resolved' => '缺货已补齐,库存已预留。',
+
         'title' => '订单 :order_no 的履约批次',
         'availability_title' => '在库校验',
         'batches_title' => '分批履约与 Backorder',

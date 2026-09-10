@@ -33,6 +33,18 @@
         </article>
     </div>
 
+    @if (($shortages ?? collect())->isNotEmpty())
+        <article class="flash" role="note">
+            <strong>{{ __('orders.fulfilments.shortage_banner') }}</strong>
+            <ul style="margin:.3rem 0 .2rem">
+                @foreach ($shortages as $row)
+                    <li>{{ __('orders.fulfilments.shortage_line', ['line' => $row['line']->id, 'description' => $row['line']->description_cn ?: $row['line']->description_en, 'need' => $row['line']->carton_qty, 'available' => $row['available'], 'short' => $row['line']->qty_backordered]) }}</li>
+                @endforeach
+            </ul>
+            <small class="text-muted">{{ __('orders.fulfilments.shortage_hint') }}</small>
+        </article>
+    @endif
+
     @if ($order->operational_status === 'received')
         @if ($order->source === 'pdf')
             <article class="flash" role="note"><strong>{{ __('orders.drafts.banner_title') }}</strong> {{ __('orders.drafts.banner') }}</article>

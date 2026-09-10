@@ -140,3 +140,7 @@ Not touched: `contracts/*.md` (only `CHANGE_REQUESTS.md` rows #100–#104 append
 
 - `app/Modules/Orders/views/partials/asn-line-select.blade.php` + the inline JS in `orders::show`: the search box is no longer a form control (`form="asn-filter-none"`) and swallows Enter, so it cannot submit the line form; the picker sits in its own full-width labelled block with a match count and auto-select when one row remains; lang `orders.drafts.asn_picker_title / asn_filter_matches / asn_filter_placeholder / asn_link_hint / no_asn_line` reworded.
 - `orders::show` goods table: the line editor and the add-line form moved to full-width rows with labelled fields; 保存修改 / 添加货物行 buttons are inline (`width:auto`). Tester feedback 2026-09-10.
+
+### 2026-09-10 · main · item 4 B/C/D (CR #106) · C touched Orders zone
+
+- `app/Modules/Orders/Services/FulfilmentService.php` (resolveOpen('stock_shortage') once no line is backordered), `app/Modules/Orders/Http/Controllers/OrderController.php` (`shortages` for the order page), `app/Modules/Orders/views/show.blade.php` (缺货 banner), `lang/zh/orders.php` (`fulfilments.shortage_*`).
