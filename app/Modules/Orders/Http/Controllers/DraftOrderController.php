@@ -4,6 +4,7 @@ namespace App\Modules\Orders\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Orders\Http\OrderValidation;
 use App\Modules\Orders\Models\OrderImport;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\DraftOrderService;
@@ -42,7 +43,7 @@ final class DraftOrderController extends Controller
                     $fail(__('orders.drafts.errors.unsupported_file'));
                 }
             }],
-        ]);
+        ], OrderValidation::messages(), OrderValidation::attributes());
 
         $order = $drafts->createFromUpload($data['document'], [
             'client_id' => (int) $data['client_id'],

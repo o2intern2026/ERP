@@ -4,6 +4,7 @@ namespace App\Modules\Orders\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Orders\Http\OrderValidation;
 use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\OrderEnums;
 use App\Support\Auth\RequiredRoles;
@@ -91,7 +92,7 @@ final class ClientAddressController extends Controller
             'postcode' => ['required', 'string', 'max:10'],
             'address_type' => ['required', Rule::in(OrderEnums::ADDRESS_TYPES)],
             'default_instructions' => ['nullable', 'string', 'max:2000'],
-        ]);
+        ], OrderValidation::messages(), OrderValidation::attributes());
     }
 
     private function authorizeMaintenance(): void

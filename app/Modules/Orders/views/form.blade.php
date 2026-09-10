@@ -33,10 +33,10 @@
                 </select>
             </label>
             <label>{{ __('orders.fields.job') }}
-                <select name="job_id">
+                <select name="job_id" id="order-job">
                     <option value="">{{ __('orders.pickup.new_job') }}</option>
                     @foreach ($jobs as $job)
-                        <option value="{{ $job->id }}" @selected((int) old('job_id') === $job->id)>{{ $job->job_no }} — {{ $job->client->name }}</option>
+                        <option value="{{ $job->id }}" data-client-id="{{ $job->client_id }}" @selected((int) old('job_id') === $job->id)>{{ $job->job_no }} — {{ $job->client->name }}</option>
                     @endforeach
                 </select>
                 <small>{{ __('orders.pickup.new_job_hint') }}</small>
@@ -181,6 +181,20 @@
                 if (book.selectedOptions[0]?.disabled) book.value = '';
             };
 
+            // 2026-09-10 audit: the Job list only shows the selected client's Jobs (a mismatch is also refused server side as a field error).
+            const jobSelect = document.getElementById('order-job');
+            const jobOptions = Array.from(jobSelect.options).slice(1);
+            const filterJobs = () => {
+                jobOptions.forEach(option => {
+                    const unavailable = option.dataset.clientId !== client.value;
+                    option.hidden = unavailable;
+                    option.disabled = unavailable;
+                });
+                if (jobSelect.selectedOptions[0]?.disabled) jobSelect.value = '';
+            };
+            client.addEventListener('change', filterJobs);
+            filterJobs();
+
             client.addEventListener('change', filterAddresses);
             book.addEventListener('change', () => {
                 const option = book.selectedOptions[0];
@@ -197,6 +211,7 @@
             const toggleType = () => {
                 const pure = orderType.value === 'pickup_deliver';
                 pickup.hidden = !pure;
+                pickup.disabled = !pure; // 2026-09-10 audit: a hidden fieldset still submits; a disabled one does not
                 document.querySelectorAll('.goods-required').forEach(el => { el.required = !pure; });
             };
             orderType.addEventListener('change', toggleType);

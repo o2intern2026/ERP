@@ -4,6 +4,7 @@ namespace App\Modules\Orders\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Orders\Http\OrderValidation;
 use App\Modules\Orders\Models\OrderImport;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\OrderImportService;
@@ -15,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Response as ResponseFacade;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 final class OrderImportController extends Controller
 {
@@ -33,7 +35,7 @@ final class OrderImportController extends Controller
 
         return view('orders::imports.create', [
             'clients' => Client::query()->where('status', 'active')->orderBy('name')->get(['id', 'name']),
-            'jobs' => Job::query()->where('operational_status', '!=', 'cancelled')->latest('id')->get(['id', 'job_no', 'client_id']),
+            'jobs' => Job::query()->with('client:id,name')->where('operational_status', '!=', 'cancelled')->latest('id')->get(['id', 'job_no', 'client_id']),
             'serviceLevels' => OrderEnums::SERVICE_LEVELS,
         ]);
     }
@@ -51,9 +53,12 @@ final class OrderImportController extends Controller
                     $fail(__('orders.imports.errors.unsupported_file'));
                 }
             }],
-        ]);
+        ], OrderValidation::messages(), OrderValidation::attributes());
 
-        abort_unless(Job::query()->whereKey($data['job_id'])->where('client_id', $data['client_id'])->exists(), 422, __('orders.validation.job_client_mismatch'));
+        if (! Job::query()->whereKey($data['job_id'])->where('client_id', $data['client_id'])->exists()) {
+            // 2026-09-10 audit: back to the filled form with a field error instead of a bare 422 page that also lost the upload.
+            throw ValidationException::withMessages(['job_id' => __('orders.validation.job_client_mismatch')]);
+        }
         $import = $imports->preview($data['manifest'], [
             'client_id' => (int) $data['client_id'],
             'job_id' => (int) $data['job_id'],
