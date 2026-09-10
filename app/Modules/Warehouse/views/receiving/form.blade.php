@@ -23,15 +23,16 @@
             <legend>{{ __('warehouse.receiving.units_title') }}</legend>
             <div id="units">
                 @for ($i = 0; $i < 3; $i++)
+                    {{-- Rows 2–3 start hidden AND disabled: disabled controls are not submitted, so they cannot trip the units.*.carton_qty rule (tester feedback 2026-09-10). --}}
                     <div class="grid unit-row" @if ($i > 0) hidden @endif>
-                        <select name="units[{{ $i }}][unit_type]">@foreach (\App\Support\Enums::UNIT_TYPES as $t)<option value="{{ $t }}" @selected(old("units.$i.unit_type", 'pallet') === $t)>{{ __('warehouse.unit_types.'.$t) }}</option>@endforeach</select>
-                        <input type="number" name="units[{{ $i }}][carton_qty]" min="0" placeholder="{{ __('warehouse.receiving.carton_qty') }}" value="{{ old("units.$i.carton_qty", $i === 0 ? $line->expected_cartons : '') }}">
-                        <input type="number" name="units[{{ $i }}][length_mm]" min="1" placeholder="{{ __('warehouse.receiving.length') }}" value="{{ old("units.$i.length_mm") }}">
-                        <input type="number" name="units[{{ $i }}][width_mm]" min="1" placeholder="{{ __('warehouse.receiving.width') }}" value="{{ old("units.$i.width_mm") }}">
-                        <input type="number" name="units[{{ $i }}][height_mm]" min="1" placeholder="{{ __('warehouse.receiving.height') }}" value="{{ old("units.$i.height_mm") }}">
-                        <input type="number" step="0.001" name="units[{{ $i }}][weight_kg]" min="0" placeholder="{{ __('warehouse.receiving.weight') }}" value="{{ old("units.$i.weight_kg") }}">
-                        <select name="units[{{ $i }}][pallet_source]"><option value="">{{ __('warehouse.receiving.pallet_source') }}</option>@foreach ($palletSources as $s)<option value="{{ $s }}" @selected(old("units.$i.pallet_source") === $s)>{{ __('warehouse.pallet_sources.'.$s) }}</option>@endforeach</select>
-                        <select name="units[{{ $i }}][pallet_class]"><option value="">{{ __('warehouse.receiving.pallet_class') }}</option>@foreach ($palletClasses as $c)<option value="{{ $c }}" @selected(old("units.$i.pallet_class") === $c)>{{ __('warehouse.pallet_classes.'.$c) }}</option>@endforeach</select>
+                        <select name="units[{{ $i }}][unit_type]" @disabled($i > 0)>@foreach (\App\Support\Enums::UNIT_TYPES as $t)<option value="{{ $t }}" @selected(old("units.$i.unit_type", 'pallet') === $t)>{{ __('warehouse.unit_types.'.$t) }}</option>@endforeach</select>
+                        <input type="number" name="units[{{ $i }}][carton_qty]" @disabled($i > 0) min="0" placeholder="{{ __('warehouse.receiving.carton_qty') }}" value="{{ old("units.$i.carton_qty", $i === 0 ? $line->expected_cartons : '') }}">
+                        <input type="number" name="units[{{ $i }}][length_mm]" @disabled($i > 0) min="1" placeholder="{{ __('warehouse.receiving.length') }}" value="{{ old("units.$i.length_mm") }}">
+                        <input type="number" name="units[{{ $i }}][width_mm]" @disabled($i > 0) min="1" placeholder="{{ __('warehouse.receiving.width') }}" value="{{ old("units.$i.width_mm") }}">
+                        <input type="number" name="units[{{ $i }}][height_mm]" @disabled($i > 0) min="1" placeholder="{{ __('warehouse.receiving.height') }}" value="{{ old("units.$i.height_mm") }}">
+                        <input type="number" step="0.001" name="units[{{ $i }}][weight_kg]" @disabled($i > 0) min="0" placeholder="{{ __('warehouse.receiving.weight') }}" value="{{ old("units.$i.weight_kg") }}">
+                        <select name="units[{{ $i }}][pallet_source]" @disabled($i > 0)><option value="">{{ __('warehouse.receiving.pallet_source') }}</option>@foreach ($palletSources as $s)<option value="{{ $s }}" @selected(old("units.$i.pallet_source") === $s)>{{ __('warehouse.pallet_sources.'.$s) }}</option>@endforeach</select>
+                        <select name="units[{{ $i }}][pallet_class]" @disabled($i > 0)><option value="">{{ __('warehouse.receiving.pallet_class') }}</option>@foreach ($palletClasses as $c)<option value="{{ $c }}" @selected(old("units.$i.pallet_class") === $c)>{{ __('warehouse.pallet_classes.'.$c) }}</option>@endforeach</select>
                     </div>
                 @endfor
             </div>
@@ -45,7 +46,9 @@
 <script>
     document.getElementById('add-unit').addEventListener('click', () => {
         const hiddenRow = document.querySelector('#units .unit-row[hidden]');
-        if (hiddenRow) hiddenRow.hidden = false;
+        if (!hiddenRow) return;
+        hiddenRow.hidden = false;
+        hiddenRow.querySelectorAll('input, select').forEach(el => { el.disabled = false; });
     });
 </script>
 @endpush

@@ -231,6 +231,43 @@ final class GoodsReceiptService
     }
 
     /** Whole-ASN figures for the ASN page, the receipt page and the PDF's 本预报单汇总 block. */
+    /**
+     * 手动填写入库单 (tester feedback #4, 2026-09-10): receive several lines of an EXISTING ASN from one screen. Each row is
+     * {asn_line_id, received_cartons, damaged_cartons?, variance_reason?, unit_type, unit_count?, weight_kg?}; units are generated
+     * like the walk-in form. All rows land in the ASN's open batch; $complete closes it (PDF + document) in the same transaction.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     */
+    public function receiveLines(Asn $asn, array $rows, Location $location, ?int $userId = null, bool $complete = false, ?string $deliveryReference = null): GoodsReceipt
+    {
+        if ($location->type !== 'receiving' || (int) $location->warehouse_id !== (int) $asn->warehouse_id) {
+            throw new InvalidArgumentException(__('warehouse.receiving.unplanned.bad_location'));
+        }
+        if ($rows === []) {
+            throw new InvalidArgumentException(__('warehouse.receiving.bulk.rows_required'));
+        }
+
+        return DB::transaction(function () use ($asn, $rows, $location, $userId, $complete, $deliveryReference): GoodsReceipt {
+            $receipt = $this->openFor($asn, $userId, array_filter(['delivery_reference' => $deliveryReference]));
+            $receiving = app(ReceivingService::class);
+            foreach ($rows as $row) {
+                $line = AsnLine::query()->whereKey((int) $row['asn_line_id'])->where('asn_id', $asn->id)->firstOrFail();
+                if ($line->isReceived()) {
+                    throw new InvalidArgumentException(__('warehouse.receiving.bulk.already_received', ['line' => $line->id]));
+                }
+                $receiving->receiveLine($line, [
+                    'received_cartons' => (int) $row['received_cartons'],
+                    'damaged_cartons' => (int) ($row['damaged_cartons'] ?? 0),
+                    'variance_reason' => $row['variance_reason'] ?? null,
+                    'units' => $this->unitsFor($row),
+                ], $location, $userId);
+            }
+            $receipt = $receipt->fresh();
+
+            return $complete && $receipt->lines()->exists() ? $this->complete($receipt, $userId) : $receipt;
+        });
+    }
+
     public function rollup(Asn $asn): array
     {
         $lines = AsnLine::query()->where('asn_id', $asn->id)->with(['receiptLine', 'stockUnits'])->get();

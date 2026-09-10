@@ -63,6 +63,8 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
     Route::middleware('role:admin|warehouse_supervisor|warehouse_operator')->group(function () {
         Route::get('/asns/{asn}/lines/{line}/receive', [ReceivingController::class, 'form'])->name('receiving.form');
         Route::post('/asns/{asn}/lines/{line}/receive', [ReceivingController::class, 'store'])->name('receiving.store');
+        Route::get('/asns/{asn}/receive', [ReceivingController::class, 'bulkForm'])->name('receiving.bulk_form'); // 手动填写入库单 — whole ASN on one screen (tester feedback #4)
+        Route::post('/asns/{asn}/receive', [ReceivingController::class, 'bulkStore'])->name('receiving.bulk_store');
         Route::get('/receiving/unplanned', [UnplannedReceivingController::class, 'form'])->name('receiving.unplanned.form'); // 无预报收货 (#91)
         Route::post('/receiving/unplanned', [UnplannedReceivingController::class, 'store'])->name('receiving.unplanned.store');
         Route::post('/receipts/{receipt}/complete', [GoodsReceiptController::class, 'complete'])->name('receipts.complete')->whereNumber('receipt'); // 入库完成

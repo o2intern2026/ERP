@@ -38,7 +38,8 @@
         </table>
     @endif
 
-    <h2>{{ __('warehouse.asns.lines') }}</h2>
+    <h2 id="lines">{{ __('warehouse.asns.lines') }}</h2>
+    <p class="text-muted"><small>{{ __('warehouse.asns.lines_hint') }}</small></p>
     @if ($asn->lines->isEmpty())
         <p class="text-muted">{{ __('warehouse.asns.no_lines') }}</p>
         <p class="text-muted"><small>{{ __('warehouse.asns.no_lines_hint') }}</small></p>
@@ -67,6 +68,21 @@
 
     <h2>{{ __('warehouse.asns.receipts') }}</h2>
     @include('warehouse::receipts._batches', ['asn' => $asn, 'batches' => $receipts, 'rollup' => $rollup])
+    @if (in_array($asn->status, ['booked', 'arrived', 'receiving']))
+        @if ($asn->lines->isEmpty())
+            <p><mark>{{ __('warehouse.asns.receipts_need_lines') }}</mark></p>
+        @elseif ($asn->lines->contains(fn ($l) => ! $l->isReceived()))
+            @role('admin|warehouse_supervisor|warehouse_operator')
+                <p>
+                    <a role="button" href="{{ route('warehouse.receiving.bulk_form', $asn) }}">{{ __('warehouse.asns.receipts_cta') }}</a>
+                    <a role="button" class="secondary outline" href="#lines">{{ __('warehouse.asns.receipts_cta_lines') }}</a>
+                </p>
+                <p class="text-muted"><small>{{ __('warehouse.asns.receipts_cta_hint') }}</small></p>
+            @else
+                <p class="text-muted"><small>{{ __('warehouse.asns.receipts_roles_hint') }}</small></p>
+            @endrole
+        @endif
+    @endif
 
     @role('admin|warehouse_supervisor|warehouse_operator|customer_service')
         @if (in_array($asn->status, ['booked', 'arrived', 'receiving']))

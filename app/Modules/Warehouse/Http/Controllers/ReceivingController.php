@@ -16,7 +16,9 @@ use App\Support\Enums;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use InvalidArgumentException;
 
 /**
  * B2 receiving: the 待收货 worklist (every ASN line still awaiting receipt) and the per-line form — received / damaged / reason,
@@ -60,6 +62,8 @@ class ReceivingController extends Controller
     public function store(Request $request, Asn $asn, AsnLine $line, ReceivingService $receiving, TaskService $tasks): RedirectResponse
     {
         abort_unless($line->asn_id === $asn->id, 404);
+        // Spare unit rows the operator never touched (no 箱数) are dropped BEFORE validation — testers hit "units.1.carton_qty is required" on hidden rows (2026-09-10).
+        $request->merge(['units' => array_values(array_filter((array) $request->input('units', []), fn ($u) => is_array($u) && filled($u['carton_qty'] ?? null)))]);
 
         $data = $request->validate([
             'receiving_location_id' => ['required', 'integer', Rule::exists('locations', 'id')->where('warehouse_id', $asn->warehouse_id)->where('type', 'receiving')],
@@ -92,5 +96,67 @@ class ReceivingController extends Controller
         }
 
         return redirect()->route('warehouse.asns.show', $asn)->with('status', __('warehouse.receiving.received', ['line' => $line->id, 'receipt' => $receiptNo]));
+    }
+
+    /** 手动填写入库单: every not-yet-received line of the ASN on one screen (tester feedback #4, 2026-09-10). */
+    public function bulkForm(Asn $asn, GoodsReceiptService $receipts): View
+    {
+        $asn->load(['client', 'warehouse', 'lines.container', 'lines.stockUnits', 'lines.receiptLine']);
+
+        return view('warehouse::receiving.bulk', [
+            'asn' => $asn,
+            'lines' => $asn->lines->reject(fn (AsnLine $l) => $l->isReceived())->values(),
+            'receipt' => $receipts->nextReceiptNo($asn),
+            'receivingLocations' => Location::query()->where('warehouse_id', $asn->warehouse_id)->where('type', 'receiving')->where('active', true)->orderBy('full_code')->get(),
+            'unitTypes' => Enums::UNIT_TYPES,
+            'defaultUnitType' => $asn->inbound_type === 'loose_truck' ? 'pallet' : 'carton',
+            'receivable' => in_array($asn->status, ['booked', 'arrived', 'receiving'], true),
+        ]);
+    }
+
+    public function bulkStore(Request $request, Asn $asn, GoodsReceiptService $receipts): RedirectResponse
+    {
+        abort_unless(in_array($asn->status, ['booked', 'arrived', 'receiving'], true), 409, __('warehouse.receiving.bulk.not_receivable'));
+        // Only ticked rows count; unticked rows are dropped before validation so an untouched line never blocks the others.
+        $request->merge(['rows' => array_values(array_filter((array) $request->input('rows', []), fn ($r) => is_array($r) && ($r['include'] ?? null)))]);
+
+        $validator = Validator::make($request->all(), [
+            'receiving_location_id' => ['required', 'integer', Rule::exists('locations', 'id')->where('warehouse_id', $asn->warehouse_id)->where('type', 'receiving')],
+            'delivery_reference' => ['nullable', 'string', 'max:100'],
+            'complete' => ['nullable', 'boolean'],
+            'rows' => ['required', 'array', 'min:1'],
+            'rows.*.asn_line_id' => ['required', 'integer', Rule::exists('asn_lines', 'id')->where('asn_id', $asn->id)],
+            'rows.*.received_cartons' => ['required', 'integer', 'min:0'],
+            'rows.*.damaged_cartons' => ['nullable', 'integer', 'min:0'],
+            'rows.*.unit_type' => ['required', Rule::in(Enums::UNIT_TYPES)],
+            'rows.*.unit_count' => ['nullable', 'integer', 'min:1', 'max:500'],
+            'rows.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
+            'rows.*.variance_reason' => ['nullable', 'string', 'max:255'],
+        ], ['rows.required' => __('warehouse.receiving.bulk.rows_required'), 'rows.min' => __('warehouse.receiving.bulk.rows_required')]);
+        $validator->after(function ($v) use ($request, $asn) {
+            $expected = $asn->lines()->pluck('expected_cartons', 'id');
+            foreach ((array) $request->input('rows', []) as $i => $row) {
+                $received = (int) ($row['received_cartons'] ?? 0);
+                $damaged = (int) ($row['damaged_cartons'] ?? 0);
+                $planned = (int) ($expected[(int) ($row['asn_line_id'] ?? 0)] ?? 0);
+                if (($received + $damaged !== $planned || $damaged > 0) && blank($row['variance_reason'] ?? null)) {
+                    $v->errors()->add("rows.{$i}.variance_reason", __('warehouse.receiving.bulk.reason_required', ['line' => $row['asn_line_id'] ?? '?']));
+                }
+            }
+        });
+        $data = $validator->validate();
+
+        try {
+            $receipt = $receipts->receiveLines($asn, $data['rows'], Location::query()->findOrFail($data['receiving_location_id']), (int) $request->user()->id, (bool) ($data['complete'] ?? false), $data['delivery_reference'] ?? null);
+        } catch (InvalidArgumentException $e) {
+            return back()->withInput()->withErrors(['rows' => $e->getMessage()]);
+        }
+
+        $count = count($data['rows']);
+        if ($receipt->isOpen()) {
+            return redirect()->route('warehouse.asns.show', $asn)->with('status', __('warehouse.receiving.bulk.done', ['count' => $count, 'no' => $receipt->receipt_no]));
+        }
+
+        return redirect()->route('warehouse.receipts.show', $receipt)->with('status', __('warehouse.receiving.bulk.done_completed', ['count' => $count, 'no' => $receipt->receipt_no]));
     }
 }
