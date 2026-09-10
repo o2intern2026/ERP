@@ -4,7 +4,7 @@
      Enter in it never submits the surrounding line form (tester feedback 2026-09-10). $asnLineOptions: rows of asn_lines ⨝ asns for the
      order's client; $selected: current asn_line_id. --}}
 @php($selected = $selected ?? null)
-<fieldset class="asn-line-picker" style="grid-column:1 / -1;margin:.25rem 0 0;padding:.6rem .9rem .5rem;border:1px solid var(--pico-muted-border-color);border-radius:var(--pico-border-radius)">
+<fieldset class="asn-line-picker" style="margin:.5rem 0 0;padding:.6rem .9rem .5rem;border:1px solid var(--pico-muted-border-color);border-radius:var(--pico-border-radius)">
     <legend style="padding:0 .3rem;font-size:.9rem;font-weight:600">{{ __('orders.drafts.asn_picker_title') }}</legend>
     <div class="grid" style="margin-bottom:.25rem">
         <input type="search" data-asn-filter form="asn-filter-none" placeholder="{{ __('orders.drafts.asn_filter_placeholder') }}" aria-label="{{ __('orders.drafts.asn_filter_placeholder') }}" autocomplete="off" style="margin-bottom:0">

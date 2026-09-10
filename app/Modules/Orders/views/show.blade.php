@@ -211,26 +211,7 @@
             <tbody>
                 @foreach ($order->lines as $line)
                     <tr>
-                        <td>{{ $line->description_cn ?: $line->description_en }}
-                            @if ($canEditLines)
-                                <details>
-                                    <summary>{{ __('orders.drafts.edit_line') }}</summary>
-                                    <form method="post" action="{{ route('orders.lines.update', [$order, $line]) }}" class="grid">
-                                        @csrf
-                                        @method('PATCH')
-                                        <input name="description_cn" value="{{ $line->description_cn }}" placeholder="{{ __('orders.fields.description_cn') }}">
-                                        <input name="description_en" value="{{ $line->description_en }}" placeholder="{{ __('orders.fields.description_en') }}">
-                                        @include('orders::partials.package-type-select', ['name' => 'package_type', 'value' => $line->package_type])
-                                        <input type="number" min="1" name="carton_qty" value="{{ $line->carton_qty }}" required>
-                                        <input type="number" min="0" step="0.001" name="actual_weight_kg" value="{{ $line->actual_weight_kg }}" placeholder="{{ __('orders.fields.weight_kg') }}">
-                                        @if ($order->order_type === 'from_stock')
-                                            @include('orders::partials.asn-line-select', ['asnLineOptions' => $asnLineOptions, 'selected' => $line->asn_line_id])
-                                        @endif
-                                        <button type="submit" class="secondary">{{ __('orders.actions.save_changes') }}</button>
-                                    </form>
-                                </details>
-                            @endif
-                        </td>
+                        <td>{{ $line->description_cn ?: $line->description_en }}</td>
                         <td>{{ \App\Modules\Orders\OrderEnums::packageTypeLabel($line->package_type) }}</td>
                         <td>{{ $line->carton_qty }}</td>
                         <td>{{ $line->unit_qty ?? __('orders.not_provided') }}</td>
@@ -245,6 +226,29 @@
                             @endif
                         </td>
                     </tr>
+                    @if ($canEditLines)
+                        {{-- The line editor gets a full-width row of its own: inside the name cell the five inputs collapsed to slivers and 保存修改 wrapped vertically (tester feedback 2026-09-10). --}}
+                        <tr class="line-edit"><td colspan="7" style="padding-top:0;border-top:0">
+                            <details>
+                                <summary class="text-muted" style="font-size:.9rem">{{ __('orders.drafts.edit_line') }}</summary>
+                                <form method="post" action="{{ route('orders.lines.update', [$order, $line]) }}" style="padding:.5rem .25rem 0">
+                                    @csrf
+                                    @method('PATCH')
+                                    <div class="grid">
+                                        <label>{{ __('orders.fields.description_cn') }}<input name="description_cn" value="{{ $line->description_cn }}"></label>
+                                        <label>{{ __('orders.fields.description_en') }}<input name="description_en" value="{{ $line->description_en }}"></label>
+                                        <label>{{ __('orders.fields.package_type') }}@include('orders::partials.package-type-select', ['name' => 'package_type', 'value' => $line->package_type])</label>
+                                        <label>{{ __('orders.fields.carton_qty') }}<input type="number" min="1" name="carton_qty" value="{{ $line->carton_qty }}" required></label>
+                                        <label>{{ __('orders.fields.weight_kg') }}<input type="number" min="0" step="0.001" name="actual_weight_kg" value="{{ $line->actual_weight_kg }}"></label>
+                                    </div>
+                                    @if ($order->order_type === 'from_stock')
+                                        @include('orders::partials.asn-line-select', ['asnLineOptions' => $asnLineOptions, 'selected' => $line->asn_line_id])
+                                    @endif
+                                    <p style="margin:.75rem 0 .25rem"><button type="submit" class="secondary" style="width:auto;margin:0">{{ __('orders.actions.save_changes') }}</button></p>
+                                </form>
+                            </details>
+                        </td></tr>
+                    @endif
                 @endforeach
             </tbody>
         </table>
@@ -253,17 +257,19 @@
     @if ($canEditLines)
         <details>
             <summary>{{ __('orders.drafts.add_line') }}</summary>
-            <form method="post" action="{{ route('orders.lines.store', $order) }}" class="grid">
+            <form method="post" action="{{ route('orders.lines.store', $order) }}" style="padding:.5rem .25rem 0">
                 @csrf
-                <input name="description_cn" placeholder="{{ __('orders.fields.description_cn') }}">
-                <input name="description_en" placeholder="{{ __('orders.fields.description_en') }}">
-                @include('orders::partials.package-type-select', ['name' => 'package_type', 'value' => 'carton'])
-                <input type="number" min="1" name="carton_qty" value="1" required>
-                <input type="number" min="0" step="0.001" name="actual_weight_kg" placeholder="{{ __('orders.fields.weight_kg') }}">
+                <div class="grid">
+                    <label>{{ __('orders.fields.description_cn') }}<input name="description_cn" value="{{ old('description_cn') }}"></label>
+                    <label>{{ __('orders.fields.description_en') }}<input name="description_en" value="{{ old('description_en') }}"></label>
+                    <label>{{ __('orders.fields.package_type') }}@include('orders::partials.package-type-select', ['name' => 'package_type', 'value' => old('package_type', 'carton')])</label>
+                    <label>{{ __('orders.fields.carton_qty') }}<input type="number" min="1" name="carton_qty" value="{{ old('carton_qty', 1) }}" required></label>
+                    <label>{{ __('orders.fields.weight_kg') }}<input type="number" min="0" step="0.001" name="actual_weight_kg" value="{{ old('actual_weight_kg') }}"></label>
+                </div>
                 @if ($order->order_type === 'from_stock')
-                    @include('orders::partials.asn-line-select', ['asnLineOptions' => $asnLineOptions, 'selected' => null])
+                    @include('orders::partials.asn-line-select', ['asnLineOptions' => $asnLineOptions, 'selected' => old('asn_line_id')])
                 @endif
-                <button type="submit" class="secondary">{{ __('orders.drafts.add_line') }}</button>
+                <p style="margin:.75rem 0 .25rem"><button type="submit" class="secondary" style="width:auto;margin:0">{{ __('orders.drafts.add_line') }}</button></p>
             </form>
         </details>
         @if ($order->order_type === 'from_stock')

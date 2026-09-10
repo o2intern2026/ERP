@@ -139,3 +139,4 @@ Not touched: `contracts/*.md` (only `CHANGE_REQUESTS.md` rows #100–#104 append
 ### 2026-09-10 · main · ASN goods-line picker (X1 zone, integrator)
 
 - `app/Modules/Orders/views/partials/asn-line-select.blade.php` + the inline JS in `orders::show`: the search box is no longer a form control (`form="asn-filter-none"`) and swallows Enter, so it cannot submit the line form; the picker sits in its own full-width labelled block with a match count and auto-select when one row remains; lang `orders.drafts.asn_picker_title / asn_filter_matches / asn_filter_placeholder / asn_link_hint / no_asn_line` reworded.
+- `orders::show` goods table: the line editor and the add-line form moved to full-width rows with labelled fields; 保存修改 / 添加货物行 buttons are inline (`width:auto`). Tester feedback 2026-09-10.
