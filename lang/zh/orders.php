@@ -17,6 +17,7 @@ return [
         'edit_delivery' => '修改配送信息',
         'address_book' => '常用收件地址',
         'add_line' => '新增货物行',
+        'confirm_needs_role' => '确认订单需要客服、调度或管理员角色；如需确认请联系客服。',
         'add_package' => '新增包裹',
         'remove_row' => '删除此行',
         'import' => '批量导入',
@@ -365,6 +366,7 @@ return [
             'postcode' => '邮编',
             'address_type' => '地址类型',
             'default_instructions' => '固定送货备注',
+            'name' => '令牌名称',
         ],
         'messages' => [
             'lines.required_unless' => '库存出库订单至少要填一行货物（中文或英文品名 + 箱数）。',

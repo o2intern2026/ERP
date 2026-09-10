@@ -3,6 +3,7 @@
 namespace Tests\Feature\Transport;
 
 use App\Modules\MasterData\Models\Carrier;
+use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Transport\Models\CarrierService;
 use App\Modules\Transport\Models\DeliveryRun;
 use App\Modules\Transport\Models\RunStop;
@@ -318,6 +319,27 @@ class TransportAuditFixesTest extends TestCase
             'default_eta_days' => 1,
             'active' => true,
         ]);
+    }
+
+    /** Finding (B5): the 毛利 link on every order page 404ed until Transport had a shipment (never, for a 退货 order). */
+    public function test_order_margin_page_renders_an_empty_state_for_an_order_without_shipments(): void
+    {
+        $client = $this->client();
+        $job = app(JobService::class)->create($client->id, 'loose')['job_id'];
+        $order = app(OrderCreationService::class)->create([
+            'client_id' => $client->id, 'job_id' => $job, 'order_type' => 'from_stock', 'external_ref' => 'MARGIN-'.uniqid(),
+            'deliver_to_name' => 'Receiver', 'deliver_to_address' => '1 Test St', 'deliver_to_suburb' => 'Melbourne', 'deliver_to_state' => 'VIC', 'deliver_to_postcode' => '3000',
+            'deliver_to_address_type' => 'business', 'requested_date' => today()->addDay()->toDateString(), 'service_level' => 'standard',
+            'lines' => [['description_en' => 'Goods', 'package_type' => 'carton', 'carton_qty' => 3]],
+        ], null, 'manual');
+
+        $this->actingAs($this->staff('finance'))->get(route('transport.orders.margin', $order->id))
+            ->assertOk()
+            ->assertSee($order->order_no)
+            ->assertSee(__('transport.costs.order_no_shipments'))
+            ->assertDontSee(__('transport.costs.formula'));
+        $this->actingAs($this->staff('finance'))->get(route('transport.orders.margin', 999999))->assertNotFound();
+        $this->actingAs($this->staff('warehouse_operator'))->get(route('transport.orders.margin', $order->id))->assertForbidden();
     }
 
     /** @return array<string, mixed> */

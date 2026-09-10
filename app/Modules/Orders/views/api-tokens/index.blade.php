@@ -15,9 +15,9 @@
         @csrf
         <select name="client_id" required aria-label="{{ __('orders.fields.client') }}">
             <option value="">{{ __('orders.actions.select') }}</option>
-            @foreach ($clients as $client)<option value="{{ $client->id }}">{{ $client->name }}</option>@endforeach
+            @foreach ($clients as $client)<option value="{{ $client->id }}" @selected((int) old('client_id') === $client->id)>{{ $client->name }}</option>@endforeach
         </select>
-        <input name="name" placeholder="{{ __('orders.api.token_name') }}" required>
+        <input name="name" value="{{ old('name') }}" placeholder="{{ __('orders.api.token_name') }}" maxlength="100" required>
         <button type="submit">{{ __('orders.api.issue') }}</button>
     </form>
 

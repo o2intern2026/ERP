@@ -41,10 +41,15 @@
             {{-- 2026-09-10 audit: confirm() refuses a from_stock order with unlinked lines — say so here, before the click. --}}
             <p class="text-muted"><small>{{ __('orders.drafts.unlinked_warning', ['count' => $unlinkedLines->count()]) }}</small></p>
         @endif
-        <form method="post" action="{{ route('orders.confirm', $order) }}">
-            @csrf
-            <button type="submit">{{ __('orders.actions.confirm') }}</button>
-        </form>
+        {{-- 2026-09-10 audit: only the order-entry roles may confirm (OrderController::authorizeOrderEntry) — other staff see why there is no button instead of a 403 page. --}}
+        @if (auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher']))
+            <form method="post" action="{{ route('orders.confirm', $order) }}">
+                @csrf
+                <button type="submit">{{ __('orders.actions.confirm') }}</button>
+            </form>
+        @else
+            <p class="text-muted"><small>{{ __('orders.actions.confirm_needs_role') }}</small></p>
+        @endif
     @endif
 
     @role('admin|warehouse_supervisor|warehouse_operator')

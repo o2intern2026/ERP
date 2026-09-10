@@ -212,6 +212,7 @@ return [
         'pending' => '待记录',
         'missing' => '尚未记录成本，暂不能计算毛利。',
         'order_incomplete' => '仍有运输单缺少成本，订单毛利暂不汇总。',
+        'order_no_shipments' => '该订单尚无运输单（订单确认并进入运输后才会生成），暂无运输成本与毛利。',
         'enter_own_fleet' => '填写自有车队成本',
         'actual_cost_cents' => '实际成本（分）',
         'note' => '成本说明',

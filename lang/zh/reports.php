@@ -22,6 +22,27 @@ return [
         'pick_client' => '— 选择客户 —',
         'from' => '从',
         'to' => '到',
+        'span_hint' => '统计期间最长 :days 天；结束日期不能早于开始日期。',
+    ],
+    // 2026-09-10 audit: Chinese field names / messages for the report filter validators (ReportValidation), so a rejected
+    // filter never prints Laravel's English sentence with the raw query key. Generic per-rule text lives in lang/zh/validation.php (seat C).
+    'validation' => [
+        'attributes' => [
+            'from' => '开始日期',
+            'to' => '结束日期',
+            'client_id' => '客户',
+        ],
+        'messages' => [
+            'to.after_or_equal' => '结束日期不能早于开始日期。',
+            'max_days' => '统计期间最长 :days 天：从 :from 起最晚只能到 :latest，请缩短期间或分段查询。',
+            'client_id.required' => '请先选择客户。',
+            'client_id.exists' => '所选客户不存在。',
+            'required' => ':attribute必填。',
+            'integer' => ':attribute必须是整数。',
+            'exists' => '所选:attribute不存在。',
+            'date' => ':attribute不是有效日期。',
+            'after_or_equal' => ':attribute不能早于 :date。',
+        ],
     ],
     'actions' => [
         'apply' => '查询',

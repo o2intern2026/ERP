@@ -4,6 +4,7 @@ namespace App\Modules\Reports\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Reports\Http\ReportValidation;
 use App\Modules\Reports\Services\ReportCsv;
 use App\Modules\Reports\Services\ReportPeriod;
 use App\Modules\Reports\Services\ReportService;
@@ -24,7 +25,7 @@ final class ClientReportController extends Controller
     public function index(Request $request, ReportService $reports): View
     {
         $this->authorizeStaff($request);
-        $data = $request->validate(ReportPeriod::rules() + ['client_id' => ['nullable', 'integer', Rule::exists('clients', 'id')]]);
+        $data = $request->validate(ReportPeriod::rules() + ['client_id' => ['nullable', 'integer', Rule::exists('clients', 'id')]], ReportValidation::messages(), ReportValidation::attributes());
         $period = ReportPeriod::fromInput($data);
         $client = filled($data['client_id'] ?? null) ? Client::query()->findOrFail((int) $data['client_id']) : null;
         $report = $client ? $reports->client($client->id, $period) : null;
@@ -47,7 +48,7 @@ final class ClientReportController extends Controller
     {
         $this->authorizeStaff($request);
         abort_unless(in_array($table, ReportService::TABLES, true), 404);
-        $data = $request->validate(ReportPeriod::rules() + ['client_id' => ['required', 'integer', Rule::exists('clients', 'id')]]);
+        $data = $request->validate(ReportPeriod::rules() + ['client_id' => ['required', 'integer', Rule::exists('clients', 'id')]], ReportValidation::messages(), ReportValidation::attributes());
         $period = ReportPeriod::fromInput($data);
         $client = Client::query()->findOrFail((int) $data['client_id']);
         $rows = $reports->client($client->id, $period)[$table];
