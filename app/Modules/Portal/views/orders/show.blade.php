@@ -15,6 +15,42 @@
         </p>
     </header>
 
+    @if (auth()->user()->isClientUser() && $order->order_type !== 'return')
+        {{-- CR #111: one client action per stage — 取消订单 (nothing moved yet) / 申请取消 (picking or packed) / 申请退货 (shipped). --}}
+        <article class="kv-card" id="order-actions">
+            <strong>{{ __('portal.cancel.title') }}</strong>
+            @error('cancel')<p class="text-muted" role="alert" style="color:var(--erp-danger)">{{ $message }}</p>@enderror
+            @if ($canCancel)
+                <p class="text-muted" style="margin:.3rem 0"><small>{{ __('portal.cancel.cancel_hint') }}</small></p>
+                <form method="post" action="{{ route('portal.orders.cancel', $order) }}" class="grid" onsubmit="return confirm(this.dataset.confirm)" data-confirm="{{ __('portal.cancel.confirm') }}">
+                    @csrf
+                    <input type="text" name="reason" value="{{ old('reason') }}" placeholder="{{ __('portal.cancel.reason') }}" maxlength="255" required>
+                    <button type="submit" class="contrast" style="width:auto">{{ __('portal.cancel.cancel') }}</button>
+                </form>
+            @elseif ($order->isEditableWithApproval())
+                @if ($cancelRequest !== null && in_array($cancelRequest->status, ['open', 'in_progress'], true))
+                    <p><span class="badge" data-tone="warn">{{ __('portal.cancel.pending_badge') }}</span> {{ __('portal.cancel.pending', ['time' => $cancelRequest->created_at->format('Y-m-d H:i')]) }}</p>
+                @else
+                    @if ($cancelRequest !== null && $cancelRequest->status === 'resolved')
+                        <p><span class="badge" data-tone="danger">{{ __('portal.cancel.rejected_badge') }}</span> {{ $cancelRequest->message }}</p>
+                    @endif
+                    <p class="text-muted" style="margin:.3rem 0"><small>{{ __('portal.cancel.request_hint') }}</small></p>
+                    <form method="post" action="{{ route('portal.orders.cancel_request', $order) }}" class="grid">
+                        @csrf
+                        <input type="text" name="reason" value="{{ old('reason') }}" placeholder="{{ __('portal.cancel.reason') }}" maxlength="255" required>
+                        <button type="submit" class="secondary" style="width:auto">{{ __('portal.cancel.request') }}</button>
+                    </form>
+                @endif
+            @elseif ($canRequestReturn)
+                <p class="text-muted" style="margin:.3rem 0"><small>{{ __('portal.cancel.shipped_note') }}</small></p>
+                <p><a role="button" class="secondary" href="#return-request" onclick="document.getElementById('return-request').open = true">{{ __('portal.returns.request') }}</a></p>
+            @elseif ($order->operational_status === 'cancelled')
+                <p class="text-muted"><small>{{ __('portal.cancel.already_cancelled') }}</small></p>
+            @else
+                <p class="text-muted"><small>{{ __('portal.cancel.none') }}</small></p>
+            @endif
+        </article>
+    @endif
 
     <h2>{{ __('portal.sections.instruction') }}</h2>
     <dl class="kv kv-2">
@@ -190,7 +226,7 @@
     @endif
     @if ($canRequestReturn && auth()->user()->isClientUser())
         {{-- 2026-09-10 audit: a rejected request comes back with the panel open and the typed reason / quantities kept. --}}
-        <details{{ $errors->has('return') ? ' open' : '' }}>
+        <details id="return-request"{{ $errors->has('return') ? ' open' : '' }}>
             <summary>{{ __('portal.returns.request') }}</summary>
             <p class="text-muted"><small>{{ __('portal.returns.hint') }}</small></p>
             <form method="post" action="{{ route('portal.orders.returns.store', $order) }}">

@@ -29,7 +29,7 @@ Conventions: store enums as string columns (not MySQL `ENUM`) so values can be a
 ### exceptions (§2.4 A28; §3.3 holds reuse this table with `type = hold`)
 | field | values |
 |---|---|
-| `type` ※ | `discrepancy` (收货差异) \| `pick_short` \| `delivery_failed` \| `manual_transport` \| `missing_rate` \| `billing_hold` \| `integration_failed` \| `hold` \| `stock_shortage` (缺货: raised by Warehouse when order.confirmed cannot be fully reserved; auto-resolved when the backorder is allocated — CHANGE_REQUESTS #106) |
+| `type` ※ | `discrepancy` (收货差异) \| `pick_short` \| `delivery_failed` \| `manual_transport` \| `missing_rate` \| `billing_hold` \| `integration_failed` \| `hold` \| `cancel_request` (客户在拣货 / 打包阶段申请取消,由客服执行或拒绝 — CHANGE_REQUESTS #111) \| `stock_shortage` (缺货: raised by Warehouse when order.confirmed cannot be fully reserved; auto-resolved when the backorder is allocated — CHANGE_REQUESTS #106) |
 | `status` ※ | `open` \| `in_progress` \| `resolved` |
 | `source_module` ※ | `platform` \| `masterdata` \| `orders` \| `warehouse` \| `transport` \| `billing` |
 

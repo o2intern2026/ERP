@@ -254,6 +254,19 @@ return [
         'dispatched' => '已发运',
         'delivered' => '已送达',
     ],
+    'cancel_request' => [
+        'banner' => '客户申请取消这张订单',
+        'message' => '客户申请取消订单 :order_no：:reason',
+        'at' => '提交于 :time',
+        'execute' => '执行取消',
+        'execute_hint' => '执行取消会释放预留库存、取消运输报价，并按规则冲销费用。',
+        'reject' => '拒绝申请',
+        'reject_reason' => '拒绝原因（客户可见）',
+        'rejected' => '已拒绝客户的取消申请，客户在订单页可以看到原因。',
+        'rejected_note' => '客服已拒绝：:reason',
+        'resolved_cancelled' => '已按客户申请取消订单。',
+        'none_open' => '没有待处理的取消申请。',
+    ],
     'fulfilments' => [
         'shortage_banner' => '本订单缺货未分配:',
         'shortage_line' => '行 #:line :description:需 :need 箱,可用 :available 箱,缺 :short 箱',
@@ -475,6 +488,10 @@ return [
         'confirm_cancel' => '确定取消这张订单？',
         'messages' => [
             'cancelled' => '订单已取消，仓库将释放预留库存。',
+            'client_stage_locked' => '订单已开始拣货，客户不能直接取消，请提交取消申请由客服处理。',
+            'client_use_cancel' => '订单尚未开始拣货，可以直接取消，不需要申请。',
+            'return_order_locked' => '退货单不能在门户取消，请联系客服。',
+            'cancel_request_open' => '已有一条取消申请在处理中，请等待客服处理。',
             'reduced' => '数量已更新，仓库将调整预留。',
             'forbidden' => '只有客服、调度或管理员可以修改订单。',
             'supervisor_required' => '订单已开始拣货：只有仓库主管或管理员可以修改或取消，且必须填写原因。',
@@ -487,6 +504,7 @@ return [
         ],
         'timeline' => [
             'cancelled' => '订单取消：:reason',
+            'cancelled_by_client' => '客户取消：:reason',
             'reduced' => '减少数量（:summary）：:reason',
             'delivery_updated' => '修改配送信息：:reason',
         ],

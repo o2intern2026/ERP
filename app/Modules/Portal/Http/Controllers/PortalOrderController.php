@@ -10,6 +10,7 @@ use App\Modules\Orders\Models\DeclaredPackage;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderLine;
 use App\Modules\Orders\OrderEnums;
+use App\Modules\Orders\Services\OrderChangeService;
 use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Orders\Services\OrderEstimateService;
 use App\Modules\Orders\Services\TailgateRule;
@@ -196,6 +197,10 @@ final class PortalOrderController extends Controller
             // 2026-09-10 audit: a pure transport order has declared packages but no goods lines, and ReturnRequestService builds the
             // return from lines — so the panel is only offered when there is something to return (the page says 请联系客服 otherwise).
             'canRequestReturn' => $order->acceptsReturnRequest() && $order->lines->isNotEmpty(),
+            // CR #111: what the client may do about this order right now — one action per stage.
+            'canCancel' => $order->order_type !== 'return' && $order->isEditable(),
+            'canRequestCancel' => $order->order_type !== 'return' && $order->isEditableWithApproval() && app(OrderChangeService::class)->openCancelRequest($order) === null,
+            'cancelRequest' => app(OrderChangeService::class)->latestCancelRequest($order),
             // A7b: the client's estimate — customer prices only (OrderEstimateService never selects cost).
             'estimate' => $estimates->current($order),
             'canEstimate' => $estimates->canEstimate($order) && auth()->user()->isClientUser(),

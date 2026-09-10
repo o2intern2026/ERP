@@ -33,6 +33,32 @@
         </article>
     </div>
 
+    @if (($cancelRequest ?? null) !== null)
+        <article class="flash" role="note" id="cancel-request">
+            <strong>{{ __('orders.cancel_request.banner') }}</strong> · <small class="text-muted">{{ __('orders.cancel_request.at', ['time' => $cancelRequest->created_at->format('Y-m-d H:i')]) }}</small>
+            <p style="margin:.3rem 0 .5rem">{{ $cancelRequest->message }}</p>
+            @if (auth()->user()->hasAnyRole(\App\Modules\Orders\Services\OrderChangeService::COORDINATOR_ROLES) && ! $order->isShipped())
+                <div class="grid">
+                    @if ($canChange)
+                    <form method="post" action="{{ route('orders.cancel', $order) }}" onsubmit="return confirm(this.dataset.confirm)" data-confirm="{{ __('orders.changes.confirm_cancel') }}">
+                        @csrf
+                        <input type="hidden" name="reason" value="{{ \Illuminate\Support\Str::limit($cancelRequest->message, 200, '') }}">
+                        <button type="submit" class="contrast" style="width:auto">{{ __('orders.cancel_request.execute') }}</button>
+                        <small class="text-muted">{{ __('orders.cancel_request.execute_hint') }}</small>
+                    </form>
+                    @else
+                        <p class="text-muted"><small>{{ __('orders.changes.messages.supervisor_required') }}</small></p>
+                    @endif
+                    <form method="post" action="{{ route('orders.cancel_request.reject', $order) }}">
+                        @csrf
+                        <input type="text" name="reason" placeholder="{{ __('orders.cancel_request.reject_reason') }}" required>
+                        <button type="submit" class="secondary" style="width:auto">{{ __('orders.cancel_request.reject') }}</button>
+                    </form>
+                </div>
+            @endif
+        </article>
+    @endif
+
     @if (($shortages ?? collect())->isNotEmpty())
         <article class="flash" role="note">
             <strong>{{ __('orders.fulfilments.shortage_banner') }}</strong>

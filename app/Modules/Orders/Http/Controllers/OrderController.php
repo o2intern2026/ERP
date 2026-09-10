@@ -125,6 +125,7 @@ final class OrderController extends Controller
             'unlinkedLines' => $order->operational_status === 'received' && $order->order_type === 'from_stock'
                 ? $order->lines->whereNull('asn_line_id')->values()
                 : collect(),
+            'cancelRequest' => app(OrderChangeService::class)->openCancelRequest($order), // client's stage-2 申请取消 waiting for a coordinator (CR #111)
             // Item 4C (2026-09-10): backordered lines with what is available right now, so the shortage is visible on the order itself.
             'shortages' => in_array($order->operational_status, OrderStatusService::TERMINAL, true) ? collect() : $order->lines->where('qty_backordered', '>', 0)->map(fn ($line) => [
                 'line' => $line, 'available' => $line->asn_line_id ? app(StockService::class)->onHand($order->client_id, (int) $line->asn_line_id)['qty_available'] : 0,

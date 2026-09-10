@@ -51,6 +51,7 @@ Route::prefix('orders')->name('orders.')->group(function () {
     Route::post('/{order}/holds', [HoldController::class, 'store'])->name('holds.store');
     Route::post('/{order}/holds/{exception}/release', [HoldController::class, 'release'])->name('holds.release');
     Route::post('/{order}/cancel', [OrderChangeController::class, 'cancel'])->name('cancel');
+    Route::post('/{order}/cancel-request/reject', [OrderChangeController::class, 'rejectCancelRequest'])->name('cancel_request.reject'); // client's stage-2 request declined (CR #111)
     Route::post('/{order}/reduce', [OrderChangeController::class, 'reduce'])->name('reduce');
     Route::post('/{order}/returns', [ReturnController::class, 'store'])->name('returns.store');
     Route::post('/{order}/return-decision', [ReturnController::class, 'decide'])->name('returns.decide');

@@ -41,4 +41,18 @@ final class OrderChangeController extends Controller
 
         return redirect()->route('orders.show', $order)->with('status', __('orders.changes.messages.reduced'));
     }
+
+    /** Decline the client's 申请取消 (stage 2); the reason is appended to the exception and shown in the portal. */
+    public function rejectCancelRequest(Request $request, Order $order, OrderChangeService $changes): RedirectResponse
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'max:255']]);
+
+        try {
+            $changes->rejectCancelRequest($order, $request->user(), $data['reason']);
+        } catch (OrderRuleViolation $e) {
+            return back()->withErrors(['change' => $e->getMessage()]);
+        }
+
+        return redirect()->route('orders.show', $order)->with('status', __('orders.cancel_request.rejected'));
+    }
 }

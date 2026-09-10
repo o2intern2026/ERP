@@ -9,6 +9,8 @@ use App\Modules\Orders\Exceptions\OrderRuleViolation;
 use App\Modules\Orders\Models\Fulfilment;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderLine;
+use App\Modules\Platform\Models\ExceptionRecord;
+use App\Support\Contracts\ExceptionService;
 use App\Support\Outbox\OutboxPublisher;
 use Illuminate\Support\Facades\DB;
 
@@ -29,6 +31,7 @@ final class OrderChangeService
         private readonly OrderStatusService $statuses,
         private readonly FulfilmentService $fulfilments,
         private readonly OutboxPublisher $outbox,
+        private readonly ExceptionService $exceptions,
     ) {}
 
     /** Throws when this user may not change the order at its current stage. */
@@ -76,10 +79,88 @@ final class OrderChangeService
     {
         $this->authorizeChange($order, $user);
 
-        return DB::transaction(function () use ($order, $user, $reason): Order {
+        $cancelled = $this->performCancel($order, $user->id, $reason, __('orders.changes.timeline.cancelled', ['reason' => $reason]));
+        $this->exceptions->resolveOpen('cancel_request', $cancelled->id, $user->id, __('orders.cancel_request.resolved_cancelled')); // a client request, if any, is now done
+
+        return $cancelled;
+    }
+
+    /**
+     * Stage 1 self-service for the client (2026-09-10, lead decision): while nothing has moved (received / confirmed / allocated) the
+     * client cancels directly — same transaction and `order.cancelled` event as a staff cancel, timeline says 客户取消.
+     */
+    public function cancelByClient(Order $order, User $user, string $reason): Order
+    {
+        $this->authorizeClient($order, $user);
+        if ($order->order_type === 'return') {
+            throw new OrderRuleViolation(__('orders.changes.messages.return_order_locked'));
+        }
+        if ($order->isEditableWithApproval()) {
+            throw new OrderRuleViolation(__('orders.changes.messages.client_stage_locked'));
+        }
+        if (! $order->isEditable()) {
+            throw new OrderRuleViolation(__('orders.changes.messages.shipped_locked'));
+        }
+
+        return $this->performCancel($order, $user->id, $reason, __('orders.changes.timeline.cancelled_by_client', ['reason' => $reason]));
+    }
+
+    /** Stage 2: picking / packed — the client asks, a coordinator decides (cancel_request exception, Coordinator queue). Returns the exception id. */
+    public function requestCancel(Order $order, User $user, string $reason): int
+    {
+        $this->authorizeClient($order, $user);
+        if ($order->isEditable()) {
+            throw new OrderRuleViolation(__('orders.changes.messages.client_use_cancel'));
+        }
+        if (! $order->isEditableWithApproval()) {
+            throw new OrderRuleViolation(__('orders.changes.messages.shipped_locked'));
+        }
+        if ($this->openCancelRequest($order) !== null) {
+            throw new OrderRuleViolation(__('orders.changes.messages.cancel_request_open'));
+        }
+
+        return $this->exceptions->raise('cancel_request', 'orders', [
+            'job_id' => $order->job_id, 'client_id' => $order->client_id, 'order_id' => $order->id,
+            'source_type' => 'order', 'source_id' => $order->id, 'created_by' => $user->id,
+            'message' => __('orders.cancel_request.message', ['order_no' => $order->order_no, 'reason' => $reason]),
+        ]);
+    }
+
+    /** A coordinator declines the client's request; the reason is appended to the exception and shown to the client. */
+    public function rejectCancelRequest(Order $order, User $user, string $reason): void
+    {
+        if (! $user->hasAnyRole(self::COORDINATOR_ROLES)) {
+            throw new OrderRuleViolation(__('orders.changes.messages.forbidden'));
+        }
+        if ($this->exceptions->resolveOpen('cancel_request', $order->id, $user->id, __('orders.cancel_request.rejected_note', ['reason' => $reason])) === 0) {
+            throw new OrderRuleViolation(__('orders.cancel_request.none_open'));
+        }
+    }
+
+    public function openCancelRequest(Order $order): ?ExceptionRecord
+    {
+        return ExceptionRecord::query()->withoutGlobalScopes()->where('type', 'cancel_request')->where('order_id', $order->id)->whereIn('status', ['open', 'in_progress'])->latest('id')->first();
+    }
+
+    /** The most recent request (open or decided) — the portal shows 处理中 / 未通过 from it. */
+    public function latestCancelRequest(Order $order): ?ExceptionRecord
+    {
+        return ExceptionRecord::query()->withoutGlobalScopes()->where('type', 'cancel_request')->where('order_id', $order->id)->latest('id')->first();
+    }
+
+    private function authorizeClient(Order $order, User $user): void
+    {
+        if (! $user->isClientUser() || (int) $user->client_id !== (int) $order->client_id) {
+            throw new OrderRuleViolation(__('orders.changes.messages.forbidden'));
+        }
+    }
+
+    private function performCancel(Order $order, int $userId, string $reason, string $timelineNote): Order
+    {
+        return DB::transaction(function () use ($order, $userId, $reason, $timelineNote): Order {
             $locked = Order::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($order->id);
             $previous = $locked->operational_status;
-            $this->statuses->transitionOperational($locked, 'cancelled', $user->id, __('orders.changes.timeline.cancelled', ['reason' => $reason]));
+            $this->statuses->transitionOperational($locked, 'cancelled', $userId, $timelineNote);
 
             $this->outbox->publish(new OrderCancelled([
                 'order_id' => $locked->id,
@@ -87,7 +168,7 @@ final class OrderChangeService
                 'job_id' => $locked->job_id,
                 'client_id' => $locked->client_id,
                 'previous_status' => $previous,
-                'cancelled_by' => $user->id,
+                'cancelled_by' => $userId,
                 'reason' => $reason,
                 'cancelled_at' => now()->toIso8601String(),
             ], $locked->job_id, $locked->client_id, $locked->job?->job_no ?? $locked->order_no));
