@@ -65,7 +65,11 @@ class PortalQuoteConfirmationTest extends TestCase
         $this->actingAs($user)->post(route('portal.orders.quotes.confirm', [$order, $cheapest->id]))->assertRedirect()->assertSessionHasNoErrors();
         $this->assertSame(1, OutboxEvent::query()->where('event_name', 'shipment.quote_confirmed')->count());
         // The recommended one can no longer be chosen once the shipment is confirmed — Transport's rule, surfaced as a form error.
-        $this->actingAs($user)->post(route('portal.orders.quotes.confirm', [$order, $recommended->id]))->assertRedirect()->assertSessionHasErrors('quote');
+        $this->actingAs($user)->from(route('portal.orders.show', $order))->post(route('portal.orders.quotes.confirm', [$order, $recommended->id]))
+            ->assertRedirect(route('portal.orders.show', $order))->assertSessionHasErrors(['quote' => __('transport.selection.invalid_status')]);
+        // 2026-09-10 rule (每一处报错都用中文): the refusal the client reads on the page is the Chinese sentence, not an exception name.
+        $this->actingAs($user)->get(route('portal.orders.show', $order))->assertOk()
+            ->assertSee(__('transport.selection.invalid_status'))->assertDontSee('DomainException')->assertDontSee('Exception');
     }
 
     public function test_another_clients_quote_is_a_404_and_staff_are_not_portal_users(): void

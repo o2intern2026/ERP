@@ -104,7 +104,13 @@ class PortalInvoicesAndStockTest extends TestCase
         $this->actingAs($user)->get(route('portal.stock.index', ['availability' => 'available']))->assertOk()->assertSee('STK-GOOD')->assertDontSee('STK-WET');
         $this->actingAs($user)->get(route('portal.stock.index', ['availability' => 'none']))->assertOk()->assertSee('STK-WET')->assertDontSee('STK-GOOD');
         $this->actingAs($user)->get(route('portal.stock.index', ['condition' => 'good', 'availability' => 'none']))->assertOk()->assertSee(__('portal.stock.empty'));
-        $this->actingAs($user)->get(route('portal.stock.index', ['condition' => 'bogus']))->assertSessionHasErrors('condition');
+        // 2026-09-10 rule (每一处报错都用中文): a hand-edited filter is refused with the Chinese field name, never the raw query key.
+        $this->actingAs($user)->from(route('portal.stock.index'))->get(route('portal.stock.index', ['condition' => 'bogus']))
+            ->assertRedirect(route('portal.stock.index'))->assertSessionHasErrors('condition');
+        $message = session('errors')->first('condition');
+        $this->assertStringContainsString(__('portal.validation.attributes.condition'), $message);
+        $this->assertStringNotContainsString('condition', $message);
+        $this->actingAs($user)->get(route('portal.stock.index'))->assertOk()->assertSee($message)->assertDontSee('selected condition');
     }
 
     private function issuedInvoice(Client $client, int $financeId): Invoice

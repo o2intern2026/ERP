@@ -50,7 +50,8 @@ final class OrderHoldService
     {
         $hold = $this->activeFor($order)->firstWhere('id', $exceptionId);
         if ($hold === null) {
-            throw new InvalidArgumentException('No active hold with that id on this order.');
+            // Surfaced by HoldController::release() as a flash message (a second person released it in between), so it is Chinese.
+            throw new InvalidArgumentException(__('orders.holds.messages.not_active'));
         }
 
         DB::transaction(function () use ($order, $hold, $note, $actorId): void {

@@ -49,7 +49,7 @@ final class PortalOrderController extends Controller
             'status' => ['nullable', Rule::in(array_keys(self::CUSTOMER_FILTERS))],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
-        ]);
+        ], PortalValidation::messages(), PortalValidation::attributes()); // Chinese field names for a hand-edited filter URL
 
         $orders = Order::query()
             ->when($filters['q'] ?? null, fn ($query, $q) => $query->where(fn ($w) => $w

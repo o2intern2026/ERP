@@ -174,13 +174,28 @@ return [
         'pickup_date' => '提货日期（留空则使用报价日期）',
         'submit' => '确认预订',
         'booked' => '运输已预订，成本与追踪信息已记录。',
-        'hold_hint' => '未收款或逾期不会阻止预订；只有 Finance 设置的人工财务锁会阻止。',
+        'hold_hint' => '未收款或逾期不会阻止预订；只有财务设置的人工财务锁会阻止。',
         'financial_hold' => '该订单存在有效财务锁，放行后才能预订。',
         'adapter_unavailable' => '所选运输来源目前不能预订。',
         'details_unavailable' => '预订所需的地址或包裹资料不完整。',
         'invalid_status' => '只有已确认的最终运输方案可以预订。',
         'unknown_status' => '承运商没有返回预订状态。',
+        // Carrier reported a non-failure status but no booking reference — the booking is not taken as confirmed.
+        'missing_reference' => '承运商未返回预订参考号（:status）',
         'failed' => '承运商预订失败：:reason',
+        'manual_reference_required' => '人工预订必须填写人工预订参考号。',
+        // Gateway / carrier status codes that the booking service treats as "not booked"; the raw code stays in brackets
+        // so the dispatcher can quote it to the carrier.
+        'carrier_status_reason' => ':label（:status）',
+        'carrier_detail' => ':reason，承运商返回：:detail',
+        'carrier_statuses' => [
+            'new' => '承运商尚未确认预订',
+            'pending_payment' => '承运商等待付款',
+            'pending_review' => '承运商审核中',
+            'request_failed' => '网关请求失败',
+            'cancelled' => '承运商已取消预订',
+        ],
+        'carrier_status_other' => '承运商返回未预订状态',
     ],
     'manual_quote' => [
         'title' => '人工录入运输报价',
@@ -335,7 +350,7 @@ return [
     ],
     'labels' => [
         'print_own' => '打印自有车队标签',
-        'print_waybill' => '打印承运商 Waybill',
+        'print_waybill' => '打印承运商运单',
         'own_fleet' => 'OWN FLEET',
         'ship_to' => 'SHIP TO',
         'shipment' => 'SHIPMENT',
@@ -346,11 +361,11 @@ return [
         'missing_carton_label' => '包裹缺少箱标条码。',
         'no_selected_quote' => '必须先确认最终运输方案。',
         'receiver_missing' => '最终运输方案缺少完整收件人与地址。',
-        'waybill_unavailable' => '承运商 Waybill 尚不可用。',
+        'waybill_unavailable' => '承运商运单尚不可用。',
         'stored_document_missing' => '已登记的运输标签文件不存在。',
         'storage_failed' => '运输标签保存失败。',
         // 2026-09-10 audit: the print button is only offered when the label can actually be produced; these explain why it is missing.
-        'manual_unavailable' => '人工承运商不提供电子 Waybill，请使用承运商自己的运单。',
+        'manual_unavailable' => '人工承运商不提供电子运单，请使用承运商自己的运单。',
         'not_ready' => '确认最终运输方案并完成预订后可打印运输标签。',
     ],
     'tracking' => [
@@ -386,7 +401,7 @@ return [
         'cost_cents' => '承运商成本（分，可留空）',
         'note' => '说明',
         'submit' => '提交额外费用',
-        'reported' => '额外费用事件已提交，由 Billing 按价目表决定收费。',
+        'reported' => '额外费用事件已提交，由计费模块按价目表决定收费。',
         'invalid' => '额外费用类型、数量或单位无效。',
         'types' => [
             'waiting' => '等候',

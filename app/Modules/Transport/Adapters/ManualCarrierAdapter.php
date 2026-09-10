@@ -56,7 +56,7 @@ final class ManualCarrierAdapter implements CarrierAdapter
     {
         $bookingRef = trim((string) ($options['quote_ref'] ?? ''));
         if ($bookingRef === '') {
-            throw new InvalidArgumentException('Manual booking requires a human-entered quote_ref.');
+            throw new InvalidArgumentException(__('transport.booking.manual_reference_required'));
         }
 
         return [

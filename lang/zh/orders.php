@@ -43,7 +43,7 @@ return [
         'source' => '来源',
         'external_ref' => '客户参考号',
         'consignment_mark' => '唛头',
-        'fba_reference' => 'FBA Shipment ID',
+        'fba_reference' => 'FBA 货件编号（Shipment ID）',
         'destination' => '目的地',
         'deliver_to_name' => '收件企业／联系人',
         'deliver_to_phone' => '联系电话',
@@ -113,7 +113,7 @@ return [
         'create_title' => '导入配送清单',
         'show_title' => '订单导入 #:id',
         'empty' => '暂无订单导入记录。',
-        'hint' => '支持 XLSX 或 CSV；系统按“唛头 + 收件地址 + FBA 引用”分组，并在正式建单前显示阻断项和重复项。',
+        'hint' => '支持 XLSX 或 CSV；系统按“唛头 + 收件地址 + FBA 货件编号”分组，并在正式建单前显示阻断项和重复项。',
         'address_matched' => '已匹配地址簿',
         'warning_title' => '请注意：',
         'actions' => [
@@ -156,7 +156,7 @@ return [
             'required' => ':field 不能为空。',
             'positive_number' => ':field 必须是大于 0 的数字。',
             'invalid_state' => '州必须是有效的澳大利亚州缩写。',
-            'inconsistent_group' => '唛头 :mark 下的收件地址或 FBA 引用不一致，已阻断，请人工修正。',
+            'inconsistent_group' => '唛头 :mark 下的收件地址或 FBA 货件编号不一致，已阻断，请人工修正。',
             'matching_asn' => '唛头 :mark 已存在于所选 Job 的 ASN，请从 ASN 生成订单，避免重复导入。',
             'duplicate_order' => '唛头 :mark 已有相同订单，本组未重复生成。',
             'duplicate_file' => '这份文件与导入 #:id 相同；系统仍会逐组检查重复，绝不会重复建单。',
@@ -233,6 +233,7 @@ return [
         'timeline' => ['invoiced' => '计费模块已开出发票 :invoice_no(:type),订单转为已开票。'],
         'invoice_types' => ['service' => '服务发票', 'storage' => '周仓储发票', 'supplementary' => '补充发票', 'monthly' => '月结汇总'],
     ],
+    // Client-facing coarse status (ERP_PLAN §3.4; the contracts/enums.md keys are unchanged) — Chinese labels per the 2026-09-10 rule.
     'customer_statuses' => [
         'received' => '已接收',
         'confirmed' => '已确认',
@@ -275,7 +276,7 @@ return [
 
         'title' => '订单 :order_no 的履约批次',
         'availability_title' => '在库校验',
-        'batches_title' => '分批履约与 Backorder',
+        'batches_title' => '分批履约与缺货',
         'empty' => '尚未生成履约批次。订单确认后，系统会根据 WMS 的实际预留结果自动生成。',
         'actions' => [
             'open' => '查看完整履约批次',
@@ -286,7 +287,7 @@ return [
             'ordered' => '下单箱数',
             'allocated' => '已分配',
             'available' => '当前可用库存',
-            'backordered' => '欠货(待补)',
+            'backordered' => '缺货箱数',
             'stock_result' => '校验结果',
             'warehouse' => '仓库',
             'batch_qty' => '本批箱数',
@@ -328,7 +329,7 @@ return [
             'order_type' => '订单类型',
             'external_ref' => '客户参考号',
             'consignment_mark' => '唛头',
-            'fba_reference' => 'FBA Shipment ID',
+            'fba_reference' => 'FBA 货件编号（Shipment ID）',
             'deliver_to_name' => '收件企业／联系人',
             'deliver_to_phone' => '联系电话',
             'deliver_to_address' => '收件地址',
@@ -466,11 +467,12 @@ return [
         'types' => ['stock' => '库存锁定', 'financial' => '财务锁', 'address' => '地址待确认', 'transport' => '运输锁定', 'client_confirmation' => '待客户确认'],
         'timeline' => ['placed' => '置锁（:type）：:reason', 'released' => '放行（:type）：:note'],
         'messages' => [
-            'placed' => '已置锁，订单出现在 协调员 队列。',
+            'placed' => '已置锁，订单出现在 协调员队列。',
             'released' => '已放行。',
             'finance_only' => '财务锁只能由财务或管理员置锁。',
             'release_roles' => '财务锁只能由财务、管理员或调度放行。',
             'dispatch_blocked' => '订单 :order_no 有生效中的财务锁，不能预订 / 发运；请财务放行后再试。',
+            'not_active' => '该挂起已不再生效（可能已被他人放行），请刷新页面。',
         ],
     ],
     'changes' => [
@@ -548,12 +550,13 @@ return [
         'asn_filter_matches' => '匹配 :count 行。',
         'no_asn_lines_yet' => '该客户尚无可关联的 ASN 货物行：请先在仓库模块为该客户建立 ASN（预报单）并录入货物行，或改为从 ASN 生成订单。',
         'asn_filter_placeholder' => '搜索唛头 / 品名 / 预报单号',
+        'asn_option_cartons' => ':count 箱', // carton count shown in brackets after each ASN goods-line option
         'asn_link_hint' => '先在左边输入唛头、品名或预报单号缩小范围,再在右边下拉框选中;只剩一条时会自动选中。每行货物都要对应一条预报单货物行,确认订单时按行核对库存。',
         'unlinked_warning' => '还有 :count 行货物未关联 ASN 货物行，现在确认会被拒绝；请先在下方货物明细里逐行关联。',
         'fields' => [
             'external_ref' => '客户参考号',
             'consignment_mark' => '唛头',
-            'fba_reference' => 'FBA 引用',
+            'fba_reference' => 'FBA 货件编号（Shipment ID）',
             'deliver_to_name' => '收件人',
             'deliver_to_phone' => '电话',
             'deliver_to_address' => '地址',

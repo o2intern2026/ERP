@@ -101,7 +101,7 @@
                         @foreach ($preview['lines'] as $line)
                             <tr>
                                 <td>{{ $line['description'] }} <span class="text-muted"><small>{{ $line['charge_code'] }}</small></span></td>
-                                <td class="num">{{ rtrim(rtrim(number_format($line['qty'], 2), '0'), '.') }} {{ $line['uom'] }}</td>
+                                <td class="num">{{ rtrim(rtrim(number_format($line['qty'], 2), '0'), '.') }} {{ $line['uom'] ? (\Illuminate\Support\Facades\Lang::has('orders.estimate.uoms.'.$line['uom']) ? __('orders.estimate.uoms.'.$line['uom']) : $line['uom']) : '' }}</td>
                                 <td class="num">{{ $line['missing'] ? __('portal.estimate.preview_poa') : \App\Support\Money::cents($line['amount_cents'])->format() }}</td>
                             </tr>
                         @endforeach

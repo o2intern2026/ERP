@@ -7,6 +7,7 @@ use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Orders\Services\OrderStatusService;
 use App\Modules\Platform\Services\OutboxDispatcher;
+use App\Modules\Reports\Http\ReportValidation;
 use App\Modules\Reports\Services\ReportPeriod;
 use App\Modules\Reports\Services\ReportService;
 use App\Modules\Warehouse\Services\OutboundService;
@@ -68,7 +69,11 @@ class ReportsTest extends TestCase
         $this->assertSame(0, collect($past['orders_by_status'])->sum('orders'));
         $this->assertSame([['delivered' => 0, 'overdue_open' => 1]], collect($past['on_time'])->map(fn ($r) => collect($r)->only(['delivered', 'overdue_open'])->all())->all());
         $this->assertNotEmpty($past['exceptions']);
-        $this->actingAs($this->staff('admin'))->get(route('reports.index', ['from' => '2026-02-10', 'to' => '2026-02-01']))->assertSessionHasErrors('to');
+        // 2026-09-10 rule (每一处报错都用中文): the reversed range is refused with the Chinese sentence, and that is what the page shows.
+        $reversed = ReportValidation::messages()['to.after_or_equal'];
+        $this->actingAs($this->staff('admin'))->from(route('reports.index'))->get(route('reports.index', ['from' => '2026-02-10', 'to' => '2026-02-01']))
+            ->assertRedirect(route('reports.index'))->assertSessionHasErrors(['to' => $reversed]);
+        $this->actingAs($this->staff('admin'))->get(route('reports.index'))->assertOk()->assertSee($reversed)->assertDontSee('must be a date after or equal');
 
         // Not for other staff, never for client users (ClientScope keeps them inside /portal).
         $this->actingAs($this->staff('customer_service'))->get(route('reports.index'))->assertForbidden();

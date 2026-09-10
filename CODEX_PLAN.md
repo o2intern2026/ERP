@@ -95,7 +95,7 @@ git push origin block/<你的当前版块>
 | 5 | **A14** 入库批次关联 | A3;asns 表归 C → 只读 | 订单 ↔ ASN 关联与"按柜号查全部订单"页 | #9 |
 | 6 | **A16** 尾板车自动判定 | 阈值来自客户价目表(C 的 A5,M6)→ 先用 `FakeRateService` 返回默认 25 kg | 确认订单时写 `tailgate_required`,人工覆盖填原因 | #10(前半) |
 | 7 | **A11b** 纯运输订单 | A3 | 不经仓库直接进 TMS 待派(X2 的 TMS 联调靠它) | #6 |
-| 8 | **A15** 协调员 队列 | A3;异常表归 Platform → 经 `ExceptionService` 写 | 队列页(按类型 / 负责人筛) | — |
+| 8 | **A15** 协调员队列 | A3;异常表归 Platform → 经 `ExceptionService` 写 | 队列页(按类型 / 负责人筛) | — |
 
 版块完成标准:8 个任务全打勾,`php artisan test` 全绿,CI 绿 → 开 PR `block/x1-oms-min → main`,标题 `M3: OMS minimal block`,描述按 §5 模板。等 C 合并后 `git rebase main`。
 

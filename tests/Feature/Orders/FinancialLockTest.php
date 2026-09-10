@@ -113,6 +113,28 @@ class FinancialLockTest extends TestCase
         $this->actingAs($this->staff('customer_service'))->get('/orders')->assertOk()->assertSee(__('orders.holds.financial_badge'));
     }
 
+    /** 2026-09-10 i18n sweep: a hold released by someone else in the meantime is refused in Chinese, never with the old English service text. */
+    public function test_releasing_a_hold_that_is_no_longer_active_is_refused_in_chinese(): void
+    {
+        $finance = $this->staff('finance');
+        $client = $this->client();
+        $order = $this->order($client->id);
+        $holds = app(OrderHoldService::class);
+        $holdId = $holds->place($order, 'financial', 'deposit outstanding', $finance->id);
+        $holds->release($order, $holdId, 'paid', $finance->id);
+
+        try {
+            $holds->release($order, $holdId, 'paid again', $finance->id);
+            $this->fail('a released hold must not be released twice');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame(__('orders.holds.messages.not_active'), $e->getMessage());
+            $this->assertStringNotContainsString('No active hold', $e->getMessage());
+        }
+
+        // Over HTTP the controller answers a stale id with the (Chinese) 404 page before the service is reached.
+        $this->actingAs($finance)->post(route('orders.holds.release', [$order, $holdId]), ['note' => 'paid again'])->assertNotFound();
+    }
+
     private function order(int $clientId): Order
     {
         $job = app(JobService::class)->create($clientId, 'loose')['job_id'];
