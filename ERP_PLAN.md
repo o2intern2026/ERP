@@ -31,7 +31,7 @@
 6. **对方版块未合并前用 Fake 实现**(`FakeStockService`、`FakeRateService`、`FakeJobService`)。
 7. **金额一律整数分、AUD**;费率不含税,税按每个 charge code 的 `tax_treatment`(gst_10 / gst_free / out_of_scope)在发票按行汇总;仓储费按托盘·周。
 8. **价目表里的所有数字都是可配置参数**:单价、分档边界(22 / 45 kg)、托盘尺寸与重量阈值(1200 × 1200 × 1400 / 1800 / 2400 mm、800 kg)、拆柜行数上限(20)、集装箱吨位门槛(22.5 t)、最低收费、尾板阈值、加急 cut-off —— 全部存在客户价目表 / 客户主数据里,代码不写死,每个客户可不同;Edward 价目表作为标准表的默认值。
-9. **账期按客户配置**(`clients.payment_terms` = prepaid | eom | net_N):发票只算到期与逾期,**系统不因未收款阻止预订或发运**;财务锁只由 Finance / Coordinator 人工置。
+9. **账期按客户配置**(`clients.payment_terms` = prepaid | eom | net_N):发票只算到期与逾期,**系统不因未收款阻止预订或发运**;财务锁只由 财务 / 协调员 人工置。
 
 ## 0.3 对象层级(全系统统一)
 
@@ -167,7 +167,7 @@ jobs
 
 **优势:** CargoWise 的 Job 页把订单、仓储、运输、单据、费用、成本放在一个页面,任何角色都从 Job 进入;异常(仓库差异、配送失败、计费缺费率、集成失败)有统一入口,而不是散在各模块;单据(POD、Docket、照片、发票)有统一的类型、关联对象与可见性。Extensiv 的集成产品则把"哪个集成失败了、能不能重试"做成看板。
 
-**取舍:** **采用**:Job 工作台(Platform 提供 `JobService` 与页面骨架,各模块贡献自己的面板)、Exception Centre(统一 `exceptions` 表,取代仅 OMS 的 Coordinator 队列)、统一 `documents` 表(类型、关联对象、client 可见性)、Integration Monitoring(TD/EIZ 调用与事件失败的重试与告警)、Global Search(Job、订单、唛头、柜号、tracking、发票)。安全、备份、性能、可观测性作为工程基线(§2.6)。**不采用**:导入历史泛化(各导入自记历史即可)、门户角色矩阵(客户角色暂只一种,细分待后续;成本与毛利对客户不可见的规则在 PLT-1 保持)。
+**取舍:** **采用**:Job 工作台(Platform 提供 `JobService` 与页面骨架,各模块贡献自己的面板)、Exception Centre(统一 `exceptions` 表,取代仅 OMS 的 协调员 队列)、统一 `documents` 表(类型、关联对象、client 可见性)、Integration Monitoring(TD/EIZ 调用与事件失败的重试与告警)、Global Search(Job、订单、唛头、柜号、tracking、发票)。安全、备份、性能、可观测性作为工程基线(§2.6)。**不采用**:导入历史泛化(各导入自记历史即可)、门户角色矩阵(客户角色暂只一种,细分待后续;成本与毛利对客户不可见的规则在 PLT-1 保持)。
 
 ### 2.1.7 报表 —— MachShip(承运商绩效)/ Extensiv(货主视角)
 
@@ -184,7 +184,7 @@ jobs
 | 供应商 / 承运商 | 登记与维护 | **PLT-2** |
 | (仓库 / 库位) | 表与页面都在 Warehouse 模块(B);Platform 只在菜单里链接过去 | **PLT-2** |
 | Job 工作台 | 一个 Job 的订单、入库、库存、发运、单据、费用、成本、毛利在一页 | **PLT-3 / PLT-4** 的串联视图;CargoWise Job 页 |
-| 异常中心 | OMS / WMS / TMS / Billing 的异常统一列表:收货差异、Pick Short、配送失败、Missing Rate、Billing Hold、集成失败 | **OMS-2 / TMS-3 / FIN-2** 的异常处理入口 — 取代仅 OMS 的 Coordinator 队列 |
+| 异常中心 | OMS / WMS / TMS / Billing 的异常统一列表:收货差异、Pick Short、配送失败、Missing Rate、Billing Hold、集成失败 | **OMS-2 / TMS-3 / FIN-2** 的异常处理入口 — 取代仅 OMS 的 协调员 队列 |
 | 文档中心 | 所有单据按类型与关联对象归档(POD、Docket、照片、waybill、发票),含客户可见性 | **TMS-2 / TMS-4 / FIN-3** — 单据一处管理 |
 | 全局搜索 | 按 Job、订单号、唛头、柜号、tracking、发票号直达 | 全模块 |
 | 集成监控 | TD/EIZ 调用日志、失败事件队列、重试 | **PLT-6** 的运维面;铁律第 4 条的落地 |
@@ -245,7 +245,7 @@ jobs
 
 `依赖 A27 · 对标:CargoWise 异常统一入口`
 
-- 统一 `exceptions` 表(类型、来源模块、关联 Job 与单据、状态、处理人);收货差异、Pick Short、配送失败、Manual Transport、Missing Rate、Billing Hold、集成失败全部接入;取代仅 OMS 的 Coordinator 队列(A15 变为异常中心的一个筛选视图)。
+- 统一 `exceptions` 表(类型、来源模块、关联 Job 与单据、状态、处理人);收货差异、Pick Short、配送失败、Manual Transport、Missing Rate、Billing Hold、集成失败全部接入;取代仅 OMS 的 协调员 队列(A15 变为异常中心的一个筛选视图)。
 
 **A29 · 文档中心**
 
@@ -422,7 +422,7 @@ PRD 写的是给客户看的 6 步:`Received → Confirmed → In warehouse → 
 | 内部状态 | 客户看到 | 谁推动 |
 |---|---|---|
 | `received` 已接收 | Received | 系统(导入/门户/API) |
-| `confirmed` 已确认 | Confirmed | CS / Coordinator |
+| `confirmed` 已确认 | Confirmed | 客服 / 协调员 |
 | `allocated` 已配货 | In warehouse | 系统(关联在库批次) |
 | `picking` 拣货中 | In warehouse | WMS |
 | `packed` 已打包 | In warehouse | WMS |
@@ -435,8 +435,8 @@ PRD 写的是给客户看的 6 步:`Received → Confirmed → In warehouse → 
 
 - 只有 OMS 拥有订单状态字段的写入权;WMS/TMS 通过 `domain_events` 通知,OMS 消费后推进状态 —— 保持模块所有权铁律。
 - 异常与挂起不是状态,是 `holds` 记录(类型、负责人、创建与解除),可多条并存、叠加在任意状态上。
-- 改单/取消规则(OMS-4):**锁点是"开始拣货"** —— `received` / `confirmed` / `allocated` 自由改(配货只是预留,货还没动);进入 `picking` 后需 Coordinator 或主管审核并留原因;`dispatched` 后只能走 OMS-9 退货。
-- **财务锁(OMS-11)**:**仅人工置锁**。Finance / Coordinator 可对客户或订单置 financial hold(原因必填);存在 active hold 时订单可以确认、配货、拣货、打包,但**不允许预订与发运**(锁点在 booking / dispatch);放行由 Finance / Coordinator 人工操作,记录放行人与原因,写入时间线。**系统不按收款状态自动置锁**(2026-09-07 决定):账期按客户配置(prepaid / eom / net_N),发票逾期只在列表标红,不阻止预订与发运。
+- 改单/取消规则(OMS-4):**锁点是"开始拣货"** —— `received` / `confirmed` / `allocated` 自由改(配货只是预留,货还没动);进入 `picking` 后需 协调员 或主管审核并留原因;`dispatched` 后只能走 OMS-9 退货。
+- **财务锁(OMS-11)**:**仅人工置锁**。财务 / 协调员 可对客户或订单置 financial hold(原因必填);存在 active hold 时订单可以确认、配货、拣货、打包,但**不允许预订与发运**(锁点在 booking / dispatch);放行由 财务 / 协调员 人工操作,记录放行人与原因,写入时间线。**系统不按收款状态自动置锁**(2026-09-07 决定):账期按客户配置(prepaid / eom / net_N),发票逾期只在列表标红,不阻止预订与发运。
 - **尾板车判定(OMS-13)**:确认订单时按规则自动判定并写入 `tailgate_required`;**费用不在此产生**,只在 shipment 预订时由 charge rule 产生一次;人工可覆盖(需填原因)。规则:任一单件重量 ≥ 客户配置阈值(默认 25kg),或收件地址类型为 residential,或人工指定。
 - **一张订单可分多次、跨多仓履约(OMS-8)**:订单本身不拆,每个履约批次记仓库,状态由 `fulfilments` 汇总推导(全部送达才 `delivered`);客户看到的是一张订单 + 多个发货批次,对账口径不乱。
 - **退货全链路(OMS-9)**:return_requested(OMS)→ return_in_transit(TMS 退货运输)→ arrived_warehouse → inspected → restocked / quarantined / damaged(WMS return_receipts)→ financial_decision(Billing:credit note 或不予 credit)。司机标记退回不触发库存或 credit;订单运营状态在验收完成后变为 `returned`。
@@ -454,7 +454,7 @@ PRD 写的是给客户看的 6 步:`Received → Confirmed → In warehouse → 
 | 分批履约 / backorder | 选行、填本批可发数量、生成履约批次(订单不拆) | **OMS-7 在库校验**、**OMS-8 分批发货与缺货单** — 有多少先发多少,余量等新货到再发 |
 | 退货 | 从原单发起,填原因、数量、去向(good/damaged) | **OMS-9 退货** — 收货方拒收或退回时记录原因、退回库存、标记应给的 credit |
 | 财务锁 / 放行 | 人工置锁与放行(原因必填),锁定订单在列表中高亮 | **OMS-11 财务锁**(新增) — 仅人工置锁;收款状态不自动锁,逾期只标红 |
-| Coordinator 队列 | 订单列表的预设视图:待确认 / 缺货 / 财务锁 / 异常 / 今日待发 | **OMS-2 订单状态** — 调度员统一管理待处理订单与异常,不必自己记 |
+| 协调员 队列 | 订单列表的预设视图:待确认 / 缺货 / 财务锁 / 异常 / 今日待发 | **OMS-2 订单状态** — 调度员统一管理待处理订单与异常,不必自己记 |
 | Job 视图(入库批次) | 从 Job 工作台看该 Job 的 ASN、生成了哪些订单、发完没有、毛利多少 | **OMS-12 入库批次关联**(新增,由 Job 实现) — 一次进口的货能整批追踪与结算 |
 | 客户地址簿 | 客户常用收件地址维护(内部与门户共用),按使用频率排序、一键带入 | **OMS-14 收件地址簿**(新增) — 反复发同几个地址(尤其 FBA 仓)时免重复输入、减少地址错误 |
 | 门户下单 | 客户版新建订单(字段更少) | **PLT-3 客户门户**、**OMS-1 订单录入** — 客户自助下单这一条路径 |
@@ -488,9 +488,9 @@ PRD 写的是给客户看的 6 步:`Received → Confirmed → In warehouse → 
 | A11 | ✅ M6 · 改单/取消权限 + 退货全链路(申请 → 运输 → 验收 → 财务决定) | A3, B1, B13 | CartonCloud 改单权限 · 退货验收 |
 | A11b | ✅ M3 · 纯运输订单 | A3 | CartonCloud 订单类型分离 |
 | A9-p | ✅ M6 · 门户下单 + 门户查单 | A3, A1 | CargoWise Neo 客户工作台 |
-| A13 | ✅ M6 · 财务锁 / 放行(holds 记录;仅 Finance / Coordinator 人工置锁与放行,原因必填;锁预订 / 发运;不按收款状态自动触发) | A3 | 货代"付款后放货"(只取人工锁) |
+| A13 | ✅ M6 · 财务锁 / 放行(holds 记录;仅 财务 / 协调员 人工置锁与放行,原因必填;锁预订 / 发运;不按收款状态自动触发) | A3 | 货代"付款后放货"(只取人工锁) |
 | A14 | ✅ M3 · 入库批次关联 | A3, B2 | CargoWise Job 归集 |
-| A15 | ✅ M3 · Coordinator 队列 | A3 | CartonCloud live queue |
+| A15 | ✅ M3 · 协调员 队列 | A3 | CartonCloud live queue |
 | A16 | ✅ M3 · 尾板车自动判定 | A3, A5 | TransVirtual · MachShip |
 | A17 | ✅ M3 · 客户收件地址簿 | A3 | CargoWise Neo · Magaya |
 | A12 | ✅ M6 · PDF/邮件读单 | A3 | CartonCloud 自动录单 |
@@ -550,7 +550,7 @@ PRD 写的是给客户看的 6 步:`Received → Confirmed → In warehouse → 
 
 - **OMS-3 运输报价与服务选择** — 下单时调 TransportOptionService 返回自派 / Transdirect / EIZ 多个方案(标 Recommended / Cheapest / Fastest),客户确认推荐或改选,选定方案快照存单;与 **FIN-6 报价** 共用同一套计算。
 
-**A15 · Coordinator 队列(订单列表的预设筛选视图)**
+**A15 · 协调员 队列(订单列表的预设筛选视图)**
 
 `依赖 A3 · 对标:CartonCloud live order queue`
 
@@ -615,7 +615,7 @@ PRD 写的是给客户看的 6 步:`Received → Confirmed → In warehouse → 
 
 | # | 决定 | 说明 |
 |---|---|---|
-| **OMS-11** | 财务锁 / 放行 | 仅人工置锁(Finance / Coordinator,原因必填);锁点在预订 / 发运前;人工放行需留原因;不按收款状态自动锁 |
+| **OMS-11** | 财务锁 / 放行 | 仅人工置锁(财务 / 协调员,原因必填);锁点在预订 / 发运前;人工放行需留原因;不按收款状态自动锁 |
 | **OMS-12** | 入库批次关联 | 由 Job 主线实现:订单挂 `job_id`,同一 Job 下的 ASN(含可选 Container)、订单、发运、费用、成本一处可见;不限整柜,散货入库同样适用 |
 | **OMS-8 改法** | 订单不拆,拆履约批次 | 客户始终看到一张订单 + 多个发货批次,对账口径不乱 |
 | **OMS-4 锁点** | 改为"开始拣货" | 配货只是预留,货未动;拣货才是不可逆点(这是改单锁,与财务锁的预订 / 发运锁点不同) |
@@ -713,7 +713,7 @@ asns                       入库主单(挂 Job;收货 / 差异 / 上架 / 库�
 ├─ inbound_type            container | loose_truck | parcel
 ├─ status                  booked → arrived → receiving → putaway → closed
 ├─ created_by_type         client(门户预告)| coordinator(内部建单)
-└─ unplanned               无预报到货:临时收货单,需 Coordinator 确认后才可上架
+└─ unplanned               无预报到货:临时收货单,需 协调员 确认后才可上架
 
 containers                 整柜入库才创建(ASN 下的可选物理对象,0..n;只记计费需要的基础字段,不做柜级生命周期)
 ├─ asn_id(主)、job_id(冗余,便于按 Job 查)
@@ -799,9 +799,9 @@ stocktakes                 盘点:system_qty, counted_qty, variance, reason
 ## 4.3 主流程与明文规则
 
 ```
-入库:  Inbound(客户门户或 Coordinator 建 ASN;无预报到货建临时收货单;一批货进两个仓 = 同一 Job 下两张 ASN)
+入库:  Inbound(客户门户或 协调员 建 ASN;无预报到货建临时收货单;一批货进两个仓 = 同一 Job 下两张 ASN)
         → 到货 → Receiving 逐行记实收/短溢/损坏
-              └─ 实收 ≠ 预报:仍可收,自动生成 Discrepancy 异常 → Coordinator 队列
+              └─ 实收 ≠ 预报:仍可收,自动生成 Discrepancy 异常 → 协调员 队列
         → 质检 → Putaway 上架(人工选库位 + 系统校验)→ Available
         └─ 事件 asn.putaway_completed(payload 带托盘数 / 箱数、各托盘 pallet_source、打印箱标数)→ Billing 上架费 + 进库 label 费 + 仓库供应托盘的购买费;卡车散货入库的收货任务记卸货托盘数 → 卸货费;拆柜费只由拆柜任务完成触发(见 VAS)
 
@@ -811,7 +811,7 @@ stocktakes                 盘点:system_qty, counted_qty, variance, reason
         订单取消 / 减量 → 事件 stock.released(自动释放,不留假缺货)
 
 出库:  波次释放 → 拣货任务(按库位排序,逐条确认,扫码校验)
-        ├─ 拣不到足量 → Pick Short 异常 → Coordinator:backorder / 部分发 / 取消
+        ├─ 拣不到足量 → Pick Short 异常 → 协调员:backorder / 部分发 / 取消
         → 复核 → Packing 打包(录类型/重/尺寸,打箱标;需缠膜 / 打带则加 wrap 任务)→ 状态 packed(Ready for Shipment)
         └─ 事件 outbound.packed(payload 逐行带 unit_type、数量、单箱重量、箱标数)→ Billing 订单处理费(加急按客户 cut-off 判定)/ 整托拣货费或分档纸箱拣货费 / 出库 label & despatch 费 → TMS 开始报价
         → Dispatch 发运交接(记装车托盘数 → load 任务 → 装车费)→ 状态 dispatched(已离仓)
@@ -848,10 +848,10 @@ VAS:   拆柜 / 缠膜打带(进库 / 出库)/ 序列号扫描(逐个存 scan_re
 |---|---|---|
 | 库存查询 | 按客户 / Job / 唛头 / 货物行 / 库位 / 状态查,导出;点进看流水 | **WMS-1 客户库存隔离** — 每个客户的库存严格分开,显示可用与已预留,记录每次移动 |
 | 库存流水 | 某库存单元的全部移动,可溯源到单据 | **WMS-1** — "records every movement";同时服务 PLT-8 留痕 |
-| ASN 列表 / 新建 | 客户(门户)或 Coordinator 预告到货,选柜型与拆柜方式,填预期明细;无预报到货可建临时收货单 | **WMS-2 入库** — 客户预告到货,仓库按预告收货 |
+| ASN 列表 / 新建 | 客户(门户)或 协调员 预告到货,选柜型与拆柜方式,填预期明细;无预报到货可建临时收货单 | **WMS-2 入库** — 客户预告到货,仓库按预告收货 |
 | ASN Excel 导入 | 上传《需派送货物清单》→ 按货物行生成 asn_lines(唛头、品名、箱数、重量尺寸、收件人保留在行上)→ 行级报错 → 确认;可指定所属 Job 与柜号 | **WMS-2 入库** — "Clients notify expected deliveries";同一份清单以后不再重录 |
 | 从 ASN 生成订单 | 上架完成后,按"唛头 + 收件地址 + FBA 引用"把 ASN 货物行分组,一键生成派送订单(同组地址不一致则阻断),已生成的行不可重复生成 | **OMS-1 订单录入** 的第五条路径 — 一份文件只录一次;订单挂同一 Job |
-| 收货作业 | 按 ASN 逐行收,记实收/短溢/损坏与原因;托盘单元录实测长宽高重与托盘来源(客户自带 / 仓库木托 / CHEP / LOSCAM),系统按客户价目表阈值建议托盘类型;卡车散货记卸货托盘数;差异自动生成异常进 Coordinator 队列 | **WMS-2** — "records any differences";价目表卸货费 / 托盘租赁 / 仓储分类的数据来源 |
+| 收货作业 | 按 ASN 逐行收,记实收/短溢/损坏与原因;托盘单元录实测长宽高重与托盘来源(客户自带 / 仓库木托 / CHEP / LOSCAM),系统按客户价目表阈值建议托盘类型;卡车散货记卸货托盘数;差异自动生成异常进 协调员 队列 | **WMS-2** — "records any differences";价目表卸货费 / 托盘租赁 / 仓储分类的数据来源 |
 | 上架 | 收货区 → 人工选库位(系统校验),确认后转为可用 | **WMS-2** — "Stock becomes available once put away" |
 | 分配与预留 | 订单确认后锁定具体库存单元;预留列表可查、可释放 | **WMS-1** 的预留部分 + **OMS-7/8** — 已预留与可用分开显示 |
 | 波次释放 | 按客户/承运商/送达日筛选订单,批量释放 | **WMS-3 出库** — "Confirmed orders create pick lists" |
@@ -904,8 +904,8 @@ VAS:   拆柜 / 缠膜打带(进库 / 出库)/ 序列号扫描(逐个存 scan_re
 
 `依赖 B1 · 对标:柜为 ASN 下可选对象(只取概念)`
 
-- **WMS-2 入库** — 客户(门户)或 Coordinator 预告到货;按预告收货、记录差异、上架到编码库位;上架后才可用。
-- 实收 ≠ 预报时仍可收货,但生成 Discrepancy 异常进 Coordinator 队列处理;无预报到货建临时收货单,Coordinator 确认后才可上架。
+- **WMS-2 入库** — 客户(门户)或 协调员 预告到货;按预告收货、记录差异、上架到编码库位;上架后才可用。
+- 实收 ≠ 预报时仍可收货,但生成 Discrepancy 异常进 协调员 队列处理;无预报到货建临时收货单,协调员 确认后才可上架。
 - 上架为人工选库位 + 系统基础校验(存在 / 属于本仓 / 未禁用)。
 - 真实价目表把 20ft/40ft 拆柜列为独立计费项,故柜型与拆柜方式必须是 ASN 的一级字段。
 - 柜只记柜号、柜型、拆柜方式、毛重、行数,不做柜级生命周期(2026-09-07)。收货时托盘单元录实测长宽高重与托盘来源(客户自带 / 仓库木托 / CHEP / LOSCAM),系统按客户价目表阈值建议托盘类型;卡车散货入库的收货任务记卸货托盘数(卸货费)。
@@ -935,7 +935,7 @@ VAS:   拆柜 / 缠膜打带(进库 / 出库)/ 序列号扫描(逐个存 scan_re
 
 `依赖 B4a · 对标:Microlistics 任务化、Logiwa 波次`
 
-- **WMS-3 出库** — 确认并已预留的订单生成拣货任务;拣货、复核、打包;拣不到足量生成 Pick Short 异常交 Coordinator(backorder / 部分发 / 取消)。
+- **WMS-3 出库** — 确认并已预留的订单生成拣货任务;拣货、复核、打包;拣不到足量生成 Pick Short 异常交 协调员(backorder / 部分发 / 取消)。
 - **WMS-10 打包与发运** — 每个包裹记录类型、重量、长宽高并打箱标;`packed`(Ready for Shipment)与 `dispatched`(已离仓)分开记录。打包完成即发事件供 TMS 报价。
 - 打包完成事件逐行带 unit_type、数量、单箱重量与箱标数,供 Billing 区分整托拣 / 分档纸箱拣与出库 label & despatch 费;订单处理费的加急判定按客户 cut-off 配置;发运交接记装车托盘数(装车费)。
 
@@ -988,9 +988,9 @@ VAS:   拆柜 / 缠膜打带(进库 / 出库)/ 序列号扫描(逐个存 scan_re
 5. 打包录 25kg 包裹后,尺寸重量传给 TMS 并触发尾板判定;
 6. 隔离的损坏货不出现在可用库存;
 7. 每日快照自动生成,可回查任意一天、按托盘类型分类;
-8. 实收少于预报仍能完成收货,同时 Coordinator 队列出现该差异;
+8. 实收少于预报仍能完成收货,同时 协调员 队列出现该差异;
 9. 订单确认后库存显示已预留;取消订单后预留自动释放,流水有记录;
-10. 拣货拣不到足量时生成 Pick Short 异常,Coordinator 选"部分发"后订单进入履约批次;
+10. 拣货拣不到足量时生成 Pick Short 异常,协调员 选"部分发"后订单进入履约批次;
 11. 打包完成为 packed,交接后为 dispatched,两者时间戳不同;
 12. 收货用扫码枪扫箱标、拣货用手机扫码页校验,两种方式都能完成同一作业;
 13. 同一唛头下的三行货物入库后是三个库存单元,可分别预留与拣货;
@@ -1123,12 +1123,12 @@ carrier_invoices           承运商账单 + 逐票比对行
 OMS 确认订单时:Preliminary Estimate(按 declared_packages 申报的尺寸重量出初步方案与估价,写入客户报价单)
 纯运输订单(pickup_deliver):不经过 WMS,永远没有 outbound.packed —— 以 `order.confirmed` 为触发,按 declared_packages 直接出最终方案;司机取货时可复核,差异走 delivery.extra_charge
 WMS 事件 outbound.packed(带包裹实测重量/尺寸/件数)
-  → Quote:   Final Carrier Quote —— TransportOptionService 汇总方案(与初步估价差异超过容差 → 要求客户或 Coordinator 重新确认)
+  → Quote:   Final Carrier Quote —— TransportOptionService 汇总方案(与初步估价差异超过容差 → 要求客户或 协调员 重新确认)
               ├─ own_fleet:后台固定费率 → 客户价
               ├─ Transdirect API:报价 → 成本 × markup → 客户价
               └─ EIZ API:      报价 → 成本 × markup → 客户价
               → 标记 Recommended / Cheapest / Fastest
-  → Selection: 系统推荐;客户(门户)可确认推荐或改选;Coordinator 可代选
+  → Selection: 系统推荐;客户(门户)可确认推荐或改选;协调员 可代选
              └─ 事件 shipment.quote_confirmed → Billing 生成运费(客户价)+ 尾板费(如 tailgate_required;**唯一产生点**)→ per_job 客户开出服务发票(monthly 客户进未开票池);**预订不等收款**
   → Booking: 第三方 → 平台 API 预订 → 返回 tracking no + waybill
              自派   → 编入 delivery_run → 打自有 label
@@ -1163,7 +1163,7 @@ WMS 事件 outbound.packed(带包裹实测重量/尺寸/件数)
 | B5 | ✅ 2026-09-07 · shipment 结构 + 状态机 + transport_quotes 表 + consignment note | B4 | MachShip 报价先于执行(采用) |
 | B5e | ✅ 2026-09-07 · **Vendor API Discovery(Go / No-Go 门槛)**:Transdirect 有公开 API 文档(tracking / POD / label);EIZ 的外部 Partner API 能力未经公开证实。逐项验证报价字段、预订、tracking(webhook 或轮询)、POD 文件回传、waybill 格式、沙箱;产出接口契约。任一平台 No-Go 时该平台不进一期,Manual fallback 保证流程不阻塞 | — | MachShip(验证前不承诺能力) |
 | B5c | ✅ 2026-09-07 · TransportOptionService + `CarrierAdapter`:Transdirect(报价 / 预订 / 追踪 / label)+ Manual 兜底 + own_fleet 固定费率方案;EIZ 按 B5e 结论一期 No-Go;无可用方案进 Manual Transport Exception | B5e, B5, A5 | MachShip 经 TD/EIZ 落地(采用);舍自建直连 |
-| B5d | ✅ 2026-09-07 · 方案选择:Recommended / Cheapest / Fastest 标记规则;客户门户确认或改选;Coordinator 代选 | B5c | Shippit 服务等级驱动(采用) |
+| B5d | ✅ 2026-09-07 · 方案选择:Recommended / Cheapest / Fastest 标记规则;客户门户确认或改选;协调员 代选 | B5c | Shippit 服务等级驱动(采用) |
 | B5b | ✅ 2026-09-07 · 班次编排(自派:有序停靠点、指派司机与车辆) | B5 | TransVirtual run = 车 + 停靠点 |
 | B6 | ✅ 2026-09-07 · 自有 label 打印(每包裹一页 4×6 Code 128 标签);第三方打印并归档平台 waybill | B5 | TransVirtual 标签 |
 | B7 | ✅ 2026-09-07 · 司机手机网页显示今日停靠点与尾板提示;签名 + 照片生成并归档 POD PDF;失败原因按尝试记录;发布 `delivery.pod_captured` / `delivery.failed` | B5b | TransVirtual · CartonCloud 签收即闭环 |
@@ -1201,7 +1201,7 @@ WMS 事件 outbound.packed(带包裹实测重量/尺寸/件数)
 
 - **OMS-3 运输报价与服务选择** — 下单时可见客户价;系统推荐,客户可确认或改选其他方案。
 - 标记规则(已定,v4.4,MachShip / Shippit 做法):Cheapest = 客户价最低;Fastest = eta 最短;**Recommended = 满足要求送达日与约束的方案中客户价最低**;可配一个全局偏好 `own_fleet_preference_percent`(默认 0):自派方案客户价高出最低价不超过该百分比时优先推荐自派。不做更复杂的评分。
-- 两阶段:下单时的 Preliminary Estimate 与打包后的 Final Carrier Quote;最终报价与初步估价差异超过容差(默认 10%,可配置)时,方案回到"待确认",由客户(门户)或 Coordinator 重新确认后才能预订。
+- 两阶段:下单时的 Preliminary Estimate 与打包后的 Final Carrier Quote;最终报价与初步估价差异超过容差(默认 10%,可配置)时,方案回到"待确认",由客户(门户)或 协调员 重新确认后才能预订。
 
 **B5b · 班次编排(自派)**
 
@@ -1316,10 +1316,10 @@ WMS 事件 outbound.packed(带包裹实测重量/尺寸/件数)
 **取舍:** **采用;开票时机与账期按客户配置,资格控制到费用项而不是整个 Job**(2026-09-07 改:取消"所有客户预付、先款后发"):
 
 - **顺序(方案 B,2026-09-01 确认):拣货打包 → 最终报价确认 → 按实测一次开票 → 预订 / 发运。** 仓库先把货整理好(拣货、打包、实测尺寸重量),客户确认最终报价时产生运费与尾板费(事件 `shipment.quote_confirmed`),此时操作费(拣货、订单处理)已因打包产生,发票**引用已存在的 charges** 一次开准,不需要预收与二次结算(`invoice_mode = per_job`);`monthly` 客户的费用先进未开票池,月底汇总成一张。
-- **账期按客户配置**(`clients.payment_terms` = prepaid | eom | net_N,N 可填):发票到期日据此计算 —— prepaid = 开票即到期;eom = 发票所在月月底后 N 天(默认 30);net_N = 开票日 + N 天。逾期发票在列表标红并进对账单。**系统不因未收款阻止预订或发运**(2026-09-07 决定);财务锁只由 Finance / Coordinator 人工置。
+- **账期按客户配置**(`clients.payment_terms` = prepaid | eom | net_N,N 可填):发票到期日据此计算 —— prepaid = 开票即到期;eom = 发票所在月月底后 N 天(默认 30);net_N = 开票日 + N 天。逾期发票在列表标红并进对账单。**系统不因未收款阻止预订或发运**(2026-09-07 决定);财务锁只由 财务 / 协调员 人工置。
 - **仓储费按周结算**(周末才知道存了几托):`per_job` 客户每周开一张仓储发票,`monthly` 客户的周仓储费并入月账单;到期与逾期按客户账期。托盘租赁费与 pickface 周费随仓储费同周结算。长期 Job 会进入多张周发票或多张月账单。
 - **送达后只处理差异**:等候费、二次派送、承运商复称高于报价 → 补充发票;低于 → credit note。POD 是结案前提,不是开票前提。
-- **Billing Hold = 人工发运锁**:只有 Finance / Coordinator 人工置锁才卡预订 / 发运,不卡开票;收款状态与锁无关。开票只看费用是否已产生并批准。
+- **Billing Hold = 人工发运锁**:只有 财务 / 协调员 人工置锁才卡预订 / 发运,不卡开票;收款状态与锁无关。开票只看费用是否已产生并批准。
 - 发票可按单个 Job 开,也可月底跨 Job 合并(`clients.invoice_mode` = per_job | monthly;prepaid 客户强制 per_job),出账时可手动多选 Job;月度 Statement 延后。
 
 ### 6.1.8 明确不采用的
@@ -1526,7 +1526,7 @@ customer_quote_lines       charge_code, qty, uom, amount_cents, assumptions(拆�
 `依赖 A8a`
 
 - **FIN-8 收款记录** — 标记全额或部分收款,客户未结余额按发票汇总始终可见,平台不成为会计账套。
-- **OMS-11 财务锁** 由 Finance / Coordinator 人工置锁与放行,系统不按押金或信用额度自动触发(2026-09-01 决定)。Job 利润由 Job 下的 charges 与 carrier_costs 汇总得出,不另设任务。
+- **OMS-11 财务锁** 由 财务 / 协调员 人工置锁与放行,系统不按押金或信用额度自动触发(2026-09-01 决定)。Job 利润由 Job 下的 charges 与 carrier_costs 汇总得出,不另设任务。
 
 **未纳入本期:** **FIN-4 会计对接**(已从 PRD 删除,保留导出接口)。
 

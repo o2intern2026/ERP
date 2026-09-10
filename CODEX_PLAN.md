@@ -95,7 +95,7 @@ git push origin block/<你的当前版块>
 | 5 | **A14** 入库批次关联 | A3;asns 表归 C → 只读 | 订单 ↔ ASN 关联与"按柜号查全部订单"页 | #9 |
 | 6 | **A16** 尾板车自动判定 | 阈值来自客户价目表(C 的 A5,M6)→ 先用 `FakeRateService` 返回默认 25 kg | 确认订单时写 `tailgate_required`,人工覆盖填原因 | #10(前半) |
 | 7 | **A11b** 纯运输订单 | A3 | 不经仓库直接进 TMS 待派(X2 的 TMS 联调靠它) | #6 |
-| 8 | **A15** Coordinator 队列 | A3;异常表归 Platform → 经 `ExceptionService` 写 | 队列页(按类型 / 负责人筛) | — |
+| 8 | **A15** 协调员 队列 | A3;异常表归 Platform → 经 `ExceptionService` 写 | 队列页(按类型 / 负责人筛) | — |
 
 版块完成标准:8 个任务全打勾,`php artisan test` 全绿,CI 绿 → 开 PR `block/x1-oms-min → main`,标题 `M3: OMS minimal block`,描述按 §5 模板。等 C 合并后 `git rebase main`。
 
@@ -124,7 +124,7 @@ git push origin block/<你的当前版块>
 |---|---|---|---|---|
 | 1 | **B5** shipment 结构 + 状态机 + transport_quotes + consignment note | M1 的 jobs、Outbox 发布器;订单 M3 前用测试数据;包裹 M4 前用 Fake `packages`(按 contracts/db-schema.md 的字段) | shipments、transport_quotes 迁移;状态机;consignment note PDF(dompdf) | #1(结构部分) |
 | 2 | **B5c** `TransportOptionService` + `CarrierAdapter`:**先做 Manual 适配器**(人工录报价、tracking no、上传 POD);Transdirect / EIZ 等 C 的 B5e 结论写进 `contracts/carriers.md` 后再做 | B5;沙箱 key 从团队密码库取 | 接口按 contracts/services.md 签名;Manual 全流程可跑 | #3(第三方部分等 B5e) |
-| 3 | **B5d** 方案选择:Recommended / Cheapest / Fastest 标记;门户确认或改选;Coordinator 代选 | B5c;`shipment.quote_confirmed` 事件是运费与尾板费的**唯一产生点**,payload 按 contracts/events.md 带全(运费客户价、tailgate_required、zone) | 方案页;事件 | #1、#2 |
+| 3 | **B5d** 方案选择:Recommended / Cheapest / Fastest 标记;门户确认或改选;协调员 代选 | B5c;`shipment.quote_confirmed` 事件是运费与尾板费的**唯一产生点**,payload 按 contracts/events.md 带全(运费客户价、tailgate_required、zone) | 方案页;事件 | #1、#2 |
 | 4 | **B5b** 班次编排(自派:有序停靠点、指派司机) | B5 | delivery_runs、run_stops;班次页 | #4(前半) |
 | 5 | **B6** 自有 label 打印(自派用;第三方用平台 waybill) | B5;`barryvdh/laravel-dompdf` + `picqer/php-barcode-generator`(已在 contracts/dependencies.md) | label PDF | — |
 | 6 | **B7** 司机网页表单 + POD(签名 / 拍照 / 失败原因) | B5b;签名 canvas 是唯一允许的第二个 CDN 库;手机浏览器可用 | `/driver` 页;`delivery.pod_captured` 事件 | #4 |

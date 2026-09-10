@@ -71,7 +71,7 @@ erp/
 |---|---|
 | **C** | **先:** A0 骨架与契约、A1 认证与角色、A2 主数据、A27 Job 主线、A31 Outbox 与集成监控;**B5e Vendor API Discovery**(M1 后立即做,产出 contracts/carriers.md);**WMS 全部:** B3 Outbox 接入与事件定义、B1 库存核心、B2 入库、B2b ASN 导入、B4a 预留、B2c 从 ASN 生成订单、B4 出库、B10a 快照、B10b 盘点移库隔离、B11 扫码、B12 VAS 任务、B13 退货验收、B14 多仓。**后(M6):** A24 charge codes / rules、A5 价目表、A6a 计费引擎、A6b 周仓储费、A8a 发票、A8b 手工加费 / 未开票池 / credit、A18 报价、A10 收款;A19 审批、A20 审计、A23 Webhooks、A28 异常中心、A29 文档中心、A30 全局搜索 |
 | **X2** | **TMS 全部:** B5 shipment 结构与状态机、B5c TransportOptionService + CarrierAdapter(Manual 先做,Transdirect / EIZ 按 B5e 结论)、B5d 方案选择、B5b 班次编排、B6 自有 label、B7 司机页 / POD、B8 状态回写与异常、B9a 成本记录、B9b 承运商对账 |
-| **X1** | **先(OMS 最小集,M3):** A3 订单模型与状态机、A4 Excel 导入(解析器与 WMS 共用)、A7 在库校验 / 预留事件 / 履约批次、A14 入库批次关联、A16 尾板判定、A11b 纯运输订单、A17 地址簿、A15 Coordinator 队列。**后(M6):** A13 财务锁、A7b 客户报价单、A11 改单 / 退货链路、A9-p 门户、A12 PDF 读单、A4b 订单 API、A21 报表、A22 定时报表 |
+| **X1** | **先(OMS 最小集,M3):** A3 订单模型与状态机、A4 Excel 导入(解析器与 WMS 共用)、A7 在库校验 / 预留事件 / 履约批次、A14 入库批次关联、A16 尾板判定、A11b 纯运输订单、A17 地址簿、A15 协调员 队列。**后(M6):** A13 财务锁、A7b 客户报价单、A11 改单 / 退货链路、A9-p 门户、A12 PDF 读单、A4b 订单 API、A21 报表、A22 定时报表 |
 
 C 的清单最长,这是有意的:WMS 是优先级最高、最容易做错的模块,放在额度和能力都最强的席位上;Billing 与平台附属功能推后到 M6。X1 在 M3 之后、M6 之前有空档,可按 §5.2 的代工规则协助 X2 的 TMS(在 `block/x2-*` 分支上,登记 HANDOFF)。
 

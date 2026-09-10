@@ -453,7 +453,7 @@ return [
         'types' => ['stock' => '库存锁定', 'financial' => '财务锁', 'address' => '地址待确认', 'transport' => '运输锁定', 'client_confirmation' => '待客户确认'],
         'timeline' => ['placed' => '置锁（:type）：:reason', 'released' => '放行（:type）：:note'],
         'messages' => [
-            'placed' => '已置锁，订单出现在 Coordinator 队列。',
+            'placed' => '已置锁，订单出现在 协调员 队列。',
             'released' => '已放行。',
             'finance_only' => '财务锁只能由财务或管理员置锁。',
             'release_roles' => '财务锁只能由财务、管理员或调度放行。',
@@ -602,7 +602,7 @@ return [
     ],
     'queue' => [
         'nav' => '调度队列',
-        'title' => 'Coordinator 队列',
+        'title' => '协调员 队列',
         'hint' => '订单列表的预设视图：调度员在这里处理待确认、缺货、财务锁、异常和今日待发的订单。',
         'empty' => '这个视图下没有订单。',
         'holds' => '挂起',

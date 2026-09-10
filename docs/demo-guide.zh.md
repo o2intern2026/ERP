@@ -51,7 +51,7 @@ php artisan migrate:fresh --seed && php artisan db:seed --class=DemoFlowSeeder
 | 账号 | 角色 | 看什么 |
 |---|---|---|
 | admin@erp.local | 管理员 | 全部;用户管理、审批中心、审计日志 |
-| customer-service@erp.local | 客服 / Coordinator | 订单、预报单 (ASN)、待收货列表(只看)、调度队列 |
+| customer-service@erp.local | 客服 / 协调员 | 订单、预报单 (ASN)、待收货列表(只看)、调度队列 |
 | dispatcher@erp.local | 调度 | 运输报价、订舱、班次 |
 | warehouse-supervisor@erp.local | 仓库主管 | 收货 / 无预报收货、入库单、上架、出库、盘点、退货验收 |
 | warehouse-operator@erp.local | 仓库操作员 | 同上(无配置权限) |

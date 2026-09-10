@@ -43,7 +43,7 @@ return [
 
     'roles' => [
         'admin' => '管理员',
-        'customer_service' => '客服',
+        'customer_service' => '客服 / 协调员',
         'dispatcher' => '调度',
         'warehouse_supervisor' => '仓库主管',
         'warehouse_operator' => '仓库操作员',
