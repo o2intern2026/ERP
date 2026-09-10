@@ -43,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
-            return back()->withInput()->withErrors(['rule' => $e->userMessage()]);
+            // Never flash credentials back into the session (same list as Handler::$dontFlash).
+            return back()->withInput($request->except(['password', 'password_confirmation', 'current_password']))->withErrors(['rule' => $e->userMessage()]);
         });
     })->create();

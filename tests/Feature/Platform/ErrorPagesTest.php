@@ -70,6 +70,72 @@ class ErrorPagesTest extends TestCase
             ->assertDontSee('Service Unavailable');
     }
 
+    public function test_a_500_never_echoes_the_exception_message_even_when_it_contains_chinese_or_sql(): void
+    {
+        config(['app.debug' => false]);
+        Route::middleware('web')->get('/_test/sql-boom', fn () => throw new \RuntimeException('SQLSTATE[23000]: insert into `charges` (`description`) values (客户 Edward 的费用) — 唯一键冲突'));
+        Route::middleware('web')->get('/_test/abort-500', fn () => abort(500, '数据库连接失败'));
+
+        $this->get('/_test/sql-boom')->assertStatus(500)
+            ->assertSee(__('platform.errors.server_error.title'))
+            ->assertDontSee('insert into')
+            ->assertDontSee('SQLSTATE')
+            ->assertDontSee('Edward')
+            ->assertDontSee('唯一键冲突');
+
+        // Even an explicit abort(500, '中文') keeps its reason off the page — 5xx reasons are for the log, not the visitor.
+        $this->get('/_test/abort-500')->assertStatus(500)->assertDontSee('数据库连接失败');
+    }
+
+    public function test_409_405_413_and_the_generic_4xx_5xx_pages_render_in_chinese(): void
+    {
+        config(['app.debug' => false]);
+        Route::middleware('web')->get('/_test/conflict', fn () => abort(409, __('warehouse.receiving.bulk.not_receivable')));
+        Route::middleware('web')->get('/_test/too-large', fn () => abort(413));
+        Route::middleware('web')->get('/_test/teapot', fn () => abort(418, '这个动作暂不支持。'));
+        Route::middleware('web')->get('/_test/gateway', fn () => abort(502, 'Bad Gateway'));
+
+        // Explicit abort with a Chinese reason (bulk receiving on an ASN that is no longer receivable): reason shown, Symfony text not.
+        $this->get('/_test/conflict')->assertStatus(409)
+            ->assertSee(__('platform.errors.conflict.title'))
+            ->assertSee(__('warehouse.receiving.bulk.not_receivable'))
+            ->assertDontSee('Conflict')
+            ->assertDontSee('Oops');
+
+        // GET on a POST-only route (someone refreshes or types the submit URL).
+        $this->actingAs($this->staff('customer_service'))->get('/logout')->assertStatus(405)
+            ->assertSee(__('platform.errors.method_not_allowed.title'))
+            ->assertDontSee('Method Not Allowed');
+
+        $this->get('/_test/too-large')->assertStatus(413)
+            ->assertSee(__('platform.errors.too_large.title'))
+            ->assertDontSee('Too Large');
+
+        $this->get('/_test/teapot')->assertStatus(418)
+            ->assertSee(__('platform.errors.request_failed.title'))
+            ->assertSee('这个动作暂不支持。')
+            ->assertDontSee('Whoops');
+
+        $this->get('/_test/gateway')->assertStatus(502)
+            ->assertSee(__('platform.errors.system_failed.title'))
+            ->assertDontSee('Bad Gateway')
+            ->assertDontSee('Whoops');
+    }
+
+    public function test_the_uncaught_rule_violation_safety_net_never_flashes_passwords_back(): void
+    {
+        config(['app.debug' => false]);
+        Route::middleware(['web', 'auth'])->post('/_test/refuse-pw', fn () => throw new RuleViolation('Only pending approvals can be cancelled.', 'platform.approvals.errors.not_pending'));
+
+        $this->actingAs($this->staff('customer_service'))->from('/jobs')
+            ->post('/_test/refuse-pw', ['note' => 'keep me', 'password' => 'secret-1', 'password_confirmation' => 'secret-1', 'current_password' => 'old-1'])
+            ->assertRedirect('/jobs')
+            ->assertSessionHasInput('note', 'keep me')
+            ->assertSessionMissing('_old_input.password')
+            ->assertSessionMissing('_old_input.password_confirmation')
+            ->assertSessionMissing('_old_input.current_password');
+    }
+
     public function test_an_uncaught_rule_violation_on_a_form_post_goes_back_with_the_chinese_message(): void
     {
         config(['app.debug' => false]);
