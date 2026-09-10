@@ -5,6 +5,7 @@ namespace App\Modules\Transport\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Services\CarrierCostService;
+use App\Support\Auth\RequiredRoles;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ class OwnFleetCostController extends Controller
 {
     public function __invoke(Request $request, Shipment $shipment, CarrierCostService $costs): RedirectResponse
     {
-        abort_unless($request->user()?->hasAnyRole(['admin', 'dispatcher', 'transport_operator', 'finance']), 403);
+        RequiredRoles::requireAny(['admin', 'dispatcher', 'transport_operator', 'finance']);
         $data = $request->validate([
             'cost_cents' => ['required', 'integer', 'min:0'],
             'note' => ['required', 'string', 'max:1000'],

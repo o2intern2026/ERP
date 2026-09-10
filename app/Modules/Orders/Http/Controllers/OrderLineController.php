@@ -7,6 +7,7 @@ use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderLine;
 use App\Modules\Orders\Services\OrderChangeService;
 use App\Modules\Orders\Services\OrderStatusService;
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -64,7 +65,7 @@ final class OrderLineController extends Controller
 
     private function authorizeDraft(Order $order): void
     {
-        abort_unless(auth()->user()?->hasAnyRole(OrderChangeService::COORDINATOR_ROLES), 403);
+        RequiredRoles::requireAny(OrderChangeService::COORDINATOR_ROLES);
         abort_unless($order->operational_status === 'received', 403, __('orders.drafts.messages.confirmed_locked'));
     }
 }

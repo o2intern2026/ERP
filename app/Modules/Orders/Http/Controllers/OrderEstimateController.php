@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Orders\Exceptions\OrderRuleViolation;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Services\OrderEstimateService;
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -14,7 +15,7 @@ final class OrderEstimateController extends Controller
 {
     public function store(Request $request, Order $order, OrderEstimateService $estimates): RedirectResponse
     {
-        abort_unless($request->user()?->hasAnyRole(OrderEstimateService::STAFF_ROLES), 403);
+        RequiredRoles::requireAny(OrderEstimateService::STAFF_ROLES);
 
         try {
             $quote = $estimates->estimate($order, $request->user()->id);

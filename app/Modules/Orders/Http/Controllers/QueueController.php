@@ -5,6 +5,7 @@ namespace App\Modules\Orders\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Services\OrderHoldService;
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +18,7 @@ final class QueueController extends Controller
 
     public function index(Request $request, OrderHoldService $holds): View
     {
-        abort_unless(auth()->user()?->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'finance']), 403);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'finance']);
         $view = $request->validate(['view' => ['nullable', Rule::in(self::VIEWS)]])['view'] ?? 'pending_confirm';
 
         $counts = collect(self::VIEWS)->mapWithKeys(fn ($v) => [$v => $this->query($v)->count()]);

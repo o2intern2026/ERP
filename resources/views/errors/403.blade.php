@@ -4,16 +4,21 @@
 
 @section('content')
     @php($user = auth()->user())
-    @php($required = isset($exception) && $exception instanceof \Spatie\Permission\Exceptions\UnauthorizedException ? $exception->getRequiredRoles() : [])
+    @php($roles = \App\Support\Auth\RequiredRoles::resolve(request(), $exception ?? null))
+    @php($reason = isset($exception) ? trim((string) $exception->getMessage()) : '')
+    @php($reason = in_array($reason, ['', 'Forbidden', 'This action is unauthorized.', 'User does not have the right roles.', 'User does not have any of the necessary access rights.'], true) ? '' : $reason)
     <article class="login-card">
         <h1>{{ __('platform.errors.forbidden.title') }}</h1>
         <p>{{ __('platform.errors.forbidden.body') }}</p>
+        @if ($reason !== '')<p>{{ __('platform.errors.forbidden.reason', ['reason' => $reason]) }}</p>@endif
         @if ($user)
             <p class="text-muted"><small>{{ __('platform.errors.forbidden.you_are', ['name' => $user->name, 'roles' => $user->getRoleNames()->map(fn ($r) => __('platform.roles.'.$r))->join(' / ') ?: '—']) }}</small></p>
             @if ($user->isClientUser())
                 <p>{{ __('platform.errors.forbidden.client_hint') }}</p>
-            @elseif ($required !== [])
-                <p>{{ __('platform.errors.forbidden.required', ['roles' => collect($required)->map(fn ($r) => __('platform.roles.'.$r))->join(' / ')]) }}</p>
+            @elseif ($roles !== [])
+                <p><strong>{{ __('platform.errors.forbidden.required', ['roles' => collect($roles)->map(fn ($r) => __('platform.roles.'.$r))->join(' / ')]) }}</strong></p>
+            @else
+                <p>{{ __('platform.errors.forbidden.required_unknown') }}</p>
             @endif
         @endif
         <p>

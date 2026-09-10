@@ -100,3 +100,7 @@ Lead decisions (binding, CHANGE_REQUESTS #90–#92): **ASN = 预报单 (ASN), �
 - **Review fixes (same day):** `openFor()` reads the ASN's receipts `FOR UPDATE` after the ASN lock — under REPEATABLE READ a plain SELECT after waiting on the lock returned the pre-commit snapshot, so the second operator built the same `batch_no` and failed on the unique index instead of joining the batch; `complete()` re-reads the receipt `FOR UPDATE` inside its transaction and runs the open / has-lines / font guards on that row, so a double-submitted 入库完成 is refused instead of filing a second `goods_receipt` document (the two forms also disable their button on submit); the 待收货 worklist honours an explicit 仓库 = 全部 (`$request->has('warehouse_id')`) and the dropdown shows the warehouse actually applied.
 - **Tests:** `tests/Feature/Warehouse/GoodsReceiptTest.php` (9), `DemoFlowTest` asserts the completed 入库单 + document. Out of scope, unchanged: partial per-line receiving across batches, new ASN statuses, undoing receipts, portal ASN creation, tester items 1 / 3 / 4.
 
+
+### 2026-09-10 · main · no-permission page (CR #93) · C touched X1/X2 controllers
+
+- Mechanical replacement only: `abort_unless(<user>->hasAnyRole(ROLES), 403[, MSG])` → `RequiredRoles::requireAny(ROLES[, MSG])` (`App\Support\Auth\RequiredRoles`) in Orders / Reports / Transport controllers so `errors/403` can list the allowed roles. Same 403 status, same messages. New code-level role checks should call the helper.

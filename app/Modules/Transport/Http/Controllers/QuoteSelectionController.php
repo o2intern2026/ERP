@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Models\TransportQuote;
 use App\Modules\Transport\Services\QuoteSelectionService;
+use App\Support\Auth\RequiredRoles;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,7 +20,7 @@ class QuoteSelectionController extends Controller
         QuoteSelectionService $selection,
     ): RedirectResponse {
         $user = $request->user();
-        abort_unless($user !== null && $user->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'transport_operator']), 403);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'transport_operator']);
 
         try {
             $selection->select($shipment, $quote, 'coordinator', $user->id);

@@ -7,6 +7,7 @@ use App\Modules\MasterData\Models\Client;
 use App\Modules\Reports\Services\ReportCsv;
 use App\Modules\Reports\Services\ReportPeriod;
 use App\Modules\Reports\Services\ReportService;
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -59,6 +60,6 @@ final class ClientReportController extends Controller
 
     private function authorizeStaff(Request $request): void
     {
-        abort_unless($request->user()?->hasAnyRole(self::ROLES), 403);
+        RequiredRoles::requireAny(self::ROLES);
     }
 }

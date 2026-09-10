@@ -9,6 +9,7 @@ use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\DraftOrderService;
 use App\Modules\Orders\Services\OrderChangeService;
 use App\Modules\Platform\Models\Job;
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,6 +55,6 @@ final class DraftOrderController extends Controller
 
     private function authorize(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole(OrderChangeService::COORDINATOR_ROLES), 403);
+        RequiredRoles::requireAny(OrderChangeService::COORDINATOR_ROLES);
     }
 }

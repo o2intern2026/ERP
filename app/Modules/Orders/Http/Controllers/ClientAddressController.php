@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\OrderEnums;
+use App\Support\Auth\RequiredRoles;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -95,6 +96,6 @@ final class ClientAddressController extends Controller
 
     private function authorizeMaintenance(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole(['admin', 'customer_service', 'dispatcher']), 403);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher']);
     }
 }

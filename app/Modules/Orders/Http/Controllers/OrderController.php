@@ -19,6 +19,7 @@ use App\Modules\Orders\Services\OrderHoldService;
 use App\Modules\Orders\Services\OrderStatusService;
 use App\Modules\Orders\Services\TailgateRule;
 use App\Modules\Platform\Models\Job;
+use App\Support\Auth\RequiredRoles;
 use App\Support\Contracts\RateService;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
@@ -292,6 +293,6 @@ final class OrderController extends Controller
 
     private function authorizeOrderEntry(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole(['admin', 'customer_service', 'dispatcher']), 403);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher']);
     }
 }

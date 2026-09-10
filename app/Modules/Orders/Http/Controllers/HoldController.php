@@ -5,6 +5,7 @@ namespace App\Modules\Orders\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Services\OrderHoldService;
+use App\Support\Auth\RequiredRoles;
 use App\Support\Enums;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,6 +45,6 @@ final class HoldController extends Controller
     private function authorizeHold(string $holdType, bool $release): void
     {
         $roles = OrderHoldService::rolesFor($holdType, $release);
-        abort_unless(auth()->user()?->hasAnyRole($roles), 403, __($release ? 'orders.holds.messages.release_roles' : 'orders.holds.messages.finance_only'));
+        RequiredRoles::requireAny($roles, __($release ? 'orders.holds.messages.release_roles' : 'orders.holds.messages.finance_only'));
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Orders\Models\OrderApiToken;
 use App\Modules\Orders\Services\OrderApiTokenService;
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -50,6 +51,6 @@ final class ApiTokenController extends Controller
 
     private function authorizeAdmin(): void
     {
-        abort_unless(auth()->user()?->hasRole('admin'), 403);
+        RequiredRoles::requireAny(['admin']);
     }
 }

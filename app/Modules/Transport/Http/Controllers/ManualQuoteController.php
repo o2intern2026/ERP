@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Transport\Models\CarrierService;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Services\ManualQuoteService;
+use App\Support\Auth\RequiredRoles;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ class ManualQuoteController extends Controller
 {
     public function __invoke(Request $request, Shipment $shipment, ManualQuoteService $quotes): RedirectResponse
     {
-        abort_unless($request->user()?->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'transport_operator']), 403);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'transport_operator']);
         $data = $request->validate([
             'carrier_service_id' => ['required', 'integer', 'exists:carrier_services,id'],
             'quote_stage' => ['required', Rule::in(['preliminary', 'final'])],

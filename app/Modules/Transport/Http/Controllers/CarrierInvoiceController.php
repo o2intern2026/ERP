@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Carrier;
 use App\Modules\Transport\Models\CarrierInvoice;
 use App\Modules\Transport\Services\CarrierInvoiceService;
+use App\Support\Auth\RequiredRoles;
 use DomainException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -127,6 +128,6 @@ class CarrierInvoiceController extends Controller
 
     private function authorizeInternal(Request $request): void
     {
-        abort_unless($request->user()?->hasAnyRole(['admin', 'transport_operator', 'finance']), 403);
+        RequiredRoles::requireAny(['admin', 'transport_operator', 'finance']);
     }
 }

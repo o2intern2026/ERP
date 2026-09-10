@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Platform;
 
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\Support\CreatesUsers;
 use Tests\TestCase;
 
@@ -29,6 +31,25 @@ class ForbiddenPageTest extends TestCase
             ->assertSee(__('platform.errors.forbidden.title'))
             ->assertSee(__('platform.errors.forbidden.client_hint'))
             ->assertSee(route('portal.index'));
+    }
+
+    public function test_code_level_role_checks_name_the_allowed_roles_and_custom_reasons_are_shown(): void
+    {
+        Route::middleware(['web', 'auth'])->get('/_test/finance-only', function () {
+            RequiredRoles::requireAny(['admin', 'finance']);
+
+            return 'ok';
+        });
+        Route::middleware(['web', 'auth'])->get('/_test/locked', fn () => abort(403, '订单已发运,不能再改'));
+
+        $operator = $this->staff('warehouse_operator');
+        $this->actingAs($operator)->get('/_test/finance-only')->assertForbidden()
+            ->assertSee(__('platform.errors.forbidden.required', ['roles' => __('platform.roles.admin').' / '.__('platform.roles.finance')]));
+        $this->actingAs($this->staff('finance'))->get('/_test/finance-only')->assertOk();
+        $this->actingAs($operator)->get('/_test/locked')->assertForbidden()->assertSee('订单已发运,不能再改');
+
+        // A real code-level check: API tokens are admin-only inside the controller.
+        $this->actingAs($this->staff('customer_service'))->get('/orders/api-tokens')->assertForbidden()->assertSee(__('platform.roles.admin'));
     }
 
     public function test_json_requests_still_get_a_plain_403(): void

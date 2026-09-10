@@ -8,6 +8,7 @@ use App\Modules\Orders\Models\OrderImport;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\OrderImportService;
 use App\Modules\Platform\Models\Job;
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -118,6 +119,6 @@ final class OrderImportController extends Controller
 
     private function authorizeImport(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole(['admin', 'customer_service', 'dispatcher']), 403);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher']);
     }
 }

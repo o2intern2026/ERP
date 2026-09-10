@@ -5,6 +5,7 @@ namespace App\Modules\Transport\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Services\ShipmentBookingService;
+use App\Support\Auth\RequiredRoles;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ class ShipmentBookingController extends Controller
 {
     public function __invoke(Request $request, Shipment $shipment, ShipmentBookingService $bookings): RedirectResponse
     {
-        abort_unless($request->user()?->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'transport_operator']), 403);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'transport_operator']);
         $data = $request->validate([
             'booking_reference' => ['nullable', 'string', 'max:255'],
             'tracking_number' => ['nullable', 'string', 'max:255'],

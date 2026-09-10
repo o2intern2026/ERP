@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Reports\Services\ReportCsv;
 use App\Modules\Reports\Services\ReportPeriod;
 use App\Modules\Reports\Services\ReportService;
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -46,6 +47,6 @@ final class BossReportController extends Controller
 
     private function authorizeBoss(Request $request): void
     {
-        abort_unless($request->user()?->hasAnyRole(self::ROLES), 403);
+        RequiredRoles::requireAny(self::ROLES);
     }
 }

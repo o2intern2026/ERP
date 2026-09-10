@@ -4,6 +4,7 @@ namespace App\Modules\Orders\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Orders\Services\AddressSuggestionService;
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -13,7 +14,7 @@ final class AddressSuggestionController extends Controller
 {
     public function __invoke(Request $request, AddressSuggestionService $suggestions): JsonResponse
     {
-        abort_unless($request->user()?->hasAnyRole(['admin', 'customer_service', 'dispatcher']), 403);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher']);
         $data = $request->validate([
             'client_id' => ['required', 'integer', Rule::exists('clients', 'id')],
             'q' => ['nullable', 'string', 'max:100'],

@@ -7,6 +7,7 @@ use App\Modules\Orders\Exceptions\OrderRuleViolation;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Services\OrderChangeService;
 use App\Modules\Orders\Services\ReturnRequestService;
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -16,7 +17,7 @@ final class ReturnController extends Controller
 {
     public function store(Request $request, Order $order, ReturnRequestService $returns): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(OrderChangeService::COORDINATOR_ROLES), 403);
+        RequiredRoles::requireAny(OrderChangeService::COORDINATOR_ROLES);
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:255'],
             'quantities' => ['required', 'array'],
@@ -36,7 +37,7 @@ final class ReturnController extends Controller
 
     public function decide(Request $request, Order $order, ReturnRequestService $returns): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(ReturnRequestService::FINANCE_ROLES), 403, __('orders.returns.messages.finance_only'));
+        RequiredRoles::requireAny(ReturnRequestService::FINANCE_ROLES, __('orders.returns.messages.finance_only'));
         $data = $request->validate([
             'decision' => ['required', Rule::in(ReturnRequestService::DECISIONS)],
             'note' => ['required', 'string', 'max:1000'],
