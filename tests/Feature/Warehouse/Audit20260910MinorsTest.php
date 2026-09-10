@@ -16,6 +16,7 @@ use App\Modules\Warehouse\Services\StockService;
 use App\Modules\Warehouse\Services\StocktakeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Lang;
 use Tests\Support\BuildsOutboundOrders;
 use Tests\Support\CreatesUsers;
 use Tests\Support\CreatesWarehouse;
@@ -293,5 +294,28 @@ class Audit20260910MinorsTest extends TestCase
             ->assertDontSee('action="'.route('warehouse.outbound.dispatch', $fulfilment).'"', false);
         $this->actingAs($operator)->post(route('warehouse.outbound.dispatch', $fulfilment), ['pallet_count' => 0, 'handed_to' => 'carrier'])
             ->assertSessionHasErrors(['pallet_count' => __('warehouse.outbound.errors.financial_hold')]);
+    }
+
+    /**
+     * i18n/zh sweep review: a second 'errors' key later in the same lang array silently replaced the first one, so the eight
+     * outbound refusals rendered as raw keys ("warehouse.outbound.errors.no_candidates") while every test compared key to key.
+     * Guard: the keys resolve, and what the operator sees after a refused release is Chinese, not a key.
+     */
+    public function test_outbound_refusal_strings_resolve_from_lang_and_reach_the_board_in_chinese(): void
+    {
+        foreach (['no_candidates', 'picked_range', 'pick_confirmed', 'pack_after_pick', 'already_packed', 'need_package', 'dispatch_after_pack', 'already_dispatched', 'financial_hold'] as $key) {
+            $this->assertTrue(Lang::has('warehouse.outbound.errors.'.$key), "missing lang key warehouse.outbound.errors.$key");
+            $this->assertMatchesRegularExpression('/\p{Han}/u', __('warehouse.outbound.errors.'.$key), "warehouse.outbound.errors.$key is not Chinese");
+        }
+
+        $operator = $this->staff('warehouse_operator');
+        $warehouse = $this->warehouse();
+        $this->actingAs($operator)->from(route('warehouse.outbound.index'))
+            ->post(route('warehouse.outbound.waves.release'), ['warehouse_id' => $warehouse->id, 'client_id' => 999999])
+            ->assertRedirect(route('warehouse.outbound.index'))
+            ->assertSessionHasErrors(['warehouse_id' => __('warehouse.outbound.errors.no_candidates')]);
+        $this->actingAs($operator)->get(route('warehouse.outbound.index'))->assertOk()
+            ->assertSee(__('warehouse.outbound.errors.no_candidates'))
+            ->assertDontSee('warehouse.outbound.errors');
     }
 }

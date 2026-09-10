@@ -480,6 +480,7 @@ return [
             'need_package' => '至少要录一个包裹(包装类型 + 重量)。',
             'dispatch_after_pack' => '打包后才能发运交接。',
             'already_dispatched' => '这个发货批次已经发运交接过了。',
+            'financial_hold' => '该订单处于财务锁定:财务放行前不能发运交接。',
         ],
         'shortage_title' => '已确认但缺货未分配',
         'shortage_lines' => '缺货明细',
@@ -517,7 +518,6 @@ return [
         'labels' => '箱标',
         'empty' => '暂无。',
         'packed_at' => '打包时间',
-        'errors' => ['financial_hold' => '该订单处于财务锁定:财务放行前不能发运交接。'],
     ],
 
     'returns' => [
