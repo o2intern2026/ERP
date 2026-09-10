@@ -70,8 +70,8 @@ php artisan migrate:fresh --seed && php artisan db:seed --class=DemoFlowSeeder
 | Job 工作台 | /jobs | 每个 Job 一页:订单、入库、库存、发运、单据、发票、费用与毛利 |
 | 平台 | /admin/… | 用户 /admin/users、异常中心 /admin/exceptions、审批 /admin/approvals、审计日志 /admin/activity、单据中心 /admin/documents、集成监控 /admin/integration、全局搜索 /admin/search |
 | 主数据 | /admin/clients | 客户、承运商 /admin/carriers、供应商 |
-| 订单 | /orders | 新建 /orders/create、Excel 导入 /orders/imports、PDF 读单 /orders/drafts/create、调度队列 /orders/queue、入库批次 /orders/batches、地址簿 /orders/addresses、API 钥匙 /orders/api-tokens |
-| 仓库 | /warehouse | 预报单 (ASN) /warehouse/asns、收货(待收列表)/warehouse/receiving、无预报收货 /warehouse/receiving/unplanned、入库单 /warehouse/receipts、上架 /warehouse/putaway、出库 /warehouse/outbound、退货 /warehouse/returns、任务 /warehouse/tasks、盘点 /warehouse/stocktakes、扫码 /warehouse/scan、快照 /warehouse/snapshots、库位配置 /warehouse/config/locations |
+| 订单 | /orders | 客户请求 /orders/requests(客户的取消 / 退货申请,菜单带待处理数)、新建 /orders/create、Excel 导入 /orders/imports、PDF 读单 /orders/drafts/create、调度队列 /orders/queue、入库批次 /orders/batches、地址簿 /orders/addresses、API 钥匙 /orders/api-tokens |
+| 仓库 | /warehouse | 预报单 (ASN) /warehouse/asns、收货(待收列表)/warehouse/receiving、无预报收货 /warehouse/receiving/unplanned、入库单 /warehouse/receipts、上架 /warehouse/putaway、出库 /warehouse/outbound(含「已确认但缺货未分配」)、作业登记(VAS) /warehouse/tasks、退货 /warehouse/returns、任务 /warehouse/tasks、盘点 /warehouse/stocktakes、扫码 /warehouse/scan、快照 /warehouse/snapshots、库位配置 /warehouse/config/locations |
 | 运输 | /transport | 运单列表(报价 / 订舱 / 面单 / 签收)、班次 /transport/runs、承运商账单对账 /transport/carrier-invoices、司机页 /driver |
 | 计费 | /billing | 待开票 /billing/unbilled、待审核 /billing/charges/review、发票 /billing/invoices、应收 /billing/receivables、价目表 /billing/rate-cards、收费项 /billing/charge-codes、客户报价单 /billing/quotes |
 | 报表 | /reports | 老板视角;/reports/client 按客户看 |
@@ -99,6 +99,9 @@ php artisan migrate:fresh --seed && php artisan db:seed --class=DemoFlowSeeder
 8. **客户视角**(client):/portal 只看到 Edward 的订单;下单、估价、确认运输方案、看库存、下载发票。
 9. **退货**(warehouse-supervisor + finance):订单页发起退货 → /warehouse/returns 登记收货 → 验收判定去向 → 财务决定。
 10. **平台**(admin):/admin/exceptions 三类异常同列;/admin/approvals 价目表审批;/admin/activity 谁改了什么;/admin/integration 事件分发情况。
+
+9. **客户取消 / 退货与员工处理**:客户门户订单页顶部「可用操作」按阶段只给一个按钮:未拣货时「取消订单」直接取消;拣货 / 打包后「申请取消」,员工在 订单 → 客户请求 里执行或拒绝(拒绝原因客户可见);已发运只能「申请退货」。员工端菜单「客户请求」带待处理数字。
+10. **状态颜色**:所有状态徽章统一配色:蓝 = 新到 / 在途,橙 = 处理中,绿 = 完成,红 = 取消 / 失败,灰 = 归档。
 
 ## 8. 常见问题
 
