@@ -4,7 +4,9 @@ namespace Tests\Feature\Reports;
 
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Reports\Http\ReportValidation;
+use App\Modules\Reports\Rules\MaxPeriodSpan;
 use App\Modules\Reports\Services\ReportPeriod;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\CreatesUsers;
 use Tests\TestCase;
@@ -74,5 +76,30 @@ class ReportsAuditFixesTest extends TestCase
         $period = ReportPeriod::fromInput($tooLong);
         $this->assertSame('2026-01-02', $period->to->toDateString());
         $this->assertSame(Client::query()->count(), 1);
+    }
+
+    /** Residual: with `from` left out of a hand-edited URL the rule used to skip and fromInput() clamped `to` silently against its own default. */
+    public function test_cap_applies_when_from_is_omitted_from_the_url(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-10 10:00', 'Australia/Melbourne'));
+        try {
+            $finance = $this->staff('finance');
+            $alpha = $this->client(['name' => 'Alpha Pty Ltd', 'code' => 'ALPHA']);
+            $expected = __('reports.validation.messages.max_days', ['days' => ReportPeriod::MAX_DAYS, 'from' => '2026-09-01', 'latest' => '2027-09-02']);
+
+            // Page and CSV export, boss / client / portal — same default `from` as fromInput(), so the same rejection.
+            $this->actingAs($finance)->from(route('reports.index'))->get(route('reports.index', ['to' => '2028-12-31']))
+                ->assertRedirect(route('reports.index'))->assertSessionHasErrors(['to' => $expected]);
+            $this->actingAs($finance)->get(route('reports.export', ['table' => 'financials', 'to' => '2028-12-31']))->assertSessionHasErrors(['to' => $expected]);
+            $this->actingAs($this->staff('customer_service'))->get(route('reports.client', ['client_id' => $alpha->id, 'to' => '2028-12-31']))->assertSessionHasErrors(['to' => $expected]);
+            $this->actingAs($this->clientUser($alpha))->get(route('portal.reports.index', ['to' => '2028-12-31']))->assertSessionHasErrors(['to' => $expected]);
+
+            // Exactly the cap from the default start is accepted and shown as asked; one day more is refused.
+            $this->actingAs($finance)->get(route('reports.index', ['to' => '2027-09-02']))->assertOk()->assertSee('2026-09-01 ~ 2027-09-02');
+            $this->actingAs($finance)->get(route('reports.index', ['to' => '2027-09-03']))->assertSessionHasErrors('to');
+            $this->assertSame('2026-09-01', MaxPeriodSpan::defaultFrom()->toDateString());
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
     }
 }

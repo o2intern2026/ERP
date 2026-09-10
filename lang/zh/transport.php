@@ -193,8 +193,9 @@ return [
         'invalid_status' => '只能为待报价或已报价的运输单录入人工报价。',
         'invalid_service' => '所选承运商服务不是有效的人工适配器。',
         'invalid_values' => '人工报价的金额、时效或阶段无效。',
-        // 2026-09-10 audit: markup_percent is decimal(5,2) — a customer price above 11 × cost used to 500 on the insert.
-        'markup_too_high' => '客户价不能超过内部成本的 11 倍（加价率上限 999.99%），请检查是否多输了一个零。',
+        // 2026-09-10 audit: markup_percent is decimal(5,2) — a customer price at or above 11 × cost used to 500 on the insert
+        // (the guard is strict: exactly 11 × = 1000.00 % is refused too, so the text says "below 11 ×").
+        'markup_too_high' => '客户价必须低于内部成本的 11 倍（加价率上限 999.99%），请检查是否多输了一个零。',
         // 2026-09-10 audit: the form used to be offered on shipments whose booking request cannot be built yet (sender / packages unknown).
         'details_unavailable_hint' => '此运输单尚无完整的发件地址或包裹资料，暂时不能录入人工报价：库存出库订单要等仓库打包交接（运输单关联履约批次）后才能报价；纯运输订单需要取货地址和申报包裹。',
         'stage_unavailable_hint' => '当前只能录入以下阶段的报价：:stages。',
