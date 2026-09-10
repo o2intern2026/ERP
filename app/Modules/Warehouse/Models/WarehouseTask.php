@@ -35,6 +35,12 @@ class WarehouseTask extends Model
         return $this->hasMany(WarehouseTaskLine::class, 'task_id');
     }
 
+    /** Inverse of Wave::tasks(); the outbound board eager-loads it for every open pick task. */
+    public function wave(): BelongsTo
+    {
+        return $this->belongsTo(Wave::class);
+    }
+
     public function asn(): BelongsTo
     {
         return $this->belongsTo(Asn::class);
