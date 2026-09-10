@@ -5,8 +5,8 @@ namespace App\Modules\Warehouse\Services;
 use App\Modules\Warehouse\Models\Location;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Support\Contracts\RateService;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
 
 /** B10b / B14: location-to-location moves, including across warehouses; every move is a ledger `transfer` row. */
 final class MoveService
@@ -16,10 +16,10 @@ final class MoveService
     public function move(StockUnit $unit, Location $to, ?string $reason = null): StockUnit
     {
         if (! $to->active || ! in_array($to->type, ['storage', 'pickface', 'quarantine', 'staging'], true)) {
-            throw new InvalidArgumentException("Location {$to->full_code} cannot hold stock.");
+            throw new RuleViolation("Location {$to->full_code} cannot hold stock.", 'warehouse.moves.errors.cannot_hold', ['code' => $to->full_code]);
         }
         if ($unit->condition !== 'good' && $to->type !== 'quarantine') {
-            throw new InvalidArgumentException('Damaged / quarantined stock may only be moved between quarantine locations.');
+            throw new RuleViolation('Damaged / quarantined stock may only be moved between quarantine locations.', 'warehouse.moves.errors.held_needs_quarantine');
         }
         if ($to->id === $unit->location_id) {
             return $unit;

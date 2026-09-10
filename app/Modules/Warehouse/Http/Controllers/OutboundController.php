@@ -95,7 +95,7 @@ class OutboundController extends Controller
         try {
             $result = $outbound->releaseWave((int) $data['warehouse_id'], ['client_id' => $data['client_id'] ?? null, 'requested_date' => $data['requested_date'] ?? null, 'order_ids' => $data['order_ids'] ?? []], auth()->id());
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['warehouse_id' => $e->getMessage()]);
+            return back()->withErrors(['warehouse_id' => RuleViolation::display($e)]);
         }
 
         return redirect()->route('warehouse.outbound.waves.show', $result['wave'])->with('status', __('warehouse.outbound.released', ['wave_no' => $result['wave']->wave_no, 'count' => $result['tasks']->count()]));
@@ -123,7 +123,7 @@ class OutboundController extends Controller
         try {
             $outbound->confirmPick($line, (int) $data['picked_qty'], auth()->id());
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['picked_qty' => $e->getMessage()]);
+            return back()->withErrors(['picked_qty' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('warehouse.outbound.pick_confirmed'));
@@ -157,7 +157,7 @@ class OutboundController extends Controller
         try {
             $result = $outbound->pack($fulfilment, $packages, auth()->id());
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['packages' => $e->getMessage()])->withInput();
+            return back()->withErrors(['packages' => RuleViolation::display($e)])->withInput();
         }
 
         return redirect()->route('warehouse.outbound.index')->with('status', __('warehouse.outbound.packed', ['count' => $result['packages']->count()]));

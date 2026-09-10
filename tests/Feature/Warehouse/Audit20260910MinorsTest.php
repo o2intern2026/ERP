@@ -12,6 +12,7 @@ use App\Modules\Warehouse\Services\AsnService;
 use App\Modules\Warehouse\Services\OutboundService;
 use App\Modules\Warehouse\Services\PutawayService;
 use App\Modules\Warehouse\Services\ReceivingService;
+use App\Modules\Warehouse\Services\StockService;
 use App\Modules\Warehouse\Services\StocktakeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -165,6 +166,77 @@ class Audit20260910MinorsTest extends TestCase
         $this->actingAs($supervisor)->post(route('warehouse.putaway.store', $pending[0]), ['location_code' => 'MEL-ZZ-99-99'])->assertSessionHasErrors('location_code');
         $page = $this->actingAs($supervisor)->get(route('warehouse.putaway.index'))->assertOk();
         $this->assertSame(1, substr_count($page->getContent(), 'value="MEL-ZZ-99-99"'));
+    }
+
+    /** i18n sweep 2026-09-10 (A2): every Warehouse service refusal a person can trigger from a form comes back in Chinese, never the developer message. */
+    public function test_warehouse_service_refusals_render_in_chinese_on_the_page(): void
+    {
+        $client = $this->client();
+        [$warehouse, $units] = $this->stock($client->id, [10, 8]);
+        $supervisor = $this->staff('warehouse_supervisor');
+        $this->actingAs($supervisor);
+        $storage = $this->location($warehouse, 'storage');
+        $receiving = $this->location($warehouse, 'receiving');
+
+        // Putaway into the receiving area: not a valid target.
+        $pending = app(ReceivingService::class)->receiveLine(app(AsnService::class)->addLines($units[0]->asnLine->asn, [['description' => 'More', 'expected_cartons' => 3]])[0], ['received_cartons' => 2, 'damaged_cartons' => 1, 'units' => [['unit_type' => 'carton', 'carton_qty' => 2]]], $receiving);
+        $good = collect($pending)->firstWhere('condition', 'good');
+        $damaged = collect($pending)->firstWhere('condition', 'damaged');
+        $this->from(route('warehouse.putaway.index'))->followingRedirects()->post(route('warehouse.putaway.store', $good), ['location_code' => $receiving->full_code])->assertOk()
+            ->assertSee(__('warehouse.putaway.errors.invalid_target', ['code' => $receiving->full_code, 'label' => $good->label_code]))->assertDontSee('not a valid putaway target');
+        // Damaged stock put away into storage: quarantine only.
+        $this->from(route('warehouse.putaway.index'))->followingRedirects()->post(route('warehouse.putaway.store', $damaged), ['location_code' => $storage->full_code])->assertOk()
+            ->assertSee(__('warehouse.putaway.errors.held_needs_quarantine'))->assertDontSee('must be put away into a quarantine location');
+
+        // Generate orders on an ASN that is still booked.
+        $booked = app(AsnService::class)->create(['client_id' => $client->id, 'warehouse_id' => $warehouse->id, 'inbound_type' => 'parcel']);
+        $this->from(route('warehouse.asns.show', $booked))->followingRedirects()->post(route('warehouse.asns.generate_orders', $booked))->assertOk()
+            ->assertSee(__('warehouse.asns.errors.generate_after_putaway'))->assertDontSee('Orders are generated after putaway');
+
+        // Move: a quarantined unit may only go to a quarantine location; a reserved unit cannot be quarantined.
+        app(PutawayService::class)->putaway($damaged, $this->location($warehouse, 'quarantine'));
+        $this->from(route('warehouse.stock.show', $damaged))->followingRedirects()->post(route('warehouse.stock.move', $damaged), ['_form' => 'move', 'location_code' => $storage->full_code])->assertOk()
+            ->assertSee(__('warehouse.moves.errors.held_needs_quarantine'))->assertDontSee('may only be moved between quarantine locations');
+        app(StockService::class)->reserve($client->id, 77, [['order_line_id' => 1, 'asn_line_id' => $units[1]->asn_line_id, 'qty' => 18]]); // both units of the line
+        $reserved = $units[1]->fresh()->qty_reserved;
+        $this->assertGreaterThan(0, $reserved);
+        $this->from(route('warehouse.stock.show', $units[1]))->followingRedirects()->post(route('warehouse.stock.quarantine', $units[1]), ['_form' => 'quarantine', 'condition' => 'damaged', 'reason' => 'forklift'])->assertOk()
+            ->assertSee(__('warehouse.moves.errors.reserved', ['label' => $units[1]->label_code, 'qty' => $reserved]))->assertDontSee('release the reservations before quarantining');
+
+        // Stocktake: counting after the close.
+        $stocktake = app(StocktakeService::class)->open(['warehouse_id' => $warehouse->id, 'client_id' => $client->id]);
+        foreach ($stocktake->lines()->with('stockUnit')->get() as $l) {
+            app(StocktakeService::class)->count($l, $l->expected_qty);
+        }
+        app(StocktakeService::class)->close($stocktake->fresh());
+        $line = $stocktake->lines()->firstOrFail();
+        $this->from(route('warehouse.stocktakes.show', $stocktake))->followingRedirects()->post(route('warehouse.stocktakes.count', [$stocktake, $line]), ['counted_qty' => 3])->assertOk()
+            ->assertSee(__('warehouse.stocktakes.errors.not_counting'))->assertDontSee('no longer counting');
+    }
+
+    /** i18n sweep 2026-09-10 (A2): return-receipt sequencing refusals in Chinese. */
+    public function test_return_receipt_sequencing_refusals_render_in_chinese(): void
+    {
+        $client = $this->client();
+        $warehouse = $this->warehouse();
+        $supervisor = $this->staff('warehouse_supervisor');
+        ['asn' => $asn, 'lines' => $asnLines] = $this->stockedAsn($client, $warehouse, [['mark' => 'RT2', 'cartons' => 5]]);
+        $order = $this->confirmedOrder($client, $asn->job_id, [['asn_line_id' => $asnLines[0]->id, 'qty' => 2]]);
+        $this->actingAs($supervisor)->post(route('warehouse.returns.store'), ['order_no' => $order->order_no, 'warehouse_id' => $warehouse->id])->assertRedirect();
+        $receipt = ReturnReceipt::query()->firstOrFail();
+        $line = $receipt->lines()->firstOrFail();
+
+        $this->actingAs($supervisor)->from(route('warehouse.returns.show', $receipt))->followingRedirects()->post(route('warehouse.returns.inspect', [$receipt, $line]), ['disposition' => 'available'])->assertOk()
+            ->assertSee(__('warehouse.returns.errors.receive_first'))->assertDontSee('Complete receiving before inspecting');
+
+        $this->actingAs($supervisor)->post(route('warehouse.returns.receive', [$receipt, $line]), ['received_qty' => 2, 'condition' => 'good'])->assertSessionHasNoErrors();
+        $this->actingAs($supervisor)->post(route('warehouse.returns.complete_receiving', $receipt))->assertSessionHasNoErrors();
+        $this->actingAs($supervisor)->from(route('warehouse.returns.show', $receipt))->followingRedirects()->post(route('warehouse.returns.receive', [$receipt, $line]), ['received_qty' => 1, 'condition' => 'good'])->assertOk()
+            ->assertSee(__('warehouse.returns.errors.not_receiving'))->assertDontSee('no longer receiving');
+
+        $this->actingAs($supervisor)->post(route('warehouse.returns.inspect', [$receipt, $line]), ['disposition' => 'available'])->assertSessionHasNoErrors();
+        $this->actingAs($supervisor)->from(route('warehouse.returns.show', $receipt))->followingRedirects()->post(route('warehouse.returns.inspect', [$receipt, $line]), ['disposition' => 'damaged'])->assertOk()
+            ->assertSee(__('warehouse.returns.errors.already_inspected'))->assertDontSee('already inspected');
     }
 
     public function test_return_receipt_completion_buttons_wait_for_their_preconditions_in_chinese(): void

@@ -9,6 +9,7 @@ use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Services\GoodsReceiptService;
 use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -66,7 +67,7 @@ class UnplannedReceivingController extends Controller
         try {
             $receipt = $receipts->receiveUnplanned($data, (int) $request->user()->id);
         } catch (InvalidArgumentException $e) {
-            return back()->withInput()->withErrors(['rows' => $e->getMessage()]);
+            return back()->withInput()->withErrors(['rows' => RuleViolation::display($e)]);
         }
 
         return redirect()->route('warehouse.receipts.show', $receipt)->with('status', __('warehouse.receiving.unplanned.done', ['no' => $receipt->receipt_no]));

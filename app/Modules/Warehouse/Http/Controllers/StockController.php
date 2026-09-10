@@ -12,6 +12,7 @@ use App\Modules\Warehouse\Services\MoveService;
 use App\Modules\Warehouse\Services\QuarantineService;
 use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -67,7 +68,7 @@ class StockController extends Controller
         try {
             $moves->move($unit, $to, $data['reason'] ?? null);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['location_code' => $e->getMessage()])->withInput();
+            return back()->withErrors(['location_code' => RuleViolation::display($e)])->withInput();
         }
 
         return back()->with('status', __('warehouse.moves.done', ['label' => $unit->label_code, 'location' => $to->full_code]));
@@ -90,7 +91,7 @@ class StockController extends Controller
         try {
             $quarantine->quarantine($unit, $data['condition'], $data['reason'], $photos);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['reason' => $e->getMessage()])->withInput();
+            return back()->withErrors(['reason' => RuleViolation::display($e)])->withInput();
         }
 
         return back()->with('status', __('warehouse.moves.quarantined', ['label' => $unit->label_code]));
@@ -107,7 +108,7 @@ class StockController extends Controller
         try {
             $quarantine->restore($unit, $to, $data['reason']);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['location_code' => $e->getMessage()])->withInput();
+            return back()->withErrors(['location_code' => RuleViolation::display($e)])->withInput();
         }
 
         return back()->with('status', __('warehouse.moves.restored', ['label' => $unit->label_code]));

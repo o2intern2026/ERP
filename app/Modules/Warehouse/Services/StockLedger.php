@@ -4,6 +4,7 @@ namespace App\Modules\Warehouse\Services;
 
 use App\Modules\Warehouse\Models\StockLedgerEntry;
 use App\Modules\Warehouse\Models\StockUnit;
+use App\Support\Exceptions\RuleViolation;
 use InvalidArgumentException;
 
 /**
@@ -27,7 +28,7 @@ final class StockLedger
             $before = $unit->qty_on_hand;
             $after = $before + $qtyDelta;
             if ($after < 0) {
-                throw new InvalidArgumentException("Stock unit {$unit->label_code}: on-hand would go negative ({$before} {$qtyDelta}).");
+                throw new RuleViolation("Stock unit {$unit->label_code}: on-hand would go negative ({$before} {$qtyDelta}).", 'warehouse.stock.errors.negative_on_hand', ['label' => $unit->label_code, 'before' => $before, 'delta' => $qtyDelta]);
             }
             $unit->qty_on_hand = $after;
         } elseif (in_array($movementType, self::LOCATION_TYPES, true)) {

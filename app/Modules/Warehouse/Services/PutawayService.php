@@ -6,9 +6,9 @@ use App\Modules\Warehouse\Events\AsnPutawayCompleted;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\Location;
 use App\Modules\Warehouse\Models\StockUnit;
+use App\Support\Exceptions\RuleViolation;
 use App\Support\Outbox\OutboxPublisher;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
 
 /**
  * B2 putaway: receiving area → chosen location (exists, same warehouse, active, storage/pickface — §4.3 rule 3),
@@ -24,13 +24,13 @@ final class PutawayService
         return DB::transaction(function () use ($unit, $location): StockUnit {
             $asn = $unit->asnLine->asn;
             if ($asn->unplanned && ! $asn->unplanned_confirmed) {
-                throw new InvalidArgumentException('Unplanned arrivals must be confirmed by a coordinator before putaway.');
+                throw new RuleViolation('Unplanned arrivals must be confirmed by a coordinator before putaway.', 'warehouse.putaway.errors.unplanned_unconfirmed');
             }
             if (! $location->active || $location->warehouse_id !== $unit->warehouse_id || ! in_array($location->type, ['storage', 'pickface', 'quarantine'], true)) {
-                throw new InvalidArgumentException("Location {$location->full_code} is not a valid putaway target for {$unit->label_code}.");
+                throw new RuleViolation("Location {$location->full_code} is not a valid putaway target for {$unit->label_code}.", 'warehouse.putaway.errors.invalid_target', ['code' => $location->full_code, 'label' => $unit->label_code]);
             }
             if ($unit->condition !== 'good' && $location->type !== 'quarantine') {
-                throw new InvalidArgumentException('Damaged / quarantined stock must be put away into a quarantine location.');
+                throw new RuleViolation('Damaged / quarantined stock must be put away into a quarantine location.', 'warehouse.putaway.errors.held_needs_quarantine');
             }
 
             $this->ledger->record($unit, 'putaway', 0, ['from_location_id' => $unit->location_id, 'to_location_id' => $location->id, 'source_type' => 'asn', 'source_id' => $asn->id]);

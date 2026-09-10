@@ -49,6 +49,9 @@ return [
         'weight' => '重量 (kg)',
         'pallet_class' => '托盘类型',
         'pallet_source' => '托盘来源',
+        'errors' => [
+            'negative_on_hand' => '库存单元 :label 的在库数量不能为负(当前 :before,变动 :delta),操作已拒绝。',
+        ],
     ],
     'reservations' => ['title' => '预留列表', 'empty' => '没有活动预留。', 'created_at' => '预留时间'],
 
@@ -115,6 +118,9 @@ return [
         'orders_generated' => '已生成 :count 张订单(:lines 行货物已关联);:blocked 组被阻断,需人工处理。',
         'blocked_reasons' => ['missing_consignment_mark' => '缺唛头', 'inconsistent_delivery_or_fba' => '同一唛头下收件地址 / FBA 引用不一致', 'incomplete_delivery' => '收件信息不完整'],
         'order_line' => '订单行',
+        'errors' => [
+            'generate_after_putaway' => '预报单全部上架完成后才能生成订单。',
+        ],
     ],
 
     'receiving' => [
@@ -281,6 +287,11 @@ return [
         'unknown_location' => '库位 :code 不存在或不属于该仓库。',
         'empty' => '没有待上架的货。',
         'hint' => '库位必须存在、属于同一仓库、启用,且是存储 / pickface / 隔离类型;破损货只能进隔离库位。',
+        'errors' => [
+            'unplanned_unconfirmed' => '无预报到货需要协调员确认后才能上架。',
+            'invalid_target' => '库位 :code 不能作为 :label 的上架目标:必须是同一仓库、已启用的存储 / pickface / 隔离库位。',
+            'held_needs_quarantine' => '破损 / 隔离货只能上架到隔离库位。',
+        ],
     ],
 
     'tasks' => [
@@ -378,6 +389,7 @@ return [
         'errors' => [
             'uncounted' => '还有 :count 个单元未计数(:labels),全部记录后才能关闭。',
             'reason_missing' => ':count 个单元有差异但没填原因(:labels),请先填原因。',
+            'not_counting' => '这次盘点已经关闭,不能再录入计数。',
         ],
     ],
     'scan' => [
@@ -412,6 +424,11 @@ return [
         'restore_do' => '恢复为可用',
         'restored' => ':label 已恢复为可用库存。',
         'condition_reason' => '隔离原因',
+        'errors' => [
+            'cannot_hold' => '库位 :code 不能存放库存:必须是已启用的存储 / pickface / 隔离 / 待发区库位。',
+            'held_needs_quarantine' => '破损 / 隔离货只能在隔离库位之间移动。',
+            'reserved' => ':label 还有 :qty 箱被预留,请先让协调员释放预留再做隔离。',
+        ],
     ],
     'warehouses' => [
         'title' => '仓库',
@@ -536,6 +553,10 @@ return [
         'errors' => [
             'lines_unreceived' => '还有 :count 行未记录收货(可填 0),全部记录后才能进入验收。',
             'lines_uninspected' => '还有 :count 行未判定去向,全部判定后才能完成验收。',
+            'order_missing' => '找不到原订单,无法建立退货单。',
+            'not_receiving' => '这张退货单已完成收货,不能再录入收货。',
+            'receive_first' => '请先完成收货,再做验收。',
+            'already_inspected' => '这一行已经验收过了。',
         ],
     ],
 

@@ -15,6 +15,7 @@ use App\Modules\Warehouse\Services\AsnService;
 use App\Modules\Warehouse\Services\GoodsReceiptService;
 use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -153,7 +154,7 @@ class AsnController extends Controller
         try {
             $result = $generation->generate($asn);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['generate' => $e->getMessage()]);
+            return back()->withErrors(['generate' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('warehouse.asns.orders_generated', ['count' => count($result['orders']), 'lines' => $result['linked_lines'], 'blocked' => count($result['blocked'])]))
