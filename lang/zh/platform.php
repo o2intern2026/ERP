@@ -264,6 +264,7 @@ return [
         'status' => '状态',
         'attempts' => '尝试次数',
         'available_at' => '下次投递',
+        'job' => 'Job',
         'last_error' => '最近错误',
         'retry' => '立即重试',
         'retried' => '事件已重新排队,下一分钟投递。',
@@ -271,8 +272,45 @@ return [
         'statuses' => ['pending' => '待投递', 'published' => '已投递', 'failed' => '失败(将重试)', 'dead' => '死信(需人工)'],
     ],
 
-    // Friendly "no permission" page (resources/views/errors/403.blade.php) instead of a bare 403 — tester feedback 2026-09-10.
+    // Friendly error pages (resources/views/errors/*.blade.php) instead of Laravel's English defaults — tester feedback 2026-09-10,
+    // "整个系统的每一处报错都用中文" (i18n/zh sweep, CHANGE_REQUESTS #107). 403 keeps its own wording below.
     'errors' => [
+        'back' => '返回上一页',
+        'home' => '回到首页',
+        'retry' => '返回上一页重试',
+        'reason' => '原因::reason',
+        'contact' => '如果问题持续出现,请把出错时间和当时的操作告诉管理员。',
+        'not_found' => [
+            'title' => '找不到该页面',
+            'body' => '您访问的地址不存在,或对应的记录已被删除、移动或不属于当前账号。',
+            'hint' => '请检查链接是否正确,或从首页重新进入。',
+        ],
+        'page_expired' => [
+            'title' => '页面已过期',
+            'body' => '这个页面打开的时间太久,或您已在别处退出登录,表单的安全令牌已失效,刚才的提交没有生效。',
+            'hint' => '请返回上一页,刷新后重新提交;如果已退出登录,请重新登录。',
+        ],
+        'too_many_requests' => [
+            'title' => '操作过于频繁',
+            'body' => '短时间内的请求次数过多,系统暂时拒绝了这次请求。',
+            'hint' => '请稍等片刻再试。',
+            'wait' => '请等待 :seconds 秒后再试。',
+        ],
+        'server_error' => [
+            'title' => '系统出错了',
+            'body' => '处理您的请求时发生了内部错误,刚才的操作可能没有保存。',
+            'hint' => '请返回上一页重试。',
+        ],
+        'maintenance' => [
+            'title' => '系统维护中',
+            'body' => '系统正在维护或升级,暂时无法使用。',
+            'hint' => '请稍后再试,维护完成后会自动恢复。',
+        ],
+        'unavailable' => [
+            'title' => '服务暂时不可用',
+            'body' => '系统暂时无法处理请求。',
+            'hint' => '请稍后再试。',
+        ],
         'forbidden' => [
             'title' => '您没有此操作的权限',
             'body' => '当前账号无法访问这个页面或执行这个操作。',

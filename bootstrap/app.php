@@ -1,9 +1,11 @@
 <?php
 
+use App\Support\Exceptions\RuleViolation;
 use App\Support\Tenancy\ClientScope;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
@@ -34,5 +36,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectUsersTo(fn () => auth()->user()?->isClientUser() ? route('portal.index') : route('platform.index'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // i18n/zh sweep (CHANGE_REQUESTS #107): a business-rule refusal no controller caught must not surface as a 500 page —
+        // a form submission goes back to the form with the Chinese message. GET and JSON requests keep Laravel's rendering.
+        $exceptions->render(function (RuleViolation $e, Request $request) {
+            if ($request->isMethodSafe() || $request->expectsJson()) {
+                return null;
+            }
+
+            return back()->withInput()->withErrors(['rule' => $e->userMessage()]);
+        });
     })->create();

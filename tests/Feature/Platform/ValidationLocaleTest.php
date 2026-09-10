@@ -92,4 +92,16 @@ class ValidationLocaleTest extends TestCase
             'rows' => [['consignment_mark' => 'ONLY-MARK', 'description' => '', 'received_cartons' => 4, 'damaged_cartons' => 0, 'unit_type' => 'carton', 'unit_count' => 1]],
         ])->assertSessionHasErrors(['rows.0.description' => '品名 必填。']);
     }
+
+    public function test_zh_framework_lang_files_cover_auth_pagination_and_passwords(): void
+    {
+        foreach (['auth', 'pagination', 'passwords'] as $file) {
+            $en = require base_path("vendor/laravel/framework/src/Illuminate/Translation/lang/en/{$file}.php");
+            $zh = require lang_path("zh/{$file}.php");
+            $this->assertSame([], array_values(array_diff(array_keys($en), array_keys($zh))), "lang/zh/{$file}.php is missing framework keys — they would render in English");
+            foreach ($zh as $key => $value) {
+                $this->assertMatchesRegularExpression('/\p{Han}/u', $value, "lang/zh/{$file}.php {$key} is not Chinese");
+            }
+        }
+    }
 }
