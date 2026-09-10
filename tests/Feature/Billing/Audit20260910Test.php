@@ -7,6 +7,7 @@ use App\Modules\Billing\Models\CustomerQuote;
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Billing\Services\ChargeEngine;
 use App\Support\Contracts\JobService;
+use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\CreatesUsers;
 use Tests\TestCase;
@@ -34,6 +35,9 @@ class Audit20260910Test extends TestCase
         $page->assertDontSee('action="'.route('billing.invoices.draft_job', $storageOnly).'"', false); // no 按此 Job 开票 on a row that can never be invoiced per Job
         $page->assertSee(__('billing.unbilled.storage_only')); // …the row says why and points at the weekly storage form instead
         $page->assertSee(__('billing.unbilled.draft_storage'));
+        // The mixed row's 行数 and amount both describe what the button drafts (1 service line, $9.00); storage is counted in the note.
+        $page->assertSee('1 '.__('billing.unbilled.lines'))->assertDontSee('2 '.__('billing.unbilled.lines'));
+        $page->assertSee(__('billing.unbilled.storage_note', ['count' => 1, 'amount' => Money::cents((int) Charge::query()->where('job_id', $mixed)->whereHas('chargeCode', fn ($q) => $q->where('category', 'storage'))->sum('amount_cents'))->format()]));
 
         // Belt and braces: a direct POST on the storage-only Job is refused in Chinese and creates nothing.
         $this->actingAs($finance)->post(route('billing.invoices.draft_job', $storageOnly))->assertRedirect()->assertSessionHasErrors(['invoice' => __('billing.errors.no_unbilled_job')]);

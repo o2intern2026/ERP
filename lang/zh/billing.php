@@ -27,7 +27,7 @@ return [
 
     'unbilled_period' => ['period_from' => '账期从', 'period_to' => '到', 'scope' => '包含费用', 'group_by' => '分组方式', 'draft_period' => '按账期生成草稿', 'period_hint' => '该客户设置:账期:period,发票:grouping。可临时改成任意区间(一周 / 两周 / 自定义)和分组。', 'scopes' => ['service' => '服务费(不含仓储)', 'storage' => '仓储费', 'all' => '全部费用'], 'presets' => ['this_week' => '本周', 'last_week' => '上周', 'last_fortnight' => '前两周', 'this_month' => '本月', 'last_month' => '上月']],
     'unbilled' => ['title' => '未开票池', 'hint' => '已完成作业但尚未进入发票的费用,按客户 / Job 汇总。整柜客户按 Job 开服务发票;尾程客户月底汇总;仓储费按周。', 'draft_job' => '按此 Job 开票', 'draft_monthly' => '月结汇总开票', 'draft_storage' => '本周仓储费开票', 'period_from' => '期间从', 'period_to' => '到', 'week' => '周内任一天', 'empty' => '没有未开票费用。', 'lines' => '行数', 'review_pending' => '另有 :n 条待报价 / 复核,不在此池中。',
-        'service_part' => '服务费', 'storage_part' => '仓储费', 'storage_only' => '只有仓储费:按周开票(下方「本周仓储费开票」或「按账期」选仓储费)', 'storage_note' => '另有仓储费 :amount,按周开票,不在此 Job 发票内'],
+        'service_part' => '服务费', 'storage_part' => '仓储费', 'storage_only' => '只有仓储费:按周开票(下方「本周仓储费开票」或「按账期」选仓储费)', 'storage_note' => '另有仓储费 :count 行 / :amount,按周开票,不在此 Job 发票内'],
     'errors' => [
         'no_unbilled_job' => '该 Job 没有未开票的服务费(仓储费按周开票,不在 Job 发票内)。',
         'no_unbilled_period' => '该客户在此账期内没有符合所选范围的未开票费用,请调整账期或「包含费用」。',

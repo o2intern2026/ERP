@@ -21,9 +21,10 @@
                     @foreach ($entry['jobs'] as $row)
                         <tr>
                             <td><a href="{{ route('platform.jobs.show', $row['job']) }}">{{ $row['job']->job_no }}</a> <small class="text-muted">{{ $row['job']->reference }}</small></td>
-                            <td class="num">{{ $row['count'] }} {{ __('billing.unbilled.lines') }}</td>
+                            {{-- Both figures describe the service charges 按此 Job 开票 will draft; storage lines are counted in the note below. --}}
+                            <td class="num">{{ $row['service_count'] }} {{ __('billing.unbilled.lines') }}</td>
                             <td class="num">{{ \App\Support\Money::cents((int) round($row['service_amount_cents']))->format() }}
-                                @if ($row['storage_count'] > 0)<br><small class="text-muted">{{ __('billing.unbilled.storage_note', ['amount' => \App\Support\Money::cents($row['storage_amount_cents'])->format()]) }}</small>@endif
+                                @if ($row['storage_count'] > 0)<br><small class="text-muted">{{ __('billing.unbilled.storage_note', ['count' => $row['storage_count'], 'amount' => \App\Support\Money::cents($row['storage_amount_cents'])->format()]) }}</small>@endif
                             </td>
                             <td>
                                 @if ($row['service_count'] > 0)
