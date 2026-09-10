@@ -30,9 +30,11 @@ class QuoteController extends Controller
     {
         $data = $request->validate([
             'client_id' => ['required', 'integer', Rule::exists('clients', 'id')], 'stage' => ['required', Rule::in(Enums::QUOTE_STAGES)], 'valid_until' => ['nullable', 'date'], 'notes' => ['nullable', 'string', 'max:1000'],
-            'lines' => ['required', 'array', 'min:1'], 'lines.*.charge_code' => ['nullable', 'string'], 'lines.*.qty' => ['nullable', 'numeric', 'min:0'], 'lines.*.weight_kg' => ['nullable', 'numeric', 'min:0'], 'lines.*.cost' => ['nullable', 'numeric', 'min:0'],
+            'lines' => ['required', 'array', 'min:1'], 'lines.*.charge_code' => ['nullable', 'string', Rule::exists('charge_codes', 'code')],
+            // Audit 2026-09-10: a row with a charge code is a real line — its qty is required and positive; only rows without a code are spare and skipped.
+            'lines.*.qty' => ['exclude_without:lines.*.charge_code', 'required', 'numeric', 'gt:0'], 'lines.*.weight_kg' => ['nullable', 'numeric', 'min:0'], 'lines.*.cost' => ['nullable', 'numeric', 'min:0'],
         ]);
-        $lines = collect($data['lines'])->filter(fn ($l) => ! empty($l['charge_code']) && (float) ($l['qty'] ?? 0) > 0)
+        $lines = collect($data['lines'])->filter(fn ($l) => ! empty($l['charge_code']))
             ->map(fn ($l) => ['charge_code' => $l['charge_code'], 'qty' => (float) $l['qty'], 'context' => array_filter(['weight_kg' => $l['weight_kg'] ?? null, 'cost_cents' => isset($l['cost']) && $l['cost'] !== '' ? (int) round($l['cost'] * 100) : null], fn ($v) => $v !== null)])->values()->all();
         if ($lines === []) {
             return back()->withErrors(['lines' => __('billing.quotes.no_lines')])->withInput();

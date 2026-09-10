@@ -12,7 +12,9 @@
             <article>
                 <header class="grid">
                     <strong>{{ $entry['client']->name }} <small class="text-muted">· {{ __('masterdata.invoice_modes.'.$entry['client']->invoice_mode) }} · {{ $entry['client']->payment_terms }}</small></strong>
-                    <span class="num">{{ \App\Support\Money::cents((int) round($entry['amount_cents']))->format() }} {{ __('billing.money') }}</span>
+                    <span class="num">{{ \App\Support\Money::cents((int) round($entry['amount_cents']))->format() }} {{ __('billing.money') }}
+                        @if ($entry['storage_count'] > 0)<br><small class="text-muted">{{ __('billing.unbilled.service_part') }} {{ \App\Support\Money::cents($entry['service_amount_cents'])->format() }} · {{ __('billing.unbilled.storage_part') }} {{ \App\Support\Money::cents($entry['storage_amount_cents'])->format() }}</small>@endif
+                    </span>
                 </header>
                 <table class="dense">
                     <tbody>
@@ -20,8 +22,16 @@
                         <tr>
                             <td><a href="{{ route('platform.jobs.show', $row['job']) }}">{{ $row['job']->job_no }}</a> <small class="text-muted">{{ $row['job']->reference }}</small></td>
                             <td class="num">{{ $row['count'] }} {{ __('billing.unbilled.lines') }}</td>
-                            <td class="num">{{ \App\Support\Money::cents((int) round($row['amount_cents']))->format() }}</td>
-                            <td><form method="post" action="{{ route('billing.invoices.draft_job', $row['job']) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('billing.unbilled.draft_job') }}</button></form></td>
+                            <td class="num">{{ \App\Support\Money::cents((int) round($row['service_amount_cents']))->format() }}
+                                @if ($row['storage_count'] > 0)<br><small class="text-muted">{{ __('billing.unbilled.storage_note', ['amount' => \App\Support\Money::cents($row['storage_amount_cents'])->format()]) }}</small>@endif
+                            </td>
+                            <td>
+                                @if ($row['service_count'] > 0)
+                                    <form method="post" action="{{ route('billing.invoices.draft_job', $row['job']) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('billing.unbilled.draft_job') }}</button></form>
+                                @else
+                                    <small class="text-muted">{{ __('billing.unbilled.storage_only') }}</small>
+                                @endif
+                            </td>
                         </tr>
                     @endforeach
                     </tbody>

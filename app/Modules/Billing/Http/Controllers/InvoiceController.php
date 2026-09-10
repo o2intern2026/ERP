@@ -24,8 +24,14 @@ class InvoiceController extends Controller
 {
     public function unbilled(): View
     {
-        $pool = Charge::query()->with(['job', 'client'])->whereIn('status', ['pending', 'approved'])->whereNull('invoice_line_id')->get()
-            ->groupBy('client_id')->map(fn ($byClient) => ['client' => $byClient->first()->client, 'jobs' => $byClient->groupBy('job_id')->map(fn ($byJob) => ['job' => $byJob->first()->job, 'count' => $byJob->count(), 'amount_cents' => (int) $byJob->sum('amount_cents')]), 'amount_cents' => (int) $byClient->sum('amount_cents'), 'has_storage' => $byClient->contains(fn ($c) => $c->chargeCode->category === 'storage')]);
+        // Audit 2026-09-10: storage is invoiced weekly, never per Job (InvoiceService::draftForJob) — split every row so the
+        // page only offers 按此 Job 开票 where it can succeed and the figures match what the button will draft.
+        $isStorage = fn (Charge $c) => $c->chargeCode->category === 'storage';
+        $split = fn ($charges) => ['count' => $charges->count(), 'amount_cents' => (int) $charges->sum('amount_cents'),
+            'service_count' => $charges->reject($isStorage)->count(), 'service_amount_cents' => (int) $charges->reject($isStorage)->sum('amount_cents'),
+            'storage_count' => $charges->filter($isStorage)->count(), 'storage_amount_cents' => (int) $charges->filter($isStorage)->sum('amount_cents')];
+        $pool = Charge::query()->with(['job', 'client', 'chargeCode'])->whereIn('status', ['pending', 'approved'])->whereNull('invoice_line_id')->get()
+            ->groupBy('client_id')->map(fn ($byClient) => ['client' => $byClient->first()->client, 'jobs' => $byClient->groupBy('job_id')->map(fn ($byJob) => ['job' => $byJob->first()->job] + $split($byJob)), 'has_storage' => $byClient->contains($isStorage)] + $split($byClient));
 
         return view('billing::invoices.unbilled', ['pool' => $pool, 'reviewCount' => Charge::query()->where('status', 'needs_review')->count()]);
     }
