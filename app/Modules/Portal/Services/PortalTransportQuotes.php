@@ -4,6 +4,7 @@ namespace App\Modules\Portal\Services;
 
 use App\Modules\Orders\Models\Order;
 use App\Modules\Transport\Models\Shipment;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -21,9 +22,11 @@ final class PortalTransportQuotes
     /**
      * Every outbound batch shipment of the order (fulfilment_id set — one per packed batch, §3.8 #8), else the preliminary
      * shipment Transport opened at confirmation. Each entry carries its final quotes (`quoted` → confirmable, `selected` →
-     * the confirmed choice) and whether the client can still confirm (shipment status `quoted`).
+     * the confirmed choice) and whether the client can still confirm (shipment status `quoted`). Each quote row also carries
+     * `expired` / `can_confirm` (2026-09-10 audit): QuoteSelectionService refuses a quote past `expires_at`, so the portal must
+     * not offer the button for it — the same guard the staff shipment page applies. `all_expired` tells the page to say 请联系客服.
      *
-     * @return list<array{shipment: Shipment, quotes: Collection<int, object>, selected: ?object, can_confirm: bool}>
+     * @return list<array{shipment: Shipment, quotes: Collection<int, object>, selected: ?object, can_confirm: bool, all_expired: bool}>
      */
     public function forOrder(Order $order): array
     {
@@ -49,12 +52,18 @@ final class PortalTransportQuotes
 
         return $shipments->map(function (Shipment $shipment) use ($quotes): array {
             $own = $quotes->get($shipment->id, collect());
+            $confirmable = $shipment->status === 'quoted';
+            foreach ($own as $q) {
+                $q->expired = $q->status === 'quoted' && $q->expires_at !== null && Carbon::parse($q->expires_at)->isPast();
+                $q->can_confirm = $confirmable && $q->status === 'quoted' && ! $q->expired;
+            }
 
             return [
                 'shipment' => $shipment,
                 'quotes' => $own,
                 'selected' => $own->first(fn ($q) => $q->status === 'selected' || (int) $q->id === (int) $shipment->selected_quote_id),
-                'can_confirm' => $shipment->status === 'quoted',
+                'can_confirm' => $confirmable,
+                'all_expired' => $confirmable && $own->isNotEmpty() && $own->every(fn ($q) => $q->expired),
             ];
         })->values()->all();
     }

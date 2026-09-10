@@ -13,6 +13,7 @@ use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Orders\Services\OrderEstimateService;
 use App\Modules\Orders\Services\TailgateRule;
+use App\Modules\Portal\Http\PortalValidation;
 use App\Modules\Portal\Services\PortalTransportQuotes;
 use App\Modules\Transport\Models\Shipment;
 use App\Support\Contracts\RateService;
@@ -94,7 +95,7 @@ final class PortalOrderController extends Controller
         $this->mergeSavedAddress($request, $clientId);
         OrderFormRows::prune($request); // spare form rows (package type select always has a value) are not lines
 
-        $data = $request->validate($this->rules($clientId), $this->messages());
+        $data = $request->validate($this->rules($clientId), PortalValidation::messages(), PortalValidation::attributes());
 
         $pickup = collect(['name' => 'pickup_name', 'phone' => 'pickup_phone', 'address' => 'pickup_address_line', 'suburb' => 'pickup_suburb', 'state' => 'pickup_state', 'postcode' => 'pickup_postcode'])
             ->map(fn ($field) => $data[$field] ?? null);
@@ -120,7 +121,7 @@ final class PortalOrderController extends Controller
         $clientId = $this->clientId($request);
         $this->mergeSavedAddress($request, $clientId);
         OrderFormRows::prune($request);
-        $data = $request->validate($this->rules($clientId), $this->messages());
+        $data = $request->validate($this->rules($clientId), PortalValidation::messages(), PortalValidation::attributes());
         $request->flash(); // old() keeps every field the client typed
 
         $order = new Order(collect($data)->only((new Order)->getFillable())->all());
@@ -130,22 +131,6 @@ final class PortalOrderController extends Controller
         $order->setRelation('declaredPackages', collect($data['declared_packages'] ?? [])->map(fn (array $p) => new DeclaredPackage(collect($p)->only((new DeclaredPackage)->getFillable())->all())));
 
         return view('portal::orders.create', $this->formData($clientId, $rates) + ['preview' => $estimates->preview($order)]);
-    }
-
-    /** Plain-Chinese messages for the goods rows — clients saw raw "lines.0.description_cn … required when …" text (tester feedback 2026-09-10). */
-    private function messages(): array
-    {
-        return [
-            'lines.required_unless' => __('portal.validation.lines_required'),
-            'lines.*.description_cn.required_without' => __('portal.validation.line_name_required'),
-            'lines.*.carton_qty.required' => __('portal.validation.line_qty_required'),
-            'lines.*.carton_qty.min' => __('portal.validation.line_qty_required'),
-            'lines.*.carton_qty.integer' => __('portal.validation.line_qty_required'),
-            'lines.*.package_type.required' => __('portal.validation.line_package_required'),
-            'lines.*.package_type.in' => __('portal.validation.line_package_required'),
-            'declared_packages.*.qty.required' => __('portal.validation.package_qty_required'),
-            'declared_packages.*.package_type.required' => __('portal.validation.package_type_required'),
-        ];
     }
 
     /** @return array<string, mixed> */
@@ -176,8 +161,8 @@ final class PortalOrderController extends Controller
             'pickup_state' => ['nullable', 'required_if:order_type,pickup_deliver', Rule::in(Enums::STATES)],
             'pickup_postcode' => ['nullable', 'required_if:order_type,pickup_deliver', 'string', 'max:10'],
             'lines' => ['nullable', 'required_unless:order_type,pickup_deliver', 'array'],
-            'lines.*.description_cn' => ['nullable', 'string', 'max:255', 'required_without:lines.*.description_en'], // one Chinese message for "neither name given" (messages())
-            'lines.*.description_en' => ['nullable', 'string', 'max:255'],
+            'lines.*.description_cn' => ['nullable', 'string', 'max:255', 'required_without:lines.*.description_en'],
+            'lines.*.description_en' => ['nullable', 'string', 'max:255', 'required_without:lines.*.description_cn'],
             'lines.*.package_type' => ['required', Rule::in(OrderEnums::PACKAGE_TYPES)],
             'lines.*.carton_qty' => ['required', 'integer', 'min:1'],
             'lines.*.unit_qty' => ['nullable', 'integer', 'min:0'],
@@ -208,7 +193,9 @@ final class PortalOrderController extends Controller
             'order' => $order,
             'timeline' => $order->events()->where('dimension', 'operational')->where(fn ($q) => $q->whereColumn('from_status', '!=', 'to_status')->orWhereNull('from_status'))->get(), // status steps only — no internal notes
             'shipments' => $shipments,
-            'canRequestReturn' => $order->acceptsReturnRequest(),
+            // 2026-09-10 audit: a pure transport order has declared packages but no goods lines, and ReturnRequestService builds the
+            // return from lines — so the panel is only offered when there is something to return (the page says 请联系客服 otherwise).
+            'canRequestReturn' => $order->acceptsReturnRequest() && $order->lines->isNotEmpty(),
             // A7b: the client's estimate — customer prices only (OrderEstimateService never selects cost).
             'estimate' => $estimates->current($order),
             'canEstimate' => $estimates->canEstimate($order) && auth()->user()->isClientUser(),

@@ -577,6 +577,7 @@ return [
             'not_shipped' => '只有已发运或已送达的订单可以发起退货。',
             'bad_quantity' => '退回箱数必须在 1 到已发箱数之间。',
             'no_lines' => '请至少选择一行货物。',
+            'pure_transport' => '纯运输订单只有申报包裹、没有货物行，这里无法生成退货单；如需退回请与运输协调处理。',
             'not_a_return' => '这不是退货单。',
             'bad_decision' => '决定必须是“给予 credit”或“不予 credit”。',
             'not_inspected' => '仓库尚未完成验收，暂不能记录财务决定。',
