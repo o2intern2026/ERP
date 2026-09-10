@@ -370,8 +370,8 @@ return [
         ],
         'messages' => [
             'lines.required_unless' => '库存出库订单至少要填一行货物（中文或英文品名 + 箱数）。',
-            'lines.*.description_cn.required_without' => '第 :position 行货物请输入中文或英文品名。',
-            'lines.*.description_en.required_without' => '第 :position 行货物请输入中文或英文品名。',
+            'lines.*.description_cn.required_without' => '第 :position 行货物:请输入中文或英文品名。',
+            'lines.*.description_en.required_without' => '第 :position 行货物:请输入中文或英文品名。',
             'lines.*.carton_qty.required' => '第 :position 行货物的箱数必填。',
             'lines.*.carton_qty.integer' => '第 :position 行货物的箱数必须是整数。',
             'lines.*.carton_qty.min' => '第 :position 行货物的箱数至少为 :min。',
