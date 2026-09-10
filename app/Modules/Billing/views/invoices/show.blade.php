@@ -56,17 +56,23 @@
             </article>
             <article>
                 <header>{{ __('billing.credit_notes.title') }}</header>
+                {{-- Audit 2026-09-10: 开出 is gated on the second person's approval (CreditNoteService::issue) — the page shows that state the way the rate-card page does. --}}
                 @foreach ($invoice->creditNotes as $n)
-                    <p>{{ $n->credit_note_no }} · {{ $n->reason }} · {{ \App\Support\Money::cents((int) round(($n->amount_cents + $n->gst_cents)))->format() }} · <span class="badge" data-tone="{{ $n->status === 'issued' ? 'ok' : 'warn' }}">{{ __('billing.credit_notes.statuses.'.$n->status) }}</span>
-                        @if ($n->status !== 'issued')<form method="post" action="{{ route('billing.credit_notes.issue', $n) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('billing.credit_notes.issue') }}</button></form>@endif</p>
+                    @php($approved = $creditNoteApproved[$n->id] ?? false)
+                    <p>{{ $n->credit_note_no }} · {{ $n->reason }} · {{ \App\Support\Money::cents((int) round(($n->amount_cents + $n->gst_cents)))->format() }} ·
+                        @if ($n->status === 'issued')<span class="badge" data-tone="ok">{{ __('billing.credit_notes.statuses.issued') }}</span>
+                        @elseif ($approved)<span class="badge" data-tone="ok">{{ __('billing.credit_notes.approved_badge') }}</span>
+                        @else<span class="badge" data-tone="warn">{{ __('billing.credit_notes.statuses.draft') }}</span> <small><a href="{{ route('platform.approvals.index', ['type' => 'credit_note']) }}">{{ in_array($n->id, $creditNotePending, true) ? __('billing.credit_notes.pending_hint') : __('billing.credit_notes.no_approval_hint') }}</a></small>@endif
+                        @if ($n->status !== 'issued')<form method="post" action="{{ route('billing.credit_notes.issue', $n) }}" class="inline">@csrf<button type="submit" class="secondary outline" @disabled(! $approved)>{{ __('billing.credit_notes.issue') }}</button></form>@endif</p>
                 @endforeach
-                <details>
+                {{-- The form reopens with what was typed after a refusal (audit 2026-09-10). --}}
+                <details{{ $errors->has('reason') || $errors->has('lines') || $errors->has('lines.*') ? ' open' : '' }}>
                     <summary>{{ __('billing.credit_notes.new') }}</summary>
                     <form method="post" action="{{ route('billing.invoices.credit_notes.store', $invoice) }}">
                         @csrf
-                        <input type="text" name="reason" placeholder="{{ __('billing.credit_notes.reason') }}" required>
+                        <input type="text" name="reason" placeholder="{{ __('billing.credit_notes.reason') }}" value="{{ old('reason') }}" required>
                         @foreach ($invoice->lines as $i => $l)
-                            <div class="grid"><span>{{ $l->charge_code }} · {{ $l->description }} ({{ \App\Support\Money::cents((int) round($l->amount_cents))->format() }})</span><input type="hidden" name="lines[{{ $i }}][invoice_line_id]" value="{{ $l->id }}"><input type="number" step="0.01" min="0" max="{{ $l->amount_cents / 100 }}" name="lines[{{ $i }}][amount]" placeholder="{{ __('billing.credit_notes.line_amount') }}"></div>
+                            <div class="grid"><span>{{ $l->charge_code }} · {{ $l->description }} ({{ \App\Support\Money::cents((int) round($l->amount_cents))->format() }})</span><input type="hidden" name="lines[{{ $i }}][invoice_line_id]" value="{{ $l->id }}"><input type="number" step="0.01" min="0" max="{{ $l->amount_cents / 100 }}" name="lines[{{ $i }}][amount]" placeholder="{{ __('billing.credit_notes.line_amount') }}" value="{{ old("lines.$i.amount") }}"></div>
                         @endforeach
                         <button type="submit" class="secondary">{{ __('billing.credit_notes.new') }}</button>
                     </form>

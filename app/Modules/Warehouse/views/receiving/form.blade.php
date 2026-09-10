@@ -8,10 +8,14 @@
     <p>{{ $asn->client->name }} · {{ $line->consignment_mark }} · <strong>{{ $line->description }}</strong> · {{ __('warehouse.asns.expected') }}: {{ $line->expected_cartons }}</p>
     <p><mark>{{ __($receipt['open'] ? 'warehouse.receiving.joins_receipt' : 'warehouse.receiving.new_receipt', ['no' => $receipt['no']]) }}</mark></p>
     <p class="text-muted"><small>{{ __('warehouse.receiving.hint') }}</small></p>
+    @if ($receivingLocations->isEmpty())
+        {{-- Audit 2026-09-10: a required <select> with no options blocks the submit silently — say what is missing and where to fix it. --}}
+        <p><mark>{{ __('warehouse.receiving.no_receiving_location', ['code' => $asn->warehouse->code]) }}</mark> <a href="{{ route('warehouse.locations.index') }}">{{ __('warehouse.locations.title') }}</a></p>
+    @else
     <form method="post" action="{{ route('warehouse.receiving.store', [$asn, $line]) }}">
         @csrf
         <div class="grid">
-            <label>{{ __('warehouse.receiving.location') }}<select name="receiving_location_id" required>@foreach ($receivingLocations as $loc)<option value="{{ $loc->id }}">{{ $loc->full_code }}</option>@endforeach</select></label>
+            <label>{{ __('warehouse.receiving.location') }}<select name="receiving_location_id" required>@foreach ($receivingLocations as $loc)<option value="{{ $loc->id }}" @selected((int) old('receiving_location_id') === $loc->id)>{{ $loc->full_code }}</option>@endforeach</select></label>
             <label>{{ __('warehouse.receiving.received_cartons') }}<input type="number" name="received_cartons" class="scan" min="0" value="{{ old('received_cartons', $line->expected_cartons) }}" required autofocus></label>
             <label>{{ __('warehouse.receiving.damaged_cartons') }}<input type="number" name="damaged_cartons" min="0" value="{{ old('damaged_cartons', 0) }}"></label>
             @if ($asn->inbound_type === 'loose_truck')
@@ -40,11 +44,12 @@
         </fieldset>
         <button type="submit">{{ __('warehouse.receiving.submit') }}</button>
     </form>
+    @endif
 @endsection
 
 @push('scripts')
 <script>
-    document.getElementById('add-unit').addEventListener('click', () => {
+    document.getElementById('add-unit')?.addEventListener('click', () => {
         const hiddenRow = document.querySelector('#units .unit-row[hidden]');
         if (!hiddenRow) return;
         hiddenRow.hidden = false;

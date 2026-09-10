@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Platform\Models\Approval;
 use App\Modules\Platform\Services\ApprovalService;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,7 +45,7 @@ class ApprovalController extends Controller
         try {
             $service->cancel($approval, $request->user());
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['approval' => $e->getMessage()]);
+            return back()->withErrors(['approval' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('platform.approvals.cancelled'));
@@ -56,7 +57,7 @@ class ApprovalController extends Controller
         try {
             $action($data['note'] ?? null);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['approval' => $e->getMessage()]);
+            return back()->withErrors(['approval' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('platform.approvals.'.$key));

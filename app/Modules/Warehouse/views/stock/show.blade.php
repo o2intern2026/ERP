@@ -32,10 +32,12 @@
         <div class="grid">
             <article>
                 <header>{{ __('warehouse.moves.title') }}</header>
+                {{-- Audit 2026-09-10: scan-gun forms keep the typed value after a refusal so one character can be corrected instead of re-scanning; `_form` says which card failed. --}}
                 <form method="post" action="{{ route('warehouse.stock.move', $unit) }}">
                     @csrf
-                    <input type="text" name="location_code" class="scan" placeholder="{{ __('warehouse.moves.to') }}" required>
-                    <input type="text" name="reason" placeholder="{{ __('warehouse.moves.reason') }}">
+                    <input type="hidden" name="_form" value="move">
+                    <input type="text" name="location_code" class="scan" placeholder="{{ __('warehouse.moves.to') }}" value="{{ old('_form') === 'move' ? old('location_code') : '' }}" required>
+                    <input type="text" name="reason" placeholder="{{ __('warehouse.moves.reason') }}" value="{{ old('_form') === 'move' ? old('reason') : '' }}">
                     <button type="submit" class="secondary">{{ __('warehouse.moves.do') }}</button>
                 </form>
             </article>
@@ -44,8 +46,9 @@
                     <header>{{ __('warehouse.moves.quarantine_title') }}</header>
                     <form method="post" action="{{ route('warehouse.stock.quarantine', $unit) }}" enctype="multipart/form-data">
                         @csrf
-                        <select name="condition"><option value="damaged">{{ __('warehouse.conditions.damaged') }}</option><option value="quarantine">{{ __('warehouse.conditions.quarantine') }}</option></select>
-                        <input type="text" name="reason" placeholder="{{ __('warehouse.moves.quarantine_reason') }}" required>
+                        <input type="hidden" name="_form" value="quarantine">
+                        <select name="condition"><option value="damaged" @selected(old('_form') === 'quarantine' && old('condition') === 'damaged')>{{ __('warehouse.conditions.damaged') }}</option><option value="quarantine" @selected(old('_form') === 'quarantine' && old('condition') === 'quarantine')>{{ __('warehouse.conditions.quarantine') }}</option></select>
+                        <input type="text" name="reason" placeholder="{{ __('warehouse.moves.quarantine_reason') }}" value="{{ old('_form') === 'quarantine' ? old('reason') : '' }}" required>
                         <label>{{ __('warehouse.moves.photos') }}<input type="file" name="photos[]" accept="image/*" multiple capture="environment"></label>
                         <button type="submit" class="secondary">{{ __('warehouse.moves.quarantine_do') }}</button>
                     </form>
@@ -55,8 +58,9 @@
                     <header>{{ __('warehouse.moves.restore_title') }}</header>
                     <form method="post" action="{{ route('warehouse.stock.restore', $unit) }}">
                         @csrf
-                        <input type="text" name="location_code" class="scan" placeholder="{{ __('warehouse.moves.to') }}" required>
-                        <input type="text" name="reason" placeholder="{{ __('warehouse.moves.quarantine_reason') }}" required>
+                        <input type="hidden" name="_form" value="restore">
+                        <input type="text" name="location_code" class="scan" placeholder="{{ __('warehouse.moves.to') }}" value="{{ old('_form') === 'restore' ? old('location_code') : '' }}" required>
+                        <input type="text" name="reason" placeholder="{{ __('warehouse.moves.quarantine_reason') }}" value="{{ old('_form') === 'restore' ? old('reason') : '' }}" required>
                         <button type="submit" class="secondary">{{ __('warehouse.moves.restore_do') }}</button>
                     </form>
                 </article>

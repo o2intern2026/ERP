@@ -5,6 +5,7 @@ namespace App\Modules\Platform\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Platform\Models\Document;
+use App\Modules\Platform\Models\Job;
 use App\Support\Contracts\DocumentService;
 use App\Support\Documents\DocumentDownloader;
 use App\Support\Enums;
@@ -12,6 +13,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /** A29 Document Centre: every document by type and related object, upload, client visibility, download. */
@@ -52,6 +54,13 @@ class DocumentController extends Controller
             'client_id' => ['nullable', 'integer', Rule::exists('clients', 'id')],
             'client_visible' => ['nullable', 'boolean'],
         ]);
+        // Audit 2026-09-10: a client-visible document without a client is visible to nobody (DocumentDownloader + client scope) — derive the client from the Job, else refuse.
+        if (empty($data['client_id']) && ! empty($data['job_id'])) {
+            $data['client_id'] = Job::query()->withoutGlobalScopes()->whereKey($data['job_id'])->value('client_id');
+        }
+        if (($data['client_visible'] ?? false) && empty($data['client_id'])) {
+            throw ValidationException::withMessages(['client_id' => __('platform.documents.client_required')]);
+        }
         $file = $data['file'];
         $path = $file->store('documents/'.now()->format('Y/m'), DocumentDownloader::DISK);
 
@@ -66,6 +75,9 @@ class DocumentController extends Controller
     public function visibility(Request $request, Document $document): RedirectResponse
     {
         $data = $request->validate(['client_visible' => ['required', 'boolean']]);
+        if ($data['client_visible'] && $document->client_id === null) {
+            return back()->withErrors(['client_visible' => __('platform.documents.client_required')]);
+        }
         $document->update(['client_visible' => (bool) $data['client_visible']]);
 
         return back()->with('status', __('platform.documents.visibility_saved'));

@@ -22,6 +22,7 @@
                         <input type="number" step="0.001" min="0.001" name="lines[{{ $i }}][qty]" placeholder="{{ __('billing.quotes.line_qty') }}" value="{{ old("lines.$i.qty") }}" @if (old("lines.$i.charge_code") !== null) required @endif @error("lines.$i.qty") aria-invalid="true" @enderror>
                         <input type="number" step="0.01" min="0" name="lines[{{ $i }}][weight_kg]" placeholder="{{ __('billing.quotes.line_weight') }}" value="{{ old("lines.$i.weight_kg") }}">
                         <input type="number" step="0.01" min="0" name="lines[{{ $i }}][cost]" placeholder="{{ __('billing.quotes.line_cost') }}" value="{{ old("lines.$i.cost") }}">
+                        <input type="number" step="0.01" min="0" name="lines[{{ $i }}][base]" placeholder="{{ __('billing.quotes.line_base') }}" value="{{ old("lines.$i.base") }}">
                     </div>
                 @endfor
             </div>

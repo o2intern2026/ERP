@@ -9,6 +9,7 @@ use App\Modules\Warehouse\Models\ReturnReceipt;
 use App\Modules\Warehouse\Models\ReturnReceiptLine;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use App\Support\Outbox\OutboxPublisher;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -69,8 +70,9 @@ final class ReturnService
     /** Receiving done → `received`; stock is still untouched (§4.7 #16). */
     public function completeReceiving(ReturnReceipt $receipt): ReturnReceipt
     {
-        if ($receipt->lines()->whereNull('received_at')->exists()) {
-            throw new InvalidArgumentException('Every line must be received (0 is allowed) before inspection starts.');
+        $unreceived = $receipt->lines()->whereNull('received_at')->count();
+        if ($unreceived > 0) {
+            throw new RuleViolation('Every line must be received (0 is allowed) before inspection starts.', 'warehouse.returns.errors.lines_unreceived', ['count' => $unreceived]);
         }
 
         return DB::transaction(function () use ($receipt): ReturnReceipt {
@@ -123,8 +125,9 @@ final class ReturnService
 
     public function completeInspection(ReturnReceipt $receipt, ?int $userId = null): ReturnReceipt
     {
-        if ($receipt->lines()->whereNull('inspected_at')->exists()) {
-            throw new InvalidArgumentException('Every line needs a disposition first.');
+        $uninspected = $receipt->lines()->whereNull('inspected_at')->count();
+        if ($uninspected > 0) {
+            throw new RuleViolation('Every line needs a disposition first.', 'warehouse.returns.errors.lines_uninspected', ['count' => $uninspected]);
         }
 
         return DB::transaction(function () use ($receipt, $userId): ReturnReceipt {

@@ -4,20 +4,21 @@
 
 @section('content')
     <h1>{{ __('platform.documents.title') }}</h1>
-    <details>
+    {{-- Audit 2026-09-10: the form reopens with what was typed after a validation error; 客户可见 needs a 客户 (or a Job to take it from). --}}
+    <details{{ $errors->any() ? ' open' : '' }}>
         <summary role="button" class="secondary outline">{{ __('platform.documents.upload') }}</summary>
         <form method="post" action="{{ route('platform.documents.store') }}" enctype="multipart/form-data">
             @csrf
             <div class="grid">
                 <label>{{ __('platform.documents.file') }}<input type="file" name="file" required></label>
-                <label>{{ __('platform.documents.type') }}<select name="type">@foreach ($types as $t)<option value="{{ $t }}">{{ __('platform.documents.types.'.$t) }}</option>@endforeach</select></label>
-                <label>{{ __('platform.documents.related_type') }}<select name="related_type">@foreach ($relatedTypes as $t)<option value="{{ $t }}">{{ __('platform.documents.related_types.'.$t) }}</option>@endforeach</select></label>
-                <label>{{ __('platform.documents.related_id') }}<input type="number" name="related_id" min="1" required></label>
+                <label>{{ __('platform.documents.type') }}<select name="type">@foreach ($types as $t)<option value="{{ $t }}" @selected(old('type') === $t)>{{ __('platform.documents.types.'.$t) }}</option>@endforeach</select></label>
+                <label>{{ __('platform.documents.related_type') }}<select name="related_type">@foreach ($relatedTypes as $t)<option value="{{ $t }}" @selected(old('related_type') === $t)>{{ __('platform.documents.related_types.'.$t) }}</option>@endforeach</select></label>
+                <label>{{ __('platform.documents.related_id') }}<input type="number" name="related_id" min="1" value="{{ old('related_id') }}" required></label>
             </div>
             <div class="grid">
-                <label>{{ __('platform.documents.client') }}<select name="client_id"><option value="">—</option>@foreach ($clients as $c)<option value="{{ $c->id }}">{{ $c->name }}</option>@endforeach</select></label>
-                <label>{{ __('platform.documents.job') }} ID<input type="number" name="job_id" min="1"></label>
-                <label><input type="hidden" name="client_visible" value="0"><input type="checkbox" name="client_visible" value="1"> {{ __('platform.documents.visible') }}</label>
+                <label>{{ __('platform.documents.client') }}<select name="client_id" @error('client_id') aria-invalid="true" @enderror><option value="">—</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected((int) old('client_id') === $c->id)>{{ $c->name }}</option>@endforeach</select><small>{{ __('platform.documents.client_hint') }}</small></label>
+                <label>{{ __('platform.documents.job') }} ID<input type="number" name="job_id" min="1" value="{{ old('job_id') }}"></label>
+                <label><input type="hidden" name="client_visible" value="0"><input type="checkbox" name="client_visible" value="1" @checked(old('client_visible'))> {{ __('platform.documents.visible') }}</label>
             </div>
             <button type="submit">{{ __('platform.documents.upload') }}</button>
         </form>
@@ -46,7 +47,13 @@
                     <td>{{ $d->job?->job_no ?? '—' }}</td>
                     <td><span class="badge" data-tone="{{ $d->client_visible ? 'ok' : 'muted' }}">{{ $d->client_visible ? __('platform.documents.visible') : __('platform.documents.hidden') }}</span></td>
                     <td>{{ $d->created_at->format('Y-m-d H:i') }}</td>
-                    <td><form method="post" action="{{ route('platform.documents.visibility', $d) }}" class="inline">@csrf<input type="hidden" name="client_visible" value="{{ $d->client_visible ? 0 : 1 }}"><button type="submit" class="secondary outline">{{ $d->client_visible ? __('platform.documents.make_hidden') : __('platform.documents.make_visible') }}</button></form></td>
+                    <td>
+                        @if (! $d->client_visible && $d->client_id === null)
+                            <small class="text-muted">{{ __('platform.documents.no_client') }}</small>
+                        @else
+                            <form method="post" action="{{ route('platform.documents.visibility', $d) }}" class="inline">@csrf<input type="hidden" name="client_visible" value="{{ $d->client_visible ? 0 : 1 }}"><button type="submit" class="secondary outline">{{ $d->client_visible ? __('platform.documents.make_hidden') : __('platform.documents.make_visible') }}</button></form>
+                        @endif
+                    </td>
                 </tr>
             @endforeach
             </tbody>

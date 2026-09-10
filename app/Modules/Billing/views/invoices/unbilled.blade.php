@@ -41,9 +41,10 @@
                         @csrf<input type="hidden" name="client_id" value="{{ $entry['client']->id }}">
                         <p class="text-muted"><small>{{ __('billing.unbilled_period.period_hint', ['period' => __('masterdata.invoice_periods.'.($entry['client']->invoice_period ?? 'monthly')), 'grouping' => __('masterdata.invoice_groupings.'.($entry['client']->invoice_grouping ?? 'job'))]) }}</small></p>
                         <div class="grid">
-                            <label>{{ __('billing.unbilled_period.period_from') }}<input type="date" name="from" value="{{ now()->startOfMonth()->toDateString() }}" required></label>
-                            <label>{{ __('billing.unbilled_period.period_to') }}<input type="date" name="to" value="{{ now()->endOfMonth()->toDateString() }}" required></label>
-                            <label>{{ __('billing.unbilled_period.scope') }}<select name="scope">@foreach (\App\Support\Enums::INVOICE_SCOPES as $scope)<option value="{{ $scope }}">{{ __('billing.unbilled_period.scopes.'.$scope) }}</option>@endforeach</select></label>
+                            {{-- Audit 2026-09-10: defaults follow the pool (its date span and whether it holds storage / service / both) so the header figure and the button agree. --}}
+                            <label>{{ __('billing.unbilled_period.period_from') }}<input type="date" name="from" value="{{ $entry['period_from'] ?? now()->startOfMonth()->toDateString() }}" required></label>
+                            <label>{{ __('billing.unbilled_period.period_to') }}<input type="date" name="to" value="{{ $entry['period_to'] ?? now()->endOfMonth()->toDateString() }}" required></label>
+                            <label>{{ __('billing.unbilled_period.scope') }}<select name="scope">@foreach (\App\Support\Enums::INVOICE_SCOPES as $scope)<option value="{{ $scope }}" @selected(($entry['default_scope'] ?? 'service') === $scope)>{{ __('billing.unbilled_period.scopes.'.$scope) }}</option>@endforeach</select></label>
                             <label>{{ __('billing.unbilled_period.group_by') }}<select name="group_by">@foreach (\App\Support\Enums::INVOICE_GROUPINGS as $g)<option value="{{ $g }}" @selected(($entry['client']->invoice_grouping ?? 'job') === $g)>{{ __('billing.invoices.group_by.'.$g) }}</option>@endforeach</select></label>
                         </div>
                         <div class="grid">

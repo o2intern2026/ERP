@@ -41,23 +41,24 @@
     </table></div>
 
     @if ($card->status === 'draft')
-        <details>
+        {{-- Audit 2026-09-10: the add-item form reopens with what was typed after a validation error. --}}
+        <details{{ $errors->any() ? ' open' : '' }}>
             <summary role="button" class="secondary outline">{{ __('billing.rate_cards.add_item') }}</summary>
             <form method="post" action="{{ route('billing.rate_cards.items.store', $card) }}">
                 @csrf
                 <div class="grid">
-                    <select name="charge_code_id" required>@foreach ($codes as $code)<option value="{{ $code->id }}">{{ $code->code }} · {{ $code->customer_description }}</option>@endforeach</select>
-                    <select name="pricing_mode">@foreach ($pricingModes as $m)<option value="{{ $m }}">{{ __('billing.rate_cards.pricing_modes.'.$m) }}</option>@endforeach</select>
-                    <input type="number" step="0.01" min="0" name="rate" placeholder="{{ __('billing.rate_cards.rate') }}"><input type="number" step="0.01" min="0" name="markup_percent" placeholder="{{ __('billing.rate_cards.markup') }}">
+                    <select name="charge_code_id" required>@foreach ($codes as $code)<option value="{{ $code->id }}" @selected((int) old('charge_code_id') === $code->id)>{{ $code->code }} · {{ $code->customer_description }}</option>@endforeach</select>
+                    <select name="pricing_mode">@foreach ($pricingModes as $m)<option value="{{ $m }}" @selected(old('pricing_mode', 'fixed') === $m)>{{ __('billing.rate_cards.pricing_modes.'.$m) }}</option>@endforeach</select>
+                    <input type="number" step="0.01" min="0" name="rate" placeholder="{{ __('billing.rate_cards.rate') }}" value="{{ old('rate') }}"><input type="number" step="0.01" min="0" name="markup_percent" placeholder="{{ __('billing.rate_cards.markup') }}" value="{{ old('markup_percent') }}">
                 </div>
                 <div class="grid">
-                    <input type="number" step="0.01" min="0" name="min_charge" placeholder="{{ __('billing.rate_cards.min_charge') }}">
-                    <select name="pallet_class"><option value="">{{ __('billing.rate_cards.pallet_class') }}</option>@foreach ($palletClasses as $pc)<option value="{{ $pc }}">{{ __('warehouse.pallet_classes.'.$pc) }}</option>@endforeach</select>
-                    <input type="number" step="0.01" min="0" name="weight_band_min" placeholder="{{ __('billing.rate_cards.band') }} min"><input type="number" step="0.01" min="0" name="weight_band_max" placeholder="max">
-                    <input type="text" name="zone" placeholder="{{ __('billing.rate_cards.zone') }}"><input type="text" name="service_level" placeholder="{{ __('billing.rate_cards.service_level') }}">
+                    <input type="number" step="0.01" min="0" name="min_charge" placeholder="{{ __('billing.rate_cards.min_charge') }}" value="{{ old('min_charge') }}">
+                    <select name="pallet_class"><option value="">{{ __('billing.rate_cards.pallet_class') }}</option>@foreach ($palletClasses as $pc)<option value="{{ $pc }}" @selected(old('pallet_class') === $pc)>{{ __('warehouse.pallet_classes.'.$pc) }}</option>@endforeach</select>
+                    <input type="number" step="0.01" min="0" name="weight_band_min" placeholder="{{ __('billing.rate_cards.band') }} min" value="{{ old('weight_band_min') }}"><input type="number" step="0.01" min="0" name="weight_band_max" placeholder="max" value="{{ old('weight_band_max') }}">
+                    <input type="text" name="zone" placeholder="{{ __('billing.rate_cards.zone') }}" value="{{ old('zone') }}"><input type="text" name="service_level" placeholder="{{ __('billing.rate_cards.service_level') }}" value="{{ old('service_level') }}">
                 </div>
-                <input type="text" name="threshold_json" placeholder='{{ __('billing.rate_cards.thresholds') }} e.g. {"tailgate_weight_kg":25}'>
-                <label><input type="checkbox" name="is_poa" value="1"> {{ __('billing.rate_cards.poa') }}</label>
+                <input type="text" name="threshold_json" placeholder='{{ __('billing.rate_cards.thresholds') }} e.g. {"tailgate_weight_kg":25}' value="{{ old('threshold_json') }}" @error('threshold_json') aria-invalid="true" @enderror>
+                <label><input type="checkbox" name="is_poa" value="1" @checked(old('is_poa'))> {{ __('billing.rate_cards.poa') }}</label>
                 <button type="submit" class="secondary">{{ __('billing.rate_cards.add_item') }}</button>
             </form>
         </details>

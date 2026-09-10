@@ -18,6 +18,8 @@
             </label>
             <label>{{ __('platform.users.role') }}
                 <select name="role" required>
+                    {{-- Audit 2026-09-10: without a placeholder the first option (管理员) was the silent default and `required` never fired. --}}
+                    <option value="" @selected(old('role', $currentRole) === null)>{{ __('platform.users.role_placeholder') }}</option>
                     @foreach ($roles as $r)
                         <option value="{{ $r }}" @selected(old('role', $currentRole) === $r)>{{ __('platform.roles.'.$r) }}</option>
                     @endforeach

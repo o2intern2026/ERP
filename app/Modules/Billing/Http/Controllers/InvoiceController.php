@@ -9,8 +9,11 @@ use App\Modules\Billing\Models\Invoice;
 use App\Modules\Billing\Services\CreditNoteService;
 use App\Modules\Billing\Services\InvoiceService;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Platform\Models\Approval;
 use App\Modules\Platform\Models\Job;
+use App\Modules\Platform\Services\ApprovalService;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -29,7 +32,10 @@ class InvoiceController extends Controller
         $isStorage = fn (Charge $c) => $c->chargeCode->category === 'storage';
         $split = fn ($charges) => ['count' => $charges->count(), 'amount_cents' => (int) $charges->sum('amount_cents'),
             'service_count' => $charges->reject($isStorage)->count(), 'service_amount_cents' => (int) $charges->reject($isStorage)->sum('amount_cents'),
-            'storage_count' => $charges->filter($isStorage)->count(), 'storage_amount_cents' => (int) $charges->filter($isStorage)->sum('amount_cents')];
+            'storage_count' => $charges->filter($isStorage)->count(), 'storage_amount_cents' => (int) $charges->filter($isStorage)->sum('amount_cents'),
+            // The period form defaults to the span and scope of what is actually in the pool, so the header figure and the button agree (audit 2026-09-10).
+            'period_from' => $charges->min('charge_date')?->toDateString(), 'period_to' => $charges->max('charge_date')?->toDateString(),
+            'default_scope' => $charges->contains($isStorage) ? ($charges->every($isStorage) ? 'storage' : 'all') : 'service'];
         $pool = Charge::query()->with(['job', 'client', 'chargeCode'])->whereIn('status', ['pending', 'approved'])->whereNull('invoice_line_id')->get()
             ->groupBy('client_id')->map(fn ($byClient) => ['client' => $byClient->first()->client, 'jobs' => $byClient->groupBy('job_id')->map(fn ($byJob) => ['job' => $byJob->first()->job] + $split($byJob)), 'has_storage' => $byClient->contains($isStorage)] + $split($byClient));
 
@@ -76,11 +82,18 @@ class InvoiceController extends Controller
         return $this->tryDraft(fn () => $invoices->draftStorageWeek((int) $data['client_id'], Carbon::parse($data['week'])));
     }
 
-    public function show(Invoice $invoice, InvoiceService $invoices): View
+    public function show(Invoice $invoice, InvoiceService $invoices, ApprovalService $approvals): View
     {
+        $invoice->load(['client', 'lines.charge.chargeCode', 'jobs', 'payments', 'creditNotes.lines']);
+        // Audit 2026-09-10: the 开出 button is gated on the second person's approval, so the page shows that state (same pattern as RateCardController::show).
+        $noteIds = $invoice->creditNotes->pluck('id');
+        $pending = Approval::query()->where('type', 'credit_note')->where('subject_type', 'credit_note')->whereIn('subject_id', $noteIds)->where('status', 'pending')->pluck('subject_id')->all();
+
         return view('billing::invoices.show', [
-            'invoice' => $invoice->load(['client', 'lines.charge.chargeCode', 'jobs', 'payments', 'creditNotes.lines']),
+            'invoice' => $invoice,
             'groups' => $invoices->groupedLines($invoice),
+            'creditNoteApproved' => $noteIds->mapWithKeys(fn ($id) => [$id => $approvals->isApproved('credit_note', 'credit_note', $id)])->all(),
+            'creditNotePending' => $pending,
         ]);
     }
 
@@ -130,7 +143,7 @@ class InvoiceController extends Controller
         try {
             $note = $creditNotes->draft($invoice, $lines, $data['reason'], $request->user());
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['reason' => $e->getMessage()]);
+            return back()->withErrors(['reason' => RuleViolation::display($e)])->withInput();
         }
 
         return back()->with('status', __('billing.credit_notes.drafted', ['id' => $note->id]));
@@ -141,7 +154,7 @@ class InvoiceController extends Controller
         try {
             $creditNotes->issue($note, $request->user());
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['credit_note' => $e->getMessage()]);
+            return back()->withErrors(['credit_note' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('billing.credit_notes.issued', ['no' => $note->fresh()->credit_note_no]));

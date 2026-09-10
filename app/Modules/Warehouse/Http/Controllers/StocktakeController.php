@@ -9,6 +9,7 @@ use App\Modules\Warehouse\Models\Stocktake;
 use App\Modules\Warehouse\Models\StocktakeLine;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Services\StocktakeService;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -72,7 +73,7 @@ class StocktakeController extends Controller
         try {
             $service->count($line, (int) $data['counted_qty'], $data['reason'] ?? null);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['counted_qty' => $e->getMessage()]);
+            return back()->withErrors(['counted_qty' => RuleViolation::display($e)])->withInput();
         }
 
         return back()->with('status', __('warehouse.stocktakes.counted', ['label' => $line->stockUnit->label_code]));
@@ -85,13 +86,13 @@ class StocktakeController extends Controller
 
         $line = $stocktake->lines()->whereHas('stockUnit', fn ($q) => $q->where('label_code', strtoupper(trim($data['code']))))->first();
         if ($line === null) {
-            return back()->withErrors(['code' => __('warehouse.stocktakes.unknown_code', ['code' => $data['code']])]);
+            return back()->withErrors(['code' => __('warehouse.stocktakes.unknown_code', ['code' => $data['code']])])->withInput();
         }
 
         try {
             $service->count($line, (int) ($data['counted_qty'] ?? $line->expected_qty), null, true);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['code' => $e->getMessage()]);
+            return back()->withErrors(['code' => RuleViolation::display($e)])->withInput();
         }
 
         return back()->with('status', __('warehouse.stocktakes.scanned', ['label' => $line->stockUnit->label_code]));
@@ -102,7 +103,7 @@ class StocktakeController extends Controller
         try {
             $service->close($stocktake);
         } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['close' => $e->getMessage()]);
+            return back()->withErrors(['close' => RuleViolation::display($e)]);
         }
 
         return back()->with('status', __('warehouse.stocktakes.closed'));
