@@ -16,13 +16,13 @@
         </article>
         <article>
             <header>{{ __('platform.jobs.revenue_status') }}</header>
-            {{ __('platform.jobs.revenue_statuses.'.$summary['revenue_status']) }}
+            {!! \App\Support\Ui\StatusBadge::render('platform.jobs.revenue_statuses.', $summary['revenue_status']) !!}
             <p>{{ __('platform.jobs.estimated_revenue') }}: {{ \App\Support\Money::cents($summary['estimated_revenue_cents']) }} · {{ __('platform.jobs.actual_revenue') }}: {{ \App\Support\Money::cents($summary['actual_revenue_cents']) }}</p>
         </article>
         @if (array_key_exists('margin_cents', $summary))
             <article>
                 <header>{{ __('platform.jobs.cost_status') }}</header>
-                {{ __('platform.jobs.cost_statuses.'.$summary['cost_status']) }}
+                {!! \App\Support\Ui\StatusBadge::render('platform.jobs.cost_statuses.', $summary['cost_status']) !!}
                 <p>{{ __('platform.jobs.estimated_cost') }}: {{ \App\Support\Money::cents($summary['estimated_cost_cents']) }} · {{ __('platform.jobs.actual_cost') }}: {{ \App\Support\Money::cents($summary['actual_cost_cents']) }}</p>
                 <p><strong>{{ __('platform.jobs.margin') }}: {{ \App\Support\Money::cents($summary['margin_cents']) }}</strong> @if ($summary['margin_is_estimate']) <small class="text-muted">{{ __('platform.jobs.margin_estimate') }}</small> @endif</p>
             </article>
@@ -36,7 +36,7 @@
         <article>
             <header>{{ __('platform.jobs.panel_asns') }} <small class="text-muted">{{ $panels['asns']->count() }}</small></header>
             @forelse ($panels['asns'] as $a)
-                <p>@if ($canOpenWarehouse)<a href="{{ route('warehouse.asns.show', $a->id) }}">{{ $a->asn_no }}</a>@else{{ $a->asn_no }}@endif · {{ __('warehouse.asn_statuses.'.$a->status) }} · {{ $a->lines_count }} {{ __('platform.jobs.lines') }}</p>
+                <p>@if ($canOpenWarehouse)<a href="{{ route('warehouse.asns.show', $a->id) }}">{{ $a->asn_no }}</a>@else{{ $a->asn_no }}@endif · {!! \App\Support\Ui\StatusBadge::render('warehouse.asn_statuses.', $a->status) !!} · {{ $a->lines_count }} {{ __('platform.jobs.lines') }}</p>
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse
@@ -49,7 +49,7 @@
         <article>
             <header>{{ __('platform.jobs.panel_orders') }} <small class="text-muted">{{ $panels['orders']->count() }}</small></header>
             @forelse ($panels['orders'] as $o)
-                <p><a href="{{ route('orders.show', $o->id) }}">{{ $o->order_no }}</a> · {{ __('orders.statuses.operational.'.$o->operational_status) }} · <small class="text-muted">{{ __('orders.statuses.billing.'.$o->billing_status) }}</small></p>
+                <p><a href="{{ route('orders.show', $o->id) }}">{{ $o->order_no }}</a> · {!! \App\Support\Ui\StatusBadge::render('orders.statuses.operational.', $o->operational_status) !!} · <small class="text-muted">{!! \App\Support\Ui\StatusBadge::render('orders.statuses.billing.', $o->billing_status) !!}</small></p>
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse
@@ -57,7 +57,7 @@
         <article>
             <header>{{ __('platform.jobs.panel_shipments') }} <small class="text-muted">{{ $panels['shipments']->count() }}</small></header>
             @forelse ($panels['shipments'] as $s)
-                <p>@if (Route::has('transport.shipments.show'))<a href="{{ route('transport.shipments.show', $s->id) }}">{{ $s->shipment_no }}</a>@else{{ $s->shipment_no }}@endif · {{ __('transport.statuses.'.$s->status) }} @if ($s->tracking_number)· {{ __('platform.jobs.tracking') }} {{ $s->tracking_number }}@endif</p>
+                <p>@if (Route::has('transport.shipments.show'))<a href="{{ route('transport.shipments.show', $s->id) }}">{{ $s->shipment_no }}</a>@else{{ $s->shipment_no }}@endif · {!! \App\Support\Ui\StatusBadge::render('transport.statuses.', $s->status) !!} @if ($s->tracking_number)· {{ __('platform.jobs.tracking') }} {{ $s->tracking_number }}@endif</p>
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse
@@ -74,7 +74,7 @@
         <article>
             <header>{{ __('platform.jobs.panel_invoices') }} <small class="text-muted">{{ $panels['invoices']->count() }}</small></header>
             @forelse ($panels['invoices'] as $inv)
-                <p>{{ $inv->invoice_no ?? __('platform.jobs.draft') }} · {{ __('billing.invoices.types.'.$inv->invoice_type) }} · {{ __('billing.invoices.statuses.'.$inv->status) }} · {{ \App\Support\Money::cents($inv->total_cents ?? 0) }}</p>
+                <p>{{ $inv->invoice_no ?? __('platform.jobs.draft') }} · {{ __('billing.invoices.types.'.$inv->invoice_type) }} · {!! \App\Support\Ui\StatusBadge::render('billing.invoices.statuses.', $inv->status) !!} · {{ \App\Support\Money::cents($inv->total_cents ?? 0) }}</p>
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse
@@ -94,7 +94,7 @@
                 <thead><tr><th>{{ __('billing.charges.date') }}</th><th>{{ __('billing.charges.code') }}</th><th class="num">{{ __('billing.charges.qty') }}</th><th class="num">{{ __('billing.charges.amount') }}</th><th>{{ __('billing.charges.status') }}</th></tr></thead>
                 <tbody>
                 @foreach ($jobCharges as $c)
-                    <tr><td>{{ $c->charge_date->format('Y-m-d') }}</td><td><code>{{ $c->chargeCode->code }}</code> <small class="text-muted">{{ $c->chargeCode->customer_description }}</small></td><td class="num">{{ rtrim(rtrim(number_format($c->qty, 3), '0'), '.') }}</td><td class="num">{{ number_format($c->amount_cents / 100, 2) }}</td><td>{{ __('billing.charge_statuses.'.$c->status) }}</td></tr>
+                    <tr><td>{{ $c->charge_date->format('Y-m-d') }}</td><td><code>{{ $c->chargeCode->code }}</code> <small class="text-muted">{{ $c->chargeCode->customer_description }}</small></td><td class="num">{{ rtrim(rtrim(number_format($c->qty, 3), '0'), '.') }}</td><td class="num">{{ number_format($c->amount_cents / 100, 2) }}</td><td>{!! \App\Support\Ui\StatusBadge::render('billing.charge_statuses.', $c->status) !!}</td></tr>
                 @endforeach
                 </tbody>
                 <tfoot><tr><td colspan="3"><strong>{{ __('billing.job_panel.revenue') }}</strong> · <small class="text-muted">{{ __('billing.job_panel.pending_cost') }}</small></td><td class="num"><strong>{{ number_format($jobCharges->sum('amount_cents') / 100, 2) }}</strong></td><td>@role('admin|finance')<a href="{{ route('billing.index', ['job_no' => $job->job_no]) }}">{{ __('billing.job_panel.open') }}</a>@endrole</td></tr></tfoot>

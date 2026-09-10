@@ -19,7 +19,7 @@
                 {{ \App\Support\Money::cents($summary['margin_cents'])->format() }}
             </strong>
             <span class="badge" data-tone="{{ $summary['margin_is_estimate'] ? 'warn' : 'ok' }}">
-                {{ __('transport.costs.statuses.'.$summary['cost_status']) }}
+                {!! \App\Support\Ui\StatusBadge::render('transport.costs.statuses.', $summary['cost_status']) !!}
             </span>
         </article>
     @endif
@@ -46,7 +46,7 @@
                     <td class="num">{{ $row['actual_cost_cents'] === null ? __('transport.costs.pending') : \App\Support\Money::cents($row['actual_cost_cents'])->format() }}</td>
                     <td class="num">{{ $row['payable_cost_cents'] === null ? __('transport.costs.pending') : \App\Support\Money::cents($row['payable_cost_cents'])->format() }}</td>
                     <td class="num">{{ $row['margin_cents'] === null ? __('transport.costs.pending') : \App\Support\Money::cents($row['margin_cents'])->format() }}</td>
-                    <td>{{ __('transport.costs.statuses.'.$row['cost_status']) }}</td>
+                    <td>{!! \App\Support\Ui\StatusBadge::render('transport.costs.statuses.', $row['cost_status']) !!}</td>
                 </tr>
             @endforeach
         </tbody>

@@ -30,7 +30,7 @@
                         <td><a href="{{ route('transport.shipments.show', $shipment) }}">{{ $shipment->shipment_no }}</a></td>
                         <td>{{ $shipment->job?->job_no ?? $shipment->job_id }}</td>
                         <td>{{ __('transport.shipment_types.'.$shipment->shipment_type) }}</td>
-                        <td><span class="badge">{{ __('transport.statuses.'.$shipment->status) }}</span></td>
+                        <td>{!! \App\Support\Ui\StatusBadge::render('transport.statuses.', $shipment->status) !!}</td>
                         <td>{{ $shipment->carrier?->name ?? __('transport.not_selected') }}</td>
                         <td>{{ $shipment->service_level ? __('transport.service_levels.'.$shipment->service_level) : __('transport.not_selected') }}</td>
                         <td>{{ $shipment->tracking_number ?: __('transport.not_selected') }}</td>

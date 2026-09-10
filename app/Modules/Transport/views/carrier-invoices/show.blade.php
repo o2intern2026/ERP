@@ -12,7 +12,7 @@
         <dt>{{ __('transport.reconciliation.total') }}</dt><dd>{{ \App\Support\Money::cents($invoice->total_cents)->format() }}</dd>
         <dt>{{ __('transport.reconciliation.line_total') }}</dt><dd>{{ \App\Support\Money::cents($lineTotalCents)->format() }}</dd>
         <dt>{{ __('transport.reconciliation.total_variance') }}</dt><dd>{{ \App\Support\Money::cents($totalVarianceCents)->format() }}</dd>
-        <dt>{{ __('transport.reconciliation.status') }}</dt><dd>{{ __('transport.reconciliation.statuses.'.$invoice->status) }}</dd>
+        <dt>{{ __('transport.reconciliation.status') }}</dt><dd>{!! \App\Support\Ui\StatusBadge::render('transport.reconciliation.statuses.', $invoice->status) !!}</dd>
     </dl></article>
 
     @if ($totalVarianceCents !== 0)

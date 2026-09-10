@@ -24,6 +24,7 @@ table.dense td.num, table.dense th.num { text-align: right; font-variant-numeric
 .badge[data-tone="warn"] { background: var(--erp-warn); color: #fff; }
 .badge[data-tone="danger"] { background: var(--erp-danger); color: #fff; }
 .badge[data-tone="muted"] { background: var(--erp-muted); color: #fff; }
+.badge[data-tone="info"] { background: #2563eb; color: #fff; }
 
 /* Scan-gun friendly inputs: big, always visible, autofocus target (AGENTS.md "Every warehouse form accepts scan-gun input"). */
 input.scan { font-size: 1.25rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .05em; }

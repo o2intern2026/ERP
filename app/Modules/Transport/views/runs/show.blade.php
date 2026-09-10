@@ -14,7 +14,7 @@
         <dt>{{ __('transport.runs.vehicle') }}</dt>
         <dd>{{ $run->vehicle }}</dd>
         <dt>{{ __('transport.runs.status') }}</dt>
-        <dd>{{ __('transport.run_statuses.'.$run->status) }}</dd>
+        <dd>{!! \App\Support\Ui\StatusBadge::render('transport.run_statuses.', $run->status) !!}</dd>
     </dl></article>
 
     @if ($run->status === 'planned')
@@ -77,7 +77,7 @@
                             <td><a href="{{ route('transport.shipments.show', $stop->shipment) }}">{{ $stop->shipment->shipment_no }}</a></td>
                             <td>{{ $stop->shipment->client->name }}</td>
                             <td>{{ $stop->eta?->format('Y-m-d H:i') ?? '—' }}</td>
-                            <td><span class="badge">{{ __('transport.stop_statuses.'.$stop->status) }}</span></td>
+                            <td>{!! \App\Support\Ui\StatusBadge::render('transport.stop_statuses.', $stop->status) !!}</td>
                         </tr>
                     @endforeach
                 </tbody>

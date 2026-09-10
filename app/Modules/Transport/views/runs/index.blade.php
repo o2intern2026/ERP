@@ -27,7 +27,7 @@
                         <td>{{ $run->run_date->format('Y-m-d') }}</td>
                         <td>{{ $run->driver->name }}</td>
                         <td>{{ $run->vehicle }}</td>
-                        <td><span class="badge">{{ __('transport.run_statuses.'.$run->status) }}</span></td>
+                        <td>{!! \App\Support\Ui\StatusBadge::render('transport.run_statuses.', $run->status) !!}</td>
                         <td class="num">{{ $run->stops_count }}</td>
                     </tr>
                 @endforeach

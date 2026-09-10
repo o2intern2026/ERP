@@ -23,7 +23,7 @@
             <header>
                 <strong>{{ $run->run_no }}</strong>
                 · {{ $run->vehicle }}
-                · {{ __('transport.run_statuses.'.$run->status) }}
+                · {!! \App\Support\Ui\StatusBadge::render('transport.run_statuses.', $run->status) !!}
             </header>
 
             @if ($run->stops->isEmpty())

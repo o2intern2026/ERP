@@ -16,16 +16,16 @@
     <div class="grid">
         <article>
             <header>{{ __('orders.fields.operational_status') }}</header>
-            <strong>{{ __('orders.statuses.operational.'.$order->operational_status) }}</strong>
-            <small>{{ __('orders.fields.customer_status') }}: {{ __('orders.customer_statuses.'.$order->customerStatus()) }}</small>
+            <strong>{!! \App\Support\Ui\StatusBadge::render('orders.statuses.operational.', $order->operational_status) !!}</strong>
+            <small>{{ __('orders.fields.customer_status') }}: {!! \App\Support\Ui\StatusBadge::render('orders.customer_statuses.', $order->customerStatus()) !!}</small>
         </article>
         <article>
             <header>{{ __('orders.fields.fulfilment_status') }}</header>
-            <strong>{{ __('orders.statuses.fulfilment.'.$order->fulfilment_status) }}</strong>
+            <strong>{!! \App\Support\Ui\StatusBadge::render('orders.statuses.fulfilment.', $order->fulfilment_status) !!}</strong>
         </article>
         <article>
             <header>{{ __('orders.fields.billing_status') }}</header>
-            <strong>{{ __('orders.statuses.billing.'.$order->billing_status) }}</strong>
+            <strong>{!! \App\Support\Ui\StatusBadge::render('orders.statuses.billing.', $order->billing_status) !!}</strong>
             {{-- X2 handoff: Transport's "收 − 付 = 毛利" page. Staff only — this page is unreachable for client users (ClientScope) and the link is role-gated as well; cost / margin never render here. --}}
             @if (! auth()->user()->isClientUser() && auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'transport_operator', 'finance']))
                 <br><small><a href="{{ route('transport.orders.margin', $order->id) }}">{{ __('orders.transport.margin_link') }}</a></small>
@@ -407,7 +407,7 @@
         @if ($order->returnOrders->isNotEmpty())
             <p>{{ __('orders.returns.return_orders') }}:
                 @foreach ($order->returnOrders as $return)
-                    <a href="{{ route('orders.show', $return) }}">{{ $return->order_no }}</a> <small class="text-muted">({{ __('orders.statuses.operational.'.$return->operational_status) }})</small>
+                    <a href="{{ route('orders.show', $return) }}">{{ $return->order_no }}</a> <small class="text-muted">({!! \App\Support\Ui\StatusBadge::render('orders.statuses.operational.', $return->operational_status) !!})</small>
                 @endforeach
             </p>
         @endif

@@ -18,7 +18,7 @@
                     <td>{{ $row['allocated_qty'] }}</td>
                     <td>{{ $row['qty_available'] ?? __('orders.not_provided') }}</td>
                     <td>{{ $row['line']->qty_backordered }}</td>
-                    <td>{{ __('orders.fulfilments.availability_statuses.'.$row['status']) }}</td>
+                    <td>{!! \App\Support\Ui\StatusBadge::render('orders.fulfilments.availability_statuses.', $row['status']) !!}</td>
                 </tr>
             @endforeach
         </tbody>

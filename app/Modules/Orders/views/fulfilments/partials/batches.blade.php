@@ -3,7 +3,7 @@
 @else
     @foreach ($order->fulfilments as $fulfilment)
         <article>
-            <header><strong>{{ $order->order_no }}-{{ $fulfilment->seq }}</strong> · {{ __('orders.fulfilments.fields.warehouse') }} #{{ $fulfilment->warehouse_id }} · {{ __('orders.fulfilment_batch_statuses.'.$fulfilment->status) }}</header>
+            <header><strong>{{ $order->order_no }}-{{ $fulfilment->seq }}</strong> · {{ __('orders.fulfilments.fields.warehouse') }} #{{ $fulfilment->warehouse_id }} · {!! \App\Support\Ui\StatusBadge::render('orders.fulfilment_batch_statuses.', $fulfilment->status) !!}</header>
             <table>
                 <thead><tr><th>{{ __('orders.fields.description') }}</th><th>{{ __('orders.fulfilments.fields.batch_qty') }}</th></tr></thead>
                 <tbody>

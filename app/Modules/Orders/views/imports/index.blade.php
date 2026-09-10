@@ -19,7 +19,7 @@
             </tr></thead>
             <tbody>@foreach ($imports as $import)<tr>
                 <td><a href="{{ route('orders.imports.show', $import) }}">#{{ $import->id }}</a></td>
-                <td>{{ $import->client->name }}</td><td>{{ __('orders.imports.statuses.'.$import->status) }}</td>
+                <td>{{ $import->client->name }}</td><td>{!! \App\Support\Ui\StatusBadge::render('orders.imports.statuses.', $import->status) !!}</td>
                 <td>{{ $import->row_count }}</td><td>{{ $import->error_count }}</td><td>{{ $import->created_at }}</td>
             </tr>@endforeach</tbody>
         </table></div>

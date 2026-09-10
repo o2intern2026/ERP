@@ -2,7 +2,7 @@
 <article>
     <header><strong>{{ __('orders.estimate.title') }}</strong>
         @if ($estimate)
-            <small class="text-muted">· {{ $estimate['quote']->quote_no }} · {{ __('orders.estimate.stages.'.$estimate['quote']->stage) }} · {{ __('orders.estimate.statuses.'.$estimate['quote']->status) }} · {{ $estimate['quote']->created_at->format('Y-m-d H:i') }}</small>
+            <small class="text-muted">· {{ $estimate['quote']->quote_no }} · {{ __('orders.estimate.stages.'.$estimate['quote']->stage) }} · {!! \App\Support\Ui\StatusBadge::render('orders.estimate.statuses.', $estimate['quote']->status) !!} · {{ $estimate['quote']->created_at->format('Y-m-d H:i') }}</small>
             @if ($staff && auth()->user()->hasAnyRole(['admin', 'finance', 'customer_service']))
                 · <a href="{{ route('billing.quotes.show', $estimate['quote']) }}"><small>{{ __('orders.estimate.open_quote') }}</small></a>
             @endif

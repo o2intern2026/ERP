@@ -111,7 +111,7 @@
         <h2>{{ __('portal.sections.fulfilments') }}</h2>
         @foreach ($order->fulfilments as $fulfilment)
             <article>
-                <header><strong>{{ $order->order_no }}-{{ $fulfilment->seq }}</strong> · {{ __('orders.fulfilment_batch_statuses.'.$fulfilment->status) }}</header>
+                <header><strong>{{ $order->order_no }}-{{ $fulfilment->seq }}</strong> · {!! \App\Support\Ui\StatusBadge::render('orders.fulfilment_batch_statuses.', $fulfilment->status) !!}</header>
                 <ul>
                     @foreach ($fulfilment->lines as $line)
                         <li>{{ $line->orderLine->description_cn ?: $line->orderLine->description_en }} × {{ $line->qty }}</li>
@@ -192,7 +192,7 @@
             <header><strong>{{ $shipment->shipment_no }}</strong>
                 @if ($shipment->carrier) · {{ $shipment->carrier->name }} @endif
                 @if ($shipment->tracking_number) · {{ __('portal.fields.tracking_number') }} {{ $shipment->tracking_number }} @endif
-                · <span class="badge">{{ __('portal.shipment_statuses.'.$shipment->status) }}</span>
+                · {!! \App\Support\Ui\StatusBadge::render('portal.shipment_statuses.', $shipment->status) !!}
             </header>
             @if ($shipment->trackingEvents->isEmpty())
                 <p class="text-muted">{{ __('portal.tracking.none') }}</p>
@@ -220,7 +220,7 @@
         <h2>{{ __('portal.returns.title') }}</h2>
         <ul>
             @foreach ($order->returnOrders as $return)
-                <li><a href="{{ route('portal.orders.show', $return) }}">{{ $return->order_no }}</a> · {{ __('orders.customer_statuses.'.$return->customerStatus()) }}</li>
+                <li><a href="{{ route('portal.orders.show', $return) }}">{{ $return->order_no }}</a> · {!! \App\Support\Ui\StatusBadge::render('orders.customer_statuses.', $return->customerStatus()) !!}</li>
             @endforeach
         </ul>
     @endif

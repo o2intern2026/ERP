@@ -5,7 +5,7 @@
 @section('content')
     @php($audit = $import->errors ?? [])
     <h1>{{ __('orders.imports.show_title', ['id' => $import->id]) }}</h1>
-    <p>{{ __('orders.fields.client') }}: <strong>{{ $import->client->name }}</strong> · {{ __('orders.imports.fields.status') }}: <strong>{{ __('orders.imports.statuses.'.$import->status) }}</strong></p>
+    <p>{{ __('orders.fields.client') }}: <strong>{{ $import->client->name }}</strong> · {{ __('orders.imports.fields.status') }}: <strong>{!! \App\Support\Ui\StatusBadge::render('orders.imports.statuses.', $import->status) !!}</strong></p>
 
     @if (session('status'))<article>{{ session('status') }}</article>@endif
     @if (($audit['warnings'] ?? []) !== [])
@@ -30,7 +30,7 @@
                     <td>@if ($group['status'] === 'ready')<input type="checkbox" name="groups[]" value="{{ $group['key'] }}" checked>@else—@endif</td>
                     <td>{{ $group['consignment_mark'] }}</td><td>{{ $group['deliver_to_name'] }}<br><small>{{ $group['deliver_to_address'] }}, {{ $group['deliver_to_state'] }} {{ $group['deliver_to_postcode'] }}</small></td>
                     <td>{{ $group['fba_reference'] ?: __('orders.not_provided') }}</td><td>{{ implode(', ', $group['row_numbers']) }}</td>
-                    <td>{{ __('orders.imports.group_statuses.'.$group['status']) }}@if ($group['message'])<br><small>{{ $group['message'] }}</small>@endif</td>
+                    <td>{!! \App\Support\Ui\StatusBadge::render('orders.imports.group_statuses.', $group['status']) !!}@if ($group['message'])<br><small>{{ $group['message'] }}</small>@endif</td>
                     <td>@if ($group['status'] === 'ready' && $group['save_address_suggested'])<label><input type="checkbox" name="save_addresses[]" value="{{ $group['key'] }}"> {{ __('orders.imports.actions.save_address') }}</label>@elseif ($group['client_address_id']){{ __('orders.imports.address_matched') }}@if ($group['delivery_instructions'])<br><small>{{ $group['delivery_instructions'] }}</small>@endif @else—@endif</td>
                 </tr>@endforeach</tbody>
             </table></div>

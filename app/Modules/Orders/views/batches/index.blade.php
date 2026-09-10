@@ -16,7 +16,7 @@
         <div class="grid">
             <article>
                 <header>{{ __('orders.batches.asn') }}</header>
-                @foreach ($asns as $asn)<p><strong>{{ $asn->asn_no }}</strong> · {{ __('warehouse.asn_statuses.'.$asn->status) }} · {{ __('warehouse.inbound_types.'.$asn->inbound_type) }}</p>@endforeach
+                @foreach ($asns as $asn)<p><strong>{{ $asn->asn_no }}</strong> · {!! \App\Support\Ui\StatusBadge::render('warehouse.asn_statuses.', $asn->status) !!} · {{ __('warehouse.inbound_types.'.$asn->inbound_type) }}</p>@endforeach
                 @if ($containers->isNotEmpty())<p>{{ __('orders.batches.containers') }}: {{ $containers->pluck('container_no')->implode(', ') }}</p>@endif
             </article>
             <article>
@@ -41,8 +41,8 @@
                                 <td>{{ $order->consignment_mark }}</td>
                                 <td>{{ $order->deliver_to_suburb }} {{ $order->deliver_to_state }}</td>
                                 <td>{{ $order->requested_date->format('Y-m-d') }}</td>
-                                <td>{{ __('orders.statuses.operational.'.$order->operational_status) }}</td>
-                                <td>{{ __('orders.statuses.fulfilment.'.$order->fulfilment_status) }}</td>
+                                <td>{!! \App\Support\Ui\StatusBadge::render('orders.statuses.operational.', $order->operational_status) !!}</td>
+                                <td>{!! \App\Support\Ui\StatusBadge::render('orders.statuses.fulfilment.', $order->fulfilment_status) !!}</td>
                                 <td class="num">{{ $order->lines->sum('carton_qty') }}</td>
                             </tr>
                         @endforeach

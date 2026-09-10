@@ -122,12 +122,12 @@
 
     @if ($imports->isNotEmpty())
         <h3>{{ __('warehouse.asns.imports') }}</h3>
-        <ul>@foreach ($imports as $i)<li>{{ $i->created_at->format('Y-m-d H:i') }} · {{ __('warehouse.asns.import_statuses.'.$i->status) }} · {{ __('warehouse.asns.imported', ['rows' => $i->row_count, 'errors' => $i->error_count, 'warnings' => count($i->warnings ?? [])]) }}</li>@endforeach</ul>
+        <ul>@foreach ($imports as $i)<li>{{ $i->created_at->format('Y-m-d H:i') }} · {!! \App\Support\Ui\StatusBadge::render('warehouse.asns.import_statuses.', $i->status) !!} · {{ __('warehouse.asns.imported', ['rows' => $i->row_count, 'errors' => $i->error_count, 'warnings' => count($i->warnings ?? [])]) }}</li>@endforeach</ul>
     @endif
 
     @if ($tasks->isNotEmpty())
         <h3>{{ __('warehouse.asns.tasks') }}</h3>
         <table class="dense"><thead><tr><th>{{ __('warehouse.tasks.task_no') }}</th><th>{{ __('warehouse.tasks.type') }}</th><th>{{ __('warehouse.tasks.status') }}</th><th class="num">{{ __('warehouse.tasks.billable_qty') }}</th></tr></thead>
-        <tbody>@foreach ($tasks as $t)<tr><td>{{ $t->task_no }}</td><td>{{ __('warehouse.task_types.'.$t->task_type) }}</td><td>{{ __('warehouse.task_statuses.'.$t->status) }}</td><td class="num">{{ $t->billable_qty }} {{ $t->billable_uom ? __('warehouse.uoms.'.$t->billable_uom) : '' }}</td></tr>@endforeach</tbody></table>
+        <tbody>@foreach ($tasks as $t)<tr><td>{{ $t->task_no }}</td><td>{{ __('warehouse.task_types.'.$t->task_type) }}</td><td>{!! \App\Support\Ui\StatusBadge::render('warehouse.task_statuses.', $t->status) !!}</td><td class="num">{{ $t->billable_qty }} {{ $t->billable_uom ? __('warehouse.uoms.'.$t->billable_uom) : '' }}</td></tr>@endforeach</tbody></table>
     @endif
 @endsection

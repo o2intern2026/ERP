@@ -37,8 +37,8 @@
                             <td>{{ __('orders.types.'.$order->order_type) }}</td>
                             <td>{{ $order->deliver_to_suburb }} {{ $order->deliver_to_state }}</td>
                             <td>{{ $order->requested_date->format('Y-m-d') }}</td>
-                            <td>{{ __('orders.statuses.operational.'.$order->operational_status) }}</td>
-                            <td>{{ __('orders.statuses.fulfilment.'.$order->fulfilment_status) }}</td>
+                            <td>{!! \App\Support\Ui\StatusBadge::render('orders.statuses.operational.', $order->operational_status) !!}</td>
+                            <td>{!! \App\Support\Ui\StatusBadge::render('orders.statuses.fulfilment.', $order->fulfilment_status) !!}</td>
                             <td>@foreach ($holdTypes[$order->id] ?? [] as $type)<span class="badge" data-tone="{{ $type === 'financial' ? 'danger' : 'warn' }}">{{ __('orders.holds.types.'.$type) }}</span> @endforeach</td>
                         </tr>
                     @endforeach

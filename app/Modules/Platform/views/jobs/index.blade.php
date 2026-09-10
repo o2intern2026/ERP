@@ -49,7 +49,7 @@
                             <td>{{ $job->client->name }}</td>
                             <td>{{ __('platform.jobs.types.'.$job->job_type) }}</td>
                             <td><span class="badge" data-tone="{{ $job->operational_status === 'completed' ? 'ok' : ($job->operational_status === 'cancelled' ? 'muted' : 'warn') }}">{{ __('platform.jobs.statuses.'.$job->operational_status) }}</span></td>
-                            <td>{{ __('platform.jobs.revenue_statuses.'.$job->revenue_status) }}</td>
+                            <td>{!! \App\Support\Ui\StatusBadge::render('platform.jobs.revenue_statuses.', $job->revenue_status) !!}</td>
                             <td>{{ $job->reference }}</td>
                             <td>{{ $job->created_at->format('Y-m-d H:i') }}</td>
                         </tr>

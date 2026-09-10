@@ -60,7 +60,7 @@
             {{ \App\Support\Money::cents($margin['payable_cost_cents'])->format() }} =
             {{ \App\Support\Money::cents($margin['margin_cents'])->format() }}
             <span class="badge" data-tone="{{ $margin['margin_is_estimate'] ? 'warn' : 'ok' }}">
-                {{ __('transport.costs.statuses.'.$margin['cost_status']) }}
+                {!! \App\Support\Ui\StatusBadge::render('transport.costs.statuses.', $margin['cost_status']) !!}
             </span>
         </p>
     @endif
@@ -276,7 +276,7 @@
                         </td>
                         <td>{{ __('transport.quote_stages.'.$quote->quote_stage) }}</td>
                         <td>
-                            <span class="badge">{{ __('transport.quote_statuses.'.$quote->status) }}</span>
+                            {!! \App\Support\Ui\StatusBadge::render('transport.quote_statuses.', $quote->status) !!}
                             @if ($shipment->selected_quote_id === $quote->id)
                                 <span class="badge" data-tone="ok">{{ __('transport.quotes.current_selection') }}</span>
                             @endif
