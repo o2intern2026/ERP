@@ -151,3 +151,7 @@ Not touched: `contracts/*.md` (only `CHANGE_REQUESTS.md` rows #100–#104 append
 
 - Orders: `Services/OrderChangeService.php` (cancelByClient / requestCancel / rejectCancelRequest / openCancelRequest / latestCancelRequest; `cancel()` now resolves open requests; ExceptionService injected), `Http/Controllers/OrderChangeController.php` (rejectCancelRequest), `Http/Controllers/OrderController.php` (`cancelRequest`), `routes.php`, `views/show.blade.php` (banner), `lang/zh/orders.php` (`cancel_request.*`, `changes.messages.client_*`, `changes.timeline.cancelled_by_client`).
 - Portal: `Http/Controllers/PortalOrderCancelController.php` (new), `Http/Controllers/PortalOrderController.php` (`canCancel` / `canRequestCancel` / `cancelRequest`), `routes.php`, `views/orders/show.blade.php` (可用操作 block, `#return-request`), `lang/zh/portal.php` (`cancel.*`).
+
+### 2026-09-10 · main · 客户请求 inbox (CR #112) · C touched Orders zone
+
+- New: `app/Modules/Orders/Services/ClientRequestService.php`, `app/Modules/Orders/Http/Controllers/ClientRequestController.php`, `app/Modules/Orders/views/requests/index.blade.php`; edited `app/Modules/Orders/routes.php`, `resources/views/layouts/nav/orders.blade.php` (客户请求 + badge; queue link unchanged), `lang/zh/orders.php` (`requests.*`, `queue.title` spacing).

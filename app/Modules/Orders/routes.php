@@ -13,6 +13,7 @@ use App\Modules\Orders\Http\Controllers\OrderController;
 use App\Modules\Orders\Http\Controllers\OrderEstimateController;
 use App\Modules\Orders\Http\Controllers\OrderImportController;
 use App\Modules\Orders\Http\Controllers\OrderLineController;
+use App\Modules\Orders\Http\Controllers\ClientRequestController;
 use App\Modules\Orders\Http\Controllers\QueueController;
 use App\Modules\Orders\Http\Controllers\ReturnController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -30,6 +31,7 @@ Route::prefix('orders')->name('orders.')->group(function () {
     Route::get('/create', [OrderController::class, 'create'])->name('create');
     Route::post('/', [OrderController::class, 'store'])->name('store');
     Route::get('/queue', [QueueController::class, 'index'])->name('queue');
+    Route::get('/requests', [ClientRequestController::class, 'index'])->name('requests.index'); // 客户请求 inbox: cancel + return requests from the portal (CR #112)
     Route::get('/batches', [BatchController::class, 'index'])->name('batches');
     Route::get('/drafts/create', [DraftOrderController::class, 'create'])->name('drafts.create');
     Route::post('/drafts', [DraftOrderController::class, 'store'])->name('drafts.store');

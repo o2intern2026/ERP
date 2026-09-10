@@ -4,6 +4,7 @@ namespace App\Modules\Platform\Models;
 
 use App\Models\User;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Orders\Models\Order;
 use App\Support\Tenancy\BelongsToClient;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -37,6 +38,17 @@ class ExceptionRecord extends Model
     public function job(): BelongsTo
     {
         return $this->belongsTo(Job::class);
+    }
+
+    public function resolver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
+    }
+
+    /** The order this exception is about (nullable; Orders table read-only from here — 客户请求 inbox, CR #112). */
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'order_id');
     }
 
     public function owner(): BelongsTo
