@@ -2,6 +2,7 @@
 
 namespace App\Modules\Platform;
 
+use App\Modules\Platform\Console\DemoRunCommand;
 use App\Modules\Platform\Console\DispatchOutboxCommand;
 use App\Modules\Platform\Console\RetryWebhooksCommand;
 use App\Modules\Platform\Consumers\JobCostConsumer;
@@ -48,7 +49,7 @@ class PlatformServiceProvider extends ServiceProvider
             ->map(fn (Job $j) => ['type' => 'job', 'label' => $j->job_no, 'url' => route('platform.jobs.show', $j), 'meta' => $j->client->name.' · '.$j->reference])->all());
 
         if ($this->app->runningInConsole()) {
-            $this->commands([DispatchOutboxCommand::class, RetryWebhooksCommand::class]);
+            $this->commands([DispatchOutboxCommand::class, RetryWebhooksCommand::class, DemoRunCommand::class]);
         }
     }
 }
