@@ -15,6 +15,7 @@ use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Orders\Services\OrderEstimateService;
 use App\Modules\Orders\Services\TailgateRule;
 use App\Modules\Portal\Http\PortalValidation;
+use App\Modules\Portal\Services\PortalTransportEstimate;
 use App\Modules\Portal\Services\PortalTransportQuotes;
 use App\Modules\Transport\Models\Shipment;
 use App\Support\Contracts\RateService;
@@ -104,6 +105,13 @@ final class PortalOrderController extends Controller
         $data['client_id'] = $clientId; // never from the request: the signed-in client is the only possible owner
 
         $order = $orders->create($data, $request->user()->id, 'portal');
+        // CHANGE_REQUESTS #118: the transport option the client ticked with the 估价 travels with the order; Transport confirms it later on its own.
+        if (filled($data['transport_choice'] ?? null)) {
+            $choice = app(PortalTransportEstimate::class)->choose($clientId, $order->fresh()->load(['lines', 'declaredPackages']), (string) $data['transport_choice'], $request->user()->id);
+            if ($choice !== null) {
+                $order->update(['transport_preference' => $choice]);
+            }
+        }
         try {
             app(OrderEstimateService::class)->estimate($order->fresh(), $request->user()->id); // the confirmed estimate travels with the order (tester feedback #10)
         } catch (\Throwable) {
@@ -131,7 +139,14 @@ final class PortalOrderController extends Controller
         $order->setRelation('lines', collect($data['lines'] ?? [])->map(fn (array $line) => new OrderLine(collect($line)->only((new OrderLine)->getFillable())->all())));
         $order->setRelation('declaredPackages', collect($data['declared_packages'] ?? [])->map(fn (array $p) => new DeclaredPackage(collect($p)->only((new DeclaredPackage)->getFillable())->all())));
 
-        return view('portal::orders.create', $this->formData($clientId, $rates) + ['preview' => $estimates->preview($order)]);
+        $transport = app(PortalTransportEstimate::class)->options($clientId, $order); // CHANGE_REQUESTS #118: freight options next to the warehouse fees
+
+        return view('portal::orders.create', $this->formData($clientId, $rates) + [
+            'preview' => $estimates->preview($order),
+            'transportOptions' => $transport['options'],
+            'transportReason' => $transport['reason'],
+            'transportChoice' => $request->input('transport_choice'),
+        ]);
     }
 
     /** @return array<string, mixed> */
@@ -153,6 +168,7 @@ final class PortalOrderController extends Controller
             'delivery_instructions' => ['nullable', 'string', 'max:2000'],
             'requested_date' => ['required', 'date', 'after_or_equal:today'],
             'service_level' => ['required', Rule::in(OrderEnums::SERVICE_LEVELS)],
+            'transport_choice' => ['nullable', 'string', 'max:80'], // CHANGE_REQUESTS #118: source|service_level|carrier_id of the option ticked with the 估价
             'tailgate_required' => ['nullable', 'boolean'], // item 6: checkbox state; only stored as given when tailgate_manual is set
             'tailgate_manual' => ['nullable', 'boolean'],
             'pickup_name' => ['nullable', 'string', 'max:255'],

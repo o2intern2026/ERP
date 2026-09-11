@@ -105,12 +105,44 @@
                                 <td class="num">{{ $line['missing'] ? __('portal.estimate.preview_poa') : \App\Support\Money::cents($line['amount_cents'])->format() }}</td>
                             </tr>
                         @endforeach
-                        <tr><td colspan="3" class="text-muted"><small>{{ __('portal.estimate.preview_freight') }}</small></td></tr>
+                        {{-- CR #118: the transport options priced for this order, chosen here by the client — the estimate and the freight on one screen. --}}
+                        @php($transportOptions = $transportOptions ?? [])
+                        @php($chosen = collect($transportOptions)->firstWhere('key', $transportChoice ?? '') ?? collect($transportOptions)->firstWhere('is_recommended', true) ?? ($transportOptions[0] ?? null))
+                        <tr><td colspan="3">
+                            <strong>{{ __('portal.estimate.transport_title') }}</strong> <small class="text-muted">{{ __('portal.estimate.transport_hint') }}</small>
+                            @if ($transportOptions === [])
+                                <br><small class="text-muted">{{ __('portal.estimate.transport_none.'.($transportReason ?? 'none')) }}</small>
+                            @else
+                                <table class="dense" id="transport-options" style="margin:.4rem 0 0">
+                                    <thead><tr><th>{{ __('portal.estimate.transport_choose') }}</th><th>{{ __('portal.quotes.fields.carrier') }}</th><th>{{ __('portal.quotes.fields.service_level') }}</th><th>{{ __('portal.quotes.fields.eta') }}</th><th class="num">{{ __('portal.quotes.fields.price') }}</th><th>{{ __('portal.quotes.fields.flags') }}</th></tr></thead>
+                                    <tbody>
+                                    @foreach ($transportOptions as $option)
+                                        <tr>
+                                            <td><input type="radio" name="transport_choice" value="{{ $option['key'] }}" data-price="{{ (int) $option['customer_price_cents'] }}" aria-label="{{ $option['key'] }}" @checked($chosen && $option['key'] === $chosen['key'])></td>
+                                            <td>{{ $option['carrier_name'] ?: __('orders.estimate.sources.'.$option['source']) }}</td>
+                                            <td>{{ __('orders.service_levels.'.$option['service_level']) }}</td>
+                                            <td>{{ $option['eta_days'] === null ? __('portal.not_provided') : __('orders.estimate.eta_days', ['days' => $option['eta_days']]) }}</td>
+                                            <td class="num">{{ \App\Support\Money::cents((int) $option['customer_price_cents'])->format() }}</td>
+                                            <td>
+                                                @if ($option['is_recommended'])<span class="badge" data-tone="ok">{{ __('orders.estimate.freight_flags.recommended') }}</span>@endif
+                                                @if ($option['is_cheapest'])<span class="badge" data-tone="muted">{{ __('orders.estimate.freight_flags.cheapest') }}</span>@endif
+                                                @if ($option['is_fastest'])<span class="badge" data-tone="muted">{{ __('orders.estimate.freight_flags.fastest') }}</span>@endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                    </tbody>
+                                </table>
+                            @endif
+                        </td></tr>
                     </tbody>
                     <tfoot>
-                        <tr><td colspan="2">{{ __('portal.estimate.preview_subtotal') }}</td><td class="num">{{ \App\Support\Money::cents($preview['subtotal_cents'])->format() }}</td></tr>
-                        <tr><td colspan="2">{{ __('portal.estimate.preview_gst') }}</td><td class="num">{{ \App\Support\Money::cents($preview['gst_cents'])->format() }}</td></tr>
-                        <tr><td colspan="2"><strong>{{ __('portal.estimate.preview_total') }}</strong></td><td class="num"><strong>{{ \App\Support\Money::cents($preview['total_cents'])->format() }}</strong></td></tr>
+                        @php($freightCents = $chosen ? (int) $chosen['customer_price_cents'] : 0)
+                        @php($freightGst = (int) round($freightCents * 0.10))
+                        <tr><td colspan="2">{{ __('portal.estimate.preview_services') }}</td><td class="num">{{ \App\Support\Money::cents($preview['subtotal_cents'])->format() }}</td></tr>
+                        <tr><td colspan="2">{{ __('portal.estimate.preview_freight_selected') }}</td><td class="num" id="freight-cell">{{ $chosen ? \App\Support\Money::cents($freightCents)->format() : __('portal.estimate.preview_freight_pending') }}</td></tr>
+                        <tr><td colspan="2">{{ __('portal.estimate.preview_subtotal') }}</td><td class="num" id="subtotal-cell" data-base="{{ $preview['subtotal_cents'] }}">{{ \App\Support\Money::cents($preview['subtotal_cents'] + $freightCents)->format() }}</td></tr>
+                        <tr><td colspan="2">{{ __('portal.estimate.preview_gst') }}</td><td class="num" id="gst-cell" data-base="{{ $preview['gst_cents'] }}">{{ \App\Support\Money::cents($preview['gst_cents'] + $freightGst)->format() }}</td></tr>
+                        <tr><td colspan="2"><strong>{{ __('portal.estimate.preview_total') }}</strong></td><td class="num"><strong id="total-cell" data-base="{{ $preview['total_cents'] }}">{{ \App\Support\Money::cents($preview['total_cents'] + $freightCents + $freightGst)->format() }}</strong></td></tr>
                     </tfoot>
                 </table>
                 @if ($preview['unpriced'])<p class="text-muted"><small>{{ __('portal.estimate.preview_unpriced') }}</small></p>@endif
@@ -154,7 +186,8 @@
 
             const confirm = document.getElementById('confirm-submit');
             const form = confirm.closest('form');
-            const invalidate = () => {
+            const invalidate = (e) => {
+                if (e && e.target && e.target.closest && e.target.closest('#estimate-preview')) return; // CR #118: picking a transport option keeps the estimate on screen
                 if (confirm.hidden) return;
                 confirm.hidden = true;
                 document.getElementById('get-estimate')?.classList.remove('secondary');
@@ -164,6 +197,15 @@
             form.addEventListener('change', invalidate);
             form.addEventListener('click', (e) => { if (e.target.closest('button[type="button"]')) invalidate(); }); // add/remove line rows
             document.getElementById('estimate-preview')?.scrollIntoView({ block: 'center' });
+            // CR #118: the totals follow the ticked transport option (freight + 10% GST on top of the warehouse fees).
+            const fmt = (cents) => (cents < 0 ? '-' : '') + '$' + (Math.abs(cents) / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.querySelectorAll('#transport-options input[name="transport_choice"]').forEach((radio) => radio.addEventListener('change', () => {
+                const freight = parseInt(radio.dataset.price, 10) || 0, gst = Math.round(freight * 0.10);
+                const freightCell = document.getElementById('freight-cell'); if (freightCell) freightCell.textContent = fmt(freight);
+                [['subtotal-cell', freight], ['gst-cell', gst], ['total-cell', freight + gst]].forEach(([id, extra]) => {
+                    const cell = document.getElementById(id); if (cell) cell.textContent = fmt((parseInt(cell.dataset.base, 10) || 0) + extra);
+                });
+            }));
         })();
     </script>
 @endsection

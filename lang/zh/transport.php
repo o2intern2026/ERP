@@ -157,6 +157,9 @@ return [
         'select_preliminary' => '选择初步方案',
         'confirm' => '确认最终方案',
         'no_action' => '—',
+        'client_preference' => '客户下单时选择',
+        'client_preference_hint' => '最终报价与该估价差异在容差内时，系统按客户的选择自动确认；差异过大或该方案不可用时等客户在门户确认。这里的"确认"按钮为代客确认。',
+        'client_preference_none' => '客户未在下单时选择运输方案。',
     ],
     'selection' => [
         'saved' => '运输方案已保存。',

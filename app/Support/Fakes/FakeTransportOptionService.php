@@ -38,4 +38,14 @@ final class FakeTransportOptionService implements TransportOptionService
 
         return $quotes;
     }
+
+    /** The same three options as quote(), without transport_quote ids — nothing is written. */
+    public function estimate(int $clientId, array $request): array
+    {
+        return array_map(fn (array $q): array => [
+            'carrier_id' => $q['carrier_id'], 'carrier_name' => null, 'source' => $q['source'], 'service_level' => $q['service_level'],
+            'customer_price_cents' => $q['customer_price_cents'], 'eta_days' => $q['eta_days'],
+            'is_recommended' => $q['is_recommended'], 'is_cheapest' => $q['is_cheapest'], 'is_fastest' => $q['is_fastest'],
+        ], $this->quote(0, 'preliminary'));
+    }
 }

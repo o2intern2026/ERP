@@ -21,7 +21,7 @@ class Order extends Model
         'fba_reference', 'pickup_address', 'deliver_to_name', 'deliver_to_phone', 'deliver_to_address',
         'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'deliver_to_address_type',
         'delivery_instructions', 'requested_date', 'operational_status', 'fulfilment_status', 'billing_status', 'service_level',
-        'tailgate_required', 'tailgate_reason', 'customer_quote_id', 'created_by',
+        'tailgate_required', 'tailgate_reason', 'customer_quote_id', 'transport_preference', 'created_by',
         'original_order_id', 'return_inspected_at', 'return_decision', 'return_decided_by', 'return_decided_at', 'return_decision_note',
     ];
 
@@ -29,6 +29,7 @@ class Order extends Model
     {
         return [
             'pickup_address' => 'array',
+            'transport_preference' => 'array',
             'requested_date' => 'date',
             'tailgate_required' => 'boolean',
             'return_inspected_at' => 'datetime',

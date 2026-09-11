@@ -188,15 +188,45 @@ final class OrderEstimateService
             ->orderByDesc('q.id')
             ->first(self::FREIGHT_COLUMNS);
 
-        return $row === null ? null : $this->freightRow($row);
+        return $row === null ? $this->freightFromPreference($order) : $this->freightRow($row);
+    }
+
+    /**
+     * CHANGE_REQUESTS #118: no Transport quote yet (the order is not confirmed) — the option the client chose with the 估价 is the
+     * freight, as the snapshot the client saw (customer price only). Read back through freightFromLine() as the stored line.
+     */
+    private function freightFromPreference(Order $order): ?array
+    {
+        $p = $order->transport_preference;
+        if (! is_array($p) || ! isset($p['source'], $p['service_level'], $p['customer_price_cents'])) {
+            return null;
+        }
+        $freight = [
+            'transport_quote_id' => null,
+            'shipment_no' => '',
+            'carrier_name' => $p['carrier_name'] ?? null,
+            'source' => (string) $p['source'],
+            'service_level' => (string) $p['service_level'],
+            'customer_price_cents' => (int) $p['customer_price_cents'],
+            'eta_days' => isset($p['eta_days']) ? (int) $p['eta_days'] : null,
+            'is_recommended' => (bool) ($p['is_recommended'] ?? false),
+            'is_cheapest' => (bool) ($p['is_cheapest'] ?? false),
+            'is_fastest' => (bool) ($p['is_fastest'] ?? false),
+            'quote_stage' => 'preliminary',
+            'quoted_at' => $p['chosen_at'] ?? null,
+            'client_choice' => true,
+        ];
+        $freight['label'] = $this->freightLabel($freight);
+
+        return $freight;
     }
 
     /**
      * The pre-priced QuoteService line for Transport's freight (CHANGE_REQUESTS #68): the customer price as given, the
      * transport quote referenced, the carrier / service level in the description.
      *
-     * @param  array{transport_quote_id:int, customer_price_cents:int, label:string, quote_stage:string, shipment_no:string}  $freight
-     * @return array{charge_code:string, qty:float, amount_cents:int, transport_quote_id:int, description:string, context:array<string, mixed>}
+     * @param  array{transport_quote_id:?int, customer_price_cents:int, label:string, quote_stage:string, shipment_no:string}  $freight
+     * @return array{charge_code:string, qty:float, amount_cents:int, transport_quote_id:?int, description:string, context:array<string, mixed>}
      */
     public function freightLine(array $freight): array
     {
@@ -205,7 +235,7 @@ final class OrderEstimateService
             'qty' => 1.0,
             'amount_cents' => $freight['customer_price_cents'],
             'transport_quote_id' => $freight['transport_quote_id'],
-            'description' => __('orders.estimate.descriptions.freight', ['label' => $freight['label']]),
+            'description' => __($freight['transport_quote_id'] === null ? 'orders.estimate.descriptions.freight_preference' : 'orders.estimate.descriptions.freight', ['label' => $freight['label']]), // CHANGE_REQUESTS #118: the client's own choice with the 估价 until Transport quotes
             'context' => ['quote_stage' => $freight['quote_stage'], 'shipment_no' => $freight['shipment_no']],
         ];
     }

@@ -149,6 +149,7 @@ return [
             'deliver_to_suburb' => '收件城区',
             'deliver_to_state' => '收件州',
             'deliver_to_postcode' => '收件邮编',
+            'transport_choice' => '运输方案',
         ],
         'messages' => [
             'reason.required' => '请填写退货原因。',
@@ -174,7 +175,7 @@ return [
     'estimate' => [
         'created' => '估价已生成(客户价,不含 GST)。',
         'preview_title' => '估价(客户价)',
-        'preview_hint' => '按当前填写内容估算仓库操作费用;运费需在提交后由运输报价确定。请核对后点击"确认提交订单",修改任何内容后需重新获取估价。',
+        'preview_hint' => '按当前填写内容估算仓库操作费用，并列出可选的运输方案；请选好运输方案后点击"确认提交订单"，修改任何内容后需重新获取估价。',
         'preview_freight' => '运费:提交后另行报价',
         'preview_unpriced' => '部分项目暂无价目,以客服确认为准。',
         'preview_subtotal' => '小计(不含 GST)',
@@ -184,6 +185,17 @@ return [
         'preview_amount' => '金额',
         'preview_item' => '项目',
         'preview_poa' => 'POA(面议)',
+        'preview_services' => '仓库操作费小计',
+        'preview_freight_selected' => '运费（所选方案，估价）',
+        'preview_freight_pending' => '未选择运输方案',
+        'transport_title' => '运输方案',
+        'transport_hint' => '按申报的箱数、重量、尺寸估算；打包实测后以最终报价为准，差异在容差内系统按您的选择自动确认，否则请您在订单页再次确认。',
+        'transport_choose' => '选择',
+        'transport_none' => [
+            'no_items' => '填写货物的重量和尺寸后即可看到运输方案估价。',
+            'no_address' => '收件地址不完整，无法估算运费。',
+            'none' => '暂无可自动报价的运输方案，提交后由客服人工报价。',
+        ],
     ],
     'quotes' => [
         'title' => '运输方案确认',
@@ -196,6 +208,8 @@ return [
         'confirmed' => '运输单 :shipment_no 的运输方案已确认。',
         'confirmed_choice' => '已确认方案',
         'confirmed_by' => ['client' => '由贵公司确认', 'coordinator' => '由客服代为确认', 'system' => '系统确认(与初步估价一致)'],
+        'client_choice' => '下单时选择的运输方案',
+        'your_choice' => '您的选择',
         'fields' => ['carrier' => '承运商', 'service_level' => '服务等级', 'eta' => '预计时效', 'price' => '客户价(不含 GST)', 'flags' => '标记', 'expires' => '报价有效期至'],
     ],
     'invoices' => [
