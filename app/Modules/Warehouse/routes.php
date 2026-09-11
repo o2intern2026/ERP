@@ -53,6 +53,8 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::get('/asns/create', [AsnController::class, 'create'])->name('asns.create');
         Route::post('/asns', [AsnController::class, 'store'])->name('asns.store');
         Route::post('/asns/{asn}/lines', [AsnController::class, 'storeLine'])->name('asns.lines.store');
+        Route::get('/asns/{asn}/lines/{line}/delivery', [AsnController::class, 'editDelivery'])->name('asns.lines.delivery.edit'); // 编辑收件信息: what 从预报单生成派送订单 needs per line (CHANGE_REQUESTS #115)
+        Route::post('/asns/{asn}/lines/{line}/delivery', [AsnController::class, 'updateDelivery'])->name('asns.lines.delivery.update');
         Route::post('/asns/{asn}/import', [AsnController::class, 'import'])->name('asns.import');
         Route::post('/asns/{asn}/arrive', [AsnController::class, 'arrive'])->name('asns.arrive');
         Route::post('/asns/{asn}/confirm-unplanned', [AsnController::class, 'confirmUnplanned'])->name('asns.confirm_unplanned');

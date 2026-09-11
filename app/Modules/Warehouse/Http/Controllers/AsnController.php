@@ -7,6 +7,7 @@ use App\Modules\MasterData\Models\Client;
 use App\Modules\Platform\Models\Job;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnImport;
+use App\Modules\Warehouse\Models\AsnLine;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Modules\Warehouse\Services\AsnImportService;
@@ -19,6 +20,7 @@ use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
@@ -118,6 +120,52 @@ class AsnController extends Controller
         $asns->addLines($asn, [$data]);
 
         return redirect()->route('warehouse.asns.show', $asn)->with('status', __('warehouse.asns.line_added'));
+    }
+
+    /** 编辑收件信息 (CHANGE_REQUESTS #115): the consignee fields 从预报单生成派送订单 needs, one goods line at a time (optionally copied to its mark). */
+    public function editDelivery(Asn $asn, AsnLine $line): View
+    {
+        abort_unless($line->asn_id === $asn->id, 404);
+
+        return view('warehouse::asns.delivery', [
+            'asn' => $asn->load(['client', 'warehouse']),
+            'line' => $line,
+            'siblings' => $this->siblingsUnderMark($line),
+        ]);
+    }
+
+    public function updateDelivery(Request $request, Asn $asn, AsnLine $line, AsnService $asns): RedirectResponse
+    {
+        abort_unless($line->asn_id === $asn->id, 404);
+        $data = $request->validate([
+            'consignment_mark' => ['nullable', 'string', 'max:60'],
+            'deliver_to_name' => ['required', 'string', 'max:255'],
+            'deliver_to_phone' => ['nullable', 'string', 'max:40'],
+            'deliver_to_address' => ['required', 'string', 'max:255'],
+            'deliver_to_suburb' => ['required', 'string', 'max:100'],
+            'deliver_to_state' => ['required', Rule::in(Enums::STATES)],
+            'deliver_to_postcode' => ['required', 'string', 'max:10'],
+            'fba_reference' => ['nullable', 'string', 'max:60'],
+            'apply_to_mark' => ['nullable', 'boolean'],
+        ]);
+
+        try {
+            $count = $asns->updateLineDelivery($line, Arr::except($data, ['apply_to_mark']), (bool) ($data['apply_to_mark'] ?? false));
+        } catch (InvalidArgumentException $e) {
+            return back()->withInput()->withErrors(['delivery' => RuleViolation::display($e)]);
+        }
+
+        return redirect()->route('warehouse.asns.show', $asn)->with('status', __('warehouse.asns.delivery_saved', ['count' => $count]));
+    }
+
+    /** Other goods lines of the ASN under the same mark that are not on an order yet — the ones "同时应用到同一唛头" would update. */
+    private function siblingsUnderMark(AsnLine $line): int
+    {
+        if (trim((string) $line->consignment_mark) === '') {
+            return 0;
+        }
+
+        return AsnLine::query()->where('asn_id', $line->asn_id)->whereKeyNot($line->id)->where('consignment_mark', $line->consignment_mark)->whereNull('order_line_id')->count();
     }
 
     public function import(Request $request, Asn $asn, AsnImportService $imports): RedirectResponse

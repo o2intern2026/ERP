@@ -27,7 +27,7 @@
         </div>
     @endrole
     @if (session('blocked'))
-        <ul>@foreach (session('blocked') as $b)<li><mark>{{ $b['consignment_mark'] ?: '—' }}</mark> · {{ __('warehouse.asns.blocked_reasons.'.$b['reason']) }} ({{ count($b['asn_line_ids']) }})</li>@endforeach</ul>
+        <ul>@foreach (session('blocked') as $b)<li><mark>{{ $b['consignment_mark'] ?: '—' }}</mark> · {{ __('warehouse.asns.blocked_reasons.'.$b['reason']) }} ({{ count($b['asn_line_ids']) }}) · {{ __('warehouse.asns.blocked_fix') }} @foreach ($b['asn_line_ids'] as $id)<a href="{{ route('warehouse.asns.lines.delivery.edit', [$asn, $id]) }}">#{{ $id }}</a>@if (! $loop->last), @endif @endforeach</li>@endforeach</ul>
     @endif
 
     @if ($asn->containers->isNotEmpty())
@@ -49,7 +49,7 @@
             <tbody>
             @foreach ($asn->lines as $l)
                 <tr>
-                    <td>{{ $l->id }}</td><td>{{ $l->consignment_mark }}</td><td>{{ $l->description }} <small class="text-muted">{{ $l->deliver_to_name }}</small></td><td>{{ $l->container?->container_no }}</td>
+                    <td>{{ $l->id }}</td><td>{{ $l->consignment_mark }}</td><td>{{ $l->description }} <small class="text-muted">@if ($l->hasCompleteDelivery()){{ $l->deliver_to_name }} · {{ $l->deliver_to_suburb }} {{ $l->deliver_to_state }} {{ $l->deliver_to_postcode }}@elseif (! $l->isOnOrder())<mark>{{ __('warehouse.asns.delivery_incomplete') }}</mark>@else{{ $l->deliver_to_name }}@endif</small></td><td>{{ $l->container?->container_no }}</td>
                     <td class="num">{{ $l->expected_cartons }}</td><td class="num">{{ $l->received_cartons }}</td><td class="num">{{ $l->damaged_cartons }}</td><td class="num">{{ $l->stockUnits->count() }}</td>
                     <td>
                         @role('admin|warehouse_supervisor|warehouse_operator')
@@ -58,6 +58,11 @@
                             @elseif ($l->isReceived())
                                 <span class="text-muted">{{ __('warehouse.asns.received_ok') }}</span>
                             @endif
+                        @endrole
+                        @role('admin|warehouse_supervisor|warehouse_operator|customer_service')
+                            @unless ($l->isOnOrder())
+                                <a href="{{ route('warehouse.asns.lines.delivery.edit', [$asn, $l]) }}">{{ __('warehouse.asns.edit_delivery') }}</a>
+                            @endunless
                         @endrole
                     </td>
                 </tr>
@@ -109,10 +114,17 @@
                         </div>
                         <div class="grid">
                             @if ($asn->containers->isNotEmpty())<select name="container_no"><option value="">{{ __('warehouse.asns.container_no') }}</option>@foreach ($asn->containers as $c)<option value="{{ $c->container_no }}">{{ $c->container_no }}</option>@endforeach</select>@endif
-                            <input type="text" name="deliver_to_name" placeholder="收件人" value="{{ old('deliver_to_name') }}">
-                            <input type="text" name="deliver_to_postcode" placeholder="邮编" value="{{ old('deliver_to_postcode') }}" maxlength="10">
-                            <input type="text" name="fba_reference" placeholder="FBA" value="{{ old('fba_reference') }}">
+                            <input type="text" name="deliver_to_name" placeholder="{{ __('warehouse.asns.delivery_fields.deliver_to_name') }}" value="{{ old('deliver_to_name') }}">
+                            <input type="text" name="deliver_to_phone" placeholder="{{ __('warehouse.asns.delivery_fields.deliver_to_phone') }}" value="{{ old('deliver_to_phone') }}" maxlength="40">
+                            <input type="text" name="fba_reference" placeholder="{{ __('warehouse.asns.delivery_fields.fba_reference') }}" value="{{ old('fba_reference') }}" maxlength="60">
                         </div>
+                        <div class="grid">
+                            <input type="text" name="deliver_to_address" placeholder="{{ __('warehouse.asns.delivery_fields.deliver_to_address') }}" value="{{ old('deliver_to_address') }}">
+                            <input type="text" name="deliver_to_suburb" placeholder="{{ __('warehouse.asns.delivery_fields.deliver_to_suburb') }}" value="{{ old('deliver_to_suburb') }}" maxlength="100">
+                            <select name="deliver_to_state"><option value="">{{ __('warehouse.asns.delivery_fields.deliver_to_state') }}</option>@foreach (\App\Support\Enums::STATES as $state)<option value="{{ $state }}" @selected(old('deliver_to_state') === $state)>{{ $state }}</option>@endforeach</select>
+                            <input type="text" name="deliver_to_postcode" placeholder="{{ __('warehouse.asns.delivery_fields.deliver_to_postcode') }}" value="{{ old('deliver_to_postcode') }}" maxlength="10">
+                        </div>
+                        <p class="text-muted"><small>{{ __('warehouse.asns.delivery_hint') }}</small></p>
                         <button type="submit" class="secondary">{{ __('platform.common.save') }}</button>
                     </form>
                 </article>
