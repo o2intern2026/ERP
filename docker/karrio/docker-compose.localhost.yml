@@ -1,0 +1,15 @@
+# Server overlay: publish Karrio only on the loopback interface (Docker's published ports bypass ufw), so the ERP on the same
+# box reaches http://127.0.0.1:5002 while nothing is exposed to the internet. Usage on the trial server:
+#   docker compose -f docker/karrio/docker-compose.yml -f docker/karrio/docker-compose.localhost.yml --env-file docker/karrio/.env up -d
+services:
+  api:
+    ports: !override
+      - "127.0.0.1:${KARRIO_HTTP_PORT:-5002}:${KARRIO_HTTP_PORT:-5002}"
+    environment:
+      DEBUG_MODE: "False"
+  worker:
+    environment:
+      DEBUG_MODE: "False"
+  dashboard:
+    ports: !override
+      - "127.0.0.1:${DASHBOARD_PORT:-3002}:${DASHBOARD_PORT:-3002}"
