@@ -5,6 +5,8 @@ namespace Tests\Feature\Platform;
 use App\Modules\Orders\Services\AsnOrderService;
 use App\Modules\Orders\Services\SpreadsheetManifestParser;
 use App\Modules\Platform\Services\DatabaseOutboxPublisher;
+use App\Modules\Warehouse\Services\AsnService;
+use App\Support\Contracts\InboundService;
 use App\Support\Contracts\JobService;
 use App\Support\Contracts\ManifestParser;
 use App\Support\Contracts\OrderService;
@@ -27,6 +29,7 @@ class FakeServicesTest extends TestCase
     {
         $this->assertTrue(config('erp.use_fake_services'));
         $this->assertInstanceOf(\App\Modules\Warehouse\Services\StockService::class, app(StockService::class)); // real since M2
+        $this->assertInstanceOf(AsnService::class, app(InboundService::class)); // CHANGE_REQUESTS #117
         $this->assertInstanceOf(AsnOrderService::class, app(OrderService::class)); // real since M3
         $this->assertInstanceOf(\App\Modules\Transport\Services\TransportOptionService::class, app(TransportOptionService::class)); // real since M5
         $this->assertInstanceOf(\App\Modules\Billing\Services\RateService::class, app(RateService::class)); // real since M6 (billing block)

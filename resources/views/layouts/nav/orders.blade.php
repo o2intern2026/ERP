@@ -4,6 +4,10 @@
     @php($pendingRequests = app(\App\Modules\Orders\Services\ClientRequestService::class)->pendingCount())
     <li><a href="{{ route('orders.requests.index') }}">{{ __('orders.requests.nav') }}@if ($pendingRequests > 0) <span class="badge" data-tone="warn">{{ $pendingRequests }}</span>@endif</a></li>
 @endrole
+@role('admin|customer_service|warehouse_supervisor')
+    @php($pendingInbound = app(\App\Modules\Orders\Services\OrderInboundService::class)->pendingCount())
+    <li><a href="{{ route('orders.inbound.index') }}">{{ __('orders.inbound.nav') }}@if ($pendingInbound > 0) <span class="badge" data-tone="warn">{{ $pendingInbound }}</span>@endif</a></li>
+@endrole
 @role('admin|customer_service|dispatcher|finance')
     <li><a href="{{ route('orders.queue') }}">{{ __('orders.queue.nav') }}</a></li>
     <li><a href="{{ route('orders.batches') }}">{{ __('orders.batches.nav') }}</a></li>
