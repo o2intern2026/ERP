@@ -136,3 +136,4 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 | 运输报价没有 Karrio 方案 | Docker Desktop 未启动或容器未起;`.env` 里 `KARRIO_API_KEY` 为空;Karrio 里没有承运商费率(`php docker/karrio/setup-demo-carrier.php` 可重建演示承运商) |
 | 想看发出的邮件 | 本地邮件写在 `storage/logs/laravel.log`(`MAIL_MAILER=log`) |
 | API 试用 | `curl -X POST http://103.6.171.144/orders/api/orders -H "Authorization: Bearer <钥匙>" -H "Idempotency-Key: demo-1" -H "Content-Type: application/json" -d @order.json`(钥匙在 /orders/api-tokens 生成,只显示一次) |
+| 为什么 PDF 单据是英文 | 入库单、发票、库存 / 库位标签、托运清单、自有车队面单、签收凭证 (POD) 是发给客户和承运商的对外文件，2026-09-11 起统一为英文（文字来自 `lang/en/pdf.php`）；系统界面、提示、报错仍是中文。唛头、品名等数据按录入原样打印 |

@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="zh">
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>{{ __('transport.driver.pod_title') }}</title>
+    <title>{{ __('pdf.pod.title') }}</title>
     <style>
         body { font-family: DejaVu Sans, sans-serif; color: #18212b; font-size: 12px; }
         h1, h2 { margin-bottom: 8px; }
@@ -14,18 +14,26 @@
     </style>
 </head>
 <body>
-    <h1>{{ __('transport.driver.pod_title') }}</h1>
+    @php
+        // DriverPodService hands the capture time over as an ISO-8601 string; print it in the app time zone, or as given if unparseable.
+        try {
+            $deliveredAtLabel = \Illuminate\Support\Carbon::parse($deliveredAt)->timezone(config('app.timezone'))->format('d M Y H:i');
+        } catch (\Throwable) {
+            $deliveredAtLabel = $deliveredAt;
+        }
+    @endphp
+    <h1>{{ __('pdf.pod.title') }}</h1>
     <table>
-        <tr><th>{{ __('transport.driver.shipment') }}</th><td>{{ $shipment->shipment_no }}</td></tr>
-        <tr><th>{{ __('transport.driver.stop') }}</th><td>{{ $stop->seq }}</td></tr>
-        <tr><th>{{ __('transport.driver.recipient_name') }}</th><td>{{ $recipientName }}</td></tr>
-        <tr><th>{{ __('transport.driver.delivered_at') }}</th><td>{{ $deliveredAt }}</td></tr>
+        <tr><th>{{ __('pdf.pod.shipment') }}</th><td>{{ $shipment->shipment_no }}</td></tr>
+        <tr><th>{{ __('pdf.pod.stop') }}</th><td>{{ $stop->seq }}</td></tr>
+        <tr><th>{{ __('pdf.pod.recipient_name') }}</th><td>{{ $recipientName }}</td></tr>
+        <tr><th>{{ __('pdf.pod.delivered_at') }}</th><td>{{ $deliveredAtLabel }}</td></tr>
     </table>
-    <h2>{{ __('transport.driver.signature') }}</h2>
-    <img class="signature" src="{{ $signatureDataUri }}" alt="{{ __('transport.driver.signature') }}">
-    <h2>{{ __('transport.driver.photos') }}</h2>
+    <h2>{{ __('pdf.pod.signature') }}</h2>
+    <img class="signature" src="{{ $signatureDataUri }}" alt="{{ __('pdf.pod.signature') }}">
+    <h2>{{ __('pdf.pod.photos') }}</h2>
     @foreach ($photoDataUris as $photoDataUri)
-        <div class="photo"><img src="{{ $photoDataUri }}" alt="{{ __('transport.driver.photos') }}"></div>
+        <div class="photo"><img src="{{ $photoDataUri }}" alt="{{ __('pdf.pod.photos') }}"></div>
     @endforeach
 </body>
 </html>

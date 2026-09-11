@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <style>
@@ -16,7 +16,7 @@
     <div class="label">
         <div style="display:inline-block">{!! $barcodes[$l->id] !!}</div>
         <div class="code">{{ $l->full_code }}</div>
-        <div class="type">{{ $l->warehouse->name }} · {{ __('warehouse.location_types.'.$l->type) }}</div>
+        <div class="type">{{ $l->warehouse->name }} · {{ __('pdf.location_types.'.$l->type) }}</div>
     </div>
 @endforeach
 </body>

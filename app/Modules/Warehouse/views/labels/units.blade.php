@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <style>
@@ -22,7 +22,7 @@
         <div class="meta">
             {{ $u->asnLine->consignment_mark }}<br>
             {{ \Illuminate\Support\Str::limit($u->asnLine->description, 60) }}<br>
-            {{ __('warehouse.unit_types.'.$u->unit_type) }} · {{ $u->qty_on_hand }} {{ __('warehouse.uoms.carton') }}
+            {{ __('pdf.unit_types.'.$u->unit_type) }} · {{ $u->qty_on_hand }} {{ __('pdf.units.carton') }}
             @if ($u->unit_type === 'pallet') · {{ $u->length_mm }}×{{ $u->width_mm }}×{{ $u->height_mm }} mm · {{ $u->weight_kg }} kg @endif
         </div>
         <div class="big">{{ $u->location?->full_code ?? '—' }}</div>

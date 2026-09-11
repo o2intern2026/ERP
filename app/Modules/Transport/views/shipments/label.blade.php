@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <style>
@@ -28,10 +28,10 @@
     <section class="label">
         <div class="header">
             <span class="carrier">{{ $carrierName }}</span>
-            <span class="service">{{ __('transport.labels.own_fleet') }}</span>
+            <span class="service">{{ __('pdf.label.own_fleet') }}</span>
         </div>
 
-        <div class="caption">{{ __('transport.labels.ship_to') }}</div>
+        <div class="caption">{{ __('pdf.label.ship_to') }}</div>
         <div class="recipient">{{ $receiver['name'] }}</div>
         <div class="address">
             {{ $receiver['address'] }}<br>
@@ -40,8 +40,8 @@
 
         <table class="reference">
             <tr>
-                <td>{{ __('transport.labels.shipment') }}<strong>{{ $shipment->shipment_no }}</strong></td>
-                <td>{{ __('transport.labels.package') }}<strong>{{ $label['position'] }} / {{ $label['count'] }}</strong></td>
+                <td>{{ __('pdf.label.shipment') }}<strong>{{ $shipment->shipment_no }}</strong></td>
+                <td>{{ __('pdf.label.package') }}<strong>{{ $label['position'] }} / {{ $label['count'] }}</strong></td>
             </tr>
         </table>
 
@@ -50,9 +50,9 @@
             <div class="barcode-code">{{ $label['barcode'] }}</div>
         </div>
         <div class="package-meta">
-            <div>{{ __('transport.labels.weight') }}: {{ number_format((float) $label['package']['weight_kg'], 3) }} kg</div>
+            <div>{{ __('pdf.label.weight') }}: {{ number_format((float) $label['package']['weight_kg'], 3) }} kg</div>
             <div>
-                {{ __('transport.labels.dimensions') }}:
+                {{ __('pdf.label.dimensions') }}:
                 {{ $label['package']['length_mm'] }} x {{ $label['package']['width_mm'] }} x {{ $label['package']['height_mm'] }} mm
             </div>
         </div>
