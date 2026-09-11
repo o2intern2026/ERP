@@ -18,30 +18,35 @@
     </style>
 </head>
 <body>
-    <h1>TAX INVOICE {{ $invoice->invoice_no }}</h1>
+    @php
+        // clients.payment_terms is prepaid | eom | net_N (Enums::PAYMENT_TERMS_PATTERN); only the due date depends on it.
+        $terms = (string) $invoice->client->payment_terms;
+        $termsLabel = preg_match('/^net_(\d+)$/', $terms, $m) ? __('pdf.payment_terms.net', ['days' => (int) $m[1]]) : __('pdf.payment_terms.'.$terms);
+    @endphp
+    <h1>{{ __('pdf.invoice.title') }} {{ $invoice->invoice_no }}</h1>
     <table class="meta">
         <tr>
-            <td style="width:50%"><strong>Bill to</strong><br>{{ $invoice->bill_to_name }}<br>{{ $invoice->bill_to_address }}<br>@if ($invoice->bill_to_abn) ABN {{ $invoice->bill_to_abn }} @endif</td>
-            <td><strong>Invoice date</strong> {{ $invoice->issued_at?->format('d M Y') }}<br><strong>Due</strong> {{ $invoice->due_at?->format('d M Y') }} ({{ $invoice->client->payment_terms }})<br><strong>Type</strong> {{ $invoice->invoice_type }} @if ($invoice->period_from) · {{ $invoice->period_from->format('d M') }} – {{ $invoice->period_to?->format('d M Y') }} @endif</td>
+            <td style="width:50%"><strong>{{ __('pdf.invoice.bill_to') }}</strong><br>{{ $invoice->bill_to_name }}<br>{{ $invoice->bill_to_address }}<br>@if ($invoice->bill_to_abn) ABN {{ $invoice->bill_to_abn }} @endif</td>
+            <td><strong>{{ __('pdf.invoice.invoice_date') }}</strong> {{ $invoice->issued_at?->format('d M Y') }}<br><strong>{{ __('pdf.invoice.due') }}</strong> {{ $invoice->due_at?->format('d M Y') }} ({{ $termsLabel }})<br><strong>{{ __('pdf.invoice.type') }}</strong> {{ __('pdf.invoice_types.'.$invoice->invoice_type) }} @if ($invoice->period_from) · {{ $invoice->period_from->format('d M') }} – {{ $invoice->period_to?->format('d M Y') }} @endif</td>
         </tr>
     </table>
     <table class="lines">
-        <thead><tr><th>Code</th><th>Description</th><th class="num">Qty</th><th>UOM</th><th class="num">Amount (ex GST)</th><th class="num">GST</th></tr></thead>
+        <thead><tr><th>{{ __('pdf.invoice.code') }}</th><th>{{ __('pdf.invoice.description') }}</th><th class="num">{{ __('pdf.invoice.qty') }}</th><th>{{ __('pdf.invoice.uom') }}</th><th class="num">{{ __('pdf.invoice.amount_ex_gst') }}</th><th class="num">{{ __('pdf.invoice.gst') }}</th></tr></thead>
         <tbody>
         @foreach ($groups as $group)
             @php($lines = $group['lines'])
-            <tr class="job"><td colspan="6">{{ $invoice->group_by === 'order' ? 'Order' : 'Job' }} {{ $group['title'] }}</td></tr>
+            <tr class="job"><td colspan="6">{{ $invoice->group_by === 'order' ? __('pdf.invoice.order') : __('pdf.invoice.job') }} {{ $group['title'] }}</td></tr>
             @foreach ($lines as $line)
-                <tr><td>{{ $line->charge_code }}</td><td>{{ $line->description }} <span class="small">#{{ $line->charge_id }}</span></td><td class="num">{{ rtrim(rtrim(number_format($line->qty, 3), '0'), '.') }}</td><td>{{ $line->uom }}</td><td class="num">{{ \App\Support\Money::cents((int) round($line->amount_cents))->format() }}</td><td class="num">{{ \App\Support\Money::cents((int) round($line->gst_cents))->format() }}</td></tr>
+                <tr><td>{{ $line->charge_code }}</td><td>{{ $line->description }} <span class="small">#{{ $line->charge_id }}</span></td><td class="num">{{ rtrim(rtrim(number_format($line->qty, 3), '0'), '.') }}</td><td>{{ $line->uom ? __('pdf.uoms.'.$line->uom) : '' }}</td><td class="num">{{ \App\Support\Money::cents((int) round($line->amount_cents))->format() }}</td><td class="num">{{ \App\Support\Money::cents((int) round($line->gst_cents))->format() }}</td></tr>
             @endforeach
         @endforeach
         </tbody>
     </table>
     <table class="totals">
-        <tr><td>Subtotal (ex GST)</td><td class="num">{{ \App\Support\Money::cents((int) round($invoice->subtotal_cents))->format() }}</td></tr>
-        <tr><td>GST</td><td class="num">{{ \App\Support\Money::cents((int) round($invoice->gst_cents))->format() }}</td></tr>
-        <tr><td><strong>Total AUD</strong></td><td class="num"><strong>{{ \App\Support\Money::cents((int) round($invoice->total_cents))->format() }}</strong></td></tr>
+        <tr><td>{{ __('pdf.invoice.subtotal') }}</td><td class="num">{{ \App\Support\Money::cents((int) round($invoice->subtotal_cents))->format() }}</td></tr>
+        <tr><td>{{ __('pdf.invoice.gst') }}</td><td class="num">{{ \App\Support\Money::cents((int) round($invoice->gst_cents))->format() }}</td></tr>
+        <tr><td><strong>{{ __('pdf.invoice.total') }}</strong></td><td class="num"><strong>{{ \App\Support\Money::cents((int) round($invoice->total_cents))->format() }}</strong></td></tr>
     </table>
-    <p class="small">Every line refers to a charge (#) that links back to its source document in the ERP. Amounts in AUD; GST at 10% where applicable.</p>
+    <p class="small">{{ __('pdf.invoice.footer') }}</p>
 </body>
 </html>

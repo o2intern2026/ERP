@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <style>
@@ -40,30 +40,30 @@
     </style>
 </head>
 <body>
-    @if ($receipt->isOpen())<div class="draft">{{ __('warehouse.receipts.pdf.draft') }}</div>@endif
-    <h1>{{ __('warehouse.receipts.pdf.title') }} @if ($receipt->unplanned)<span class="badge">{{ __('warehouse.receipts.pdf.unplanned_badge') }}</span>@endif @if ($receipt->isOpen())<span class="badge">{{ __('warehouse.receipts.pdf.draft') }}</span>@endif</h1>
-    <p class="sub">{{ __('warehouse.receipts.pdf.receipt_no') }} <strong>{{ $receipt->receipt_no }}</strong> · {{ __('warehouse.receipts.pdf.asn_no') }} {{ $asn->asn_no }} · {{ __('warehouse.receipts.pdf.batch') }} {{ $receipt->batch_no }}/{{ $totalBatches }}</p>
+    @if ($receipt->isOpen())<div class="draft">{{ __('pdf.receipt.draft') }}</div>@endif
+    <h1>{{ __('pdf.receipt.title') }} @if ($receipt->unplanned)<span class="badge">{{ __('pdf.receipt.unplanned_badge') }}</span>@endif @if ($receipt->isOpen())<span class="badge">{{ __('pdf.receipt.draft') }}</span>@endif</h1>
+    <p class="sub">{{ __('pdf.receipt.receipt_no') }} <strong>{{ $receipt->receipt_no }}</strong> · {{ __('pdf.receipt.asn_no') }} {{ $asn->asn_no }} · {{ __('pdf.receipt.batch') }} {{ $receipt->batch_no }}/{{ $totalBatches }}</p>
 
     <table class="meta">
         <tr>
-            <td><strong>{{ __('warehouse.receipts.pdf.client') }}</strong>{{ $receipt->client->name }}@if ($receipt->client->abn)<br>ABN {{ $receipt->client->abn }}@endif</td>
-            <td><strong>{{ __('warehouse.receipts.pdf.warehouse') }}</strong>{{ $receipt->warehouse->code }} · {{ $receipt->warehouse->name }}</td>
-            <td><strong>{{ __('warehouse.receipts.pdf.job') }}</strong>{{ $receipt->job?->job_no ?? '—' }}</td>
-            <td><strong>{{ __('warehouse.receipts.pdf.inbound_type') }}</strong>{{ __('warehouse.inbound_types.'.$asn->inbound_type) }}@if ($asn->containers->isNotEmpty()) · {{ $asn->containers->pluck('container_no')->implode(', ') }}@endif</td>
+            <td><strong>{{ __('pdf.receipt.client') }}</strong>{{ $receipt->client->name }}@if ($receipt->client->abn)<br>ABN {{ $receipt->client->abn }}@endif</td>
+            <td><strong>{{ __('pdf.receipt.warehouse') }}</strong>{{ $receipt->warehouse->code }} · {{ $receipt->warehouse->name }}</td>
+            <td><strong>{{ __('pdf.receipt.job') }}</strong>{{ $receipt->job?->job_no ?? '—' }}</td>
+            <td><strong>{{ __('pdf.receipt.inbound_type') }}</strong>{{ __('pdf.inbound_types.'.$asn->inbound_type) }}@if ($asn->containers->isNotEmpty()) · {{ $asn->containers->pluck('container_no')->implode(', ') }}@endif</td>
         </tr>
         <tr>
-            <td><strong>{{ __('warehouse.receipts.pdf.arrived_at') }}</strong>{{ ($asn->arrived_at ?? $receipt->opened_at)?->format('Y-m-d') }}</td>
-            <td><strong>{{ __('warehouse.receipts.pdf.delivery_reference') }}</strong>{{ $receipt->delivery_reference ?? '—' }}</td>
-            <td><strong>{{ __('warehouse.receipts.pdf.receiver') }}</strong>{{ $receipt->completedBy?->name ?? $receipt->openedBy?->name ?? '—' }}</td>
-            <td><strong>{{ __('warehouse.receipts.pdf.printed_at') }}</strong>{{ now()->format('Y-m-d H:i') }}@if ($receipt->completed_at)<br><strong>{{ __('warehouse.receipts.pdf.completed_at') }}</strong>{{ $receipt->completed_at->format('Y-m-d H:i') }}@endif</td>
+            <td><strong>{{ __('pdf.receipt.arrived_at') }}</strong>{{ ($asn->arrived_at ?? $receipt->opened_at)?->format('d M Y') }}</td>
+            <td><strong>{{ __('pdf.receipt.delivery_reference') }}</strong>{{ $receipt->delivery_reference ?? '—' }}</td>
+            <td><strong>{{ __('pdf.receipt.receiver') }}</strong>{{ $receipt->completedBy?->name ?? $receipt->openedBy?->name ?? '—' }}</td>
+            <td><strong>{{ __('pdf.receipt.printed_at') }}</strong>{{ now()->format('d M Y H:i') }}@if ($receipt->completed_at)<br><strong>{{ __('pdf.receipt.completed_at') }}</strong>{{ $receipt->completed_at->format('d M Y H:i') }}@endif</td>
         </tr>
     </table>
 
     <table class="lines">
         <thead><tr>
-            <th class="w-idx">#</th><th class="w-mark">{{ __('warehouse.receipts.pdf.mark') }}</th><th class="w-desc">{{ __('warehouse.receipts.pdf.description') }}</th><th class="w-cont">{{ __('warehouse.receipts.pdf.container') }}</th>
-            <th class="num w-qty">{{ __('warehouse.receipts.pdf.expected') }}</th><th class="num w-qty">{{ __('warehouse.receipts.pdf.received') }}</th><th class="num w-qty">{{ __('warehouse.receipts.pdf.damaged') }}</th><th class="num w-qty">{{ __('warehouse.receipts.pdf.variance') }}</th>
-            <th class="w-reason">{{ __('warehouse.receipts.pdf.variance_reason') }}</th><th class="num w-qty">{{ __('warehouse.receipts.pdf.pallets') }}</th><th class="w-labels">{{ __('warehouse.receipts.pdf.unit_labels') }}</th>
+            <th class="w-idx">#</th><th class="w-mark">{{ __('pdf.receipt.mark') }}</th><th class="w-desc">{{ __('pdf.receipt.description') }}</th><th class="w-cont">{{ __('pdf.receipt.container') }}</th>
+            <th class="num w-qty">{{ __('pdf.receipt.expected') }}</th><th class="num w-qty">{{ __('pdf.receipt.received') }}</th><th class="num w-qty">{{ __('pdf.receipt.damaged') }}</th><th class="num w-qty">{{ __('pdf.receipt.variance') }}</th>
+            <th class="w-reason">{{ __('pdf.receipt.variance_reason') }}</th><th class="num w-qty">{{ __('pdf.receipt.pallets') }}</th><th class="w-labels">{{ __('pdf.receipt.unit_labels') }}</th>
         </tr></thead>
         <tbody>
         @foreach ($receipt->lines as $l)
@@ -76,26 +76,26 @@
         @endforeach
         </tbody>
         <tfoot><tr>
-            <td colspan="4">{{ __('warehouse.receipts.pdf.totals') }} ({{ $receipt->lines->count() }} {{ __('warehouse.receipts.pdf.lines_suffix') }})</td>
+            <td colspan="4">{{ __('pdf.receipt.totals') }} ({{ $receipt->lines->count() }} {{ __('pdf.receipt.lines_suffix') }})</td>
             <td class="num">{{ $receipt->lines->sum('expected_cartons') }}</td><td class="num">{{ $receipt->lines->sum('received_cartons') }}</td><td class="num">{{ $receipt->lines->sum('damaged_cartons') }}</td>
-            <td class="num">@php($v = $receipt->lines->sum(fn ($l) => $l->variance())){{ $v > 0 ? '+' : '' }}{{ $v }}</td><td></td><td class="num">{{ $receipt->lines->sum('pallet_count') }}</td><td class="labels">{{ $receipt->lines->sum('unit_count') }} {{ __('warehouse.receipts.pdf.units_suffix') }}</td>
+            <td class="num">@php($v = $receipt->lines->sum(fn ($l) => $l->variance())){{ $v > 0 ? '+' : '' }}{{ $v }}</td><td></td><td class="num">{{ $receipt->lines->sum('pallet_count') }}</td><td class="labels">{{ $receipt->lines->sum('unit_count') }} {{ __('pdf.receipt.units_suffix') }}</td>
         </tr></tfoot>
     </table>
 
-    <h2>{{ __('warehouse.receipts.pdf.rollup_title') }} · {{ $asn->asn_no }} ({{ $totalBatches }} {{ __('warehouse.receipts.pdf.batches_suffix') }})</h2>
+    <h2>{{ __('pdf.receipt.rollup_title') }} · {{ $asn->asn_no }} ({{ $totalBatches }} {{ __('pdf.receipt.batches_suffix') }})</h2>
     <table class="rollup"><tr>
-        <td>{{ __('warehouse.receipts.pdf.expected') }} <strong>{{ $rollup['expected'] }}</strong></td>
-        <td>{{ __('warehouse.receipts.pdf.received') }} <strong>{{ $rollup['received'] }}</strong></td>
-        <td>{{ __('warehouse.receipts.pdf.damaged') }} <strong>{{ $rollup['damaged'] }}</strong></td>
-        <td>{{ __('warehouse.receipts.pdf.variance') }} <strong>{{ $rollup['variance'] > 0 ? '+' : '' }}{{ $rollup['variance'] }}</strong></td>
-        <td>{{ __('warehouse.receipts.pdf.lines_received', ['done' => $rollup['received_lines'], 'total' => $rollup['total_lines']]) }}</td>
+        <td>{{ __('pdf.receipt.expected') }} <strong>{{ $rollup['expected'] }}</strong></td>
+        <td>{{ __('pdf.receipt.received') }} <strong>{{ $rollup['received'] }}</strong></td>
+        <td>{{ __('pdf.receipt.damaged') }} <strong>{{ $rollup['damaged'] }}</strong></td>
+        <td>{{ __('pdf.receipt.variance') }} <strong>{{ $rollup['variance'] > 0 ? '+' : '' }}{{ $rollup['variance'] }}</strong></td>
+        <td>{{ __('pdf.receipt.lines_received', ['done' => $rollup['received_lines'], 'total' => $rollup['total_lines']]) }}</td>
     </tr></table>
 
     <table class="sign"><tr>
-        <td><div class="line"></div><div class="cap">{{ __('warehouse.receipts.pdf.sign_warehouse') }} · {{ __('warehouse.receipts.pdf.date') }} ____ / ____ / ________</div></td>
-        <td><div class="line"></div><div class="cap">{{ __('warehouse.receipts.pdf.sign_driver') }} · {{ __('warehouse.receipts.pdf.date') }} ____ / ____ / ________</div></td>
-        <td><div class="line"></div><div class="cap">{{ __('warehouse.receipts.pdf.sign_client') }} · {{ __('warehouse.receipts.pdf.date') }} ____ / ____ / ________</div></td>
+        <td><div class="line"></div><div class="cap">{{ __('pdf.receipt.sign_warehouse') }} · {{ __('pdf.receipt.date') }} ____ / ____ / ________</div></td>
+        <td><div class="line"></div><div class="cap">{{ __('pdf.receipt.sign_driver') }} · {{ __('pdf.receipt.date') }} ____ / ____ / ________</div></td>
+        <td><div class="line"></div><div class="cap">{{ __('pdf.receipt.sign_client') }} · {{ __('pdf.receipt.date') }} ____ / ____ / ________</div></td>
     </tr></table>
-    <p class="small">{{ __('warehouse.receipts.pdf.footer') }}</p>
+    <p class="small">{{ __('pdf.receipt.footer') }}</p>
 </body>
 </html>
