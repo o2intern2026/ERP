@@ -12,6 +12,7 @@
     <form method="get" class="grid">
         <select name="status"><option value="">{{ __('warehouse.asns.status') }}: {{ __('platform.jobs.all') }}</option>@foreach ($statuses as $s)<option value="{{ $s }}" @selected(($filters['status'] ?? '') === $s)>{{ __('warehouse.asn_statuses.'.$s) }}</option>@endforeach</select>
         <select name="client_id"><option value="">{{ __('warehouse.asns.client') }}: {{ __('platform.jobs.all') }}</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected((int) ($filters['client_id'] ?? 0) === $c->id)>{{ $c->name }}</option>@endforeach</select>
+        <label style="align-self:center"><input type="checkbox" name="pending" value="1" @checked($filters['pending'] ?? false)> {{ __('warehouse.asns.filter_pending') }}</label>
         <button type="submit" class="secondary">{{ __('platform.common.filter') }}</button>
     </form>
     @if ($asns->isEmpty())
@@ -22,7 +23,7 @@
             <tbody>
             @foreach ($asns as $a)
                 <tr>
-                    <td><a href="{{ route('warehouse.asns.show', $a) }}">{{ $a->asn_no }}</a> @if ($a->unplanned)<span class="badge" data-tone="warn">{{ __('warehouse.asns.unplanned_badge') }}</span>@endif</td>
+                    <td><a href="{{ route('warehouse.asns.show', $a) }}">{{ $a->asn_no }}</a> @if ($a->unplanned)<span class="badge" data-tone="warn">{{ __('warehouse.asns.unplanned_badge') }}</span>@endif @if ($a->isPendingClientConfirmation())<span class="badge" data-tone="warn">{{ __('warehouse.asns.client_pending_badge') }}</span>@endif</td>
                     <td>{{ $a->client->name }}</td><td>{{ $a->job->job_no }}</td><td>{{ $a->warehouse->code }}</td>
                     <td>{{ __('warehouse.inbound_types.'.$a->inbound_type) }}</td><td>{{ $a->expected_date?->format('Y-m-d') ?? '—' }}</td>
                     <td class="num">{{ $a->containers_count }}</td><td class="num">{{ $a->lines_count }}</td>

@@ -13,9 +13,6 @@
     @if ($line->isOnOrder())
         <p><mark>{{ __('warehouse.asns.errors.delivery_locked', ['id' => $line->id]) }}</mark></p>
     @else
-        @if ($errors->any())
-            <ul>@foreach (array_unique($errors->all()) as $message)<li><mark>{{ $message }}</mark></li>@endforeach</ul>
-        @endif
         <form method="post" action="{{ route('warehouse.asns.lines.delivery.update', [$asn, $line]) }}">
             @csrf
             <div class="grid">

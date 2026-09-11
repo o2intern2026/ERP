@@ -2,6 +2,7 @@
 
 namespace App\Modules\Warehouse\Models;
 
+use App\Models\User;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Platform\Models\Job;
 use App\Support\Tenancy\BelongsToClient;
@@ -19,7 +20,7 @@ class Asn extends Model
 
     protected $fillable = [
         'asn_no', 'job_id', 'client_id', 'warehouse_id', 'expected_date', 'inbound_type', 'status', 'created_by_type',
-        'created_by', 'unplanned', 'unplanned_confirmed', 'arrived_at', 'receiving_completed_at', 'putaway_completed_at', 'closed_at', 'notes',
+        'created_by', 'unplanned', 'unplanned_confirmed', 'client_confirmed_at', 'client_confirmed_by', 'arrived_at', 'receiving_completed_at', 'putaway_completed_at', 'closed_at', 'notes',
     ];
 
     protected function casts(): array
@@ -28,6 +29,7 @@ class Asn extends Model
             'expected_date' => 'date',
             'unplanned' => 'boolean',
             'unplanned_confirmed' => 'boolean',
+            'client_confirmed_at' => 'datetime',
             'arrived_at' => 'datetime',
             'receiving_completed_at' => 'datetime',
             'putaway_completed_at' => 'datetime',
@@ -74,5 +76,27 @@ class Asn extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()->logOnly(['status', 'expected_date', 'unplanned_confirmed', 'warehouse_id'])->logOnlyDirty()->dontSubmitEmptyLogs();
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function clientConfirmedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'client_confirmed_by');
+    }
+
+    /** Submitted by the client itself (portal form or API push, CHANGE_REQUESTS #116) rather than keyed in by staff. */
+    public function isClientSubmitted(): bool
+    {
+        return $this->created_by_type === 'client';
+    }
+
+    /** A client submission customer service has not confirmed yet — flagged on every screen, never a gate on warehouse work. */
+    public function isPendingClientConfirmation(): bool
+    {
+        return $this->isClientSubmitted() && $this->client_confirmed_at === null;
     }
 }
