@@ -27,6 +27,16 @@
             <dd>{{ __('transport.shipment_types.'.$shipment->shipment_type) }}</dd>
             <dt>{{ __('transport.shipments.tracking_number') }}</dt>
             <dd>{{ $shipment->tracking_number ?: __('transport.not_selected') }}</dd>
+            <dt>{{ __('transport.quotes.client_preference') }}</dt>
+            <dd>
+                @if (is_array($clientPreference ?? null) && isset($clientPreference['source'], $clientPreference['service_level']))
+                    {{ $clientPreference['carrier_name'] ?? __('transport.sources.'.$clientPreference['source']) }} · {{ __('transport.service_levels.'.$clientPreference['service_level']) }}
+                    · {{ \App\Support\Money::cents((int) ($clientPreference['customer_price_cents'] ?? 0))->format() }}
+                    <br><small class="text-muted">{{ __('transport.quotes.client_preference_hint') }}</small>
+                @else
+                    {{ __('transport.quotes.client_preference_none') }}
+                @endif
+            </dd>
         </dl>
     </article>
 

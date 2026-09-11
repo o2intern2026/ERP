@@ -41,12 +41,14 @@ createFromAsn(int $asnId, string $groupingKey = 'mark_address_fba'): array{order
 ## 3. `TransportOptionService` (Transport, X2) — §5.3, §5.6 B5c/B5d
 ```php
 quote(int $shipmentId, string $stage): list<{transport_quote_id, carrier_id, source, service_level, cost_cents, customer_price_cents, eta_days, is_recommended, is_cheapest, is_fastest, quoted_at, expires_at}>
+estimate(int $clientId, array $request): list<{carrier_id, carrier_name, source, service_level, customer_price_cents, eta_days, is_recommended, is_cheapest, is_fastest}>   // CHANGE_REQUESTS #118: the same adapters, pricing and flags for a request with no shipment behind it (portal 获取估价); nothing written, no exception
 ```
 - `stage = preliminary` prices declared packages at order confirmation; `stage = final` prices measured packages after `outbound.packed` (pure-transport orders: declared packages are final).
 - `CarrierAdapter` is the frozen interface `App\Support\Contracts\CarrierAdapter` (added with B5e, see `carriers.md`): `source()`, `capabilities()`, `quote()`, `book()`, `cancel()`, `label()`, `tracking()`. Phase 1 sources: `manual`, `own_fleet`, `transdirect`; `eiz` is No-Go.
 - Asks every active `CarrierAdapter` (`own_fleet`, `transdirect`, `eiz`, `manual`), writes `transport_quotes` rows (`quote_stage`, `status = quoted`) and returns them. Customer price: own_fleet = fixed rate item; third party = `cost × (1 + markup)` where markup comes from the client's rate item (carrier × service level override) else `clients.default_markup_percent`.
 - Flags (§5.6 B5d): cheapest = lowest customer price; fastest = lowest eta; recommended = cheapest among options meeting the requested date, with the `own_fleet_preference_percent` tie-break. Final vs preliminary variance above `variance_tolerance_percent` (default 10) returns quotes but leaves the shipment in `quoted` awaiting re-confirmation.
 - Selection and confirmation are Transport pages, not this service; confirmation emits `shipment.quote_confirmed`.
+- **CHANGE_REQUESTS #118 — the client decides:** the portal order form lists `estimate()` options next to the warehouse 估价 and the client ticks one (`orders.transport_preference`, Orders). At `order.confirmed` the preliminary quote for that option is selected as the client's own choice (`selected_by = client`, the ordering user); at `outbound.packed` the final quote for the same option is confirmed automatically while its price stays within `variance_tolerance_percent` of the reference (the selected preliminary quote, else the client's choice). Otherwise the shipment stays `quoted` and the client confirms in the portal; the coordinator's "确认" is 代客确认.
 
 ## 4. `RateService` (Billing, C) — §6.3, §6.4, §6.7 A5/A6a
 ```php

@@ -13,6 +13,9 @@
                 · {{ __('portal.returns.original_order') }}: <a href="{{ route('portal.orders.show', $order->originalOrder) }}">{{ $order->originalOrder->order_no }}</a>
             @endif
         </p>
+        @if (is_array($order->transport_preference) && isset($order->transport_preference['source'], $order->transport_preference['service_level']))
+            <p class="text-muted" id="client-transport-choice"><small>{{ __('portal.quotes.client_choice') }}: {{ $order->transport_preference['carrier_name'] ?? __('orders.estimate.sources.'.$order->transport_preference['source']) }} · {{ __('orders.service_levels.'.$order->transport_preference['service_level']) }} · {{ \App\Support\Money::cents((int) ($order->transport_preference['customer_price_cents'] ?? 0))->format() }} · {{ __('orders.estimate.stages.preliminary') }}</small></p>
+        @endif
     </header>
 
     @if (auth()->user()->isClientUser() && $order->order_type !== 'return')
@@ -155,6 +158,7 @@
                                             @if ($quote->is_recommended)<span class="badge" data-tone="ok">{{ __('orders.estimate.freight_flags.recommended') }}</span>@endif
                                             @if ($quote->is_cheapest)<span class="badge" data-tone="muted">{{ __('orders.estimate.freight_flags.cheapest') }}</span>@endif
                                             @if ($quote->is_fastest)<span class="badge" data-tone="muted">{{ __('orders.estimate.freight_flags.fastest') }}</span>@endif
+                                            @if (is_array($order->transport_preference) && ($order->transport_preference['source'] ?? null) === $quote->source && ($order->transport_preference['service_level'] ?? null) === $quote->service_level)<span class="badge" data-tone="info">{{ __('portal.quotes.your_choice') }}</span>@endif
                                         </td>
                                         <td>
                                             {{ $quote->expires_at ? \Carbon\Carbon::parse($quote->expires_at)->format('Y-m-d H:i') : __('portal.not_provided') }}

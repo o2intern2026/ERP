@@ -688,6 +688,7 @@ return [
         'open_quote' => '在计费模块查看报价单',
         'weight_assumed' => '未提供重量,按最轻的拣货档估算',
         'freight_pending' => '待运输报价',
+        'client_choice' => '客户下单时选择的运输方案',
         'freight_excluded' => '合计未含运费(待运输报价)',
         'unpriced_note' => '其中 :count 项待报价,未计入合计',
         'eta_days' => '约 :days 天',
@@ -704,6 +705,7 @@ return [
             'pick_carton' => '拣货 · 散箱 · :goods(约 :weight kg/箱)',
             'pick_carton_unknown' => '拣货 · 散箱 · :goods(重量未知)',
             'freight' => '运费 · :label(运输模块报价,客户价)',
+            'freight_preference' => '运费 · :label(下单时客户选择,估价)',
         ],
         'notes' => [
             'freight_pending' => '运费预估:待运输报价',

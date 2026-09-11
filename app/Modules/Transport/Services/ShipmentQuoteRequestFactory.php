@@ -72,9 +72,11 @@ class ShipmentQuoteRequestFactory
             return null;
         }
 
-        $warehouseId = $shipment->fulfilment_id === null
+        // CHANGE_REQUESTS #118: before packing there is no fulfilment yet — quote from the warehouse holding the order's goods (its ASN), else the first active one.
+        $warehouseId = ($shipment->fulfilment_id === null
             ? null
-            : DB::table('fulfilments')->where('id', $shipment->fulfilment_id)->value('warehouse_id');
+            : DB::table('fulfilments')->where('id', $shipment->fulfilment_id)->value('warehouse_id'))
+            ?? $this->defaultWarehouseId((int) $shipment->order_id);
         $warehouse = $warehouseId === null
             ? null
             : DB::table('warehouses')->where('id', $warehouseId)->first();
@@ -83,19 +85,7 @@ class ShipmentQuoteRequestFactory
             return null;
         }
 
-        $sender = [
-            'name' => $warehouse->name,
-            'company_name' => $warehouse->name,
-            'phone' => null,
-            'email' => null,
-            'address' => $warehouse->address,
-            'suburb' => $warehouse->suburb ?? '',
-            'state' => $warehouse->state,
-            'postcode' => $warehouse->postcode ?? '',
-            'type' => 'business',
-        ];
-
-        return trim((string) $sender['address']) !== '' && trim((string) $sender['state']) !== '' ? $sender : null;
+        return self::partyForWarehouse($warehouse);
     }
 
     /** @return list<array{description:string, qty:int, weight_kg:float, length_mm:int, width_mm:int, height_mm:int}> */
@@ -119,7 +109,7 @@ class ShipmentQuoteRequestFactory
             return [];
         }
 
-        return DB::table('declared_packages')
+        $declared = DB::table('declared_packages')
             ->where('order_id', $shipment->order_id)
             ->orderBy('id')
             ->get()
@@ -132,6 +122,80 @@ class ShipmentQuoteRequestFactory
                 'height_mm' => (int) $package->height_mm,
             ])
             ->all();
+        if ($declared !== [] || ! Schema::hasTable('order_lines')) {
+            return $declared;
+        }
+
+        // CHANGE_REQUESTS #118: a from_stock order declares its goods per line (cartons × weight / dims) — that is the preliminary parcel list.
+        return self::itemsFromLines(DB::table('order_lines')->where('order_id', $shipment->order_id)->orderBy('id')->get());
+    }
+
+    /**
+     * Parcels from goods lines (order lines or the portal form before the order exists): one item per line with its carton count as the
+     * quantity; `actual_weight_kg` is the line total, so the per-carton weight is that divided by the cartons. Lines without a weight
+     * and all three dimensions cannot be priced by a carrier and are left out.
+     *
+     * @param  iterable<object|array<string, mixed>>  $lines
+     * @return list<array{description:string, qty:int, weight_kg:float, length_mm:int, width_mm:int, height_mm:int}>
+     */
+    public static function itemsFromLines(iterable $lines): array
+    {
+        $items = [];
+        foreach ($lines as $line) {
+            $line = (object) $line;
+            $qty = max(0, (int) ($line->carton_qty ?? 0));
+            $weight = (float) ($line->actual_weight_kg ?? 0);
+            $dims = [(int) ($line->length_mm ?? 0), (int) ($line->width_mm ?? 0), (int) ($line->height_mm ?? 0)];
+            if ($qty < 1 || $weight <= 0 || min($dims) <= 0) {
+                continue;
+            }
+            $items[] = [
+                'description' => (string) (($line->description_en ?? null) ?: (($line->description_cn ?? null) ?: ($line->package_type ?? 'carton'))),
+                'qty' => $qty,
+                'weight_kg' => round($weight / $qty, 3),
+                'length_mm' => $dims[0],
+                'width_mm' => $dims[1],
+                'height_mm' => $dims[2],
+            ];
+        }
+
+        return $items;
+    }
+
+    /** The carrier-request party for a warehouse row (name, address, suburb, state, postcode); null while the address is incomplete. */
+    public static function partyForWarehouse(object $warehouse): ?array
+    {
+        $sender = [
+            'name' => $warehouse->name,
+            'company_name' => $warehouse->name,
+            'phone' => null,
+            'email' => null,
+            'address' => $warehouse->address,
+            'suburb' => $warehouse->suburb ?? '',
+            'state' => $warehouse->state,
+            'postcode' => $warehouse->postcode ?? '',
+            'type' => 'business',
+        ];
+
+        return trim((string) $sender['address']) !== '' && trim((string) $sender['state']) !== '' ? $sender : null;
+    }
+
+    /** The warehouse of the order's goods (through its ASN lines), else the first active warehouse. */
+    private function defaultWarehouseId(int $orderId): ?int
+    {
+        if (Schema::hasTable('order_lines') && Schema::hasTable('asn_lines') && Schema::hasTable('asns')) {
+            $fromAsn = DB::table('order_lines')
+                ->join('asn_lines', 'asn_lines.id', '=', 'order_lines.asn_line_id')
+                ->join('asns', 'asns.id', '=', 'asn_lines.asn_id')
+                ->where('order_lines.order_id', $orderId)
+                ->value('asns.warehouse_id');
+            if ($fromAsn !== null) {
+                return (int) $fromAsn;
+            }
+        }
+        $first = DB::table('warehouses')->where('active', true)->orderBy('code')->value('id');
+
+        return $first === null ? null : (int) $first;
     }
 
     private function declaredValueCents(int $orderId): int
@@ -143,7 +207,7 @@ class ShipmentQuoteRequestFactory
         return (int) DB::table('order_lines')->where('order_id', $orderId)->sum('total_price_cents');
     }
 
-    private function completeParty(array $party): bool
+    public static function completeParty(array $party): bool
     {
         foreach (['address', 'suburb', 'state', 'postcode', 'type'] as $key) {
             if (trim((string) ($party[$key] ?? '')) === '') {

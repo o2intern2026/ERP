@@ -237,6 +237,10 @@
         </article>
     </div>
 
+    @if (is_array($order->transport_preference) && isset($order->transport_preference['source'], $order->transport_preference['service_level']))
+        {{-- CR #118: what the client chose with the 估价 — Transport confirms the final quote for this option automatically within tolerance. --}}
+        <p id="client-transport-choice"><small class="text-muted">{{ __('orders.estimate.client_choice') }}: {{ $order->transport_preference['carrier_name'] ?? __('orders.estimate.sources.'.$order->transport_preference['source']) }} · {{ __('orders.service_levels.'.$order->transport_preference['service_level']) }} · {{ \App\Support\Money::cents((int) ($order->transport_preference['customer_price_cents'] ?? 0))->format() }}</small></p>
+    @endif
     @include('orders::partials.estimate', ['estimate' => $estimate, 'canEstimate' => $canEstimate, 'estimateRoute' => route('orders.estimate', $order), 'staff' => true])
 
     <h2>{{ __('orders.sections.goods') }}</h2>
