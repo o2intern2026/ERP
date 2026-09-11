@@ -10,7 +10,32 @@ use InvalidArgumentException;
 /** Real Orders-owned implementation of contracts/services.md §2. */
 final class AsnOrderService implements OrderService
 {
-    public function __construct(private readonly OrderCreationService $orders) {}
+    public function __construct(
+        private readonly OrderCreationService $orders,
+        private readonly OrderInboundService $inbound,
+    ) {}
+
+    /**
+     * 从订单导入货物行 (CHANGE_REQUESTS #119): the client's orders still waiting for an ASN, oldest first.
+     *
+     * @return list<array{order_id:int, order_no:string, job_id:int, job_no:string, consignment_mark:?string, deliver_to_name:?string, deliver_to_suburb:?string, deliver_to_state:?string, requested_date:?string, operational_status:string, unlinked_lines:int, total_lines:int, unlinked_cartons:int}>
+     */
+    public function awaitingAsn(int $clientId): array
+    {
+        return $this->inbound->awaitingAsn($clientId);
+    }
+
+    /**
+     * 从订单导入货物行 (CHANGE_REQUESTS #119): the picked orders' unlinked goods lines become lines of the existing ASN, the
+     * orders join its Job. Same rules as 从订单生成预报单 (OrderInboundService::attachToAsn).
+     *
+     * @param  list<int>  $orderIds
+     * @return array{orders:int, lines:int, merged:list<string>, cancelled:list<string>, job_no:string}
+     */
+    public function attachOrdersToAsn(int $asnId, array $orderIds, ?int $actorId, ?string $containerNo = null): array
+    {
+        return $this->inbound->attachToAsn($asnId, $orderIds, $actorId, $containerNo);
+    }
 
     public function createFromAsn(int $asnId, string $groupingKey = 'mark_address_fba'): array
     {

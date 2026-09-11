@@ -758,6 +758,8 @@ return [
             'order_not_eligible' => '订单 :order_no 不能生成预报单：只有还没开始拣货的从库存发货订单（已接收 / 已确认）可以。',
             'already_linked' => '订单 :order_no 的货物已全部关联预报单。',
             'job_has_asn' => '订单 :order_no 所在的 Job :job_no 已有预报单，不能并入；请单独为它生成，或先处理原预报单。',
+            'asn_other_client' => '订单 :order_no 不属于该预报单的客户。',
+            'events_pending' => '订单 :order_no 还有未处理的事件，请稍后再导入。',
         ],
     ],
     'transport' => [

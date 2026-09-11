@@ -99,9 +99,59 @@ final class JobService implements JobServiceContract
                     return false;
                 }
             }
+            // Undelivered events still carry this Job in their envelope (CR #119 review): a consumer running later would open a
+            // shipment or a reservation under a cancelled Job, so the Job stays open until cron has delivered them.
+            if (DB::table('outbox_events')->where('job_id', $jobId)->whereIn('status', ['pending', 'failed'])->exists()) {
+                return false;
+            }
             $job->update(['operational_status' => 'cancelled', 'notes' => trim(($job->notes ? $job->notes."\n" : '').$note)]);
 
             return true;
+        });
+    }
+
+    /**
+     * The tables whose rows follow an order into its new Job — the explicit list of contracts/services.md §5 / db-schema.md
+     * (each carries both order_id and job_id); carrier_costs follow their shipment, order documents their related_id. Platform is
+     * the one place allowed to rewrite job_id on another module's rows, and only here.
+     *
+     * @var list<string>
+     */
+    private const ORDER_SCOPED_TABLES = ['shipments', 'customer_quotes', 'exceptions', 'packages', 'outbound_dispatches', 'warehouse_tasks'];
+
+    /**
+     * CHANGE_REQUESTS #117 / #119: the order merged into a shipment Job takes its dependent records with it — the outbound
+     * shipment Transport opened at order.confirmed (CR #118), its carrier costs, quotes, holds, packages, dispatches, tasks
+     * and order documents — otherwise the per-order Job stays non-empty and can never be closed.
+     */
+    public function moveOrder(int $orderId, int $toJobId): int
+    {
+        return DB::transaction(function () use ($orderId, $toJobId): int {
+            $order = DB::table('orders')->where('id', $orderId)->lockForUpdate()->first(['id', 'job_id', 'client_id']);
+            if ($order === null) {
+                throw new InvalidArgumentException("Unknown order: {$orderId}");
+            }
+            $job = Job::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($toJobId);
+            if ((int) $job->client_id !== (int) $order->client_id) {
+                throw new InvalidArgumentException("Order {$orderId} and Job {$job->job_no} belong to different clients.");
+            }
+            if ((int) $order->job_id === $toJobId) {
+                return 0;
+            }
+
+            $fromJobId = (int) $order->job_id;
+            $moved = 0;
+            DB::table('orders')->where('id', $orderId)->update(['job_id' => $toJobId]);
+            foreach (self::ORDER_SCOPED_TABLES as $table) {
+                $moved += DB::table($table)->where('order_id', $orderId)->where('job_id', $fromJobId)->update(['job_id' => $toJobId]);
+            }
+            $shipmentIds = DB::table('shipments')->where('order_id', $orderId)->pluck('id');
+            if ($shipmentIds->isNotEmpty()) {
+                $moved += DB::table('carrier_costs')->whereIn('shipment_id', $shipmentIds)->where('job_id', $fromJobId)->update(['job_id' => $toJobId]);
+            }
+            $moved += DB::table('documents')->where('related_type', 'order')->where('related_id', $orderId)->where('job_id', $fromJobId)->update(['job_id' => $toJobId]);
+
+            return $moved;
         });
     }
 }

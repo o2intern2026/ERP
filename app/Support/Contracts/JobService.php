@@ -28,4 +28,13 @@ interface JobService
      * untouched and returns false while something still points at it.
      */
     public function cancelIfEmpty(int $jobId, string $note): bool;
+
+    /**
+     * Re-home an order into another Job together with every business record that refers to it and carries job_id
+     * (shipments and their carrier costs, customer quotes, exceptions, packages, dispatches, warehouse tasks, order documents) —
+     * the merge step of 从订单生成预报单 / 从订单导入货物行 (CHANGE_REQUESTS #117 / #119), so the emptied per-order Job really is empty.
+     * Refuses (InvalidArgumentException) when the order and the Job belong to different clients. Charges, invoices, ledger and
+     * events are never re-homed. Returns the number of records moved besides the order itself.
+     */
+    public function moveOrder(int $orderId, int $toJobId): int;
 }
