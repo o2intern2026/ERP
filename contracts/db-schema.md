@@ -53,7 +53,7 @@ Not tables: **holds** = `exceptions` rows with `type = hold`; **order_documents*
 |---|---|
 | `warehouses` | id, code (unique), name, address, suburb (M7), state, postcode (M7), active (bool), business_hours (json: per weekday open/close for hours_business vs hours_after_hours), timestamps |
 | `locations` | id, warehouse_id, zone, aisle, bin, full_code (unique per warehouse), type, active (bool), timestamps |
-| `asns` | id, asn_no (unique), job_id, client_id, warehouse_id, expected_date, inbound_type, status, created_by_type, created_by, unplanned (bool), unplanned_confirmed (bool), arrived_at, receiving_completed_at (nullable — set when a 入库单 batch completes and every line has been received; CHANGE_REQUESTS #90), putaway_completed_at, closed_at, notes, timestamps. **Terminology: ASN = 预报单 (pre-advice); 入库单 = `goods_receipts` (lead decision 2026-09-08, #92)** |
+| `asns` | id, asn_no (unique), job_id, client_id, warehouse_id, expected_date, inbound_type, status, created_by_type, created_by, unplanned (bool), unplanned_confirmed (bool), client_confirmed_at / client_confirmed_by (nullable — set when customer service confirms a client-submitted ASN, i.e. created_by_type = client from the portal form or API push; CHANGE_REQUESTS #116), arrived_at, receiving_completed_at (nullable — set when a 入库单 batch completes and every line has been received; CHANGE_REQUESTS #90), putaway_completed_at, closed_at, notes, timestamps. **Terminology: ASN = 预报单 (pre-advice); 入库单 = `goods_receipts` (lead decision 2026-09-08, #92)** |
 | `containers` | id, asn_id, job_id, container_no, size, unpack_mode, gross_weight_kg, line_count (derived), timestamps — basic fields only, no lifecycle |
 | `asn_lines` | id, asn_id, container_id (nullable), consignment_mark, deliver_to_name, deliver_to_phone, deliver_to_address, deliver_to_suburb, deliver_to_state, deliver_to_postcode, fba_reference, description, package_type, expected_cartons, received_cartons, damaged_cartons, variance_reason, weight_kg, length_mm, width_mm, height_mm, cbm, order_line_id (nullable → order_lines, set by B2c), timestamps |
 | `asn_imports` | id, asn_id (nullable), client_id, job_id, document_id, status, row_count, error_count, errors (json), warnings (json), created_by, timestamps (B2b) |
@@ -73,6 +73,12 @@ Not tables: **holds** = `exceptions` rows with `type = hold`; **order_documents*
 | `stocktake_lines` | id, stocktake_id, stock_unit_id, location_id, system_qty, counted_qty, variance, reason |
 | `return_receipts` | id, receipt_no (unique, M4), job_id, client_id (M4), return_order_id (nullable — set when the return order exists), original_order_id, original_shipment_id, return_shipment_id, warehouse_id, status, received_at, inspected_at, inspected_by, completed_at, notes (M4), timestamps |
 | `return_receipt_lines` | id, return_receipt_id, original_order_line_id, asn_line_id, original_fulfilment_id, description (M4), expected_qty, received_qty, condition, disposition, stock_unit_id (nullable, created at inspection for every disposition with received_qty > 0), received_at, inspected_at (M4) |
+
+## 4b. Portal (owner X1) — CHANGE_REQUESTS #116
+
+| Table | Columns |
+|---|---|
+| `portal_asn_submissions` | id, client_id, asn_id, channel (portal \| api), idempotency_key (nullable; unique per client — an API replay returns the first ASN), token_id (nullable → order_api_tokens), user_id (nullable), line_count, created_at. One row per client self-service ASN submission; the ASN itself is Warehouse's `asns` row with created_by_type = client |
 
 ## 5. Transport (owner X2) — §5.2
 | table | columns |

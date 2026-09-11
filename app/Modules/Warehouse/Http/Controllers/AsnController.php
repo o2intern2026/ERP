@@ -29,12 +29,13 @@ class AsnController extends Controller
 {
     public function index(Request $request): View
     {
-        $filters = $request->validate(['status' => ['nullable', Rule::in(Enums::ASN_STATUSES)], 'client_id' => ['nullable', 'integer']]);
+        $filters = $request->validate(['status' => ['nullable', Rule::in(Enums::ASN_STATUSES)], 'client_id' => ['nullable', 'integer'], 'pending' => ['nullable', 'boolean']]);
 
         return view('warehouse::asns.index', [
             'asns' => Asn::query()->with(['client', 'warehouse', 'job'])->withCount(['containers', 'lines'])
                 ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
                 ->when($filters['client_id'] ?? null, fn ($q, $v) => $q->where('client_id', $v))
+                ->when($filters['pending'] ?? null, fn ($q) => $q->where('created_by_type', 'client')->whereNull('client_confirmed_at')) // 待客服确认 (CHANGE_REQUESTS #116)
                 ->when(WarehouseContext::currentId(), fn ($q, $v) => $q->where('warehouse_id', $v))
                 ->orderByDesc('id')->paginate(30)->withQueryString(),
             'filters' => $filters,
@@ -84,7 +85,7 @@ class AsnController extends Controller
 
     public function show(Asn $asn, GoodsReceiptService $receipts): View
     {
-        $asn->load(['client', 'warehouse', 'job', 'containers', 'lines.stockUnits', 'lines.receiptLine', 'lines.container']);
+        $asn->load(['client', 'warehouse', 'job', 'containers', 'lines.stockUnits', 'lines.receiptLine', 'lines.container', 'createdBy', 'clientConfirmedBy']);
 
         return view('warehouse::asns.show', [
             'asn' => $asn,
@@ -197,6 +198,18 @@ class AsnController extends Controller
     }
 
     /** B2c: one click → OMS OrderService::createFromAsn; asn_lines.order_line_id written back; idempotent (§4.7 #17 #18). */
+    /** 确认客户预报 (CHANGE_REQUESTS #116): customer service signs off a portal / API submission; the badge goes here and in the portal. */
+    public function confirmClient(Asn $asn, AsnService $asns): RedirectResponse
+    {
+        try {
+            $asns->confirmClientSubmission($asn, auth()->id());
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['confirm_client' => RuleViolation::display($e)]);
+        }
+
+        return back()->with('status', __('warehouse.asns.client_confirmed', ['no' => $asn->asn_no]));
+    }
+
     public function generateOrders(Asn $asn, AsnOrderGeneration $generation): RedirectResponse
     {
         try {

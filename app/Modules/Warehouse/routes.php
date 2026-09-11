@@ -58,6 +58,7 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/asns/{asn}/import', [AsnController::class, 'import'])->name('asns.import');
         Route::post('/asns/{asn}/arrive', [AsnController::class, 'arrive'])->name('asns.arrive');
         Route::post('/asns/{asn}/confirm-unplanned', [AsnController::class, 'confirmUnplanned'])->name('asns.confirm_unplanned');
+        Route::post('/asns/{asn}/confirm-client', [AsnController::class, 'confirmClient'])->middleware('role:admin|customer_service')->name('asns.confirm_client'); // 确认客户预报 — portal / API submissions (CHANGE_REQUESTS #116)
         Route::post('/asns/{asn}/generate-orders', [AsnController::class, 'generateOrders'])->name('asns.generate_orders');
         Route::get('/receiving', [ReceivingController::class, 'index'])->name('receiving.index'); // 待收货 worklist (the 收货 button itself is warehouse-roles only)
     });

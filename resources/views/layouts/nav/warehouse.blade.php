@@ -1,6 +1,7 @@
 {{-- Owner: seat C. Only the Warehouse module edits this include (contracts/routes.md). --}}
 @role('admin|warehouse_supervisor|warehouse_operator|dispatcher|customer_service|finance')
-    <li><a href="{{ route('warehouse.asns.index') }}">{{ __('warehouse.nav_asns') }}</a></li>
+    @php($pendingClientAsns = auth()->user()->hasAnyRole(['admin', 'customer_service']) ? app(\App\Modules\Warehouse\Services\AsnService::class)->pendingClientConfirmationCount() : 0)
+    <li><a href="{{ route('warehouse.asns.index') }}">{{ __('warehouse.nav_asns') }}@if ($pendingClientAsns > 0) <span class="badge" data-tone="warn" title="{{ __('warehouse.asns.filter_pending') }}">{{ $pendingClientAsns }}</span>@endif</a></li>
     @role('admin|warehouse_supervisor|warehouse_operator|customer_service')
         <li><a href="{{ route('warehouse.receiving.index') }}">{{ __('warehouse.nav_receiving') }}</a></li>
     @endrole

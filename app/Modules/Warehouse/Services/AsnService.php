@@ -111,4 +111,52 @@ final class AsnService
                 ->whereNull('order_line_id')->update(Arr::except($fields, ['consignment_mark']));
         });
     }
+
+    /**
+     * 确认客户预报 (CHANGE_REQUESTS #116): customer service has checked a client-submitted ASN (container, ETA, goods lines).
+     * A flag for the screens and the portal only — receiving and putaway never wait for it.
+     */
+    public function confirmClientSubmission(Asn $asn, ?int $userId): void
+    {
+        if (! $asn->isClientSubmitted()) {
+            throw new RuleViolation("ASN {$asn->asn_no} was not submitted by the client.", 'warehouse.asns.errors.not_client_submitted', ['no' => $asn->asn_no]);
+        }
+        if ($asn->client_confirmed_at !== null) {
+            throw new RuleViolation("ASN {$asn->asn_no} is already confirmed.", 'warehouse.asns.errors.already_confirmed', ['no' => $asn->asn_no]);
+        }
+        $asn->update(['client_confirmed_at' => now(), 'client_confirmed_by' => $userId]);
+    }
+
+    /**
+     * The client re-uploads its packing list while the submission is still a draft: drop the lines nobody has touched so the new
+     * list replaces them instead of doubling up. Only for a booked, unconfirmed client submission whose lines have no receipt,
+     * stock unit or order behind them — otherwise the list is history and staff amend it by hand.
+     *
+     * @return int lines removed
+     */
+    public function clearDraftLines(Asn $asn): int
+    {
+        if (! $asn->isPendingClientConfirmation() || $asn->status !== 'booked') {
+            throw new RuleViolation("ASN {$asn->asn_no} is no longer a draft submission.", 'warehouse.asns.errors.draft_lines_locked', ['no' => $asn->asn_no]);
+        }
+
+        return DB::transaction(function () use ($asn): int {
+            $lines = $asn->lines()->with(['stockUnits', 'receiptLine'])->lockForUpdate()->get();
+            if ($lines->contains(fn (AsnLine $l) => $l->isReceived() || $l->isOnOrder())) {
+                throw new RuleViolation("ASN {$asn->asn_no} has lines that were already received or ordered.", 'warehouse.asns.errors.draft_lines_locked', ['no' => $asn->asn_no]);
+            }
+            $removed = $lines->isEmpty() ? 0 : $asn->lines()->whereKey($lines->modelKeys())->delete();
+            foreach ($asn->containers()->get() as $container) {
+                $container->update(['line_count' => 0]);
+            }
+
+            return $removed;
+        });
+    }
+
+    /** Client submissions waiting for customer service — the 预报单 nav badge (all warehouses). */
+    public function pendingClientConfirmationCount(): int
+    {
+        return Asn::query()->where('created_by_type', 'client')->whereNull('client_confirmed_at')->count();
+    }
 }
