@@ -46,4 +46,9 @@ final class FakeJobService implements JobService
 
         return true;
     }
+
+    public function moveOrder(int $orderId, int $toJobId): int
+    {
+        return 0;
+    }
 }

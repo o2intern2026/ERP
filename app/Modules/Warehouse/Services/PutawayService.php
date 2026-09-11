@@ -44,6 +44,10 @@ final class PutawayService
 
     private function completeIfDone(Asn $asn): void
     {
+        // Hold the ASN row while "is everything put away?" is answered: 从订单导入货物行 (AsnService::addOrderLinesToAsn) locks the
+        // same row before appending lines, so no line can slip in between this check and the flip to putaway, and none can land
+        // on an ASN that has just flipped.
+        $asn = Asn::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($asn->id);
         $units = StockUnit::query()->withoutGlobalScopes()->whereIn('asn_line_id', $asn->lines()->pluck('id'))->get();
         if ($units->isEmpty() || $units->contains(fn (StockUnit $u) => ! $u->putaway_completed)) {
             return;

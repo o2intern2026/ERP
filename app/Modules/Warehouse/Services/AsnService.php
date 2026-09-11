@@ -174,16 +174,65 @@ final class AsnService implements InboundService
 
         return DB::transaction(function () use ($header, $lines): array {
             $asn = $this->create(Arr::only($header, ['client_id', 'warehouse_id', 'job_id', 'inbound_type', 'expected_date', 'notes', 'reference', 'containers']));
-            $created = $this->addLines($asn, array_map(fn (array $line): array => Arr::only($line, [
-                'order_line_id', 'container_no', 'consignment_mark', 'description', 'expected_cartons', 'package_type', 'deliver_to_name', 'deliver_to_phone',
-                'deliver_to_address', 'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'fba_reference', 'weight_kg', 'length_mm', 'width_mm', 'height_mm', 'cbm',
-            ]), $lines));
 
-            return [
-                'asn_id' => $asn->id,
-                'asn_no' => $asn->asn_no,
-                'lines' => array_values(array_map(fn (AsnLine $l): array => ['order_line_id' => (int) $l->order_line_id, 'asn_line_id' => $l->id], $created)),
-            ];
+            return $this->appendOrderLines($asn, $lines);
         });
+    }
+
+    /**
+     * InboundService (CHANGE_REQUESTS #119): 从订单导入货物行 — the same hand-over onto an ASN that already exists. Only while the
+     * ASN is still booked / arrived / receiving: once putaway starts the goods lines are history and the orders are matched by
+     * 从预报单生成派送订单 instead. A line without a container goes onto the ASN's only container when it has exactly one; on a
+     * multi-container ASN every line must name one of them (the devanning band is billed per container line_count).
+     */
+    public function addOrderLinesToAsn(int $asnId, array $lines): array
+    {
+        if ($lines === []) {
+            throw new RuleViolation('No goods lines to put on the ASN.', 'warehouse.asns.errors.no_lines_for_asn');
+        }
+
+        return DB::transaction(function () use ($asnId, $lines): array {
+            // The ASN row is held for the whole append: PutawayService::completeIfDone takes the same lock before it flips the
+            // status, so the check below and the insert cannot straddle a putaway completion.
+            $asn = Asn::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($asnId);
+            if (! in_array($asn->status, ['booked', 'arrived', 'receiving'], true)) {
+                throw new RuleViolation("ASN {$asn->asn_no} is past receiving; order lines cannot be imported.", 'warehouse.asns.errors.import_orders_closed', ['no' => $asn->asn_no]);
+            }
+
+            $containers = $asn->containers()->orderBy('id')->pluck('container_no')->map(fn ($no) => (string) $no);
+            if ($containers->count() === 1) {
+                $only = $containers->first();
+                $lines = array_map(fn (array $line): array => filled($line['container_no'] ?? null) ? $line : [...$line, 'container_no' => $only], $lines);
+            }
+            foreach ($lines as $line) {
+                $no = $line['container_no'] ?? null;
+                if (($containers->count() > 1 && ! filled($no)) || (filled($no) && ! $containers->contains((string) $no))) {
+                    throw new RuleViolation("ASN {$asn->asn_no}: every imported line must sit on one of its containers.", 'warehouse.asns.errors.import_orders_pick_container', ['no' => $asn->asn_no, 'containers' => $containers->isEmpty() ? '—' : $containers->implode(', ')]);
+                }
+            }
+
+            return $this->appendOrderLines($asn, $lines);
+        });
+    }
+
+    /**
+     * Shared tail of createAsnFromOrderLines / addOrderLinesToAsn: whitelist the asn_lines columns, write the lines, report the
+     * order_line → asn_line mapping the caller needs for its side of the link.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     * @return array{asn_id:int, asn_no:string, lines:list<array{order_line_id:int, asn_line_id:int}>}
+     */
+    private function appendOrderLines(Asn $asn, array $lines): array
+    {
+        $created = $this->addLines($asn, array_map(fn (array $line): array => Arr::only($line, [
+            'order_line_id', 'container_no', 'consignment_mark', 'description', 'expected_cartons', 'package_type', 'deliver_to_name', 'deliver_to_phone',
+            'deliver_to_address', 'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'fba_reference', 'weight_kg', 'length_mm', 'width_mm', 'height_mm', 'cbm',
+        ]), $lines));
+
+        return [
+            'asn_id' => $asn->id,
+            'asn_no' => $asn->asn_no,
+            'lines' => array_values(array_map(fn (AsnLine $l): array => ['order_line_id' => (int) $l->order_line_id, 'asn_line_id' => $l->id], $created)),
+        ];
     }
 }

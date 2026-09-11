@@ -27,4 +27,15 @@ final class FakeOrderService implements OrderService
             'blocked' => [],
         ];
     }
+
+    /** No pending orders: the ASN page shows 该客户没有待建预报的订单. */
+    public function awaitingAsn(int $clientId): array
+    {
+        return [];
+    }
+
+    public function attachOrdersToAsn(int $asnId, array $orderIds, ?int $actorId, ?string $containerNo = null): array
+    {
+        return ['orders' => 0, 'lines' => 0, 'merged' => [], 'cancelled' => [], 'job_no' => ''];
+    }
 }

@@ -56,6 +56,7 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::get('/asns/{asn}/lines/{line}/delivery', [AsnController::class, 'editDelivery'])->name('asns.lines.delivery.edit'); // 编辑收件信息: what 从预报单生成派送订单 needs per line (CHANGE_REQUESTS #115)
         Route::post('/asns/{asn}/lines/{line}/delivery', [AsnController::class, 'updateDelivery'])->name('asns.lines.delivery.update');
         Route::post('/asns/{asn}/import', [AsnController::class, 'import'])->name('asns.import');
+        Route::post('/asns/{asn}/import-orders', [AsnController::class, 'importOrders'])->middleware('role:admin|customer_service|warehouse_supervisor')->name('asns.import_orders'); // 从订单导入货物行 — the client's pending orders become goods lines (CHANGE_REQUESTS #119)
         Route::post('/asns/{asn}/arrive', [AsnController::class, 'arrive'])->name('asns.arrive');
         Route::post('/asns/{asn}/confirm-unplanned', [AsnController::class, 'confirmUnplanned'])->name('asns.confirm_unplanned');
         Route::post('/asns/{asn}/confirm-client', [AsnController::class, 'confirmClient'])->middleware('role:admin|customer_service')->name('asns.confirm_client'); // 确认客户预报 — portal / API submissions (CHANGE_REQUESTS #116)
