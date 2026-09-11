@@ -39,4 +39,11 @@ final class FakeJobService implements JobService
             'margin_is_estimate' => true,
         ];
     }
+
+    public function cancelIfEmpty(int $jobId, string $note): bool
+    {
+        unset($this->jobs[$jobId]);
+
+        return true;
+    }
 }

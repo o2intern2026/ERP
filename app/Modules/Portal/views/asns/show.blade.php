@@ -21,40 +21,15 @@
             <dt>{{ __('portal.asns.fields.expected_date') }}</dt><dd>{{ $asn->expected_date?->format('Y-m-d') ?? '—' }}</dd>
             <dt>{{ __('portal.asns.fields.reference') }}</dt><dd>{{ $asn->job?->reference ?? '—' }}</dd>
             <dt>{{ __('portal.asns.fields.job_no') }}</dt><dd>{{ $asn->job?->job_no ?? '—' }}</dd>
-            <dt>{{ __('portal.asns.submitted_at') }}</dt><dd>{{ $asn->created_at?->format('Y-m-d H:i') }}</dd>
-            <dt>{{ __('portal.asns.confirmed_at') }}</dt><dd>{{ $asn->client_confirmed_at?->format('Y-m-d H:i') ?? __('portal.asns.pending_badge') }}</dd>
+            <dt>{{ __('portal.asns.created_at') }}</dt><dd>{{ $asn->created_at?->format('Y-m-d H:i') }}</dd>
+            @if ($asn->isClientSubmitted())<dt>{{ __('portal.asns.confirmed_at') }}</dt><dd>{{ $asn->client_confirmed_at?->format('Y-m-d H:i') ?? __('portal.asns.pending_badge') }}</dd>@endif
             @if ($asn->notes)<dt>{{ __('portal.asns.fields.notes') }}</dt><dd>{{ $asn->notes }}</dd>@endif
         </dl>
     </article>
 
-    <h2>{{ __('portal.asns.sections.imports') }}</h2>
-    @if ($imports->isEmpty())
-        <p class="text-muted">{{ __('portal.asns.imports.none') }}</p>
-    @else
-        @php($latest = $imports->first())
-        <p>
-            {{ __('portal.asns.imports.rows', ['rows' => $latest->row_count]) }} · {{ __('portal.asns.imports.errors', ['count' => $latest->error_count]) }} · {{ __('portal.asns.imports.warnings', ['count' => count($latest->warnings ?? [])]) }}
-            <small class="text-muted">{{ $latest->created_at?->format('Y-m-d H:i') }}</small>
-        </p>
-        @if (! empty($latest->errors) || ! empty($latest->warnings))
-            <ul>
-                @foreach (array_slice($latest->errors ?? [], 0, 50) as $e)<li><mark>{{ __('portal.asns.imports.row', ['row' => $e['row'] ?? '—']) }}</mark> {{ $e['column'] ?? '' }} · {{ $e['message'] ?? '' }}</li>@endforeach
-                @foreach (array_slice($latest->warnings ?? [], 0, 50) as $w)<li class="text-muted">{{ __('portal.asns.imports.row', ['row' => $w['row'] ?? '—']) }} {{ $w['column'] ?? '' }} · {{ $w['message'] ?? '' }}</li>@endforeach
-            </ul>
-        @endif
-    @endif
-    @if ($canReplace)
-        <form method="post" action="{{ route('portal.asns.import', $asn) }}" enctype="multipart/form-data" class="grid">
-            @csrf
-            <label>{{ __('portal.asns.replace') }}<input type="file" name="packing_list" accept=".xlsx,.xls,.csv" required></label>
-            <button type="submit" class="secondary" style="align-self:end">{{ __('portal.asns.replace') }}</button>
-        </form>
-        <p class="text-muted"><small>{{ __('portal.asns.replace_hint') }}</small></p>
-    @endif
-
     <h2>{{ __('portal.asns.sections.lines') }}</h2>
     @if ($asn->lines->isEmpty())
-        <p class="text-muted">{{ __('portal.asns.imports.none') }}</p>
+        <p class="text-muted">{{ __('portal.asns.lines_none') }}</p>
     @else
         <div class="overflow-auto"><table class="dense">
             <thead><tr>
@@ -71,6 +46,21 @@
             @endforeach
             </tbody>
         </table></div>
+    @endif
+
+    @if ($imports->isNotEmpty())
+        @php($latest = $imports->first())
+        <h2>{{ __('portal.asns.sections.imports') }}</h2>
+        <p>
+            {{ __('portal.asns.imports.rows', ['rows' => $latest->row_count]) }} · {{ __('portal.asns.imports.errors', ['count' => $latest->error_count]) }} · {{ __('portal.asns.imports.warnings', ['count' => count($latest->warnings ?? [])]) }}
+            <small class="text-muted">{{ $latest->created_at?->format('Y-m-d H:i') }}</small>
+        </p>
+        @if (! empty($latest->errors) || ! empty($latest->warnings))
+            <ul>
+                @foreach (array_slice($latest->errors ?? [], 0, 50) as $e)<li><mark>{{ __('portal.asns.imports.row', ['row' => $e['row'] ?? '—']) }}</mark> {{ $e['column'] ?? '' }} · {{ $e['message'] ?? '' }}</li>@endforeach
+                @foreach (array_slice($latest->warnings ?? [], 0, 50) as $w)<li class="text-muted">{{ __('portal.asns.imports.row', ['row' => $w['row'] ?? '—']) }} {{ $w['column'] ?? '' }} · {{ $w['message'] ?? '' }}</li>@endforeach
+            </ul>
+        @endif
     @endif
 
     <h2>{{ __('portal.asns.sections.receipts') }}</h2>

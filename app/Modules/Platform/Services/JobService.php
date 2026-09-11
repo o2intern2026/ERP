@@ -8,6 +8,7 @@ use App\Support\Contracts\JobService as JobServiceContract;
 use App\Support\Enums;
 use App\Support\Tenancy\ClientScope;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 
 /**
@@ -83,5 +84,24 @@ final class JobService implements JobServiceContract
         $sequence = $last ? ((int) substr((string) $last, -4)) + 1 : 1;
 
         return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+    }
+
+    /** CHANGE_REQUESTS #117: the emptied per-order Job after 从订单生成预报单 merged its order into the shipment Job. */
+    public function cancelIfEmpty(int $jobId, string $note): bool
+    {
+        return DB::transaction(function () use ($jobId, $note): bool {
+            $job = Job::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($jobId);
+            if ($job->operational_status === 'cancelled') {
+                return true;
+            }
+            foreach (['orders', 'asns', 'goods_receipts', 'warehouse_tasks', 'shipments', 'charges', 'invoice_lines', 'documents'] as $table) {
+                if (Schema::hasColumn($table, 'job_id') && DB::table($table)->where('job_id', $jobId)->exists()) {
+                    return false;
+                }
+            }
+            $job->update(['operational_status' => 'cancelled', 'notes' => trim(($job->notes ? $job->notes."\n" : '').$note)]);
+
+            return true;
+        });
     }
 }

@@ -12,7 +12,9 @@ use App\Modules\Warehouse\Models\AsnLine;
 use App\Modules\Warehouse\Models\Container;
 use App\Modules\Warehouse\Models\GoodsReceipt;
 use App\Modules\Warehouse\Models\StockUnit;
+use App\Modules\Warehouse\Services\AsnService;
 use App\Modules\Warehouse\Services\StockService;
+use App\Support\Contracts\InboundService;
 use App\Support\Contracts\StockService as StockServiceContract;
 use App\Support\Outbox\ConsumerRegistry;
 use App\Support\Search\SearchRegistry;
@@ -24,6 +26,7 @@ class WarehouseServiceProvider extends ServiceProvider
     {
         // Real StockService (contracts/services.md §1) from M2; overrides FakeStockService.
         $this->app->singleton(StockServiceContract::class, StockService::class);
+        $this->app->bind(InboundService::class, AsnService::class); // 从订单生成预报单: Orders → Warehouse (CHANGE_REQUESTS #117)
     }
 
     public function boot(): void

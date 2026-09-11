@@ -145,6 +145,7 @@ return [
             'not_client_submitted' => '预报单 :no 不是客户提交的，无需确认。',
             'already_confirmed' => '预报单 :no 已经确认过了。',
             'draft_lines_locked' => '预报单 :no 已确认或已开始收货，装箱单不能再替换，请联系客服修改。',
+            'no_lines_for_asn' => '没有可放入预报单的货物行。',
         ],
     ],
 

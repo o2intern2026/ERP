@@ -3,11 +3,10 @@
 @section('title', __('portal.asns.title'))
 
 @section('content')
-    <header class="grid">
+    <header>
         <h1>{{ __('portal.asns.title') }}</h1>
-        <p style="text-align:right"><a role="button" href="{{ route('portal.asns.create') }}">{{ __('portal.asns.create') }}</a></p>
+        <p class="text-muted"><small>{{ __('portal.asns.hint') }}</small></p>
     </header>
-    <p class="text-muted"><small>{{ __('portal.asns.hint') }}</small></p>
 
     <form method="get">
         <div class="grid">

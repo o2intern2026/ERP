@@ -4,13 +4,14 @@ namespace App\Modules\Warehouse\Services;
 
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnLine;
+use App\Support\Contracts\InboundService;
 use App\Support\Contracts\JobService;
 use App\Support\Exceptions\RuleViolation;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 /** B2: ASN creation (planned or unplanned), containers (basic fields), goods lines; B2b import writes lines through addLines(). */
-final class AsnService
+final class AsnService implements InboundService
 {
     public function __construct(private readonly JobService $jobs) {}
 
@@ -158,5 +159,31 @@ final class AsnService
     public function pendingClientConfirmationCount(): int
     {
         return Asn::query()->where('created_by_type', 'client')->whereNull('client_confirmed_at')->count();
+    }
+
+    /**
+     * InboundService (CHANGE_REQUESTS #117): 从订单生成预报单 — Orders hands over the goods lines of the client's orders; the ASN is
+     * created here exactly like a coordinator's (created_by_type coordinator, under the Job Orders chose) and every line keeps its
+     * order_line_id, so the two documents are linked in both directions and 从预报单生成派送订单 skips these lines.
+     */
+    public function createAsnFromOrderLines(array $header, array $lines): array
+    {
+        if ($lines === []) {
+            throw new RuleViolation('No goods lines to put on the ASN.', 'warehouse.asns.errors.no_lines_for_asn');
+        }
+
+        return DB::transaction(function () use ($header, $lines): array {
+            $asn = $this->create(Arr::only($header, ['client_id', 'warehouse_id', 'job_id', 'inbound_type', 'expected_date', 'notes', 'reference', 'containers']));
+            $created = $this->addLines($asn, array_map(fn (array $line): array => Arr::only($line, [
+                'order_line_id', 'container_no', 'consignment_mark', 'description', 'expected_cartons', 'package_type', 'deliver_to_name', 'deliver_to_phone',
+                'deliver_to_address', 'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'fba_reference', 'weight_kg', 'length_mm', 'width_mm', 'height_mm', 'cbm',
+            ]), $lines));
+
+            return [
+                'asn_id' => $asn->id,
+                'asn_no' => $asn->asn_no,
+                'lines' => array_values(array_map(fn (AsnLine $l): array => ['order_line_id' => (int) $l->order_line_id, 'asn_line_id' => $l->id], $created)),
+            ];
+        });
     }
 }

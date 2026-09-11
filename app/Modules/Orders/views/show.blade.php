@@ -93,6 +93,10 @@
     @role('admin|warehouse_supervisor|warehouse_operator')
         <p><a role="button" class="secondary outline" href="{{ route('warehouse.tasks.create', ['order_id' => $order->id, 'task_type' => 'wrap']) }}">{{ __('orders.actions.register_vas') }}</a></p>
     @endrole
+    @if ($order->order_type === 'from_stock' && in_array($order->operational_status, \App\Modules\Orders\Services\OrderInboundService::ELIGIBLE_STATUSES, true) && $order->lines->contains(fn ($l) => $l->asn_line_id === null) && auth()->user()->hasAnyRole(\App\Modules\Orders\Services\OrderInboundService::ROLES))
+        {{-- CR #117: the goods of this order have no ASN yet — open one for the orders that arrive together. --}}
+        <p><a role="button" class="secondary outline" href="{{ route('orders.inbound.index', ['client_id' => $order->client_id, 'order_ids' => [$order->id]]) }}">{{ __('orders.inbound.from_order') }}</a> <small class="text-muted">{{ __('orders.inbound.from_order_hint') }}</small></p>
+    @endif
 
     <h2>{{ __('orders.sections.instruction') }}</h2>
     {{-- Tester feedback 2026-09-10: label/value facts sit in the shared two-column card (dl.kv-2 / article.kv-card, app.css). --}}

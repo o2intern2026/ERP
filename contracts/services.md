@@ -9,6 +9,7 @@ Cross-module **synchronous** reads and writes go only through these interfaces (
 | `TransportOptionService` | Transport / X2 | M5 | `FakeTransportOptionService` — own_fleet $75, transdirect / eiz at cost × 1.20 |
 | `RateService` | Billing / C | M6 | `FakeRateService` — Edward card v1 for every client; `missing_rate` for codes without a row; `withRate()` for tests |
 | `JobService` | Platform / C | **M1 ✓** `App\Modules\Platform\Services\JobService` | retired in M1 (`FakeJobService` remains for unit tests only) |
+| `InboundService` | Warehouse / C | **2026-09-11 ✓** `App\Modules\Warehouse\Services\AsnService` (CHANGE_REQUESTS #117) | — (no Fake; Orders calls the real service) |
 | `ExceptionService` | Platform / C | **M1 ✓** `App\Modules\Platform\Services\ExceptionService` | — |
 | `DocumentService` | Platform / C | **M1 ✓** `attach()`; Document Centre pages M6 | — |
 | `ManifestParser` | Orders / X1, shared with Warehouse B2b | **M3 ✓** `App\Modules\Orders\Services\SpreadsheetManifestParser` | retired in M4 integration (`FakeManifestParser` remains for unit tests) |
@@ -62,6 +63,7 @@ suggestPalletClass(int $clientId, int $lengthMm, int $widthMm, int $heightMm, fl
 ```php
 create(int $clientId, string $jobType, array $attributes = []): array{job_id:int, job_no:string}
 summarize(int $jobId): array{job_id, job_no, client_id, job_type, operational_status, revenue_status, cost_status, estimated_revenue_cents, actual_revenue_cents, estimated_cost_cents, actual_cost_cents, margin_cents, margin_is_estimate}
+cancelIfEmpty(int $jobId, string $note): bool   // CHANGE_REQUESTS #117: cancel a Job nothing refers to any more (the per-order loose Job after its order was merged into a shipment Job); false while orders / ASNs / shipments / charges / documents still point at it
 ```
 - The only way to create a Job (`jobs` is a shared platform table). `job_no` = `JOB-YYYYMMDD-NNNN`. `attributes`: `reference`, `notes`.
 - `summarize` derives the three statuses from child records and recomputes the cached money (§1.6): revenue from `charges` / `invoices` / `payments`, cost from `carrier_costs`; `margin_is_estimate` until `cost_status = confirmed`. Cost and margin are never returned to client-role callers (server-side, M1).
@@ -112,3 +114,11 @@ parse(string $path): array{rows: list<Row>, errors: list<{row, column, message}>
 - `CreditNoteService` (A8b): `draft(invoice, lines, reason, by)` requests a `credit_note` approval; `issue(note, by)` only when a second person approved.
 - `RateCardService` (A5): `newVersion`, `createClientCard`, `updateItem` / `addItem` (drafts only), `requestActivation` (approval `rate_card_change`), `activate` (supersedes the previous version from the new effective date; clients bound to the old standard card follow the new one).
 - `QuoteService` (A18, shared with X1's A7b): `create(clientId, lines[{charge_code, qty, context} | {charge_code, qty, amount_cents, transport_quote_id?}], attrs)` — a line with `amount_cents` is pre-priced (Transport customer freight) and stored as given (CHANGE_REQUESTS #68); prices each line (POA / missing flagged in `assumptions`), `setStatus`.
+
+## 10. `InboundService` (Warehouse, C) — 从订单生成预报单, CHANGE_REQUESTS #117
+```php
+createAsnFromOrderLines(array $header, array $lines): array{asn_id:int, asn_no:string, lines:list<{order_line_id:int, asn_line_id:int}>}
+```
+- `header`: `client_id`, `warehouse_id`, `job_id` (the Job the caller chose — Orders merges the picked orders into it first), `inbound_type`, `expected_date?`, `notes?`, `containers?` (basic fields). `lines`: asn_lines columns per goods line plus `order_line_id` (and `container_no` to attach the line to a header container).
+- Warehouse creates the ASN exactly like a coordinator's (`created_by_type = coordinator`, status `booked`) and writes `asn_lines.order_line_id`; the caller writes `order_lines.asn_line_id` from the returned pairs. Both documents stay linked in both directions, so 从预报单生成派送订单 skips these lines and putaway (`asn.putaway_completed`) allocates the orders' backorders.
+- Mirror of `OrderService::createFromAsn` (ASN first → orders); no event — a person clicks, the ASN must exist when the page returns.

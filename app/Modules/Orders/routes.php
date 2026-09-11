@@ -13,6 +13,7 @@ use App\Modules\Orders\Http\Controllers\OrderChangeController;
 use App\Modules\Orders\Http\Controllers\OrderController;
 use App\Modules\Orders\Http\Controllers\OrderEstimateController;
 use App\Modules\Orders\Http\Controllers\OrderImportController;
+use App\Modules\Orders\Http\Controllers\OrderInboundController;
 use App\Modules\Orders\Http\Controllers\OrderLineController;
 use App\Modules\Orders\Http\Controllers\QueueController;
 use App\Modules\Orders\Http\Controllers\ReturnController;
@@ -32,6 +33,8 @@ Route::prefix('orders')->name('orders.')->group(function () {
     Route::post('/', [OrderController::class, 'store'])->name('store');
     Route::get('/queue', [QueueController::class, 'index'])->name('queue');
     Route::get('/requests', [ClientRequestController::class, 'index'])->name('requests.index'); // 客户请求 inbox: cancel + return requests from the portal (CR #112)
+    Route::get('/inbound', [OrderInboundController::class, 'index'])->name('inbound.index'); // 从订单生成预报单: orders whose goods have no ASN yet (CR #117)
+    Route::post('/inbound', [OrderInboundController::class, 'store'])->name('inbound.store');
     Route::get('/batches', [BatchController::class, 'index'])->name('batches');
     Route::get('/drafts/create', [DraftOrderController::class, 'create'])->name('drafts.create');
     Route::post('/drafts', [DraftOrderController::class, 'store'])->name('drafts.store');

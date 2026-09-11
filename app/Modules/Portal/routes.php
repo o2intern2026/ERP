@@ -1,7 +1,6 @@
 <?php
 
 use App\Modules\Portal\Http\Controllers\PortalAddressSuggestionController;
-use App\Modules\Portal\Http\Controllers\PortalAsnApiController;
 use App\Modules\Portal\Http\Controllers\PortalAsnController;
 use App\Modules\Portal\Http\Controllers\PortalDocumentController;
 use App\Modules\Portal\Http\Controllers\PortalEstimateController;
@@ -12,7 +11,6 @@ use App\Modules\Portal\Http\Controllers\PortalQuoteController;
 use App\Modules\Portal\Http\Controllers\PortalReportController;
 use App\Modules\Portal\Http\Controllers\PortalReturnController;
 use App\Modules\Portal\Http\Controllers\PortalStockController;
-use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 // contracts/routes.md — every Portal route lives under /portal with the "portal." name prefix.
@@ -37,14 +35,7 @@ Route::prefix('portal')->name('portal.')->group(function () {
     Route::get('/invoices/{invoice}/download', [PortalInvoiceController::class, 'download'])->whereNumber('invoice')->name('invoices.download');
     Route::get('/stock', [PortalStockController::class, 'index'])->name('stock.index');
     Route::get('/documents/{document}', PortalDocumentController::class)->name('documents.download');
-    // CHANGE_REQUESTS #116 客户自助预报入库: packing list + container + ETA → ASN (created_by_type client) that waits for customer service; API push for integrated clients.
+    // CHANGE_REQUESTS #117 预报入库, read-only: the ASNs staff opened for the client's goods (progress, lines, 入库单 PDFs). Clients do not create ASNs.
     Route::get('/asns', [PortalAsnController::class, 'index'])->name('asns.index');
-    Route::get('/asns/create', [PortalAsnController::class, 'create'])->name('asns.create');
-    Route::get('/asns/template', [PortalAsnController::class, 'template'])->name('asns.template');
-    Route::post('/asns', [PortalAsnController::class, 'store'])->name('asns.store');
     Route::get('/asns/{asn}', [PortalAsnController::class, 'show'])->whereNumber('asn')->name('asns.show');
-    Route::post('/asns/{asn}/packing-list', [PortalAsnController::class, 'import'])->whereNumber('asn')->name('asns.import');
-    // Token-authenticated JSON endpoint like /orders/api/orders (no session, no CSRF, no client.scope — the bearer token names the client).
-    Route::post('/api/asns', [PortalAsnApiController::class, 'store'])->name('api.asns.store')
-        ->withoutMiddleware(['auth', 'client.scope', ValidateCsrfToken::class]);
 });
