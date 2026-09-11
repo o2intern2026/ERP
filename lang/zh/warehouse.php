@@ -88,6 +88,14 @@ return [
         'arrive' => '登记到货',
         'arrived' => '已登记到货。',
         'line_added' => '货物行已添加。',
+        'edit_delivery' => '编辑收件信息',
+        'delivery_title' => '收件信息 · :asn 第 :id 行',
+        'delivery_hint' => '生成派送订单要求每行收件企业／联系人、地址、城区、州、邮编五项齐全，且同一唛头下各行的地址与 FBA 货件编号一致。',
+        'delivery_incomplete' => '收件信息不完整',
+        'delivery_saved' => '收件信息已保存（:count 行）。',
+        'delivery_apply_to_mark' => '同时应用到唛头 :mark 下的其他 :count 行',
+        'blocked_fix' => '补全收件信息:',
+        'delivery_fields' => ['consignment_mark' => '唛头', 'deliver_to_name' => '收件企业／联系人', 'deliver_to_phone' => '联系电话', 'deliver_to_address' => '地址', 'deliver_to_suburb' => '城区', 'deliver_to_state' => '州', 'deliver_to_postcode' => '邮编', 'fba_reference' => 'FBA 货件编号'],
         'add_line' => '手工添加预报货物行',
         'import' => '导入预报货物行(Excel《需派送货物清单》)',
         'import_file' => '选择文件(.xlsx)',
@@ -124,6 +132,7 @@ return [
         'order_line' => '订单行',
         'errors' => [
             'generate_after_putaway' => '预报单全部上架完成后才能生成订单。',
+            'delivery_locked' => '第 :id 行已生成派送订单，收件信息以订单为准，请到订单页修改。',
         ],
     ],
 

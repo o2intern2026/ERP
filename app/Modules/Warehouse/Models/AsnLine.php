@@ -55,4 +55,17 @@ class AsnLine extends Model
     {
         return $this->received_cartons - $this->expected_cartons;
     }
+
+    /** Already on a 派送订单 (B2c generation or a manual order that picked this line): the consignee fields are the order's now. */
+    public function isOnOrder(): bool
+    {
+        return $this->order_line_id !== null;
+    }
+
+    /** Mirrors the OMS rule for 从预报单生成派送订单 (Orders AsnOrderService::completeDelivery): all five consignee fields present. */
+    public function hasCompleteDelivery(): bool
+    {
+        return filled($this->deliver_to_name) && filled($this->deliver_to_address)
+            && filled($this->deliver_to_suburb) && filled($this->deliver_to_state) && filled($this->deliver_to_postcode);
+    }
 }
