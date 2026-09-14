@@ -172,6 +172,60 @@ class CustomerQuoteEstimateTest extends TestCase
         $this->actingAs($user)->post(route('orders.estimate', $order))->assertForbidden();
     }
 
+    /**
+     * CHANGE_REQUESTS #120: 提货直送 is handled to the same standards as an outbound order — the estimate prices the client's declared
+     * packages with the same codes (pallet / skid pieces are pallet picks, the declared PER-PIECE weight bands the carton pick,
+     * every piece is labelled, every pallet loaded), and Transport's final freight joins it as the freight line.
+     */
+    public function test_a_pickup_deliver_order_is_estimated_from_its_declared_packages_to_the_same_handling_standards(): void
+    {
+        $client = $this->client();
+        $order = $this->order($client, [
+            'order_type' => 'pickup_deliver', 'lines' => [],
+            'pickup_address' => ['name' => 'Factory', 'phone' => null, 'address' => '9 Supplier Rd', 'suburb' => 'Laverton', 'state' => 'VIC', 'postcode' => '3028'],
+            'declared_packages' => [
+                ['package_type' => 'pallet', 'qty' => 2, 'weight_kg' => 300], // pallet pieces → pallet picks + load-out
+                ['package_type' => 'carton', 'qty' => 3, 'weight_kg' => 10],  // 10 kg per piece (never divided) → < 22 band
+                ['package_type' => 'carton', 'qty' => 1, 'weight_kg' => 30],  // 30 kg per piece → 22–45 band
+            ],
+        ]);
+        $staff = $this->staff('customer_service');
+
+        $this->actingAs($staff)->post(route('orders.estimate', $order))->assertRedirect(route('orders.show', $order))->assertSessionHasNoErrors();
+        $quote = CustomerQuote::query()->with('lines')->findOrFail($order->fresh()->customer_quote_id);
+        $this->assertSame([
+            'WH-ORDER-DESPATCH' => [1.0, 500],
+            'WH-PICK-PLT' => [2.0, 800],
+            'WH-PICK-CTN-LT22' => [3.0, 450],
+            'WH-PICK-CTN-22-45' => [1.0, 350],
+            'WH-LABEL-OUT' => [6.0, 180],
+            'WH-LOAD-PLT' => [2.0, 800],
+        ], $quote->lines->mapWithKeys(fn ($l) => [$l->charge_code => [(float) $l->qty, (int) $l->amount_cents]])->all());
+        $this->assertSame([3080, 308, 3388], [$quote->subtotal_cents, $quote->gst_cents, $quote->total_cents]);
+        $this->assertTrue($quote->lines->every(fn ($l) => $l->assumptions['missing_rate'] === false && $l->assumptions['is_poa'] === false && ($l->assumptions['weight_assumed'] ?? false) === false));
+        $this->assertSame(__('orders.estimate.descriptions.pick_declared_pallet', ['type' => __('orders.package_types.pallet')]), $quote->lines->firstWhere('charge_code', 'WH-PICK-PLT')->description);
+        $this->assertSame(__('orders.estimate.descriptions.pick_declared_carton', ['type' => __('orders.package_types.carton'), 'weight' => '30.00']), $quote->lines->firstWhere('charge_code', 'WH-PICK-CTN-22-45')->description);
+        $this->actingAs($staff)->get(route('orders.show', $order))->assertOk()
+            ->assertSee($quote->quote_no)->assertSee('$30.80')->assertSee('$4.50')->assertSee('$3.50')->assertSee('$1.80')
+            ->assertSee(__('orders.estimate.freight_pending'))->assertDontSee('WH-ORDER-DESPATCH-URGENT');
+
+        // Pure transport is priced final at confirmation: Transport's final quote is the freight line of a re-estimate, customer price only.
+        $carrier = Carrier::query()->create(['code' => 'PD-T', 'name' => 'Pickup Carrier', 'status' => 'active']);
+        $shipment = Shipment::query()->create(['shipment_no' => 'SHP-EST-PD', 'job_id' => $order->job_id, 'client_id' => $client->id, 'order_id' => $order->id, 'shipment_type' => 'outbound', 'status' => 'quoted', 'service_level' => 'standard']);
+        $this->transportQuote($shipment, $carrier, ['customer_price_cents' => 12000, 'cost_cents' => 6543, 'is_recommended' => true, 'quote_stage' => 'final']);
+        $this->actingAs($staff)->post(route('orders.estimate', $order))->assertRedirect()->assertSessionHasNoErrors();
+        $second = CustomerQuote::query()->with('lines')->findOrFail($order->fresh()->customer_quote_id);
+        $this->assertSame('expired', $quote->fresh()->status);
+        $this->assertSame(
+            ['WH-ORDER-DESPATCH' => 1.0, 'WH-PICK-PLT' => 2.0, 'WH-PICK-CTN-LT22' => 3.0, 'WH-PICK-CTN-22-45' => 1.0, 'WH-LABEL-OUT' => 6.0, 'WH-LOAD-PLT' => 2.0, 'TR-DELIVERY-BASE' => 1.0],
+            $second->lines->mapWithKeys(fn ($l) => [$l->charge_code => (float) $l->qty])->all(),
+        );
+        $this->assertSame([3080 + 12000, 308 + 1200], [$second->subtotal_cents, $second->gst_cents]);
+        $this->actingAs($staff)->get(route('orders.show', $order))->assertOk()
+            ->assertSee('$30.80')->assertSee('$120.00')->assertSee('Pickup Carrier')->assertSee('$150.80')->assertSee('$165.88')
+            ->assertDontSee('65.43')->assertDontSee('6543')->assertDontSee(__('orders.estimate.freight_pending'));
+    }
+
     public function test_missing_rates_show_as_pending_never_as_zero(): void
     {
         // A client bound to no rate card at all: every code is a missing rate → every line flagged, totals show 待报价, never $0.00.

@@ -38,17 +38,18 @@ One charge per billable unit per week; idempotency key = unit + billing week + c
 | 19 | Pallet rental – CHEP / LOSCAM | `WH-PALLET-RENT-POOL-WK` | storage | pallet_week | snapshot.weekly | weeks | unit_type=pallet, pallet_source ∈ {chep, loscam} | 2.00 |
 
 ## 4. Outbound
+`CHANGE_REQUESTS.md` #120 (lead 2026-09-14, 按默认): a `pickup_deliver` order never reaches `outbound.packed`, so rows 20–26 and 28 carry a **second rule** on `shipment.quote_confirmed` (final stage) with condition `order_type = pickup_deliver`; quantities come from the client's declared packages carried in that payload (`lines` / `pallet_count` / `label_count`, `is_urgent`), unique key `order:{order_id}`. Same codes, same rates, same `threshold_json`; a payload without `order_type` matches nothing new.
 | # | Edward row | Code | Category | UOM | Trigger | Quantity source | Condition / threshold | Edward rate |
 |---|---|---|---|---|---|---|---|---|
-| 20 | Order process – despatch | `WH-ORDER-DESPATCH` | warehouse | order | outbound.packed | orders (1) | every packed order (urgent or not) | 5.00 |
-| 21 | Order process – urgent despatch | `WH-ORDER-DESPATCH-URGENT` | warehouse | order | outbound.packed | orders (1) | is_urgent=true (same-day dispatch requested after `clients.dispatch_cutoff_time`); `{"cutoff_source":"clients.dispatch_cutoff_time"}`; **adds to** #20 — an urgent order carries $5 + $15 (`CHANGE_REQUESTS.md` #5, project lead 2026-09-08) | 15.00 |
-| 22 | Pick – pallet | `WH-PICK-PLT` | warehouse | pallet | outbound.packed | pallets | lines with unit_type=pallet | 4.00 |
-| 23 | Pick – carton ≥ 45 kg | `WH-PICK-CTN-GE45` | warehouse | carton | outbound.packed | cartons | unit_type=carton; weight_band_min=45.00, weight_band_max=null | 4.50 |
-| 24 | Pick – carton 22–44.99 kg | `WH-PICK-CTN-22-45` | warehouse | carton | outbound.packed | cartons | weight_band_min=22.00, weight_band_max=44.99 | 3.50 |
-| 25 | Pick – carton < 22 kg | `WH-PICK-CTN-LT22` | warehouse | carton | outbound.packed | cartons | weight_band_min=0.00, weight_band_max=21.99 | 1.50 |
-| 26 | Truck load out – pallet | `WH-LOAD-PLT` | warehouse | pallet | task.completed | billable_qty | task_type=load; qty = pallets loaded | 4.00 |
+| 20 | Order process – despatch | `WH-ORDER-DESPATCH` | warehouse | order | outbound.packed; shipment.quote_confirmed for pickup_deliver | orders (1) | every packed order (urgent or not); pickup_deliver: once per order at the final quote (#120) | 5.00 |
+| 21 | Order process – urgent despatch | `WH-ORDER-DESPATCH-URGENT` | warehouse | order | outbound.packed; shipment.quote_confirmed for pickup_deliver | orders (1) | is_urgent=true (same-day dispatch requested after `clients.dispatch_cutoff_time`); `{"cutoff_source":"clients.dispatch_cutoff_time"}`; **adds to** #20 — an urgent order carries $5 + $15 (`CHANGE_REQUESTS.md` #5, project lead 2026-09-08) | 15.00 |
+| 22 | Pick – pallet | `WH-PICK-PLT` | warehouse | pallet | outbound.packed; shipment.quote_confirmed for pickup_deliver | pallets | lines with unit_type=pallet; pickup_deliver: declared pallet / skid pieces (`pallet_count`) | 4.00 |
+| 23 | Pick – carton ≥ 45 kg | `WH-PICK-CTN-GE45` | warehouse | carton | outbound.packed; shipment.quote_confirmed for pickup_deliver | cartons | unit_type=carton; weight_band_min=45.00, weight_band_max=null | 4.50 |
+| 24 | Pick – carton 22–44.99 kg | `WH-PICK-CTN-22-45` | warehouse | carton | outbound.packed; shipment.quote_confirmed for pickup_deliver | cartons | weight_band_min=22.00, weight_band_max=44.99 | 3.50 |
+| 25 | Pick – carton < 22 kg | `WH-PICK-CTN-LT22` | warehouse | carton | outbound.packed; shipment.quote_confirmed for pickup_deliver | cartons | weight_band_min=0.00, weight_band_max=21.99; pickup_deliver: declared per-piece weight_kg (null → 0 → this band) | 1.50 |
+| 26 | Truck load out – pallet | `WH-LOAD-PLT` | warehouse | pallet | task.completed; shipment.quote_confirmed for pickup_deliver | billable_qty; pallets for pickup_deliver | task_type=load; qty = pallets loaded; pickup_deliver: declared pallets (`pallet_count`) | 4.00 |
 | 27 | Outbound shrink wrap / strap | `WH-WRAP-OUT-PLT` | vas | pallet | task.completed | billable_qty | task_type=wrap, source_type ∈ {order, fulfilment} | 4.50 |
-| 28 | Label and despatch fee | `WH-LABEL-OUT` | warehouse | label | outbound.packed | labels | one per printed carton label / package | 0.30 |
+| 28 | Label and despatch fee | `WH-LABEL-OUT` | warehouse | label | outbound.packed; shipment.quote_confirmed for pickup_deliver | labels | one per printed carton label / package; pickup_deliver: one per declared piece (`label_count` = Σ qty) | 0.30 |
 | 29 | Serial number scanning | `VAS-SCAN` | vas | scan | task.completed | billable_qty | task_type=scanning; qty = `scan_records` rows | 0.50 |
 
 ## 5. Value-added services
@@ -71,6 +72,7 @@ No seed rate: priced only if a client card carries them, otherwise **Missing Rat
 | `TR-FAILED` | transport | delivery | delivery.extra_charge | one | `charge_type = failed`; key `extra:{shipment_id}:failed:{occurred_at}` (§6.4) |
 | `TR-REDELIVERY` | transport | delivery | delivery.extra_charge | one | `charge_type = redelivery`; key `extra:{shipment_id}:redelivery:{occurred_at}` (§6.4) |
 | `TR-WAITING` ※ | transport | man_hour | delivery.extra_charge | billable_qty (= payload `qty`, hours) | `charge_type = waiting`; key `extra:{shipment_id}:waiting:{occurred_at}` (§6.4, §6.7 A5) |
+| `TR-PICKUP` ※ | transport | delivery | manual | one | 上门提货附加费 — collection at the sender for a `pickup_deliver` order. **Manual trigger only** (like `VAS-PALLET-PURCHASE-NONSTD`): never auto-billed until priced, no Edward row; the freight quote already covers pickup → door (`CHANGE_REQUESTS.md` #120) |
 | `WH-STORAGE-CTN-WK` | storage | carton_week | snapshot.weekly | cartons | loose cartons not on a pallet, if the client card bills per carton (§6.7 A6b) |
 | `WH-STORAGE-CBM-WK` | storage | cbm_week | snapshot.weekly | cbm | loose cartons by volume, if the client card bills per CBM (§6.7 A6b) |
 | `WH-STORAGE-QUARANTINE-PLT-WK` ※ | storage | pallet_week | snapshot.weekly | weeks | condition ∈ {quarantine, damaged}: still charged, separate code (§4.8) |

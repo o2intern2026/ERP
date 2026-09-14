@@ -8,7 +8,7 @@
         <thead><tr>
             <th>{{ __('orders.pickup.package_type') }}</th>
             <th>{{ __('orders.pickup.qty') }}</th>
-            <th>{{ __('orders.pickup.weight_kg') }}</th>
+            <th>{{ __('orders.pickup.weight_kg') }} <small class="text-muted" title="{{ __('orders.pickup.weight_required') }}">*</small></th>
             <th>{{ __('orders.fields.length_mm') }}</th>
             <th>{{ __('orders.fields.width_mm') }}</th>
             <th>{{ __('orders.fields.height_mm') }}</th>

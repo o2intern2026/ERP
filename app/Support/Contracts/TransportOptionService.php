@@ -10,9 +10,13 @@ interface TransportOptionService
 {
     /**
      * @param  'preliminary'|'final'  $stage  preliminary = declared packages at order confirmation; final = measured packages after outbound.packed
+     * @param  \DateTimeInterface|null  $triggeredAt  CHANGE_REQUESTS #120: the moment of the event that asked for the quotes (the order's
+     *                                                `confirmed_at` for a pickup_deliver order). When the final quote is confirmed automatically
+     *                                                (client choice within tolerance) it is confirmed AT this moment, so `is_urgent` and
+     *                                                `confirmed_at` do not drift with outbox / cron processing time. Null = now().
      * @return list<array{transport_quote_id:int, carrier_id:int, source:string, service_level:string, cost_cents:int, customer_price_cents:int, eta_days:int, is_recommended:bool, is_cheapest:bool, is_fastest:bool, quoted_at:string, expires_at:string}>
      */
-    public function quote(int $shipmentId, string $stage): array;
+    public function quote(int $shipmentId, string $stage, ?\DateTimeInterface $triggeredAt = null): array;
 
     /**
      * CHANGE_REQUESTS #118: price a quote request with no shipment behind it (the portal's 获取估价 before the order exists) — the same

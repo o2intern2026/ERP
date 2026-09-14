@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Fluent;
 use Illuminate\Validation\Rule;
 
 /**
@@ -119,7 +120,9 @@ final class OrderApiController extends Controller
             'declared_packages' => ['nullable', 'required_if:order_type,pickup_deliver', 'array'],
             'declared_packages.*.package_type' => ['required', 'string', 'max:30'],
             'declared_packages.*.qty' => ['required', 'integer', 'min:1'],
-            'declared_packages.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
+            // CHANGE_REQUESTS #120: a pickup_deliver order is billed to the outbound handling standards from what the client declared —
+            // the per-piece weight bands the carton pick, so it is required (> 0) for that type only.
+            'declared_packages.*.weight_kg' => Rule::when(fn (Fluent $input) => $input->get('order_type') === 'pickup_deliver', ['required', 'numeric', 'min:0.001'], ['nullable', 'numeric', 'min:0']),
             'declared_packages.*.length_mm' => ['nullable', 'integer', 'min:0'],
             'declared_packages.*.width_mm' => ['nullable', 'integer', 'min:0'],
             'declared_packages.*.height_mm' => ['nullable', 'integer', 'min:0'],

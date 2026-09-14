@@ -45,7 +45,7 @@ final class TransportOptionService implements TransportOptionServiceContract
         }
     }
 
-    public function quote(int $shipmentId, string $stage): array
+    public function quote(int $shipmentId, string $stage, ?\DateTimeInterface $triggeredAt = null): array
     {
         if (! in_array($stage, TransportEnums::QUOTE_STAGES, true)) {
             throw new InvalidArgumentException("Unknown quote stage: {$stage}");
@@ -64,7 +64,7 @@ final class TransportOptionService implements TransportOptionServiceContract
 
         $candidates = $this->markCandidates((int) $shipment->client_id, $candidates, $request);
 
-        return DB::transaction(function () use ($shipment, $stage, $candidates): array {
+        return DB::transaction(function () use ($shipment, $stage, $candidates, $triggeredAt): array {
             $preliminarySelection = $stage === 'final'
                 ? TransportQuote::query()
                     ->where('shipment_id', $shipment->id)
@@ -101,7 +101,7 @@ final class TransportOptionService implements TransportOptionServiceContract
             if ($stage === 'preliminary') {
                 $this->applyClientPreference($shipment, $quotes);
             } else {
-                $this->resolveFinalVariance($shipment, $preliminarySelection, $quotes);
+                $this->resolveFinalVariance($shipment, $preliminarySelection, $quotes, $triggeredAt);
             }
 
             return $quotes->map(fn (TransportQuote $quote): array => [
@@ -310,11 +310,13 @@ final class TransportOptionService implements TransportOptionServiceContract
      * Final stage: the reference is what was committed to before — the selected preliminary quote, else the option the client chose
      * with the 估价. The final quote for the same option is confirmed automatically while its price stays within the client's
      * variance tolerance; a missing option or a larger difference sends the shipment back to `quoted` for the client (or a
-     * coordinator on the client's behalf) to confirm.
+     * coordinator on the client's behalf) to confirm. The automatic confirmation is dated `$triggeredAt` — the moment of the event
+     * that requested the final quotes (order `confirmed_at`) — not the outbox processing time, so a 提货直送 order confirmed before
+     * the cut-off but processed after it is not billed as urgent (CHANGE_REQUESTS #120).
      *
      * @param  Collection<int, TransportQuote>  $finalQuotes
      */
-    private function resolveFinalVariance(Shipment $shipment, ?TransportQuote $preliminarySelection, Collection $finalQuotes): void
+    private function resolveFinalVariance(Shipment $shipment, ?TransportQuote $preliminarySelection, Collection $finalQuotes, ?\DateTimeInterface $triggeredAt = null): void
     {
         if ($preliminarySelection !== null) {
             $reference = [
@@ -359,7 +361,7 @@ final class TransportOptionService implements TransportOptionServiceContract
         }
 
         try {
-            $this->selection->select($shipment->fresh(), $match, $actor, $userId);
+            $this->selection->select($shipment->fresh(), $match, $actor, $userId, $triggeredAt);
         } catch (DomainException) {
             $this->awaitReconfirmation($shipment);
         }

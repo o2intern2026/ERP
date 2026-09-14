@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Orders;
 
+use App\Modules\Billing\Models\CustomerQuote;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Services\OrderCreationService;
@@ -136,8 +137,15 @@ class TailgateAndTransportOrderTest extends TestCase
 
         $this->actingAs($user)->post('/orders', $pure())->assertSessionHasErrors(['pickup_address_line', 'declared_packages']);
 
-        $this->actingAs($user)->post('/orders', $pure([
-            'pickup_name' => 'Factory', 'pickup_phone' => '0400000000', 'pickup_address_line' => '9 Supplier Rd', 'pickup_suburb' => 'Laverton', 'pickup_state' => 'VIC', 'pickup_postcode' => '3028',
+        // CHANGE_REQUESTS #120: 提货直送 is billed from the declared per-piece weight, so a package without one (or at 0 kg) is refused in plain Chinese.
+        $pickup = ['pickup_name' => 'Factory', 'pickup_phone' => '0400000000', 'pickup_address_line' => '9 Supplier Rd', 'pickup_suburb' => 'Laverton', 'pickup_state' => 'VIC', 'pickup_postcode' => '3028'];
+        $this->actingAs($user)->post('/orders', $pure($pickup + ['declared_packages' => [['package_type' => 'pallet', 'qty' => 2]]]))
+            ->assertSessionHasErrors(['declared_packages.0.weight_kg' => '第 1 个申报包裹缺少单件重量（提货直送计费需要）。']);
+        $this->actingAs($user)->post('/orders', $pure($pickup + ['declared_packages' => [['package_type' => 'pallet', 'qty' => 2, 'weight_kg' => 0]]]))
+            ->assertSessionHasErrors(['declared_packages.0.weight_kg' => '第 1 个申报包裹的单件重量必须大于 0（提货直送计费需要）。']);
+        $this->assertSame(0, Order::query()->count());
+
+        $this->actingAs($user)->post('/orders', $pure($pickup + [
             'declared_packages' => [['package_type' => 'pallet', 'qty' => 2, 'weight_kg' => 300, 'length_mm' => 1200, 'width_mm' => 1200, 'height_mm' => 1400]],
         ]))->assertSessionHasNoErrors();
 
@@ -159,5 +167,16 @@ class TailgateAndTransportOrderTest extends TestCase
 
         $this->actingAs($user)->get(route('orders.show', $order))->assertOk()->assertSee('9 Supplier Rd')->assertSee(__('orders.pickup.packages_title'));
         $this->assertSame(1, app(OrderCreationService::class) instanceof OrderCreationService ? 1 : 0);
+
+        // CHANGE_REQUESTS #120: no goods lines, yet the estimate prices the declared packages to the outbound handling standards
+        // (two pallet pieces → order processing, two pallet picks, two labels, two pallets loaded) — no longer an empty quote.
+        $this->actingAs($user)->post(route('orders.estimate', $order))->assertRedirect()->assertSessionHasNoErrors();
+        $quote = CustomerQuote::query()->with('lines')->findOrFail($order->fresh()->customer_quote_id);
+        $this->assertSame(
+            ['WH-ORDER-DESPATCH' => [1.0, 500], 'WH-PICK-PLT' => [2.0, 800], 'WH-LABEL-OUT' => [2.0, 60], 'WH-LOAD-PLT' => [2.0, 800]],
+            $quote->lines->mapWithKeys(fn ($l) => [$l->charge_code => [(float) $l->qty, (int) $l->amount_cents]])->all(),
+        );
+        $this->actingAs($user)->get(route('orders.show', $order))->assertOk()
+            ->assertSee(__('orders.estimate.descriptions.pick_declared_pallet', ['type' => __('orders.package_types.pallet')]))->assertSee('$21.60');
     }
 }

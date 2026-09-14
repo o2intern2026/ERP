@@ -12,7 +12,7 @@ final class FakeTransportOptionService implements TransportOptionService
 {
     public const MARKUP_PERCENT = 20.0;
 
-    public function quote(int $shipmentId, string $stage): array
+    public function quote(int $shipmentId, string $stage, ?\DateTimeInterface $triggeredAt = null): array
     {
         $now = now();
         $base = [

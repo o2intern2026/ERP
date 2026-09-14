@@ -130,4 +130,69 @@ class ChargeEngineTest extends TestCase
         $byCode = Charge::query()->with('chargeCode')->get()->mapWithKeys(fn (Charge $c) => [$c->chargeCode->code => $c->amount_cents]);
         $this->assertEquals(['TR-DELIVERY-BASE' => 12000, 'TR-TAILGATE' => 4500, 'TR-FUEL' => 1200], $byCode->all()); // §6.8 #8: three codes, once each
     }
+
+    /**
+     * CHANGE_REQUESTS #120 (lead 2026-09-14, 按默认): a pickup_deliver order never reaches outbound.packed, so the SAME handling codes at
+     * the SAME rates arise once at the final shipment.quote_confirmed from the client's declared packages, keyed order:{order_id};
+     * the freight codes of the same event are untouched, and a quote_confirmed payload without order_type bills freight only.
+     */
+    public function test_quote_confirmed_of_a_pickup_deliver_order_bills_the_handling_codes_from_the_declared_packages_once(): void
+    {
+        $client = $this->client(['default_markup_percent' => 20]);
+        $job = app(JobService::class)->create($client->id, 'transport_only')['job_id'];
+        $codes = ChargeCode::query()->pluck('id', 'code');
+        $card = RateCard::query()->create(['client_id' => $client->id, 'name' => 'freight', 'version' => 1, 'effective_from' => today()->subDay(), 'status' => 'active']);
+        RateItem::query()->create(['rate_card_id' => $card->id, 'charge_code_id' => $codes['TR-DELIVERY-BASE'], 'pricing_mode' => 'cost_plus']);
+        RateItem::query()->create(['rate_card_id' => $card->id, 'charge_code_id' => $codes['TR-FUEL'], 'pricing_mode' => 'percent', 'markup_percent' => 10]);
+
+        // contracts/events.md shipment.quote_confirmed + the #120 additions; declared: 2 pallets, 3 cartons of 10 kg, 1 carton of 30 kg.
+        $payload = fn (int $shipmentId, int $orderId, array $extra) => [
+            'shipment_id' => $shipmentId, 'shipment_no' => "SHP-TEST-{$shipmentId}", 'shipment_type' => 'outbound', 'order_id' => $orderId, 'client_id' => $client->id, 'job_id' => $job,
+            'quote_stage' => 'final', 'source' => 'transdirect', 'pricing_mode' => 'cost_plus', 'cost_cents' => 10000, 'customer_price_cents' => 12000, 'tailgate_required' => false, 'zone' => 'metro',
+            'packages' => ['count' => 6, 'total_weight_kg' => 860, 'total_cbm' => 2.4], 'confirmed_by_type' => 'client',
+        ] + $extra;
+        $declared = [
+            'order_type' => 'pickup_deliver', 'is_urgent' => false,
+            'lines' => [
+                ['package_type' => 'pallet', 'unit_type' => 'pallet', 'qty' => 2, 'unit_weight_kg' => 400],
+                ['package_type' => 'carton', 'unit_type' => 'carton', 'qty' => 3, 'unit_weight_kg' => 10],
+                ['package_type' => 'carton', 'unit_type' => 'carton', 'qty' => 1, 'unit_weight_kg' => 30],
+            ],
+            'pallet_count' => 2, 'carton_count' => 4, 'label_count' => 6,
+        ];
+        $publish = fn (array $p) => DB::transaction(fn () => app(OutboxPublisher::class)->publish(new TestEvent($p, 'shipment.quote_confirmed', $job, $client->id)));
+        $byKey = fn (string $activity) => Charge::query()->with('chargeCode')->where('source_activity_id', $activity)->get()->mapWithKeys(fn (Charge $c) => [$c->chargeCode->code => $c->amount_cents]);
+
+        $publish($payload(21, 81, $declared));
+        app(OutboxDispatcher::class)->dispatchDue();
+        app(OutboxDispatcher::class)->dispatchDue(); // replayed → no duplicates
+        app(ChargeEngine::class)->applyEvent(['event_name' => 'shipment.quote_confirmed', 'job_id' => $job, 'client_id' => $client->id, 'payload' => $payload(21, 81, $declared)]); // reconfirmation → same key, version 1, nothing new
+
+        $this->assertEquals(['WH-ORDER-DESPATCH' => 500, 'WH-PICK-PLT' => 800, 'WH-PICK-CTN-LT22' => 450, 'WH-PICK-CTN-22-45' => 350, 'WH-LABEL-OUT' => 180, 'WH-LOAD-PLT' => 800], $byKey('order:81')->all());
+        $this->assertEquals(['TR-DELIVERY-BASE' => 12000, 'TR-FUEL' => 1200], $byKey('shipment:21')->all()); // the freight codes exactly as before #120
+        $this->assertSame(8, Charge::query()->count());
+        $this->assertSame(1, Charge::query()->where('source_activity_id', 'order:81')->where('charge_code_id', $codes['WH-PICK-PLT'])->count());
+        $this->assertDatabaseMissing('charges', ['charge_code_id' => $codes['WH-ORDER-DESPATCH-URGENT']]);
+        $this->assertDatabaseMissing('charges', ['charge_code_id' => $codes['WH-PICK-CTN-GE45']]); // no declared piece ≥ 45 kg
+        $this->assertDatabaseMissing('charges', ['charge_code_id' => $codes['TR-PICKUP']]); // manual only until priced
+        $this->assertDatabaseMissing('exceptions', ['type' => 'missing_rate']);
+        $this->assertSame([$job], Charge::query()->distinct()->pluck('job_id')->all());
+        $this->assertSame(['shipment', 21], Charge::query()->where('source_activity_id', 'order:81')->get()->map(fn (Charge $c) => [$c->source_type, $c->source_id])->unique()->first());
+
+        // Urgent (requested today, confirmed after the client cut-off): the $5 despatch fee AND the $15 urgent fee, like a from_stock order.
+        $publish($payload(22, 82, ['is_urgent' => true] + $declared));
+        app(OutboxDispatcher::class)->dispatchDue();
+        $urgent = $byKey('order:82');
+        $this->assertSame(500, $urgent['WH-ORDER-DESPATCH']);
+        $this->assertSame(1500, $urgent['WH-ORDER-DESPATCH-URGENT']);
+        $this->assertCount(7, $urgent);
+
+        // A quote_confirmed payload without order_type (or a from_stock one) bills freight only — the handling charges of a stocked order come from outbound.packed.
+        $publish($payload(23, 83, []));
+        $publish($payload(24, 84, ['order_type' => 'from_stock', 'pallet_count' => 2, 'label_count' => 6]));
+        app(OutboxDispatcher::class)->dispatchDue();
+        $this->assertEquals(['TR-DELIVERY-BASE' => 12000, 'TR-FUEL' => 1200], $byKey('shipment:23')->all());
+        $this->assertEquals(['TR-DELIVERY-BASE' => 12000, 'TR-FUEL' => 1200], $byKey('shipment:24')->all());
+        $this->assertSame(0, Charge::query()->whereIn('source_activity_id', ['order:83', 'order:84'])->count());
+    }
 }

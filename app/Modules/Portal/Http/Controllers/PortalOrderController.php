@@ -23,6 +23,7 @@ use App\Support\Enums;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Fluent;
 use Illuminate\Validation\Rule;
 
 /**
@@ -99,9 +100,7 @@ final class PortalOrderController extends Controller
 
         $data = $request->validate($this->rules($clientId), PortalValidation::messages(), PortalValidation::attributes());
 
-        $pickup = collect(['name' => 'pickup_name', 'phone' => 'pickup_phone', 'address' => 'pickup_address_line', 'suburb' => 'pickup_suburb', 'state' => 'pickup_state', 'postcode' => 'pickup_postcode'])
-            ->map(fn ($field) => $data[$field] ?? null);
-        $data['pickup_address'] = $pickup->filter(fn ($v) => filled($v))->isEmpty() ? null : $pickup->all();
+        $data['pickup_address'] = self::pickupAddress($data);
         $data['client_id'] = $clientId; // never from the request: the signed-in client is the only possible owner
 
         $order = $orders->create($data, $request->user()->id, 'portal');
@@ -132,6 +131,7 @@ final class PortalOrderController extends Controller
         OrderFormRows::prune($request);
         $data = $request->validate($this->rules($clientId), PortalValidation::messages(), PortalValidation::attributes());
         $request->flash(); // old() keeps every field the client typed
+        $data['pickup_address'] = self::pickupAddress($data); // CHANGE_REQUESTS #120: a 提货直送 preview prices freight from the pickup address too
 
         $order = new Order(collect($data)->only((new Order)->getFillable())->all());
         $order->client_id = $clientId;
@@ -147,6 +147,20 @@ final class PortalOrderController extends Controller
             'transportReason' => $transport['reason'],
             'transportChoice' => $request->input('transport_choice'),
         ]);
+    }
+
+    /**
+     * The pickup party (提货直送) as stored on `orders.pickup_address`, assembled from the form's pickup_* fields — null when none is filled.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>|null
+     */
+    private static function pickupAddress(array $data): ?array
+    {
+        $pickup = collect(['name' => 'pickup_name', 'phone' => 'pickup_phone', 'address' => 'pickup_address_line', 'suburb' => 'pickup_suburb', 'state' => 'pickup_state', 'postcode' => 'pickup_postcode'])
+            ->map(fn ($field) => $data[$field] ?? null);
+
+        return $pickup->filter(fn ($v) => filled($v))->isEmpty() ? null : $pickup->all();
     }
 
     /** @return array<string, mixed> */
@@ -190,7 +204,9 @@ final class PortalOrderController extends Controller
             'declared_packages' => ['nullable', 'required_if:order_type,pickup_deliver', 'array'],
             'declared_packages.*.package_type' => ['required_with:declared_packages.*.qty', 'nullable', Rule::in(OrderEnums::PACKAGE_TYPES)],
             'declared_packages.*.qty' => ['required_with:declared_packages.*.package_type', 'nullable', 'integer', 'min:1'],
-            'declared_packages.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
+            // CHANGE_REQUESTS #120: a 提货直送 order is handled and billed to the outbound standards from what the client declared — the
+            // per-piece weight bands the carton pick, so it is required (> 0) for that type only; the other type keeps it optional.
+            'declared_packages.*.weight_kg' => Rule::when(fn (Fluent $input) => $input->get('order_type') === 'pickup_deliver', ['required', 'numeric', 'min:0.001'], ['nullable', 'numeric', 'min:0']),
             'declared_packages.*.length_mm' => ['nullable', 'integer', 'min:0'],
             'declared_packages.*.width_mm' => ['nullable', 'integer', 'min:0'],
             'declared_packages.*.height_mm' => ['nullable', 'integer', 'min:0'],
