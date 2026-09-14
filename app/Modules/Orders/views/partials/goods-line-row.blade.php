@@ -16,7 +16,9 @@
     @if ($extended)
         <td class="num"><input type="number" min="0" name="{{ $name('unit_qty') }}" value="{{ $line['unit_qty'] ?? '' }}" placeholder="{{ __('orders.fields.unit_qty') }}" aria-label="{{ __('orders.fields.unit_qty') }}"></td>
     @endif
-    <td class="num"><input type="number" min="0" step="0.001" name="{{ $name('actual_weight_kg') }}" value="{{ $line['actual_weight_kg'] ?? '' }}" placeholder="kg" aria-label="{{ __('orders.lines.weight_total') }}"></td>
+    {{-- 2026-09-14 lead feedback: 单件重量 is a helper without a name (never submitted) — the JS in goods-lines keeps it and the line total in step via 箱数. --}}
+    <td class="num"><input type="number" min="0" step="0.001" class="unit-weight" value="" placeholder="kg" aria-label="{{ __('orders.lines.unit_weight') }}"></td>
+    <td class="num"><input type="number" min="0" step="0.001" class="line-weight" name="{{ $name('actual_weight_kg') }}" value="{{ $line['actual_weight_kg'] ?? '' }}" placeholder="kg" aria-label="{{ __('orders.lines.weight_total') }}"></td>
     <td class="num"><input type="number" min="0" name="{{ $name('length_mm') }}" value="{{ $line['length_mm'] ?? '' }}" placeholder="mm" aria-label="{{ __($prefix.'.fields.length_mm') }}"></td>
     <td class="num"><input type="number" min="0" name="{{ $name('width_mm') }}" value="{{ $line['width_mm'] ?? '' }}" placeholder="mm" aria-label="{{ __($prefix.'.fields.width_mm') }}"></td>
     <td class="num"><input type="number" min="0" name="{{ $name('height_mm') }}" value="{{ $line['height_mm'] ?? '' }}" placeholder="mm" aria-label="{{ __($prefix.'.fields.height_mm') }}"></td>

@@ -78,8 +78,11 @@ return [
     'create' => ['title' => '手工新建订单'],
     // Items 5 + 7 (tester feedback): compact goods-line rows shared with the portal form (orders::partials.goods-lines).
     'lines' => [
-        'hint' => '每行一种货物：重量填整行合计（kg），系统按“重量 ÷ 箱数”计算单件重量并判定尾板车；长 / 宽 / 高为单箱尺寸（mm）。',
+        // 2026-09-14 lead feedback: 单件重量 ⇄ 整行合计 are converted through 箱数 on the form; either one may be typed.
+        'hint' => '每行一种货物：单件重量或整行合计（kg）填任意一项，系统按箱数自动换算另一项并判定尾板车；长 / 宽 / 高为单箱尺寸（mm）。',
+        'unit_weight' => '单件重量（kg）',
         'weight_total' => '重量（kg，整行合计）',
+        'totals' => '合计 :qty 箱 · :kg kg',
     ],
     'addresses' => [
         'title' => '客户收件地址簿',
@@ -443,6 +446,10 @@ return [
         'new_job' => '— 自动新建 Job —',
         'new_job_hint' => '不选 Job 时系统自动开一个 Job（纯运输订单为 transport_only）。',
         'none' => '无申报包裹',
+        // 2026-09-14 lead feedback: the packages follow the goods lines unless the person unticks the switch.
+        'follow_lines' => '按货物明细自动生成申报包裹',
+        'follow_hint' => '勾选后每行货物对应一种包裹：数量 = 箱数，单件重量 = 整行合计 ÷ 箱数，尺寸同货物行，随货物明细自动更新，无需重复填写；取消勾选可手动填写申报包裹。',
+        'totals' => '合计 :qty 件 · :kg kg',
     ],
     'tailgate' => [
         'title' => '尾板车判定',
