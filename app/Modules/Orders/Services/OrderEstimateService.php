@@ -168,17 +168,19 @@ final class OrderEstimateService
         } else {
             foreach ($order->lines as $line) {
                 $unit = $this->pickUnit($line);
-                $pieces += $unit['qty'];
-                if ($unit['unit_type'] === 'pallet') {
-                    $pallets += $unit['qty'];
-                    $lines[] = ['charge_code' => 'WH-PICK-PLT', 'qty' => (float) $unit['qty'], 'context' => ['order_line_id' => $line->id, 'unit_source' => $unit['source']], 'description' => __('orders.estimate.descriptions.pick_pallet', ['goods' => $this->goods($line)])];
-
+                $pieces += $unit['pallets'] + $unit['cartons'];
+                if ($unit['pallets'] > 0) {
+                    $pallets += $unit['pallets'];
+                    $lines[] = ['charge_code' => 'WH-PICK-PLT', 'qty' => (float) $unit['pallets'], 'context' => ['order_line_id' => $line->id, 'unit_source' => $unit['source']], 'description' => __('orders.estimate.descriptions.pick_pallet', ['goods' => $this->goods($line)])];
+                }
+                if ($unit['cartons'] === 0) {
                     continue;
                 }
+                // CHANGE_REQUESTS #121: cartons taken off a pallet (a partial pallet) are carton picks, banded by weight — same as Billing.
                 $weight = $unit['weight_kg'];
                 $lines[] = [
                     'charge_code' => $this->cartonPickCode($order->client_id, $weight ?? 0.0),
-                    'qty' => (float) $unit['qty'],
+                    'qty' => (float) $unit['cartons'],
                     'context' => ['weight_kg' => $weight ?? 0.0, 'weight_assumed' => $weight === null, 'order_line_id' => $line->id, 'unit_source' => $unit['source']],
                     'description' => __($weight === null ? 'orders.estimate.descriptions.pick_carton_unknown' : 'orders.estimate.descriptions.pick_carton', ['goods' => $this->goods($line), 'weight' => number_format((float) $weight, 2)]),
                 ];
@@ -399,12 +401,14 @@ final class OrderEstimateService
     }
 
     /**
-     * How a goods line will be picked. Stock units linked through the ASN line decide (pallet units → pallet picks, cartons
-     * per pallet from the units); without stock the line's package_type decides (pallet-like → pallets, else cartons). The
-     * per-carton weight is the line weight over its cartons (a line's actual_weight_kg is the line total, as in TailgateRule),
-     * falling back to the ASN line; null = unknown, banded as the lightest and flagged.
+     * How a goods line will be picked. Stock units linked through the ASN line decide: whole pallets are pallet picks and the
+     * remainder that has to come off a pallet is carton picks (CHANGE_REQUESTS #121 — only 整托整出 counts as a pallet pick, the
+     * same rule Billing applies at packing); carton units are carton picks; without stock the line's package_type decides
+     * (pallet-like → pallets, else cartons). The per-carton weight is the line weight over its cartons (a line's
+     * actual_weight_kg is the line total, as in TailgateRule), falling back to the ASN line; null = unknown, banded as the
+     * lightest and flagged.
      *
-     * @return array{unit_type:string, qty:int, weight_kg:?float, source:string}
+     * @return array{pallets:int, cartons:int, weight_kg:?float, source:string}
      */
     private function pickUnit(OrderLine $line): array
     {
@@ -426,18 +430,21 @@ final class OrderEstimateService
                     ? max(1.0, $received / max(1, (int) $units['pallet']->units))                                                          // cartons the pallets came in with
                     : max(1.0, (float) $units['pallet']->cartons_stocked / max(1, (int) $units['pallet']->units_stocked));               // fallback: average of pallets still holding stock
 
-                return ['unit_type' => 'pallet', 'qty' => (int) ceil($cartons / $perPallet), 'weight_kg' => $weight, 'source' => 'stock_units'];
+                $per = max(1, (int) floor($perPallet));
+                $fullPallets = intdiv($cartons, $per);
+
+                return ['pallets' => $fullPallets, 'cartons' => $cartons - $fullPallets * $per, 'weight_kg' => $weight, 'source' => 'stock_units'];
             }
             if (isset($units['carton'])) {
-                return ['unit_type' => 'carton', 'qty' => $cartons, 'weight_kg' => $weight, 'source' => 'stock_units'];
+                return ['pallets' => 0, 'cartons' => $cartons, 'weight_kg' => $weight, 'source' => 'stock_units'];
             }
         }
 
         if (preg_match('/pallet|plt|skid|托|栈板/iu', (string) $line->package_type) === 1) { // pallet-like package types (skid = 栈板, OrderEnums::PACKAGE_TYPES)
-            return ['unit_type' => 'pallet', 'qty' => $cartons, 'weight_kg' => $weight, 'source' => 'package_type'];
+            return ['pallets' => $cartons, 'cartons' => 0, 'weight_kg' => $weight, 'source' => 'package_type'];
         }
 
-        return ['unit_type' => 'carton', 'qty' => $cartons, 'weight_kg' => $weight, 'source' => 'package_type'];
+        return ['pallets' => 0, 'cartons' => $cartons, 'weight_kg' => $weight, 'source' => 'package_type'];
     }
 
     /** The carton pick code whose rate-item weight band holds this weight (client card → standard card); contract defaults when no band matches. */

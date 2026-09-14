@@ -106,7 +106,7 @@ started_at, completed_at, completed_by
 ```
 order_id, order_no, fulfilment_id, job_id, client_id, warehouse_id,
 is_urgent (bool — same-day dispatch requested after clients.dispatch_cutoff_time; decided by Warehouse),
-lines: [{order_line_id, stock_unit_id, unit_type, qty, unit_weight_kg}],  # unit_type pallet → WH-PICK-PLT; carton → band by unit_weight_kg
+lines: [{order_line_id, stock_unit_id, unit_type, qty, unit_weight_kg}],  # unit_type = how the line was PICKED, not the stock unit's type (CHANGE_REQUESTS #121): pallet only when the whole pallet left → WH-PICK-PLT; cartons taken off a pallet → carton, unit_weight_kg = pallet weight / cartons it held → band
 packages: [{package_id, package_type, weight_kg, length_mm, width_mm, height_mm, carton_label}],
 pallet_count, carton_count, label_count,                                 # label_count → WH-LABEL-OUT qty
 packed_by, packed_at
