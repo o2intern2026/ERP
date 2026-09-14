@@ -24,6 +24,36 @@
             @csrf
             @foreach ($groups as $clientId => $orders)
                 <h2>{{ $orders->first()->client->name }} <small class="text-muted">{{ __('orders.inbound.group_count', ['count' => $orders->count()]) }}</small></h2>
+                @if (! empty($submissions[$clientId]))
+                    {{-- CHANGE_REQUESTS #123: what the client submitted with its portal 入库清单 — one click ticks that batch and pre-fills the ASN header below. --}}
+                    <article class="kv-card">
+                        <strong>{{ __('orders.imports.inbound.title') }}</strong>
+                        <p class="text-muted"><small>{{ __('orders.imports.inbound.hint') }}</small></p>
+                        <div class="overflow-auto"><table class="dense">
+                            <thead><tr>
+                                <th>#</th><th>{{ __('orders.imports.inbound.container_no') }}</th><th>{{ __('orders.imports.inbound.container_size') }}</th><th>{{ __('orders.imports.inbound.expected_date') }}</th>
+                                <th>{{ __('orders.imports.inbound.reference') }}</th><th>{{ __('orders.imports.inbound.notes') }}</th><th>{{ __('orders.imports.inbound.uploaded_at') }}</th><th>{{ __('orders.imports.inbound.file') }}</th>
+                                <th>{{ __('orders.imports.inbound.orders') }}</th><th></th>
+                            </tr></thead>
+                            <tbody>
+                            @foreach ($submissions[$clientId] as $s)
+                                <tr>
+                                    <td><a href="{{ route('orders.imports.show', $s['import']) }}">#{{ $s['import']->id }}</a></td>
+                                    <td>{{ ($s['inbound']['container_no'] ?? null) ?: '—' }}</td>
+                                    <td>@if (! empty($s['inbound']['container_size'])){{ __('warehouse.container_sizes.'.$s['inbound']['container_size']) }}@else — @endif</td>
+                                    <td>{{ ($s['inbound']['expected_date'] ?? null) ?: '—' }}</td>
+                                    <td>{{ ($s['inbound']['reference'] ?? null) ?: '—' }}</td>
+                                    <td>{{ ($s['inbound']['notes'] ?? null) ?: '—' }}</td>
+                                    <td>{{ ($s['inbound']['uploaded_at'] ?? null) ?: $s['import']->created_at?->format('Y-m-d H:i') }}</td>
+                                    <td>{{ $s['file'] ?: '—' }}</td>
+                                    <td>{{ implode(', ', $s['order_nos']) }}</td>
+                                    <td><button type="button" class="secondary outline" data-select-import data-orders="{{ implode(',', $s['order_ids']) }}" data-container-no="{{ $s['inbound']['container_no'] ?? '' }}" data-container-size="{{ $s['inbound']['container_size'] ?? '' }}" data-expected-date="{{ $s['inbound']['expected_date'] ?? '' }}" data-notes="{{ $s['inbound']['notes'] ?? '' }}">{{ __('orders.imports.inbound.select') }}</button></td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table></div>
+                    </article>
+                @endif
                 <div class="overflow-auto"><table class="dense">
                     <thead><tr>
                         <th>{{ __('orders.inbound.fields.select') }}</th><th>{{ __('orders.inbound.fields.order_no') }}</th><th>{{ __('orders.inbound.fields.job') }}</th><th>{{ __('orders.inbound.fields.mark') }}</th>
@@ -34,7 +64,7 @@
                         @php($unlinked = $order->lines->whereNull('asn_line_id'))
                         <tr>
                             <td><input type="checkbox" name="order_ids[]" value="{{ $order->id }}" data-client="{{ $order->client_id }}" aria-label="{{ $order->order_no }}" @checked(in_array($order->id, old('order_ids', $preselected), false))></td>
-                            <td><a href="{{ route('orders.show', $order) }}">{{ $order->order_no }}</a></td>
+                            <td><a href="{{ route('orders.show', $order) }}">{{ $order->order_no }}</a>@if (isset($importByOrder[$order->id]))<br><small class="text-muted">{{ __('orders.imports.inbound.import', ['id' => $importByOrder[$order->id]]) }}</small>@endif</td>
                             <td>{{ $order->job->job_no }}</td>
                             <td>{{ $order->consignment_mark ?: __('orders.not_provided') }}</td>
                             <td>{{ $order->deliver_to_name }} <small class="text-muted">{{ $order->deliver_to_suburb }} {{ $order->deliver_to_state }}</small></td>
@@ -86,6 +116,21 @@
                 }
                 boxes.forEach(function (b) { b.addEventListener('change', limit); });
                 limit();
+                // CHANGE_REQUESTS #123: 选中并填入 — tick the orders of one portal submission and copy its 柜号 / 柜型 / 预计到港 / 备注 into the ASN header.
+                var form = document.getElementById('inbound-form');
+                Array.prototype.slice.call(document.querySelectorAll('[data-select-import]')).forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var ids = btn.dataset.orders.split(',');
+                        boxes.forEach(function (b) { b.disabled = false; b.checked = ids.indexOf(b.value) !== -1; });
+                        limit();
+                        if (btn.dataset.containerNo) { form.querySelector('[name="container_no"]').value = btn.dataset.containerNo; type.value = 'container'; }
+                        if (btn.dataset.containerSize) { form.querySelector('[name="container_size"]').value = btn.dataset.containerSize; }
+                        if (btn.dataset.expectedDate) { form.querySelector('[name="expected_date"]').value = btn.dataset.expectedDate; }
+                        if (btn.dataset.notes) { form.querySelector('[name="notes"]').value = btn.dataset.notes; }
+                        toggle();
+                        form.querySelector('button[type="submit"]').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    });
+                });
             })();
         </script>
     @endif

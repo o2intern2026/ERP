@@ -5,12 +5,15 @@ namespace App\Modules\Orders\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Orders\Http\OrderValidation;
+use App\Modules\Orders\Models\Order;
+use App\Modules\Orders\Models\OrderImport;
 use App\Modules\Orders\Services\OrderInboundService;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Support\Auth\RequiredRoles;
 use App\Support\Enums;
 use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -30,9 +33,20 @@ final class OrderInboundController extends Controller
 
         $all = $service->candidates();
         $orders = filled($filters['client_id'] ?? null) ? $all->where('client_id', (int) $filters['client_id'])->values() : $all;
+        $submissions = $this->portalSubmissions($orders);
+        $importByOrder = []; // order id → portal import id (a plain loop: Collection::flatMap would renumber the integer keys)
+        foreach ($submissions as $entries) {
+            foreach ($entries as $submission) {
+                foreach ($submission['order_ids'] as $orderId) {
+                    $importByOrder[$orderId] = $submission['import']->id;
+                }
+            }
+        }
 
         return view('orders::inbound.index', [
             'groups' => $orders->groupBy('client_id'),
+            'submissions' => $submissions,
+            'importByOrder' => $importByOrder,
             'filters' => $filters,
             'preselected' => array_map('intval', $filters['order_ids'] ?? []),
             'clients' => Client::query()->whereIn('id', $all->pluck('client_id')->unique())->orderBy('name')->get(['id', 'name']),
@@ -71,5 +85,38 @@ final class OrderInboundController extends Controller
 
         return redirect()->route('warehouse.asns.show', $result['asn_id'])
             ->with('status', __('orders.inbound.messages.generated', ['asn_no' => $result['asn_no'], 'orders' => $result['orders'], 'lines' => $result['lines']]).$merged);
+    }
+
+    /**
+     * CHANGE_REQUESTS #123: the 柜号 / 柜型 / 预计到港 / 参考号 / 备注 a client submitted with its portal 入库清单, for the candidate orders
+     * that came out of those uploads — one entry per submission that still has an order waiting here, keyed by client.
+     *
+     * @param  Collection<int, Order>  $orders
+     * @return array<int, list<array{import:OrderImport, inbound:array<string, mixed>, file:?string, order_ids:list<int>, order_nos:list<string>}>>
+     */
+    private function portalSubmissions(Collection $orders): array
+    {
+        if ($orders->isEmpty()) {
+            return [];
+        }
+        $byId = $orders->keyBy('id');
+        $result = [];
+        OrderImport::query()->where('source', 'portal')->where('status', 'imported')
+            ->whereIn('client_id', $orders->pluck('client_id')->unique())->latest('id')->limit(300)->get()
+            ->each(function (OrderImport $import) use ($byId, &$result): void {
+                $ids = array_values(array_filter(array_map('intval', array_column($import->errors['result']['created'] ?? [], 'order_id')), fn (int $id) => $byId->has($id)));
+                if ($ids === []) {
+                    return;
+                }
+                $result[(int) $import->client_id][] = [
+                    'import' => $import,
+                    'inbound' => is_array($import->errors['context']['inbound'] ?? null) ? $import->errors['context']['inbound'] : [],
+                    'file' => $import->errors['context']['original_name'] ?? null,
+                    'order_ids' => $ids,
+                    'order_nos' => array_map(fn (int $id) => (string) $byId[$id]->order_no, $ids),
+                ];
+            });
+
+        return $result;
     }
 }

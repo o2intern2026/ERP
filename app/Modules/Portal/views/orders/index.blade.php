@@ -6,7 +6,7 @@
     <header class="grid">
         <h1>{{ __('portal.title') }}</h1>
         @if (auth()->user()->isClientUser())
-            <p style="text-align:right"><a role="button" href="{{ route('portal.orders.create') }}">{{ __('portal.actions.create') }}</a></p>
+            <p style="text-align:right"><a role="button" href="{{ route('portal.orders.create') }}">{{ __('portal.actions.create') }}</a> <a role="button" class="secondary" href="{{ route('portal.asns.imports.create') }}">{{ __('portal.inbound.upload_button') }}</a></p>
         @endif
     </header>
     <p class="text-muted"><small>{{ __('portal.hint') }}</small></p>

@@ -4,6 +4,7 @@ use App\Modules\Portal\Http\Controllers\PortalAddressSuggestionController;
 use App\Modules\Portal\Http\Controllers\PortalAsnController;
 use App\Modules\Portal\Http\Controllers\PortalDocumentController;
 use App\Modules\Portal\Http\Controllers\PortalEstimateController;
+use App\Modules\Portal\Http\Controllers\PortalInboundImportController;
 use App\Modules\Portal\Http\Controllers\PortalInvoiceController;
 use App\Modules\Portal\Http\Controllers\PortalOrderCancelController;
 use App\Modules\Portal\Http\Controllers\PortalOrderController;
@@ -35,6 +36,13 @@ Route::prefix('portal')->name('portal.')->group(function () {
     Route::get('/invoices/{invoice}/download', [PortalInvoiceController::class, 'download'])->whereNumber('invoice')->name('invoices.download');
     Route::get('/stock', [PortalStockController::class, 'index'])->name('stock.index');
     Route::get('/documents/{document}', PortalDocumentController::class)->name('documents.download');
+    // CHANGE_REQUESTS #123 入库清单 CSV / Excel 提交: the client's list → preview → its own orders (received); customer service builds the ASN in 待建预报.
+    Route::get('/asns/imports', [PortalInboundImportController::class, 'index'])->name('asns.imports.index');
+    Route::get('/asns/imports/create', [PortalInboundImportController::class, 'create'])->name('asns.imports.create');
+    Route::get('/asns/imports/template', [PortalInboundImportController::class, 'template'])->name('asns.imports.template');
+    Route::post('/asns/imports', [PortalInboundImportController::class, 'store'])->name('asns.imports.store');
+    Route::get('/asns/imports/{import}', [PortalInboundImportController::class, 'show'])->whereNumber('import')->name('asns.imports.show');
+    Route::post('/asns/imports/{import}/confirm', [PortalInboundImportController::class, 'confirm'])->whereNumber('import')->name('asns.imports.confirm');
     // CHANGE_REQUESTS #117 预报入库, read-only: the ASNs staff opened for the client's goods (progress, lines, 入库单 PDFs). Clients do not create ASNs.
     Route::get('/asns', [PortalAsnController::class, 'index'])->name('asns.index');
     Route::get('/asns/{asn}', [PortalAsnController::class, 'show'])->whereNumber('asn')->name('asns.show');
