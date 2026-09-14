@@ -101,7 +101,10 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 | `stock_units.condition` | `good` \| `quarantine` \| `damaged` |
 | `warehouse_tasks.task_type` | `receiving` \| `putaway` \| `move` \| `pick` \| `pack` \| `load` \| `count` \| `return_inspection` \| `devanning` \| `wrap` \| `scanning` \| `labour` \| `waste` \| `vas_other` |
 | hand-made task types (`Enums::VAS_TASK_TYPES`) | `devanning` \| `wrap` \| `scanning` \| `labour` \| `waste` \| `vas_other` — the only types a person creates on 作业登记; `receiving` (unload), `pick`, `pack`, `load`, `return_inspection` are written by their operations, `putaway` / `move` / `count` are no longer created at all (tester feedback #6, CHANGE_REQUESTS #95) |
-| `warehouse_tasks.source_type` | `order` \| `fulfilment` \| `asn` \| `container` \| `stocktake` \| `wave` |
+| `warehouse_tasks.source_type` | `order` \| `fulfilment` \| `asn` \| `container` \| `stocktake` \| `wave` \| `physical_container` (the ONE devanning task of a shared box — job_id / client_id NULL, the members' shares travel in the event; CHANGE_REQUESTS #122) |
+| `physical_containers.consolidation` | `fcl` \| `lcl` — derived from the distinct clients of the linked container rows (1 → fcl, > 1 → lcl), never edited (#122) |
+| `physical_containers.allocation_basis` | `cartons_received` (default; pre-advised cartons while any member is still receiving = provisional) \| `pallets` (default when the box unpack_mode = pallet) \| `cbm` \| `lines` \| `equal` (also the fallback when the basis total is 0) — `Enums::ALLOCATION_BASES` (#122) |
+| `physical_containers.status` | `expected` → `arrived` (登记到港 → `physical_container.arrived`) → `devanned` (the box task completed) — display state only, no seals / customs (#122) |
 | `warehouse_tasks.status` | `pending` \| `in_progress` \| `done` \| `cancelled` \| `exception` |
 | `warehouse_tasks.billable_uom` | `container` \| `pallet` \| `carton` \| `scan` \| `man_hour` \| `cbm` \| `label` |
 | `stock_ledger.movement_type` | `receipt` \| `putaway` \| `pick` \| `transfer` \| `adjust` \| `release` \| `return` \| `split` \| `merge` |
@@ -133,13 +136,13 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 | `charge_codes.category` | `warehouse` \| `vas` \| `transport` \| `storage` \| `other` |
 | `charge_codes.default_uom` | `container_20` \| `container_40` \| `pallet` \| `pallet_week` \| `pickface_week` ※ \| `carton` \| `carton_week` \| `cbm_week` \| `order` \| `label` \| `scan` \| `cbm` \| `man_hour` \| `delivery` |
 | `charge_codes.tax_treatment` | `gst_10` \| `gst_free` \| `out_of_scope` |
-| `charge_rules.trigger_event` | `task.completed` \\| `manual` ※ (hand-entered charges) | `asn.putaway_completed` \| `outbound.packed` \| `shipment.quote_confirmed` \| `delivery.extra_charge` \| `snapshot.weekly` \| `return.financial_decision` |
-| `charge_rules.quantity_source` | `cartons` \| `pallets` \| `pallets_warehouse_plain` ※ \| `billable_qty` \| `weeks` \| `labels` \| `scans` \| `hours_business` \| `hours_after_hours` \| `cbm` \| `pickface_slots` \| `orders` \| `one` ※ |
+| `charge_rules.trigger_event` | `task.completed` \\| `manual` ※ (hand-entered charges) | `asn.putaway_completed` \| `outbound.packed` \| `shipment.quote_confirmed` \| `delivery.extra_charge` \| `snapshot.weekly` \| `return.financial_decision` \| `physical_container.arrived` (cartage / sideloader of a shared box, #122) |
+| `charge_rules.quantity_source` | `cartons` \| `pallets` \| `pallets_warehouse_plain` ※ \| `billable_qty` \| `weeks` \| `labels` \| `scans` \| `hours_business` \| `hours_after_hours` \| `cbm` \| `pickface_slots` \| `orders` \| `one` ※ \| `allocated` ※ (#122: one charge per `members[]` entry of the payload, qty = the member's `share` of one box on the member's own client / Job, rule matched on the member's own `unpack_mode`, key `<template>:job:{job_id}`; a payload without `members` degrades to `billable_qty`) |
 | `rate_cards.status` | `draft` \| `active` \| `superseded` |
 | `rate_items.pricing_mode` | `fixed` \| `cost_plus` \| `percent` ※ (surcharge as % of a base amount, e.g. TR-FUEL) |
 | `rate_items.pallet_class` | = `stock_units.pallet_class` |
 | `charges.status` | `pending` \| `needs_review` \| `approved` \| `invoiced` \| `disputed` \| `reversed` |
-| `charges.source_type` | `asn` \| `container` \| `task` \| `shipment` \| `snapshot` \| `order` |
+| `charges.source_type` | `asn` \| `container` (= `physical_containers.id` — every allocated charge of a shared box, devanning and cartage alike; #122) \| `task` \| `shipment` \| `snapshot` \| `order` |
 | `invoices.invoice_type` | `service` \| `storage` \| `supplementary` \| `monthly` |
 | `invoices.status` | `draft` → `issued` → `part_paid` \| `paid` (`void` ※ reserved; `is_overdue` is display only) |
 | `credit_notes.status` ※ | `draft` \| `approved` \| `issued` \| `cancelled` — approval is recorded in `approvals` (PLT-7); `draft` → `issued` once approved |

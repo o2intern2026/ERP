@@ -17,7 +17,7 @@ class WarehouseTask extends Model
 
     protected $fillable = [
         'task_no', 'task_type', 'job_id', 'client_id', 'warehouse_id', 'source_type', 'source_id', 'order_id',
-        'fulfilment_id', 'wave_id', 'asn_id', 'container_id', 'priority', 'assigned_user_id', 'status', 'exception_reason',
+        'fulfilment_id', 'wave_id', 'asn_id', 'container_id', 'physical_container_id', 'priority', 'assigned_user_id', 'status', 'exception_reason',
         'cancel_reason', 'billable_qty', 'billable_uom', 'hours_business', 'hours_after_hours', 'notes',
         'started_at', 'completed_at', 'completed_by', 'billable_event_id',
     ];
@@ -49,6 +49,17 @@ class WarehouseTask extends Model
     public function container(): BelongsTo
     {
         return $this->belongsTo(Container::class);
+    }
+
+    /** The shared box of a box-level devanning task (source_type physical_container; job_id / client_id are NULL — CHANGE_REQUESTS #122). */
+    public function physicalContainer(): BelongsTo
+    {
+        return $this->belongsTo(PhysicalContainer::class);
+    }
+
+    public function isBoxLevel(): bool
+    {
+        return $this->source_type === 'physical_container';
     }
 
     public function getActivitylogOptions(): LogOptions

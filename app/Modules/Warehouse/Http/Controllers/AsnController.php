@@ -8,6 +8,7 @@ use App\Modules\Platform\Models\Job;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnImport;
 use App\Modules\Warehouse\Models\AsnLine;
+use App\Modules\Warehouse\Models\PhysicalContainer;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Modules\Warehouse\Services\AsnImportService;
@@ -92,16 +93,23 @@ class AsnController extends Controller
 
     public function show(Asn $asn, GoodsReceiptService $receipts): View
     {
-        $asn->load(['client', 'warehouse', 'job', 'containers', 'lines.stockUnits', 'lines.receiptLine', 'lines.container', 'createdBy', 'clientConfirmedBy']);
+        $asn->load(['client', 'warehouse', 'job', 'containers.physicalContainer', 'lines.stockUnits', 'lines.receiptLine', 'lines.container', 'createdBy', 'clientConfirmedBy']);
         $canImportOrders = in_array($asn->status, ['booked', 'arrived', 'receiving'], true) && auth()->user()?->hasAnyRole(self::IMPORT_ORDERS_ROLES);
         $orderCandidates = $canImportOrders ? app(OrderService::class)->awaitingAsn((int) $asn->client_id) : [];
         $orderRefs = $this->orderRefs($asn);
+        // 物理柜 (CHANGE_REQUESTS #122): an unlinked row's 关联物理柜 shortcut goes to the open box with the same number, else to the create form pre-filled.
+        $unlinkedNos = $asn->containers->filter(fn ($c) => ! $c->isLinked())->pluck('container_no')->all();
+        $openBoxes = $unlinkedNos === [] ? collect() : PhysicalContainer::query()->whereIn('container_no', $unlinkedNos)->where('warehouse_id', $asn->warehouse_id)->whereIn('status', ['expected', 'arrived'])->get()->keyBy('container_no');
+        $boxIds = $asn->containers->pluck('physical_container_id')->filter()->unique()->values()->all();
 
         return view('warehouse::asns.show', [
             'asn' => $asn,
             'receipts' => $asn->goodsReceipts()->withCount('lines')->with('lines')->get(),
             'rollup' => $receipts->rollup($asn),
             'tasks' => $asn->hasMany(WarehouseTask::class)->orderByDesc('id')->get(),
+            'boxTasks' => $boxIds === [] ? collect() : WarehouseTask::query()->withoutGlobalScopes()->with('physicalContainer')->whereIn('physical_container_id', $boxIds)->orderByDesc('id')->get(),
+            'openBoxes' => $openBoxes,
+            'allLinked' => $asn->containers->isNotEmpty() && $asn->containers->every(fn ($c) => $c->isLinked()),
             'imports' => AsnImport::query()->where('asn_id', $asn->id)->orderByDesc('id')->get(),
             'orderRefs' => $orderRefs,
             'fromOrders' => array_filter($orderRefs, fn (array $ref) => $ref['from_order']) !== [],

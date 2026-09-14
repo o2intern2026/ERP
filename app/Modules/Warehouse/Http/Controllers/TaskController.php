@@ -5,17 +5,22 @@ namespace App\Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Warehouse\Models\Asn;
+use App\Modules\Warehouse\Models\Container;
+use App\Modules\Warehouse\Models\PhysicalContainer;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Models\WarehouseTask;
+use App\Modules\Warehouse\Services\PhysicalContainerService;
 use App\Modules\Warehouse\Services\TaskService;
 use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use InvalidArgumentException;
 
-/** B12 core: VAS / devanning / labour tasks — create against an ASN, complete with billable quantity → task.completed. */
+/** B12 core: VAS / devanning / labour tasks — create against an ASN, an order or a shared physical container (#122), complete with billable quantity → task.completed. */
 class TaskController extends Controller
 {
     public function index(Request $request): View
@@ -23,7 +28,7 @@ class TaskController extends Controller
         $filters = $request->validate(['status' => ['nullable', Rule::in(Enums::TASK_STATUSES)], 'task_type' => ['nullable', Rule::in(Enums::TASK_TYPES)]]);
 
         return view('warehouse::tasks.index', [
-            'tasks' => WarehouseTask::query()->with(['asn', 'container'])
+            'tasks' => WarehouseTask::query()->with(['asn', 'container', 'physicalContainer'])
                 ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
                 ->when($filters['task_type'] ?? null, fn ($q, $v) => $q->where('task_type', $v))
                 ->when(WarehouseContext::currentId(), fn ($q, $v) => $q->where('warehouse_id', $v))
@@ -35,35 +40,64 @@ class TaskController extends Controller
         ]);
     }
 
-    /** 作业登记: only VAS types are created by hand; the record binds to an ASN (inbound VAS) or an order (outbound wrap, per-order labour). */
+    /** 作业登记: only VAS types are created by hand; the record binds to an ASN (inbound VAS), an order (outbound wrap, per-order labour) or a physical container (box-level devanning, #122). */
     public function create(Request $request): View
     {
         return view('warehouse::tasks.create', [
             'asns' => Asn::query()->with('containers', 'client')->whereIn('status', ['booked', 'arrived', 'receiving', 'putaway'])->orderByDesc('id')->limit(200)->get(),
             'orders' => Order::query()->with('client')->whereNotIn('operational_status', ['cancelled'])->orderByDesc('id')->limit(200)->get(['id', 'order_no', 'client_id', 'job_id', 'operational_status']),
+            'physicalContainers' => PhysicalContainer::query()->with('warehouse')->whereNull('devanning_task_id')->where('status', '!=', 'devanned')->orderByDesc('id')->limit(100)->get(),
             'types' => Enums::VAS_TASK_TYPES,
             'selectedAsn' => $request->integer('asn_id') ?: null,
             'selectedOrder' => $request->integer('order_id') ?: null,
+            'selectedPhysicalContainer' => $request->integer('physical_container_id') ?: null,
             'selectedType' => in_array($request->string('task_type')->toString(), Enums::VAS_TASK_TYPES, true) ? $request->string('task_type')->toString() : 'devanning',
         ]);
     }
 
-    public function store(Request $request, TaskService $tasks): RedirectResponse
+    public function store(Request $request, TaskService $tasks, PhysicalContainerService $boxes): RedirectResponse
     {
         $data = $request->validate([
-            'asn_id' => ['nullable', 'integer', 'required_without:order_id', Rule::exists('asns', 'id')],
-            'order_id' => ['nullable', 'integer', 'required_without:asn_id', Rule::exists('orders', 'id')],
+            'asn_id' => ['nullable', 'integer', 'required_without_all:order_id,physical_container_id', Rule::exists('asns', 'id')],
+            'order_id' => ['nullable', 'integer', 'required_without_all:asn_id,physical_container_id', Rule::exists('orders', 'id')],
+            'physical_container_id' => ['nullable', 'integer', Rule::exists('physical_containers', 'id')],
             'container_id' => ['nullable', 'integer', Rule::exists('containers', 'id')],
             'task_type' => ['required', Rule::in(Enums::VAS_TASK_TYPES)],
             'notes' => ['nullable', 'string', 'max:1000'],
-        ], ['asn_id.required_without' => __('warehouse.tasks.source_required'), 'order_id.required_without' => __('warehouse.tasks.source_required'), 'task_type.in' => __('warehouse.tasks.type_not_manual')]);
+        ], [
+            'asn_id.required_without_all' => __('warehouse.tasks.source_required'), 'order_id.required_without_all' => __('warehouse.tasks.source_required'),
+            'task_type.in' => __('warehouse.tasks.type_not_manual'),
+        ]);
+
+        if (! empty($data['physical_container_id'])) {
+            // 拼柜 / 物理柜 (CHANGE_REQUESTS #122): the ONE devanning task of the box; job / client NULL, members carry the split.
+            if ($data['task_type'] !== 'devanning') {
+                return back()->withInput()->withErrors(['task_type' => __('warehouse.physical_containers.errors.box_task_devanning_only')]);
+            }
+            $box = PhysicalContainer::query()->findOrFail($data['physical_container_id']);
+            try {
+                $task = $boxes->registerDevanning($box, $data['notes'] ?? null);
+            } catch (InvalidArgumentException $e) {
+                return back()->withInput()->withErrors(['physical_container_id' => RuleViolation::display($e)]);
+            }
+
+            return redirect()->route('warehouse.physical_containers.show', $box)->with('status', __('warehouse.tasks.created', ['task_no' => $task->task_no]));
+        }
 
         if (! empty($data['asn_id'])) {
             $asn = Asn::query()->findOrFail($data['asn_id']);
+            $container = ! empty($data['container_id']) ? Container::query()->findOrFail($data['container_id']) : null;
+            if ($container !== null && (int) $container->asn_id !== (int) $asn->id) {
+                return back()->withInput()->withErrors(['container_id' => __('warehouse.tasks.container_not_on_asn')]);
+            }
+            if ($container?->isLinked() && $data['task_type'] === 'devanning') {
+                // The row sits in a shared box: devanning is registered once on the box page and allocated over its members.
+                return back()->withInput()->withErrors(['container_id' => __('warehouse.tasks.container_linked_use_box', ['no' => $container->container_no])]);
+            }
             $attributes = [
                 'job_id' => $asn->job_id, 'client_id' => $asn->client_id, 'warehouse_id' => $asn->warehouse_id,
-                'source_type' => ! empty($data['container_id']) ? 'container' : 'asn', 'source_id' => $data['container_id'] ?? $asn->id,
-                'asn_id' => $asn->id, 'container_id' => $data['container_id'] ?? null, 'order_id' => $data['order_id'] ?? null,
+                'source_type' => $container !== null ? 'container' : 'asn', 'source_id' => $container?->id ?? $asn->id,
+                'asn_id' => $asn->id, 'container_id' => $container?->id, 'order_id' => $data['order_id'] ?? null,
             ];
         } else {
             // Outbound VAS (缠膜打带 out, per-order labour): the order is the source, so WH-WRAP-OUT-PLT matches (BillingSeeder source_type order).
@@ -110,7 +144,11 @@ class TaskController extends Controller
             $data['serials'] = preg_split('/[\r\n,;]+/', $data['serials']) ?: [];
         }
 
-        $tasks->complete($task, array_filter($data, fn ($v) => $v !== null && $v !== ''), $task->asn?->asn_no);
+        try {
+            $tasks->complete($task, array_filter($data, fn ($v) => $v !== null && $v !== ''), $task->asn?->asn_no);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['task' => RuleViolation::display($e)]);
+        }
 
         return back()->with('status', __('warehouse.tasks.completed', ['task_no' => $task->task_no]));
     }
@@ -126,6 +164,9 @@ class TaskController extends Controller
         }
         $data = $request->validate(['cancel_reason' => ['nullable', 'string', 'max:255']]);
         $tasks->cancel($task, $data['cancel_reason'] ?? null);
+        if ($task->isBoxLevel()) {
+            PhysicalContainer::query()->where('devanning_task_id', $task->id)->update(['devanning_task_id' => null]); // the box may be registered again
+        }
 
         return back()->with('status', __('warehouse.tasks.cancelled', ['task_no' => $task->task_no]));
     }

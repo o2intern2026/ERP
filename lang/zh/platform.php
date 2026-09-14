@@ -273,7 +273,7 @@ return [
     ],
 
     // Source references ("task #12", "asn #3") shown next to ledger rows, charges, invoice lines and exceptions — one map for every module.
-    'source_types' => ['job' => 'Job', 'asn' => '预报单', 'asn_line' => '预报单行', 'container' => '柜', 'goods_receipt' => '入库单', 'stock_unit' => '库存单元', 'move' => '移库', 'stocktake' => '盘点', 'task' => '作业任务', 'order' => '订单', 'fulfilment' => '发货批次', 'shipment' => '运单', 'snapshot' => '仓储快照', 'return_receipt' => '退货单', 'outbox_event' => '出站事件', 'manual' => '手工', 'other' => '其它'],
+    'source_types' => ['job' => 'Job', 'asn' => '预报单', 'asn_line' => '预报单行', 'container' => '柜', 'goods_receipt' => '入库单', 'stock_unit' => '库存单元', 'move' => '移库', 'stocktake' => '盘点', 'task' => '作业任务', 'physical_container' => '物理柜', 'order' => '订单', 'fulfilment' => '发货批次', 'shipment' => '运单', 'snapshot' => '仓储快照', 'return_receipt' => '退货单', 'outbox_event' => '出站事件', 'manual' => '手工', 'other' => '其它'],
 
     // Friendly error pages (resources/views/errors/*.blade.php) instead of Laravel's English defaults — tester feedback 2026-09-10,
     // "整个系统的每一处报错都用中文" (i18n/zh sweep, CHANGE_REQUESTS #107). 403 keeps its own wording below.

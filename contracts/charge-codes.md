@@ -4,22 +4,23 @@ Source: `Edward Storage rate 27022026.xlsx` (Storage_rate_27022026; AUD, ex GST)
 
 `tax_treatment` = `gst_10` for every row (the card excludes GST). `charge_codes.code` format: `<WH|VAS|TR>-<WHAT>[-<QUALIFIER>][-WK]`. Every threshold and band below is stored on the `rate_items` row (`threshold_json`, `weight_band_min/max`, `min_charge_cents`, `is_poa`), never in code (§0.2 rule 8).
 
-## 1. Cartage — TMS freight items
-Priced by `RateService` as `own_fleet` / `fixed` rate items and charged once at `shipment.quote_confirmed` of the cartage shipment (`CHANGE_REQUESTS.md` #7).
+## 1. Cartage — container delivery
+`CHANGE_REQUESTS.md` #122 (2026-09-14): charged once per physical box at `physical_container.arrived` (登记到港 on the 物理柜 page) when the box is ours to cart (`cartage_by_us = true`), **allocated** over the box members by the same share as the devanning fee — one charge per member Job at rate × share, key `cartage:{physical_container_id}:job:{job_id}`; the 22.5 t cap is evaluated on the box's gross weight (all members POA). The earlier trigger (`shipment.quote_confirmed` of a cartage shipment, #7 / #34) is superseded: its rules stay seeded but dormant (nothing sets `cartage_container_size`).
 | # | Edward row | Code | Category | UOM | Trigger | Quantity source | Threshold | Edward rate |
 |---|---|---|---|---|---|---|---|---|
-| 1 | Container delivery – 20ft sideloader | `TR-CARTAGE-20` | transport | container_20 | shipment.quote_confirmed | billable_qty (1) | `{"max_gross_weight_kg":22500}` — above → POA | 1230.60 |
-| 2 | Container delivery – 40ft sideloader | `TR-CARTAGE-40` | transport | container_40 | shipment.quote_confirmed | billable_qty (1) | `{"max_gross_weight_kg":22500}` — above → POA | 1291.60 |
+| 1 | Container delivery – 20ft sideloader | `TR-CARTAGE-20` | transport | container_20 | physical_container.arrived (cond container.size=20, cartage_by_us=true); shipment.quote_confirmed dormant | allocated | `{"max_gross_weight_kg":22500}` — above → POA (whole box) | 1230.60 |
+| 2 | Container delivery – 40ft sideloader | `TR-CARTAGE-40` | transport | container_40 | physical_container.arrived (cond container.size=40, cartage_by_us=true); shipment.quote_confirmed dormant | allocated | `{"max_gross_weight_kg":22500}` — above → POA (whole box) | 1291.60 |
 
 ## 2. Inbound
+Rows 3–8 (`CHANGE_REQUESTS.md` #122): quantity source `allocated` — for a shared physical container (拼柜 / LCL) the `task.completed` of the ONE box-level devanning task carries `members[]`, and each member is charged rate × its `share` on its own card and Job, matched on the **member's** unpack_mode (a palletised member pays PLT × share, a loose member LOOSE × share, a mixed member is POA); the 20-line cap is the WHOLE box's `line_count_total`. A `task.completed` without `members` (single-client container row) degrades to `billable_qty` — byte-identical to before.
 | # | Edward row | Code | Category | UOM | Trigger | Quantity source | Condition / threshold | Edward rate |
 |---|---|---|---|---|---|---|---|---|
-| 3 | Container unpack 20ft – Pallet | `WH-DEVAN-20-PLT` | warehouse | container_20 | task.completed | billable_qty | task_type=devanning, container.size=20, unpack_mode=pallet | 180.00 |
-| 4 | Container unpack 20ft – Loose | `WH-DEVAN-20-LOOSE` | warehouse | container_20 | task.completed | billable_qty | task_type=devanning, size=20, unpack_mode=loose; `{"max_line_count":20}` — above → POA (`needs_review`) | 400.00 |
-| 5 | Container unpack 20ft – Mixed | `WH-DEVAN-20-MIXED` | warehouse | container_20 | task.completed | billable_qty | unpack_mode=mixed → **POA** (`is_poa`; card note "$300 subject to container") | POA |
-| 6 | Container unpack 40ft – Pallet | `WH-DEVAN-40-PLT` | warehouse | container_40 | task.completed | billable_qty | size=40, unpack_mode=pallet | 280.00 |
-| 7 | Container unpack 40ft – Loose | `WH-DEVAN-40-LOOSE` | warehouse | container_40 | task.completed | billable_qty | size=40, unpack_mode=loose; `{"max_line_count":20}` | 550.00 |
-| 8 | Container unpack 40ft – Mixed | `WH-DEVAN-40-MIXED` | warehouse | container_40 | task.completed | billable_qty | unpack_mode=mixed → **POA** (card note "$450 subject to container") | POA |
+| 3 | Container unpack 20ft – Pallet | `WH-DEVAN-20-PLT` | warehouse | container_20 | task.completed | allocated (= billable_qty without members) | task_type=devanning, container.size=20, unpack_mode=pallet | 180.00 |
+| 4 | Container unpack 20ft – Loose | `WH-DEVAN-20-LOOSE` | warehouse | container_20 | task.completed | allocated | task_type=devanning, size=20, unpack_mode=loose; `{"max_line_count":20}` — above → POA (`needs_review`), enforced by the real RateService since #122 | 400.00 |
+| 5 | Container unpack 20ft – Mixed | `WH-DEVAN-20-MIXED` | warehouse | container_20 | task.completed | allocated | unpack_mode=mixed → **POA** (`is_poa`; card note "$300 subject to container") | POA |
+| 6 | Container unpack 40ft – Pallet | `WH-DEVAN-40-PLT` | warehouse | container_40 | task.completed | allocated | size=40, unpack_mode=pallet | 280.00 |
+| 7 | Container unpack 40ft – Loose | `WH-DEVAN-40-LOOSE` | warehouse | container_40 | task.completed | allocated | size=40, unpack_mode=loose; `{"max_line_count":20}` | 550.00 |
+| 8 | Container unpack 40ft – Mixed | `WH-DEVAN-40-MIXED` | warehouse | container_40 | task.completed | allocated | unpack_mode=mixed → **POA** (card note "$450 subject to container") | POA |
 | 9 | Truck unload (LCL) – pallet | `WH-UNLOAD-PLT` | warehouse | pallet | task.completed | billable_qty | task_type=receiving, asn.inbound_type=loose_truck; qty = pallets unloaded | 4.00 |
 | 10 | Putaway – pallet | `WH-PUTAWAY-PLT` | warehouse | pallet | asn.putaway_completed | pallets | — | 4.50 |
 | 11 | Shrink wrap / Strap (inbound) | `WH-WRAP-IN-PLT` | vas | pallet | task.completed | billable_qty | task_type=wrap, source_type ∈ {asn, container} | 4.50 |
@@ -73,6 +74,7 @@ No seed rate: priced only if a client card carries them, otherwise **Missing Rat
 | `TR-REDELIVERY` | transport | delivery | delivery.extra_charge | one | `charge_type = redelivery`; key `extra:{shipment_id}:redelivery:{occurred_at}` (§6.4) |
 | `TR-WAITING` ※ | transport | man_hour | delivery.extra_charge | billable_qty (= payload `qty`, hours) | `charge_type = waiting`; key `extra:{shipment_id}:waiting:{occurred_at}` (§6.4, §6.7 A5) |
 | `TR-PICKUP` ※ | transport | delivery | manual | one | 上门提货附加费 — collection at the sender for a `pickup_deliver` order. **Manual trigger only** (like `VAS-PALLET-PURCHASE-NONSTD`): never auto-billed until priced, no Edward row; the freight quote already covers pickup → door (`CHANGE_REQUESTS.md` #120) |
+| `TR-SIDELOADER` ※ | transport | delivery | physical_container.arrived | allocated | 侧卸车附加费 — condition `sideloader_required = true` on the box; allocated over the members like cartage, key `sideloader:{physical_container_id}:job:{job_id}`. No Edward row (the Edward cartage rows are "sideloader all-in"): the first flagged box raises a Missing Rate exception per member and Finance prices it (or 0) on the client card (`CHANGE_REQUESTS.md` #122, decision F4) |
 | `WH-STORAGE-CTN-WK` | storage | carton_week | snapshot.weekly | cartons | loose cartons not on a pallet, if the client card bills per carton (§6.7 A6b) |
 | `WH-STORAGE-CBM-WK` | storage | cbm_week | snapshot.weekly | cbm | loose cartons by volume, if the client card bills per CBM (§6.7 A6b) |
 | `WH-STORAGE-QUARANTINE-PLT-WK` ※ | storage | pallet_week | snapshot.weekly | weeks | condition ∈ {quarantine, damaged}: still charged, separate code (§4.8) |
@@ -83,8 +85,8 @@ No seed rate: priced only if a client card carries them, otherwise **Missing Rat
 The only keys code may read; values always come from the rate item, defaults below are the Edward seed.
 | Key | Used by | Meaning (Edward default) |
 |---|---|---|
-| `max_gross_weight_kg` | TR-CARTAGE-* | container gross weight above which cartage is POA (22 500) |
-| `max_line_count` | WH-DEVAN-*-LOOSE | `asn_lines` per container above which devanning is POA (20) |
+| `max_gross_weight_kg` | TR-CARTAGE-* | container gross weight above which cartage is POA (22 500) — read from `context.gross_weight_kg` (a shared box: the whole box); enforced by `RateService::price` since #122 |
+| `max_line_count` | WH-DEVAN-*-LOOSE | `asn_lines` per container above which devanning is POA (20) — read from `context.line_count` (a shared box: `line_count_total`); enforced by `RateService::price` since #122 |
 | `max_length_mm`, `max_width_mm`, `max_height_mm`, `max_weight_kg` | WH-STORAGE-PLT-WK, WH-STORAGE-PLT-HIGH-WK | pallet_class bounds (1200 / 1200 / 1400 or 1800 / 800, weight strictly below) |
 | `max_long_side_mm`, `max_short_side_mm` | WH-STORAGE-PLT-WIDE-WK | one side up to 2400, the other ≤ 1200 |
 | `min_weight_kg` | WH-STORAGE-PLT-OVERWEIGHT-WK | ≥ 800 → overweight (POA) |
@@ -95,4 +97,4 @@ The only keys code may read; values always come from the rate item, defaults bel
 | `variance_tolerance_percent` | `TransportOptionService` final vs preliminary quote | re-confirmation required above this (10, §5.6 B5d) |
 | `own_fleet_preference_percent` | `TransportOptionService` recommendation | prefer own fleet when within this % of the cheapest (0, §5.6 B5d) |
 
-Carton pick bands use the `weight_band_min` / `weight_band_max` columns, not JSON. `pallet_class` suggestion at receiving (§4.8): evaluate the client's active card's storage items in the order standard → oversize_high → oversize_wide; first match wins; weight ≥ `min_weight_kg` → overweight; nothing matches → POA / `needs_review`. Rate lookup order for every code: client card → the client's bound standard card → Missing Rate exception (§0.2).
+`context.allocated = true` (an `allocated` tuple, #122) prices rate × share and skips `min_billable_qty` / `min_charge_cents` — minimums belong to the whole box, not to a member's fraction; the allocation basis is a property of the box (`physical_containers.allocation_basis`, coordinator's choice, default cartons_received / pallets), not of any client's card, because one box has N clients. Carton pick bands use the `weight_band_min` / `weight_band_max` columns, not JSON. `pallet_class` suggestion at receiving (§4.8): evaluate the client's active card's storage items in the order standard → oversize_high → oversize_wide; first match wins; weight ≥ `min_weight_kg` → overweight; nothing matches → POA / `needs_review`. Rate lookup order for every code: client card → the client's bound standard card → Missing Rate exception (§0.2).

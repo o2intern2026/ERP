@@ -39,7 +39,11 @@
                 <form method="post" action="{{ route('warehouse.asns.confirm_unplanned', $asn) }}" class="inline">@csrf<button type="submit" class="secondary">{{ __('warehouse.asns.confirm_unplanned') }}</button></form>
             @endif
             @role('admin|warehouse_supervisor|warehouse_operator')
-                <a role="button" class="secondary" href="{{ route('warehouse.tasks.create', ['asn_id' => $asn->id]) }}">{{ __('warehouse.asns.new_task') }}</a>
+                @if ($allLinked)
+                    <a role="button" class="secondary" href="{{ route('warehouse.tasks.create', ['asn_id' => $asn->id, 'task_type' => 'wrap']) }}">{{ __('warehouse.asns.new_task_no_devanning') }}</a>
+                @else
+                    <a role="button" class="secondary" href="{{ route('warehouse.tasks.create', ['asn_id' => $asn->id]) }}">{{ __('warehouse.asns.new_task') }}</a>
+                @endif
                 @if ($asn->lines->contains(fn ($l) => $l->stockUnits->isNotEmpty()))<a role="button" class="secondary outline" target="_blank" href="{{ route('warehouse.labels.asn', $asn) }}">{{ __('warehouse.labels.units') }}</a>@endif
             @endrole
         </div>
@@ -50,9 +54,28 @@
 
     @if ($asn->containers->isNotEmpty())
         <h2>{{ __('warehouse.asns.containers') }}</h2>
+        @if ($allLinked)<p class="text-muted"><small>{{ __('warehouse.asns.box_devanning_hint') }}</small></p>@endif
         <table class="dense">
-            <thead><tr><th>{{ __('warehouse.asns.container_no') }}</th><th>{{ __('warehouse.asns.size') }}</th><th>{{ __('warehouse.asns.unpack_mode') }}</th><th class="num">{{ __('warehouse.asns.gross_weight') }}</th><th class="num">{{ __('warehouse.asns.line_count') }}</th></tr></thead>
-            <tbody>@foreach ($asn->containers as $c)<tr><td>{{ $c->container_no }}</td><td>{{ __('warehouse.container_sizes.'.$c->size) }}</td><td>{{ __('warehouse.unpack_modes.'.$c->unpack_mode) }}</td><td class="num">{{ $c->gross_weight_kg }}</td><td class="num">{{ $c->line_count }}</td></tr>@endforeach</tbody>
+            <thead><tr><th>{{ __('warehouse.asns.container_no') }}</th><th>{{ __('warehouse.asns.size') }}</th><th>{{ __('warehouse.asns.unpack_mode') }}</th><th class="num">{{ __('warehouse.asns.gross_weight') }}</th><th class="num">{{ __('warehouse.asns.line_count') }}</th><th>{{ __('warehouse.asns.physical_container') }}</th></tr></thead>
+            <tbody>@foreach ($asn->containers as $c)<tr><td>{{ $c->container_no }}</td><td>{{ __('warehouse.container_sizes.'.$c->size) }}</td><td>{{ __('warehouse.unpack_modes.'.$c->unpack_mode) }}</td><td class="num">{{ $c->gross_weight_kg }}</td><td class="num">{{ $c->line_count }}</td>
+                <td>
+                    @if ($c->physicalContainer)
+                        @role('admin|customer_service|warehouse_supervisor')<a href="{{ route('warehouse.physical_containers.show', $c->physicalContainer) }}">{{ $c->physicalContainer->container_no }}</a>@else{{ $c->physicalContainer->container_no }}@endrole
+                        {!! \App\Support\Ui\StatusBadge::render('warehouse.physical_containers.consolidations.', $c->physicalContainer->consolidation) !!}
+                        @if ($c->devanning_share !== null)<small class="text-muted">{{ __('warehouse.asns.box_share', ['share' => number_format((float) $c->devanning_share * 100, 2)]) }}</small>@endif
+                    @else
+                        @role('admin|customer_service|warehouse_supervisor')
+                            @if (isset($openBoxes[$c->container_no]))
+                                <a href="{{ route('warehouse.physical_containers.show', $openBoxes[$c->container_no]) }}">{{ __('warehouse.asns.link_box') }}</a>
+                            @else
+                                <a href="{{ route('warehouse.physical_containers.create', ['container_no' => $c->container_no, 'warehouse_id' => $asn->warehouse_id, 'size' => $c->size, 'unpack_mode' => $c->unpack_mode, 'gross_weight_kg' => $c->gross_weight_kg, 'eta_date' => $asn->expected_date?->format('Y-m-d')]) }}">{{ __('warehouse.asns.link_box') }}</a>
+                            @endif
+                        @else
+                            <span class="text-muted">—</span>
+                        @endrole
+                    @endif
+                </td>
+            </tr>@endforeach</tbody>
         </table>
     @endif
 
@@ -216,5 +239,10 @@
         <h3>{{ __('warehouse.asns.tasks') }}</h3>
         <table class="dense"><thead><tr><th>{{ __('warehouse.tasks.task_no') }}</th><th>{{ __('warehouse.tasks.type') }}</th><th>{{ __('warehouse.tasks.status') }}</th><th class="num">{{ __('warehouse.tasks.billable_qty') }}</th></tr></thead>
         <tbody>@foreach ($tasks as $t)<tr><td>{{ $t->task_no }}</td><td>{{ __('warehouse.task_types.'.$t->task_type) }}</td><td>{!! \App\Support\Ui\StatusBadge::render('warehouse.task_statuses.', $t->status) !!}</td><td class="num">{{ $t->billable_qty }} {{ $t->billable_uom ? __('warehouse.uoms.'.$t->billable_uom) : '' }}</td></tr>@endforeach</tbody></table>
+    @endif
+    @if ($boxTasks->isNotEmpty())
+        <h3>{{ __('warehouse.asns.box_tasks') }}</h3>
+        <table class="dense"><thead><tr><th>{{ __('warehouse.tasks.task_no') }}</th><th>{{ __('warehouse.asns.physical_container') }}</th><th>{{ __('warehouse.tasks.type') }}</th><th>{{ __('warehouse.tasks.status') }}</th></tr></thead>
+        <tbody>@foreach ($boxTasks as $t)<tr><td>{{ $t->task_no }}</td><td>{{ $t->physicalContainer?->container_no }} {!! \App\Support\Ui\StatusBadge::render('warehouse.physical_containers.consolidations.', $t->physicalContainer?->consolidation) !!}</td><td>{{ __('warehouse.task_types.'.$t->task_type) }}</td><td>{!! \App\Support\Ui\StatusBadge::render('warehouse.task_statuses.', $t->status) !!}</td></tr>@endforeach</tbody></table>
     @endif
 @endsection

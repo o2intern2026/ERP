@@ -37,13 +37,22 @@ final class RateService implements RateServiceContract
         if ($item->is_poa) {
             return array_replace($result, ['is_poa' => true, 'amount_cents' => 0, 'calculation_snapshot' => $snapshot + ['poa' => true]]);
         }
+        // contracts/services.md §4: a threshold on the rate item flips the line to POA — the 20-line devanning cap (max_line_count)
+        // and the 22.5 t cartage cap (max_gross_weight_kg), evaluated on the values the caller passes (for a shared box: the WHOLE
+        // box — CHANGE_REQUESTS #122, which closed the drift between this service and FakeRateService).
+        if (($exceeded = $this->exceededThreshold($item, $context)) !== null) {
+            return array_replace($result, ['is_poa' => true, 'amount_cents' => 0, 'calculation_snapshot' => $snapshot + ['poa' => true, 'reason' => $exceeded]]);
+        }
         // Audit 2026-09-10: a percent surcharge (e.g. TR-FUEL 10 %) needs the amount it is a percentage of; without it the line is
         // unpriceable and must show as POA / needs review — never as a priced-looking $0 (contracts/services.md §4 "never 0").
         if ($item->pricing_mode === 'percent' && ! isset($context['base_cents'])) {
             return array_replace($result, ['is_poa' => true, 'amount_cents' => 0, 'calculation_snapshot' => $snapshot + ['poa' => true, 'reason' => 'no_base_cents']]);
         }
 
-        $minQty = (float) $item->threshold('min_billable_qty', 0);
+        // An allocated fraction of one box (#122) is priced as rate × share: the minimum quantity / minimum charge belong to the
+        // whole box, not to each member, so they are skipped for allocated tuples.
+        $allocated = (bool) ($context['allocated'] ?? false);
+        $minQty = $allocated ? 0.0 : (float) $item->threshold('min_billable_qty', 0);
         $billedQty = max($qty, $minQty);
 
         $amount = match ($item->pricing_mode) {
@@ -53,7 +62,7 @@ final class RateService implements RateServiceContract
         };
 
         $minApplied = false;
-        if ($item->min_charge_cents !== null && $amount < $item->min_charge_cents) {
+        if (! $allocated && $item->min_charge_cents !== null && $amount < $item->min_charge_cents) {
             $amount = $item->min_charge_cents;
             $minApplied = true;
         }
@@ -63,8 +72,21 @@ final class RateService implements RateServiceContract
             'rate_cents' => $item->rate_cents,
             'amount_cents' => $amount,
             'min_charge_applied' => $minApplied,
-            'calculation_snapshot' => $snapshot + ['billed_qty' => $billedQty, 'min_billable_qty' => $minQty, 'min_charge_cents' => $item->min_charge_cents],
+            'calculation_snapshot' => $snapshot + ['billed_qty' => $billedQty, 'min_billable_qty' => $minQty, 'min_charge_cents' => $item->min_charge_cents] + ($allocated ? ['allocated' => true] : []),
         ]);
+    }
+
+    /** The threshold key the context exceeds (charge-codes.md §7: max_line_count, max_gross_weight_kg), or null when within every cap. */
+    private function exceededThreshold(RateItem $item, array $context): ?string
+    {
+        foreach (['max_line_count' => 'line_count', 'max_gross_weight_kg' => 'gross_weight_kg'] as $key => $contextKey) {
+            $cap = $item->threshold($key);
+            if ($cap !== null && isset($context[$contextKey]) && (float) $context[$contextKey] > (float) $cap) {
+                return $key;
+            }
+        }
+
+        return null;
     }
 
     public function thresholds(int $clientId, string $chargeCode): ?array

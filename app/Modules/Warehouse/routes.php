@@ -5,6 +5,7 @@ use App\Modules\Warehouse\Http\Controllers\GoodsReceiptController;
 use App\Modules\Warehouse\Http\Controllers\LabelController;
 use App\Modules\Warehouse\Http\Controllers\LocationController;
 use App\Modules\Warehouse\Http\Controllers\OutboundController;
+use App\Modules\Warehouse\Http\Controllers\PhysicalContainerController;
 use App\Modules\Warehouse\Http\Controllers\PutawayController;
 use App\Modules\Warehouse\Http\Controllers\ReceivingController;
 use App\Modules\Warehouse\Http\Controllers\ReturnController;
@@ -62,6 +63,19 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/asns/{asn}/confirm-client', [AsnController::class, 'confirmClient'])->middleware('role:admin|customer_service')->name('asns.confirm_client'); // 确认客户预报 — portal / API submissions (CHANGE_REQUESTS #116)
         Route::post('/asns/{asn}/generate-orders', [AsnController::class, 'generateOrders'])->name('asns.generate_orders');
         Route::get('/receiving', [ReceivingController::class, 'index'])->name('receiving.index'); // 待收货 worklist (the 收货 button itself is warehouse-roles only)
+    });
+
+    // 物理柜 / 拼柜 (CHANGE_REQUESTS #122): the coordinator links the container rows of several ASNs / clients to one physical box,
+    // registers its ONE devanning task, marks it arrived (cartage / sideloader) and re-splits the fee (重算分摊). Staff only — never the portal.
+    Route::middleware('role:admin|customer_service|warehouse_supervisor')->group(function () {
+        Route::get('/physical-containers', [PhysicalContainerController::class, 'index'])->name('physical_containers.index');
+        Route::get('/physical-containers/create', [PhysicalContainerController::class, 'create'])->name('physical_containers.create');
+        Route::post('/physical-containers', [PhysicalContainerController::class, 'store'])->name('physical_containers.store');
+        Route::get('/physical-containers/{box}', [PhysicalContainerController::class, 'show'])->name('physical_containers.show')->whereNumber('box');
+        Route::post('/physical-containers/{box}/link', [PhysicalContainerController::class, 'link'])->name('physical_containers.link')->whereNumber('box');
+        Route::post('/physical-containers/{box}/unlink/{container}', [PhysicalContainerController::class, 'unlink'])->name('physical_containers.unlink')->whereNumber('box')->whereNumber('container');
+        Route::post('/physical-containers/{box}/arrive', [PhysicalContainerController::class, 'arrive'])->name('physical_containers.arrive')->whereNumber('box');
+        Route::post('/physical-containers/{box}/recompute', [PhysicalContainerController::class, 'recompute'])->name('physical_containers.recompute')->whereNumber('box');
     });
 
     Route::middleware('role:admin|warehouse_supervisor|warehouse_operator')->group(function () {

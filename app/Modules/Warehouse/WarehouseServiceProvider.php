@@ -11,6 +11,7 @@ use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnLine;
 use App\Modules\Warehouse\Models\Container;
 use App\Modules\Warehouse\Models\GoodsReceipt;
+use App\Modules\Warehouse\Models\PhysicalContainer;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Modules\Warehouse\Services\AsnService;
 use App\Modules\Warehouse\Services\StockService;
@@ -46,6 +47,10 @@ class WarehouseServiceProvider extends ServiceProvider
                 ? GoodsReceipt::query()->where('receipt_no', 'like', "%{$q}%")->limit(10)->get()->map(fn ($r) => ['type' => 'goods_receipt', 'label' => $r->receipt_no, 'url' => route('warehouse.receipts.show', $r), 'meta' => __('warehouse.receipt_statuses.'.$r->status)])->all()
                 : [],
             Container::query()->where('container_no', 'like', "%{$q}%")->limit(10)->get()->map(fn ($c) => ['type' => 'container', 'label' => $c->container_no, 'url' => route('warehouse.asns.show', $c->asn_id), 'meta' => __('warehouse.container_sizes.'.$c->size)])->all(),
+            // 物理柜 (CHANGE_REQUESTS #122): the box number → the linking screen; the roles of the physical-containers route group only.
+            auth()->user()?->hasAnyRole(['admin', 'customer_service', 'warehouse_supervisor'])
+                ? PhysicalContainer::query()->where('container_no', 'like', "%{$q}%")->limit(10)->get()->map(fn ($b) => ['type' => 'physical_container', 'label' => $b->container_no, 'url' => route('warehouse.physical_containers.show', $b), 'meta' => __('warehouse.physical_containers.consolidations.'.$b->consolidation).' · '.__('warehouse.physical_containers.statuses.'.$b->status)])->all()
+                : [],
             AsnLine::query()->where('consignment_mark', 'like', "%{$q}%")->limit(10)->get()->map(fn ($l) => ['type' => 'consignment_mark', 'label' => (string) $l->consignment_mark, 'url' => route('warehouse.asns.show', $l->asn_id).'#line-'.$l->id, 'meta' => $l->description])->all(),
             StockUnit::query()->where('label_code', 'like', "%{$q}%")->limit(10)->get()->map(fn ($u) => ['type' => 'stock_unit', 'label' => $u->label_code, 'url' => route('warehouse.stock.show', $u), 'meta' => ($u->location?->full_code ?? '—').' · '.$u->qty_on_hand])->all(),
         ), ['admin', 'warehouse_supervisor', 'warehouse_operator', 'dispatcher', 'customer_service', 'finance']);

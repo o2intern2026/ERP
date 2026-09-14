@@ -23,7 +23,7 @@
 
 ## 0.2 跨模块铁律(不可协商)
 
-1. **Job 是业务主线**:Job = 一次独立的客户业务委托。orders、asns、shipments、charges、carrier_costs、documents、exceptions、quotes、invoice_lines 全部挂 `job_id`。**ASN 是入库主单**(收货、差异、上架、库存都由它管理);**Container 是 ASN 下的可选物理对象**,只有整柜入库才创建。整柜业务默认一柜一 Job,但系统必须允许一个 Job 无 Container 或关联多个 Container。Container 只记基础字段(柜号、柜型、拆柜方式、毛重、行数),不做柜级生命周期与单证。
+1. **Job 是业务主线**:Job = 一次独立的客户业务委托。orders、asns、shipments、charges、carrier_costs、documents、exceptions、quotes、invoice_lines 全部挂 `job_id`。**ASN 是入库主单**(收货、差异、上架、库存都由它管理);**Container 是 ASN 下的可选物理对象**,只有整柜入库才创建。整柜业务默认一柜一 Job,但系统必须允许一个 Job 无 Container 或关联多个 Container。Container 只记基础字段(柜号、柜型、拆柜方式、毛重、行数),不做柜级生命周期与单证。**拼柜 / LCL(CHANGE_REQUESTS #122,2026-09-14):几个客户的 ASN 共用一只真实的柜时,各 ASN 仍各有自己的 Container 行、Job 与入库单;它们可选地关联到同一条 `physical_containers` 记录(物理柜:柜号、仓库、柜型、拆柜方式、毛重、分摊基准、拖柜 / 侧卸标记,无 client_id,不做封条 / 报关),拆柜任务只在物理柜上登记一次,拆柜费与拖车 / 侧卸车费按成员份额记到各自的 Job。不关联的 Container 行(整柜 FCL)一切照旧。**
 2. **表所有权**:每张表只有一个 owner 账号写 migration 和 model。
 3. **跨模块禁止写入他人业务表**:状态变化与副作用走 `domain_events`(B 写、A 消费;B 永远不写 charges,A 永远不写 stock_ledger);同步查询走公开 Application Service(`StockService`、`RateService`、`JobService`)或只读模型,不依赖异步事件。
 4. **事件必须可靠(事务 Outbox)**:`outbox_events` 由 Platform 拥有;业务写入与事件写入必须在**同一个数据库事务**里提交,要么都成功要么都失败;每条事件有 event_id、event_version、correlation_id;消费方记 consumed_events(inbox 幂等);失败自动重试,重试耗尽进失败事件队列并告警。否则会出现"仓库做完了、费用永远没生成"。
@@ -718,10 +718,21 @@ asns                       入库主单(挂 Job;收货 / 差异 / 上架 / 库�
 
 containers                 整柜入库才创建(ASN 下的可选物理对象,0..n;只记计费需要的基础字段,不做柜级生命周期)
 ├─ asn_id(主)、job_id(冗余,便于按 Job 查)
+├─ physical_container_id   可空 → physical_containers:与其他 ASN 共用一只真实柜时关联(拼柜 / LCL,CHANGE_REQUESTS #122);空 = 单一客户整柜,一切照旧
 ├─ container_no, size(20 | 40)
 ├─ unpack_mode             pallet | loose | mixed(mixed 为 POA → 待报价)
 ├─ gross_weight_kg         Cartage 门槛(默认 22.5 t,超过 → 待报价;阈值在价目表)
-└─ line_count              该柜下 asn_lines 行数(派生;价目表"within 20 SKU"用它判断,超上限 → 待报价;上限在价目表)
+├─ line_count              该柜下 asn_lines 行数(派生;价目表"within 20 SKU"用它判断,超上限 → 待报价;上限在价目表)
+└─ devanning_basis / devanning_basis_qty / devanning_share / devanning_basis_provisional   本行在物理柜拆柜费里的最近一次份额快照(#122)
+
+physical_containers        物理柜(CHANGE_REQUESTS #122):一只真实到港的集装箱,被 1..n 个 ASN 的 containers 行共用;无 client_id(跨客户),只有员工页面
+├─ container_no, warehouse_id, size, unpack_mode(柜级;成员按自己的方式计价), gross_weight_kg(22.5 t 门槛按整柜), eta_date, arrived_at, devanned_at
+├─ consolidation           fcl | lcl(派生 = 成员的不同客户数,不可编辑)
+├─ allocation_basis        cartons_received(默认;成员未全部收货完成前按预报箱数,临时)| pallets(柜级整托时默认)| cbm | lines | equal(基准合计为 0 时的兜底)
+├─ cartage_by_us, sideloader_required   到港时按同一份额产生 TR-CARTAGE-20/40、TR-SIDELOADER
+├─ status                  expected → arrived(登记到港 → physical_container.arrived)→ devanned(整柜唯一的一条 devanning 任务完成)
+├─ devanning_task_id       整柜唯一的拆柜任务(warehouse_tasks.source_type = physical_container,job_id / client_id 为空,份额随事件下发)
+└─ allocation_version, allocation_stale   每次发出的事件带 activity_version;成员变化后"重算分摊"版本 +1,Billing 冲销旧版本重出
 
 asn_lines                  货物行(库存的身份来源)
 ├─ asn_id, container_id(可空)   来自哪个柜;一行货只属一个柜,跨柜拆行
@@ -1011,6 +1022,7 @@ VAS:   拆柜 / 缠膜打带(进库 / 出库)/ 序列号扫描(逐个存 scan_re
 
 - ~~隔离中的损坏货是否照收仓储费?~~ 已定(v4.4):照收,独立 charge code 单列;报废移出后停止。
 - ~~托盘类型由谁判定?~~ 已定(v4.4 系统建议 + 人工确认;阈值于 2026-09-07 改按客户价目表):收货录入托盘长宽高重后,系统按**客户价目表**里的阈值建议 pallet_class,收货人确认或改选(改选记原因)。默认阈值取自 Edward 价目表:standard = 1200 × 1200 × ≤ 1400 mm 且 < 800 kg;oversize_high = 高 ≤ 1800 mm;oversize_wide = 一边 ≤ 2400 mm;≥ 800 kg = overweight(POA);高 > 1800 或长 > 2400 等超出所有档位 → POA 待报价。阈值随价目表版本,可改不写死。
+- ~~拼柜(LCL,几个客户共用一只柜)的拆柜费怎么分?~~ 已定(2026-09-14,CHANGE_REQUESTS #122 七项默认):物理柜 + 成员份额(默认实收箱数,整托柜按托盘数,合计为 0 平均;收货未全部完成前按预报箱数临时,之后"重算分摊"),每个成员按自己的拆柜方式 × 份额记到自己的 Job,20 行 / 22.5 t 上限按整柜,拖车 / 侧卸车按同一份额在"登记到港"时产生,门户只显示客户自己的柜号。**待确认(开放问题)**:① 侧卸车附加费 TR-SIDELOADER 的价格 —— Edward 价目表把拖车写成"sideloader all-in",本版不给默认价,首次触发进缺费率由财务定;② 份额取四位小数、各成员金额分别取整,成员之和可能与整柜价差几分钱,是否需要"最后一个成员吃掉尾差"的规则;③ 混装成员目前进待报价(按 MIXED 行),是否改为按柜级"整体报价后按份额摊"。
 
 ## 4.9 行业建议(本版不采纳,备查)
 
@@ -1433,7 +1445,8 @@ customer_quote_lines       charge_code, qty, uom, amount_cents, assumptions(拆�
 | `shipment.quote_confirmed` | 运费(客户价)+ 尾板费(如判定)—— **唯一产生点**,在打包实测之后、预订之前;纯运输订单(order_type = pickup_deliver)另按申报包裹产生与 `outbound.packed` 相同的订单处理 / 加急 / 拣货 / 出库 label / 装车费(同 code 同费率,幂等键 order:{order_id} —— CHANGE_REQUESTS #120) | 自派:固定费率(如 pallet $75);第三方:报价成本 × markup |
 | `shipment.booked` | 不产生费用;记 carrier_cost(成本)与预订信息 | — |
 | `delivery.extra_charge` | 等候、二次派送、失败派送等附加费 | 按价目表附加费项;Billing 决定是否收费 |
-| `task.completed`(warehouse_tasks) | 拆柜费(**唯一触发点**,按柜型 × 拆柜方式;mixed 或行数超上限 → 待报价)、卸货费、装车费、缠膜打带(进 / 出库 code)、序列号扫描费、人工时(班内 / 班外)、废弃物(最低 1 CBM) | per container / pallet / scan / man_hour / cbm(取 billable_qty / billable_uom) |
+| `task.completed`(warehouse_tasks) | 拆柜费(**唯一触发点**,按柜型 × 拆柜方式;mixed 或行数超上限 → 待报价;**拼柜(物理柜级任务,CHANGE_REQUESTS #122):事件带 members[] 与份额,每个成员按自己的拆柜方式 × 份额记到各自 Job,20 行上限按整柜判断,份额四位小数各自取整**)、卸货费、装车费、缠膜打带(进 / 出库 code)、序列号扫描费、人工时(班内 / 班外)、废弃物(最低 1 CBM) | per container / pallet / scan / man_hour / cbm(取 billable_qty / billable_uom;拼柜 qty = 份额) |
+| `physical_container.arrived`(physical_containers,#122) | 拖车费 TR-CARTAGE-20/40(柜级 cartage_by_us = true,**唯一触发点**,取代 #7 / #34 从未建成的拖柜运单;22.5 t 上限按整柜 → 全部成员待报价)+ 侧卸车附加费 TR-SIDELOADER(sideloader_required = true;Edward 卡无此行 → 首次进缺费率异常由财务定价),按与拆柜费相同的份额分摊 | per container × 份额 |
 | `return.financial_decision` | credit note(退货冲减)—— **唯一触发点**,在验收完成、财务决定后 | 按原费用行冲减 |
 | `delivery.pod_captured` | 确认运费可结算;记 carrier_cost | — |
 | 人工 | 加班人工费、等候费、POA 报价 | per man_hour / 手工 |
@@ -1803,4 +1816,4 @@ You are the integration agent. Given a block branch to merge:
 
 ---
 
-*v4.5 · 2026-09-01 · 唯一计划文件,无待确认项。*
+*v4.5 · 2026-09-01 · 唯一计划文件;2026-09-14 起 §4.8 拼柜一条带三个开放问题(CHANGE_REQUESTS #122),其余无待确认项。*

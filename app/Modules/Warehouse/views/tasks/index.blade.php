@@ -27,11 +27,12 @@
                     <td>{{ __('warehouse.task_types.'.$t->task_type) }} @if ($isSystem)<span class="badge" data-tone="muted">{{ __('warehouse.tasks.system_record') }}</span>@endif</td>
                     <td>
                         @if ($t->asn)<a href="{{ route('warehouse.asns.show', $t->asn) }}">{{ $t->asn->asn_no }}</a>@endif
+                        @if ($t->physicalContainer)@role('admin|customer_service|warehouse_supervisor')<a href="{{ route('warehouse.physical_containers.show', $t->physicalContainer) }}">{{ __('warehouse.tasks.box_task') }}</a>@else{{ __('warehouse.tasks.box_task') }}@endrole {!! \App\Support\Ui\StatusBadge::render('warehouse.physical_containers.consolidations.', $t->physicalContainer->consolidation) !!}@endif
                         @if ($t->order_id)<a href="{{ route('orders.show', $t->order_id) }}">{{ __('warehouse.tasks.order') }} #{{ $t->order_id }}</a>@endif
                         @if ($t->task_type === 'pick' && $t->wave_id)<a href="{{ route('warehouse.outbound.waves.show', $t->wave_id) }}">{{ __('warehouse.tasks.open_wave') }}</a>@endif
                         @if (in_array($t->task_type, ['pack', 'load'], true))<a href="{{ route('warehouse.outbound.index') }}">{{ __('warehouse.tasks.open_outbound') }}</a>@endif
                     </td>
-                    <td>{{ $t->container?->container_no }}</td>
+                    <td>{{ $t->container?->container_no ?? $t->physicalContainer?->container_no }}</td>
                     <td><span class="badge" data-tone="{{ $t->status === 'done' ? 'ok' : ($t->status === 'cancelled' ? 'muted' : 'warn') }}">{{ __('warehouse.task_statuses.'.$t->status) }}</span></td>
                     <td>{{ $t->billable_qty }} {{ $t->billable_uom ? __('warehouse.uoms.'.$t->billable_uom) : '' }} @if ($t->hours_business || $t->hours_after_hours)· {{ $t->hours_business }}h / {{ $t->hours_after_hours }}h @endif</td>
                     <td>

@@ -73,7 +73,17 @@ final class Enums
     /** Task types only the system writes; the generic 完成 / 取消 buttons never apply to them. */
     public const SYSTEM_TASK_TYPES = ['pick', 'pack', 'load', 'return_inspection'];
 
-    public const TASK_SOURCE_TYPES = ['order', 'fulfilment', 'asn', 'container', 'stocktake', 'wave'];
+    /** `physical_container` = the box-level devanning task of a shared (拼柜 / LCL) container, CHANGE_REQUESTS #122. */
+    public const TASK_SOURCE_TYPES = ['order', 'fulfilment', 'asn', 'container', 'stocktake', 'wave', 'physical_container'];
+
+    /** physical_containers.consolidation — derived from the distinct clients of the linked container rows (#122). */
+    public const CONSOLIDATIONS = ['fcl', 'lcl'];
+
+    /** physical_containers.allocation_basis — how a shared box's devanning / cartage fee is split between its members (#122). */
+    public const ALLOCATION_BASES = ['cartons_received', 'pallets', 'cbm', 'lines', 'equal'];
+
+    /** physical_containers.status — display state only, no seals / customs (#122). */
+    public const PHYSICAL_CONTAINER_STATUSES = ['expected', 'arrived', 'devanned'];
 
     public const TASK_STATUSES = ['pending', 'in_progress', 'done', 'cancelled', 'exception'];
 
@@ -109,9 +119,10 @@ final class Enums
 
     public const QUOTE_STATUSES = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
 
-    public const TRIGGER_EVENTS = ['task.completed', 'asn.putaway_completed', 'outbound.packed', 'shipment.quote_confirmed', 'delivery.extra_charge', 'snapshot.weekly', 'return.financial_decision', 'manual'];
+    public const TRIGGER_EVENTS = ['task.completed', 'asn.putaway_completed', 'outbound.packed', 'shipment.quote_confirmed', 'delivery.extra_charge', 'snapshot.weekly', 'return.financial_decision', 'physical_container.arrived', 'manual'];
 
-    public const QUANTITY_SOURCES = ['billable_qty', 'pallets', 'pallets_warehouse_plain', 'labels', 'orders', 'cartons', 'scans', 'hours_business', 'hours_after_hours', 'cbm', 'weeks', 'pickface_slots', 'one'];
+    /** `allocated` = one charge per member of a shared physical container, qty = the member's share of one box (#122); degrades to billable_qty when the payload has no members. */
+    public const QUANTITY_SOURCES = ['billable_qty', 'pallets', 'pallets_warehouse_plain', 'labels', 'orders', 'cartons', 'scans', 'hours_business', 'hours_after_hours', 'cbm', 'weeks', 'pickface_slots', 'one', 'allocated'];
 
     public const WAVE_STATUSES = ['planned', 'released', 'completed', 'cancelled'];
 

@@ -16,7 +16,7 @@
             <label>{{ __('warehouse.tasks.asn') }}
                 <select name="asn_id" id="asn_id">
                     <option value="">—</option>
-                    @foreach ($asns as $a)<option value="{{ $a->id }}" data-containers='@json($a->containers->map(fn ($c) => ['id' => $c->id, 'no' => $c->container_no]))' @selected((int) old('asn_id', $selectedAsn) === $a->id)>{{ $a->asn_no }} · {{ $a->client?->name }}</option>@endforeach
+                    @foreach ($asns as $a)<option value="{{ $a->id }}" data-containers='@json($a->containers->map(fn ($c) => ['id' => $c->id, 'no' => $c->container_no.($c->isLinked() ? ' ('.__('warehouse.asns.physical_container').')' : '')]))' @selected((int) old('asn_id', $selectedAsn) === $a->id)>{{ $a->asn_no }} · {{ $a->client?->name }}</option>@endforeach
                 </select>
             </label>
             <label>{{ __('warehouse.tasks.container') }}<select name="container_id" id="container_id"><option value="">—</option></select></label>
@@ -26,7 +26,14 @@
                     @foreach ($orders as $o)<option value="{{ $o->id }}" @selected((int) old('order_id', $selectedOrder) === $o->id)>{{ $o->order_no }} · {{ $o->client?->name }} · {{ __('orders.statuses.operational.'.$o->operational_status) }}</option>@endforeach
                 </select>
             </label>
+            <label>{{ __('warehouse.tasks.physical_container') }}
+                <select name="physical_container_id" id="physical_container_id">
+                    <option value="">—</option>
+                    @foreach ($physicalContainers as $b)<option value="{{ $b->id }}" @selected((int) old('physical_container_id', $selectedPhysicalContainer) === $b->id)>{{ $b->container_no }} · {{ $b->warehouse?->code }} · {{ __('warehouse.physical_containers.consolidations.'.$b->consolidation) }}</option>@endforeach
+                </select>
+            </label>
         </div>
+        <p class="text-muted"><small>{{ __('warehouse.tasks.box_hint') }}</small></p>
         <div class="grid">
             <label>{{ __('warehouse.tasks.type') }}
                 <select name="task_type" required>@foreach ($types as $t)<option value="{{ $t }}" @selected(old('task_type', $selectedType) === $t)>{{ __('warehouse.task_types.'.$t) }}</option>@endforeach</select>
