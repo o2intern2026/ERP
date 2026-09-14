@@ -35,8 +35,11 @@ class ShipmentController extends Controller
 
         return view('transport::shipments.show', [
             'shipment' => $shipment,
-            'orderNo' => DB::table('orders')->where('id', $shipment->order_id)->value('order_no'), // header link text (tester feedback 2026-09-10)
-            'clientPreference' => json_decode((string) (DB::table('orders')->where('id', $shipment->order_id)->value('transport_preference') ?? 'null'), true), // CHANGE_REQUESTS #118: what the client chose with the 估价
+            'orderNo' => $shipment->order_id === null ? null : DB::table('orders')->where('id', $shipment->order_id)->value('order_no'), // header link text (tester feedback 2026-09-10)
+            'clientPreference' => $shipment->order_id === null ? null : json_decode((string) (DB::table('orders')->where('id', $shipment->order_id)->value('transport_preference') ?? 'null'), true), // CHANGE_REQUESTS #118: what the client chose with the 估价
+            // 我方上门提货 (CHANGE_REQUESTS #124): the 预报单 behind an inbound collection (Warehouse's table, read-only) and its pickup / warehouse parties.
+            'asnNo' => $shipment->asn_id === null ? null : DB::table('asns')->where('id', $shipment->asn_id)->value('asn_no'),
+            'collectionParties' => $shipment->isCollection() ? ['sender' => data_get($shipment->selectedQuote?->raw_response ?? $shipment->quotes->first()?->raw_response, '_quote_request.sender', []), 'receiver' => data_get($shipment->selectedQuote?->raw_response ?? $shipment->quotes->first()?->raw_response, '_quote_request.receiver', [])] : null,
             'margin' => $margins->shipment($shipment),
             'manualServices' => CarrierService::query()
                 ->with('carrier')

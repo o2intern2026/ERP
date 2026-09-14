@@ -3,19 +3,150 @@
 namespace App\Modules\Transport\Services;
 
 use App\Modules\Transport\Models\Shipment;
+use App\Modules\Transport\Models\TransportQuote;
+use App\Support\Contracts\RateService;
 use App\Support\Contracts\TransportOptionService;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /** Applies the Orders/Warehouse event contracts to Transport-owned shipment state. */
 final class ShipmentIntakeService
 {
+    /** Tailgate weight threshold when the client's card names none (Orders TailgateRule::DEFAULT_WEIGHT_KG). */
+    private const DEFAULT_TAILGATE_KG = 25.0;
+
+    /** Once the collection is booked the request belongs to the dispatcher: a re-request / cancel from the ASN is refused and logged (#124). */
+    private const LOCKED_STATUSES = ['booked', 'dispatched', 'in_transit', 'delivered', 'failed'];
+
     public function __construct(
         private readonly TransportOptionService $quotes,
         private readonly ShipmentProgressService $progress,
+        private readonly ?RateService $rates = null,
     ) {}
+
+    /**
+     * 我方上门提货 (CHANGE_REQUESTS #124): a 预报单's collection request opens ONE inbound collection shipment per ASN — sender = the
+     * client's pickup address, receiver = our warehouse, no order — and quotes it at the FINAL stage straight away (the declared
+     * packages are the final list, as for pickup_deliver). A re-request before booking (higher activity_version) re-quotes the
+     * same shipment: status back to quoting, earlier quotes superseded, the selection cleared. An older or equal version is a
+     * replay and does nothing; after booking the request is refused and logged — the dispatcher handles it on the shipment.
+     *
+     * @param  array<string, mixed>  $envelope
+     */
+    public function fromAsnCollection(array $envelope): ?Shipment
+    {
+        $payload = $envelope['payload'];
+        $this->requireKeys($payload, ['asn_id', 'asn_no', 'client_id', 'job_id', 'collection_address', 'packages']);
+        $version = (int) ($payload['activity_version'] ?? 1);
+
+        $shipment = DB::transaction(function () use ($payload, $version): ?Shipment {
+            $existing = Shipment::query()
+                ->where('asn_id', (int) $payload['asn_id'])
+                ->where('shipment_type', 'inbound_collection')
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
+
+            $attributes = [
+                'service_level' => (string) ($payload['service_level'] ?? 'standard'),
+                'tailgate_required' => $this->collectionNeedsTailgate((int) $payload['client_id'], $payload['packages'] ?? [], $payload['lines'] ?? []),
+                'asn_activity_version' => $version,
+            ];
+
+            if ($existing === null) {
+                return Shipment::query()->create($attributes + [
+                    'shipment_no' => $this->shipmentNumber((string) $payload['asn_no']),
+                    'job_id' => (int) $payload['job_id'],
+                    'client_id' => (int) $payload['client_id'],
+                    'order_id' => null,
+                    'asn_id' => (int) $payload['asn_id'],
+                    'fulfilment_id' => null,
+                    'shipment_type' => 'inbound_collection',
+                    'status' => 'quoting',
+                ]);
+            }
+
+            if ($existing->job_id !== (int) $payload['job_id'] || $existing->client_id !== (int) $payload['client_id']) {
+                throw new DomainException(__('transport.integration.identity_mismatch'));
+            }
+            if ($version <= (int) $existing->asn_activity_version && $existing->status !== 'booking_cancelled') {
+                return null; // replay of a request already applied
+            }
+            if (in_array($existing->status, self::LOCKED_STATUSES, true)) {
+                Log::warning('transport: collection re-request refused, the shipment is already booked', ['shipment' => $existing->shipment_no, 'asn_id' => $existing->asn_id, 'version' => $version]);
+
+                return null;
+            }
+
+            // Re-request (or a fresh request after 改为客户自送): the same shipment goes back to quoting and every earlier quote is history.
+            TransportQuote::query()->where('shipment_id', $existing->id)->whereIn('status', ['quoted', 'selected'])->update(['status' => 'requoted']);
+            $existing->fill($attributes + ['status' => 'quoting', 'selected_quote_id' => null, 'carrier_id' => null, 'booking_ref' => null, 'tracking_number' => null])->save();
+
+            return $existing->refresh();
+        });
+
+        if ($shipment !== null && in_array($shipment->status, ['quoting', 'quoted'], true)) {
+            $this->quotes->quote($shipment->id, 'final', $this->moment($payload['requested_at'] ?? $envelope['occurred_at'] ?? null));
+        }
+
+        return $shipment?->refresh();
+    }
+
+    /**
+     * 改为客户自送 (asn.collection_cancelled): the unbooked collection shipment is cancelled with its quotes. A booked one stays —
+     * the dispatcher cancels the booking on the shipment page (logged, never thrown: the ASN side has already moved on).
+     *
+     * @param  array<string, mixed>  $envelope
+     */
+    public function cancelAsnCollection(array $envelope): ?Shipment
+    {
+        $payload = $envelope['payload'];
+        $this->requireKeys($payload, ['asn_id']);
+
+        return DB::transaction(function () use ($payload): ?Shipment {
+            $shipment = Shipment::query()
+                ->where('asn_id', (int) $payload['asn_id'])
+                ->where('shipment_type', 'inbound_collection')
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
+            if ($shipment === null || $shipment->status === 'booking_cancelled') {
+                return $shipment;
+            }
+            if (in_array($shipment->status, self::LOCKED_STATUSES, true)) {
+                Log::warning('transport: collection cancel ignored, the shipment is already booked', ['shipment' => $shipment->shipment_no, 'asn_id' => $shipment->asn_id]);
+
+                return $shipment;
+            }
+
+            TransportQuote::query()->where('shipment_id', $shipment->id)->whereIn('status', ['quoted', 'selected'])->update(['status' => 'booking_cancelled']);
+            $shipment->fill(['status' => 'booking_cancelled', 'selected_quote_id' => null, 'carrier_id' => null])->save();
+
+            return $shipment->refresh();
+        });
+    }
+
+    /**
+     * Pickup-side tailgate: any declared piece (or, without packages, any goods line's per-carton weight) at or above the client's
+     * TR-TAILGATE threshold (`tailgate_weight_kg`, default 25 kg). The receiver is our warehouse, so "residential" never applies.
+     *
+     * @param  list<array<string, mixed>>  $packages
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function collectionNeedsTailgate(int $clientId, array $packages, array $lines): bool
+    {
+        $rates = $this->rates ?? app(RateService::class);
+        $threshold = (float) (($rates->thresholds($clientId, 'TR-TAILGATE')['tailgate_weight_kg'] ?? null) ?: self::DEFAULT_TAILGATE_KG);
+        $pieces = $packages !== []
+            ? array_map(fn ($p) => (float) ($p['weight_kg'] ?? 0), $packages)
+            : array_map(fn ($l) => (float) ($l['weight_kg'] ?? 0) / max(1, (int) ($l['expected_cartons'] ?? 1)), $lines);
+        $heaviest = $pieces === [] ? 0.0 : max($pieces);
+
+        return $heaviest > 0 && $heaviest >= $threshold;
+    }
 
     /** @param array<string, mixed> $envelope */
     public function fromConfirmedOrder(array $envelope): Shipment

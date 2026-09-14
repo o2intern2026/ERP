@@ -2,18 +2,28 @@
 
 namespace App\Modules\Warehouse\Services;
 
+use App\Modules\Warehouse\Events\AsnCollectionCancelled;
+use App\Modules\Warehouse\Events\AsnCollectionRequested;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnLine;
 use App\Support\Contracts\InboundService;
 use App\Support\Contracts\JobService;
 use App\Support\Exceptions\RuleViolation;
+use App\Support\Outbox\OutboxPublisher;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /** B2: ASN creation (planned or unplanned), containers (basic fields), goods lines; B2b import writes lines through addLines(). */
 final class AsnService implements InboundService
 {
-    public function __construct(private readonly JobService $jobs) {}
+    /** Keys of a collection pickup party (asns.collection_address); `type` is business | residential. */
+    private const ADDRESS_KEYS = ['name', 'phone', 'address', 'suburb', 'state', 'postcode', 'type'];
+
+    /** Keys of one declared package row (asns.collection_packages[]). */
+    private const PACKAGE_KEYS = ['package_type', 'qty', 'weight_kg', 'length_mm', 'width_mm', 'height_mm'];
+
+    public function __construct(private readonly JobService $jobs, private readonly OutboxPublisher $outbox) {}
 
     /**
      * @param  array{client_id:int, warehouse_id:int, inbound_type:string, expected_date?:?string, job_id?:?int, job_type?:string, reference?:?string, created_by_type?:string, unplanned?:bool, notes?:?string, containers?:list<array{container_no:string, size:string, unpack_mode:string, gross_weight_kg?:?float}>}  $data
@@ -78,6 +88,202 @@ final class AsnService implements InboundService
     public function markArrived(Asn $asn): void
     {
         $asn->update(['status' => 'arrived', 'arrived_at' => now()]);
+    }
+
+    /**
+     * 到仓方式 = 我方上门提货 (CHANGE_REQUESTS #124): the coordinator asks Transport to collect the goods at the client's pickup
+     * address and bring them here. Stores the request on the ASN, bumps `collection_version` and publishes
+     * `asn.collection_requested` in the same transaction; Transport opens (or re-quotes) the inbound collection shipment. A
+     * re-request before booking supersedes the previous one; once Transport has booked the collection (booked / collected /
+     * delivered) the request is the dispatcher's and this refuses.
+     *
+     * @param  array{address:array<string, mixed>, ready_date:string, packages?:list<array<string, mixed>>, notes?:?string}  $data
+     */
+    public function setCollection(Asn $asn, array $data, ?int $userId): Asn
+    {
+        return DB::transaction(function () use ($asn, $data, $userId): Asn {
+            $locked = Asn::query()->withoutGlobalScopes()->with(['lines', 'warehouse'])->lockForUpdate()->findOrFail($asn->id);
+            if ($locked->collectionLocked()) {
+                throw new RuleViolation("ASN {$locked->asn_no}: the collection is already booked; the dispatcher manages it on the shipment.", 'warehouse.asns.collection.errors.locked', ['no' => $locked->asn_no]);
+            }
+            if ($locked->status !== 'booked') {
+                throw new RuleViolation("ASN {$locked->asn_no} has already arrived; a collection cannot be requested.", 'warehouse.asns.collection.errors.asn_not_booked', ['no' => $locked->asn_no]);
+            }
+
+            $address = $this->collectionAddress($data['address'] ?? []);
+            if (! $this->completeParty($address)) {
+                throw new RuleViolation("ASN {$locked->asn_no}: the pickup address is incomplete.", 'warehouse.asns.collection.errors.address_incomplete');
+            }
+            $readyDate = Carbon::parse((string) ($data['ready_date'] ?? ''))->startOfDay();
+            if ($readyDate->lt(today())) {
+                throw new RuleViolation("ASN {$locked->asn_no}: the ready date is in the past.", 'warehouse.asns.collection.errors.ready_date_past');
+            }
+            $packages = $this->collectionPackages($data['packages'] ?? []);
+            $lines = $this->collectionLines($locked);
+            if ($packages === [] && $lines === []) {
+                throw new RuleViolation("ASN {$locked->asn_no}: no packages declared and no goods line carries weight and dimensions.", 'warehouse.asns.collection.errors.no_packages');
+            }
+            $warehouse = $locked->warehouse;
+            if ($warehouse === null || trim((string) $warehouse->address) === '' || trim((string) $warehouse->state) === '') {
+                throw new RuleViolation("ASN {$locked->asn_no}: the warehouse has no address to deliver to.", 'warehouse.asns.collection.errors.warehouse_address');
+            }
+
+            $version = (int) $locked->collection_version + 1;
+            $requestedAt = now();
+            $locked->update([
+                'inbound_transport' => 'we_collect',
+                'collection_address' => $address,
+                'collection_ready_date' => $readyDate->toDateString(),
+                'collection_packages' => $packages,
+                'collection_notes' => filled($data['notes'] ?? null) ? trim((string) $data['notes']) : null,
+                'collection_requested_at' => $requestedAt,
+                'collection_requested_by' => $userId,
+                'collection_version' => $version,
+                'collection_status' => 'requested',
+                'collection_plan' => null,
+            ]);
+
+            $this->outbox->publish(new AsnCollectionRequested([
+                'asn_id' => $locked->id,
+                'asn_no' => $locked->asn_no,
+                'client_id' => (int) $locked->client_id,
+                'job_id' => (int) $locked->job_id,
+                'warehouse_id' => (int) $locked->warehouse_id,
+                'warehouse' => [
+                    'name' => (string) $warehouse->name,
+                    'phone' => null,
+                    'address' => (string) $warehouse->address,
+                    'suburb' => (string) ($warehouse->suburb ?? ''),
+                    'state' => (string) $warehouse->state,
+                    'postcode' => (string) ($warehouse->postcode ?? ''),
+                    'type' => 'business',
+                ],
+                'collection_address' => $address,
+                'ready_date' => $readyDate->toDateString(),
+                'service_level' => 'standard',
+                'packages' => $packages,
+                'lines' => $lines,
+                'notes' => $locked->collection_notes,
+                'requested_by' => $userId,
+                'requested_at' => $requestedAt->toIso8601String(),
+                'activity_version' => $version,
+            ], jobId: (int) $locked->job_id, clientId: (int) $locked->client_id, correlationId: $locked->job?->job_no ?? $locked->asn_no));
+
+            return $locked->refresh();
+        });
+    }
+
+    /**
+     * 改为客户自送: back to client_delivers. Only before Transport has booked the collection — afterwards the dispatcher cancels
+     * on the shipment page. Publishes `asn.collection_cancelled` so the unbooked shipment is cancelled.
+     */
+    public function clearCollection(Asn $asn, ?int $userId, ?string $reason = null): Asn
+    {
+        return DB::transaction(function () use ($asn, $userId, $reason): Asn {
+            $locked = Asn::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($asn->id);
+            if (! $locked->isCollection()) {
+                return $locked;
+            }
+            if ($locked->collectionLocked()) {
+                throw new RuleViolation("ASN {$locked->asn_no}: the collection is already booked; cancel it on the shipment.", 'warehouse.asns.collection.errors.locked', ['no' => $locked->asn_no]);
+            }
+
+            $shipmentId = $locked->collection_shipment_id;
+            $locked->update(['inbound_transport' => 'client_delivers', 'collection_status' => null, 'collection_shipment_id' => null, 'collection_plan' => null]);
+
+            $this->outbox->publish(new AsnCollectionCancelled([
+                'asn_id' => $locked->id,
+                'asn_no' => $locked->asn_no,
+                'client_id' => (int) $locked->client_id,
+                'job_id' => (int) $locked->job_id,
+                'shipment_id' => $shipmentId === null ? null : (int) $shipmentId,
+                'cancelled_by' => $userId,
+                'reason' => $reason ?? 'client_delivers',
+                'cancelled_at' => now()->toIso8601String(),
+            ], jobId: (int) $locked->job_id, clientId: (int) $locked->client_id, correlationId: $locked->job?->job_no ?? $locked->asn_no));
+
+            return $locked->refresh();
+        });
+    }
+
+    /** Transport's events copied back for display (consumers): status, shipment id and — once confirmed — the plan / client price. */
+    public function recordCollectionProgress(Asn $asn, string $status, ?int $shipmentId = null, ?array $plan = null): void
+    {
+        $update = ['collection_status' => $status];
+        if ($shipmentId !== null) {
+            $update['collection_shipment_id'] = $shipmentId;
+        }
+        if ($plan !== null) {
+            $update['collection_plan'] = $plan;
+        }
+        $asn->update($update);
+    }
+
+    /** Same rule as Transport's ShipmentQuoteRequestFactory::completeParty (a carrier can price it): address, suburb, state, postcode, type. */
+    private function completeParty(array $party): bool
+    {
+        foreach (['address', 'suburb', 'state', 'postcode', 'type'] as $key) {
+            if (trim((string) ($party[$key] ?? '')) === '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** @return array<string, string> */
+    private function collectionAddress(array $raw): array
+    {
+        $address = [];
+        foreach (self::ADDRESS_KEYS as $key) {
+            $address[$key] = trim((string) ($raw[$key] ?? ''));
+        }
+        $address['type'] = $address['type'] === '' ? 'business' : $address['type'];
+        $address['state'] = strtoupper($address['state']);
+
+        return $address;
+    }
+
+    /** Declared package rows, blank rows dropped, numbers normalised. @return list<array<string, mixed>> */
+    private function collectionPackages(array $raw): array
+    {
+        $packages = [];
+        foreach ($raw as $row) {
+            if (! is_array($row) || (int) ($row['qty'] ?? 0) < 1) {
+                continue;
+            }
+            $packages[] = [
+                'package_type' => (string) ($row['package_type'] ?? 'carton'),
+                'qty' => (int) $row['qty'],
+                'weight_kg' => round((float) ($row['weight_kg'] ?? 0), 3),
+                'length_mm' => (int) ($row['length_mm'] ?? 0),
+                'width_mm' => (int) ($row['width_mm'] ?? 0),
+                'height_mm' => (int) ($row['height_mm'] ?? 0),
+            ];
+        }
+
+        return $packages;
+    }
+
+    /**
+     * The goods lines Transport can price when no packages were declared: cartons + line weight + all three dimensions
+     * (weight_kg is the line total, like an order line's actual_weight_kg).
+     *
+     * @return list<array{asn_line_id:int, description:string, expected_cartons:int, weight_kg:float, length_mm:int, width_mm:int, height_mm:int}>
+     */
+    private function collectionLines(Asn $asn): array
+    {
+        return $asn->lines
+            ->filter(fn (AsnLine $l) => (int) $l->expected_cartons > 0 && (float) $l->weight_kg > 0 && (int) $l->length_mm > 0 && (int) $l->width_mm > 0 && (int) $l->height_mm > 0)
+            ->map(fn (AsnLine $l): array => [
+                'asn_line_id' => $l->id,
+                'description' => (string) $l->description,
+                'expected_cartons' => (int) $l->expected_cartons,
+                'weight_kg' => (float) $l->weight_kg,
+                'length_mm' => (int) $l->length_mm,
+                'width_mm' => (int) $l->width_mm,
+                'height_mm' => (int) $l->height_mm,
+            ])->values()->all();
     }
 
     /** Unplanned arrivals must be confirmed by a coordinator before putaway (ERP_PLAN §4.2 asns.unplanned). */

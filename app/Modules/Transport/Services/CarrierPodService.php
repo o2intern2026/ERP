@@ -75,6 +75,8 @@ final class CarrierPodService
                     'job_id' => $locked->job_id,
                     'client_id' => $locked->client_id,
                     'order_id' => $locked->order_id,
+                    'asn_id' => $locked->asn_id, // inbound collection (#124)
+                    'shipment_type' => $locked->shipment_type,
                     'fulfilment_id' => $locked->fulfilment_id,
                     'delivered_at' => $deliveredAt->toIso8601String(),
                     'recipient_name' => trim($recipientName),

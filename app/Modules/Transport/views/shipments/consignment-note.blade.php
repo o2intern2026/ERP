@@ -26,8 +26,13 @@
             <td>{{ $shipment->client->name }}</td>
         </tr>
         <tr>
-            <th>{{ __('pdf.consignment_note.order') }}</th>
-            <td>{{ $shipment->order_id }}</td>
+            @if ($shipment->isCollection())
+                <th>{{ __('pdf.consignment_note.asn') }}</th>
+                <td>{{ $asnNo ?? $shipment->asn_id }}</td>
+            @else
+                <th>{{ __('pdf.consignment_note.order') }}</th>
+                <td>{{ $shipment->order_id }}</td>
+            @endif
             <th>{{ __('pdf.consignment_note.carrier') }}</th>
             <td>{{ $shipment->carrier?->name ?? __('pdf.consignment_note.not_selected') }}</td>
         </tr>
@@ -38,6 +43,17 @@
             <td>{{ $shipment->tailgate_required ? __('pdf.consignment_note.yes') : __('pdf.consignment_note.no') }}</td>
         </tr>
     </table>
+
+    @if ($shipment->isCollection())
+        <table class="meta">
+            <tr>
+                <th>{{ __('pdf.consignment_note.collect_from') }}</th>
+                <td>{{ $parties['sender']['name'] ?? '' }}@if (! empty($parties['sender']['phone'])) · {{ $parties['sender']['phone'] }}@endif<br>{{ $parties['sender']['address'] ?? '' }}, {{ $parties['sender']['suburb'] ?? '' }} {{ $parties['sender']['state'] ?? '' }} {{ $parties['sender']['postcode'] ?? '' }}</td>
+                <th>{{ __('pdf.consignment_note.deliver_to') }}</th>
+                <td>{{ $parties['receiver']['name'] ?? '' }}<br>{{ $parties['receiver']['address'] ?? '' }}, {{ $parties['receiver']['suburb'] ?? '' }} {{ $parties['receiver']['state'] ?? '' }} {{ $parties['receiver']['postcode'] ?? '' }}</td>
+            </tr>
+        </table>
+    @endif
 
     <h2>{{ __('pdf.consignment_note.contents') }}</h2>
     @if ($packages->isEmpty())

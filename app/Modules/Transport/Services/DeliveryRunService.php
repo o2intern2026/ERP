@@ -7,6 +7,7 @@ use App\Modules\Transport\Models\DeliveryRun;
 use App\Modules\Transport\Models\RunStop;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Models\TransportQuote;
+use App\Modules\Transport\Support\TransportEnums;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -55,7 +56,7 @@ final class DeliveryRunService
             $selectedQuote = $lockedShipment->selected_quote_id === null
                 ? null
                 : TransportQuote::query()->find($lockedShipment->selected_quote_id);
-            if ($lockedShipment->shipment_type !== 'outbound'
+            if (! TransportEnums::isDelivery($lockedShipment->shipment_type)
                 || ! in_array($lockedShipment->status, ['quote_confirmed', 'booked'], true)
                 || $selectedQuote === null
                 || $selectedQuote->shipment_id !== $lockedShipment->id

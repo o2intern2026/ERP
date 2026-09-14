@@ -8,6 +8,7 @@ use App\Modules\Transport\Http\TransportValidation;
 use App\Modules\Transport\Models\DeliveryRun;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Services\DeliveryRunService;
+use App\Modules\Transport\Support\TransportEnums;
 use App\Support\Auth\RequiredRoles;
 use DomainException;
 use Illuminate\Contracts\View\View;
@@ -76,7 +77,7 @@ class DeliveryRunController extends Controller
             'eligibleShipments' => Shipment::query()
                 ->with(['client', 'selectedQuote'])
                 ->whereNull('delivery_run_id')
-                ->where('shipment_type', 'outbound')
+                ->whereIn('shipment_type', TransportEnums::DELIVERY_TYPES) // outbound deliveries and inbound collections (#124)
                 ->whereIn('status', ['quote_confirmed', 'booked'])
                 ->whereHas('selectedQuote', fn ($query) => $query
                     ->where('source', 'own_fleet')

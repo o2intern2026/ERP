@@ -91,6 +91,8 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 | `locations.type` | `receiving` \| `storage` \| `pickface` \| `packing` \| `staging` \| `quarantine` |
 | `asns.inbound_type` | `container` \| `loose_truck` \| `parcel` |
 | `asns.status` | `booked` → `arrived` → `receiving` → `putaway` → `closed` — **terminology (lead decision 2026-09-08, #92): ASN = 预报单 (ASN) in every UI string; 入库单 is reserved for `goods_receipts`** |
+| `asns.inbound_transport` | `client_delivers` (default — the client brings the goods) \| `we_collect` (我方上门提货: Transport collects at the pickup address and delivers to our warehouse; CHANGE_REQUESTS #124) — `Enums::ASN_INBOUND_TRANSPORTS` |
+| `asns.collection_status` | `requested` → `confirmed` → `booked` → `delivered` (= the ASN is `arrived`) ; `failed` — display only, driven by Transport's `shipment.quote_confirmed` / `shipment.booked` / `delivery.pod_captured` / `delivery.failed` with `asn_id`; `quoted` and `collected` are reserved values no event sets in v1 (#124) — `Enums::ASN_COLLECTION_STATUSES`. Edits / 改为客户自送 from the ASN page only before `booked` |
 | `goods_receipts.status` | `open` (lines are being received) → `completed` (入库完成: totals snapshotted, PDF filed) — one batch per delivery, `receipt_no = {asn_no}-R{batch_no}` (#90) |
 | `asns.created_by_type` | `client` \| `coordinator` |
 | `containers.size` | `20` \| `40` |
@@ -121,8 +123,8 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 | field | values |
 |---|---|
 | `carrier_services.source` | `own_fleet` \| `transdirect` \| `eiz` \| `manual` \| `karrio` (one `CarrierAdapter` implementation each; `karrio` added 2026-09-08 — open-source gateway, CHANGE_REQUESTS #49) |
-| `shipments.shipment_type` | `outbound` \| `return` |
-| `shipments.status` (outbound) | `quoting` → `quoted` → `quote_confirmed` → `booked` → `dispatched` → `in_transit` → `delivered` ; alternatives `failed` \| `booking_cancelled` |
+| `shipments.shipment_type` | `outbound` \| `return` \| `inbound_collection` (我方上门提货 for a 预报单: sender = the pickup address, receiver = our warehouse, `order_id` null, `asn_id` set — CHANGE_REQUESTS #124) |
+| `shipments.status` (outbound, inbound_collection) | `quoting` → `quoted` → `quote_confirmed` → `booked` → `dispatched` → `in_transit` → `delivered` ; alternatives `failed` \| `booking_cancelled` — the same lifecycle for both types (`TransportEnums::DELIVERY_TYPES`) |
 | `shipments.status` (return) | `return_requested` → `return_in_transit` → `arrived_warehouse` (then WMS `return_receipts`) |
 | `transport_quotes.quote_stage` | `preliminary` \| `final` |
 | `transport_quotes.status` | `quoted` \| `selected` \| `expired` \| `requoted` \| `booking_cancelled` |

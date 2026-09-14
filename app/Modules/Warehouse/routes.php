@@ -58,6 +58,9 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/asns/{asn}/lines/{line}/delivery', [AsnController::class, 'updateDelivery'])->name('asns.lines.delivery.update');
         Route::post('/asns/{asn}/import', [AsnController::class, 'import'])->name('asns.import');
         Route::post('/asns/{asn}/import-orders', [AsnController::class, 'importOrders'])->middleware('role:admin|customer_service|warehouse_supervisor')->name('asns.import_orders'); // 从订单导入货物行 — the client's pending orders become goods lines (CHANGE_REQUESTS #119)
+        // 到仓方式 我方上门提货 (CHANGE_REQUESTS #124): request / re-request the collection, or back to 客户自送 while Transport has not booked it.
+        Route::put('/asns/{asn}/collection', [AsnController::class, 'updateCollection'])->middleware('role:admin|customer_service|warehouse_supervisor')->name('asns.collection.update')->whereNumber('asn');
+        Route::delete('/asns/{asn}/collection', [AsnController::class, 'destroyCollection'])->middleware('role:admin|customer_service|warehouse_supervisor')->name('asns.collection.destroy')->whereNumber('asn');
         Route::post('/asns/{asn}/arrive', [AsnController::class, 'arrive'])->name('asns.arrive');
         Route::post('/asns/{asn}/confirm-unplanned', [AsnController::class, 'confirmUnplanned'])->name('asns.confirm_unplanned');
         Route::post('/asns/{asn}/confirm-client', [AsnController::class, 'confirmClient'])->middleware('role:admin|customer_service')->name('asns.confirm_client'); // 确认客户预报 — portal / API submissions (CHANGE_REQUESTS #116)

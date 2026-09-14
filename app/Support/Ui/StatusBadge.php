@@ -24,6 +24,7 @@ final class StatusBadge
         'transport.costs.statuses.' => ['missing' => 'danger', 'estimated' => 'warn', 'expected' => 'warn', 'confirmed' => 'ok', 'reconciled' => 'ok'],
         'transport.reconciliation.statuses.' => ['open' => 'warn', 'matched' => 'ok', 'disputed' => 'danger', 'closed' => 'muted'],
         'warehouse.asn_statuses.' => ['booked' => 'muted', 'arrived' => 'info', 'receiving' => 'warn', 'putaway' => 'ok', 'closed' => 'muted'],
+        'warehouse.asns.collection.statuses.' => ['requested' => 'warn', 'quoted' => 'warn', 'confirmed' => 'info', 'booked' => 'info', 'collected' => 'info', 'delivered' => 'ok', 'failed' => 'danger'], // 我方上门提货 (#124)
         'warehouse.task_statuses.' => ['pending' => 'warn', 'in_progress' => 'info', 'done' => 'ok', 'cancelled' => 'muted', 'exception' => 'danger'],
         'warehouse.reservation_statuses.' => ['active' => 'warn', 'released' => 'muted', 'consumed' => 'ok'],
         'warehouse.receipt_statuses.' => ['open' => 'warn', 'completed' => 'ok'],

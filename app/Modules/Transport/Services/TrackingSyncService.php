@@ -6,6 +6,7 @@ use App\Modules\Platform\Models\ExceptionRecord;
 use App\Modules\Transport\Events\DeliveryFailed;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Models\TrackingEvent;
+use App\Modules\Transport\Support\TransportEnums;
 use App\Support\Contracts\CarrierAdapter;
 use App\Support\Contracts\ExceptionService;
 use App\Support\Outbox\OutboxPublisher;
@@ -41,7 +42,7 @@ final class TrackingSyncService
         $created = 0;
         Shipment::query()
             ->with('selectedQuote')
-            ->where('shipment_type', 'outbound')
+            ->whereIn('shipment_type', TransportEnums::DELIVERY_TYPES)
             ->whereIn('status', ['booked', 'dispatched', 'in_transit'])
             ->whereNotNull('booking_ref')
             ->whereHas('selectedQuote', fn ($query) => $query->whereIn('source', array_keys($this->adapters)))
@@ -140,6 +141,8 @@ final class TrackingSyncService
                     'job_id' => $locked->job_id,
                     'client_id' => $locked->client_id,
                     'order_id' => $locked->order_id,
+                    'asn_id' => $locked->asn_id, // inbound collection (#124)
+                    'shipment_type' => $locked->shipment_type,
                     'failed_at' => $at->toIso8601String(),
                     'failure_reason' => $event['description'] ?: $event['status'],
                     'attempt_no' => $attemptNo,

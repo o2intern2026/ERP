@@ -120,7 +120,7 @@ class B5dQuoteSelectionTest extends TestCase
         $event = OutboxEvent::query()->where('event_name', 'shipment.quote_confirmed')->sole();
         $this->assertSame($shipment->shipment_no, $event->correlation_id);
         $this->assertEqualsCanonicalizing([
-            'shipment_id', 'shipment_no', 'shipment_type', 'job_id', 'client_id', 'order_id', 'fulfilment_id',
+            'shipment_id', 'shipment_no', 'shipment_type', 'job_id', 'client_id', 'order_id', 'asn_id', 'fulfilment_id',
             'transport_quote_id', 'quote_stage', 'source', 'carrier_id', 'service_level', 'pricing_mode',
             'cost_cents', 'customer_price_cents', 'markup_percent', 'eta_days', 'tailgate_required', 'zone',
             'packages', 'confirmed_by_type', 'confirmed_by', 'confirmed_at', 'order_type',

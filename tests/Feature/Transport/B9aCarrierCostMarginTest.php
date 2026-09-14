@@ -102,7 +102,7 @@ class B9aCarrierCostMarginTest extends TestCase
         $event = OutboxEvent::query()->where('event_name', 'shipment.booked')->sole();
         $this->assertSame($shipment->shipment_no, $event->correlation_id);
         $this->assertEqualsCanonicalizing([
-            'shipment_id', 'shipment_no', 'job_id', 'client_id', 'order_id', 'carrier_id', 'source',
+            'shipment_id', 'shipment_no', 'job_id', 'client_id', 'order_id', 'asn_id', 'shipment_type', 'carrier_id', 'source',
             'service_level', 'booking_ref', 'tracking_number', 'waybill_document_id', 'expected_cost_cents',
             'delivery_run_id', 'booked_at',
         ], array_keys($event->payload));

@@ -6,7 +6,7 @@
     <p><a href="{{ route('warehouse.asns.index') }}">← {{ __('platform.common.back') }}</a></p>
     <header>
         <h1>{{ $asn->asn_no }} <span class="badge" data-tone="{{ in_array($asn->status, ['putaway', 'closed']) ? 'ok' : 'warn' }}">{{ __('warehouse.asn_statuses.'.$asn->status) }}</span> @if ($asn->unplanned)<span class="badge" data-tone="{{ $asn->unplanned_confirmed ? 'muted' : 'danger' }}">{{ __('warehouse.asns.unplanned_badge') }}</span>@endif @if ($asn->isClientSubmitted())<span class="badge" data-tone="{{ $asn->isPendingClientConfirmation() ? 'warn' : 'muted' }}">{{ __($asn->isPendingClientConfirmation() ? 'warehouse.asns.client_pending_badge' : 'warehouse.asns.client_confirmed_badge') }}</span>@endif @if ($asn->receiving_completed_at)<span class="badge" data-tone="ok">{{ __('warehouse.asns.receiving_completed_badge') }}</span>@endif @if ($fromOrders)<span class="badge" data-tone="info">{{ __('warehouse.asns.from_orders_badge') }}</span>@endif</h1>
-        <p>{{ $asn->client->name }} · <a href="{{ route('platform.jobs.show', $asn->job) }}">{{ $asn->job->job_no }}</a> · {{ $asn->warehouse->code }} · {{ __('warehouse.inbound_types.'.$asn->inbound_type) }} · {{ __('warehouse.asns.expected_date') }}: {{ $asn->expected_date?->format('Y-m-d') ?? '—' }}</p>
+        <p>{{ $asn->client->name }} · <a href="{{ route('platform.jobs.show', $asn->job) }}">{{ $asn->job->job_no }}</a> · {{ $asn->warehouse->code }} · {{ __('warehouse.inbound_types.'.$asn->inbound_type) }}@if ($asn->isCollection()) · {{ __('warehouse.asns.collection.modes.we_collect') }}@endif · {{ __('warehouse.asns.expected_date') }}: {{ $asn->expected_date?->format('Y-m-d') ?? '—' }}</p>
     </header>
 
     @if ($asn->isPendingClientConfirmation())
@@ -23,6 +23,8 @@
     @elseif ($asn->isClientSubmitted())
         <p class="text-muted"><small>{{ __('warehouse.asns.client_confirmed_line', ['who' => $asn->clientConfirmedBy?->name ?? '—', 'time' => $asn->client_confirmed_at?->format('Y-m-d H:i')]) }}</small></p>
     @endif
+
+    @include('warehouse::asns.partials.collection-card', ['asn' => $asn, 'canManageCollection' => $canManageCollection])
 
     @role('admin|warehouse_supervisor|warehouse_operator|customer_service')
         <div class="grid">

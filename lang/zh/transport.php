@@ -22,6 +22,8 @@ return [
         'eta' => '预计到达',
         'receiver' => '收件人',
         'address' => '配送地址',
+        'pickup_from' => '提货地址（入库提货）',
+        'deliver_to_warehouse' => '送达仓库',
         'tailgate_required' => '此站需要尾板，请确认车辆设备。',
         'capture_delivery' => '签收并上传 POD',
         'recipient_name' => '签收人姓名',
@@ -56,6 +58,7 @@ return [
     'shipment_types' => [
         'outbound' => '出库配送',
         'return' => '退货运输',
+        'inbound_collection' => '入库提货', // 我方上门提货 for a 预报单 (CHANGE_REQUESTS #124)
     ],
     'statuses' => [
         'quoting' => '待报价',
@@ -138,6 +141,10 @@ return [
         'tracking_number' => '追踪号码',
         'margin_link' => '收付毛利',
         'back' => '返回运输列表',
+        'asn' => '预报单',
+        'collection_header' => '入库提货 → 仓库',
+        'collection_from' => '提货地址',
+        'collection_to' => '送达仓库',
     ],
     'quotes' => [
         'title' => '运输方案',
@@ -160,6 +167,7 @@ return [
         'client_preference' => '客户下单时选择',
         'client_preference_hint' => '最终报价与该估价差异在容差内时，系统按客户的选择自动确认；差异过大或该方案不可用时等客户在门户确认。这里的"确认"按钮为代客确认。',
         'client_preference_none' => '客户未在下单时选择运输方案。',
+        'client_preference_collection' => '入库提货由客服 / 调度在此确认方案（客户不在门户选择）。',
     ],
     'selection' => [
         'saved' => '运输方案已保存。',

@@ -19,8 +19,18 @@
             <dd>{{ $shipment->client->name }}</dd>
             <dt>{{ __('transport.shipments.carrier') }}</dt>
             <dd>{{ $shipment->carrier?->name ?? __('transport.not_selected') }}</dd>
-            <dt>{{ __('transport.shipments.order') }}</dt>
-            <dd><a href="{{ route('orders.show', $shipment->order_id) }}">{{ $orderNo ?? '#'.$shipment->order_id }}</a> <small class="text-muted">· <a href="{{ route('transport.orders.margin', $shipment->order_id) }}">{{ __('transport.shipments.margin_link') }}</a></small></dd>
+            {{-- 我方上门提货 (CHANGE_REQUESTS #124): an inbound collection has no order — the 预报单 link takes the order's place and the parties are pickup → our warehouse. --}}
+            @if ($shipment->isCollection())
+                <dt>{{ __('transport.shipments.asn') }}</dt>
+                <dd>{{ __('transport.shipments.collection_header') }} · @if ($shipment->asn_id)<a href="{{ route('warehouse.asns.show', $shipment->asn_id) }}">{{ $asnNo ?? '#'.$shipment->asn_id }}</a>@else —@endif</dd>
+                <dt>{{ __('transport.shipments.collection_from') }}</dt>
+                <dd>{{ data_get($collectionParties, 'sender.name') ?: '—' }}<br><small class="text-muted">{{ collect([data_get($collectionParties, 'sender.address'), data_get($collectionParties, 'sender.suburb'), data_get($collectionParties, 'sender.state'), data_get($collectionParties, 'sender.postcode')])->filter()->implode(', ') ?: __('transport.not_selected') }}</small></dd>
+                <dt>{{ __('transport.shipments.collection_to') }}</dt>
+                <dd>{{ data_get($collectionParties, 'receiver.name') ?: '—' }}<br><small class="text-muted">{{ collect([data_get($collectionParties, 'receiver.address'), data_get($collectionParties, 'receiver.suburb'), data_get($collectionParties, 'receiver.state'), data_get($collectionParties, 'receiver.postcode')])->filter()->implode(', ') ?: __('transport.not_selected') }}</small></dd>
+            @else
+                <dt>{{ __('transport.shipments.order') }}</dt>
+                <dd>@if ($shipment->order_id !== null)<a href="{{ route('orders.show', $shipment->order_id) }}">{{ $orderNo ?? '#'.$shipment->order_id }}</a> <small class="text-muted">· <a href="{{ route('transport.orders.margin', $shipment->order_id) }}">{{ __('transport.shipments.margin_link') }}</a></small>@else —@endif</dd>
+            @endif
             <dt>{{ __('transport.shipments.service_level') }}</dt>
             <dd>{{ $shipment->service_level ? __('transport.service_levels.'.$shipment->service_level) : '—' }}</dd>
             <dt>{{ __('transport.shipments.type') }}</dt>
@@ -29,7 +39,9 @@
             <dd>{{ $shipment->tracking_number ?: __('transport.not_selected') }}</dd>
             <dt>{{ __('transport.quotes.client_preference') }}</dt>
             <dd>
-                @if (is_array($clientPreference ?? null) && isset($clientPreference['source'], $clientPreference['service_level']))
+                @if ($shipment->isCollection())
+                    {{ __('transport.quotes.client_preference_collection') }}
+                @elseif (is_array($clientPreference ?? null) && isset($clientPreference['source'], $clientPreference['service_level']))
                     {{ $clientPreference['carrier_name'] ?? __('transport.sources.'.$clientPreference['source']) }} · {{ __('transport.service_levels.'.$clientPreference['service_level']) }}
                     · {{ \App\Support\Money::cents((int) ($clientPreference['customer_price_cents'] ?? 0))->format() }}
                     <br><small class="text-muted">{{ __('transport.quotes.client_preference_hint') }}</small>

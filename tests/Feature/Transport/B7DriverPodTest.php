@@ -108,6 +108,8 @@ class B7DriverPodTest extends TestCase
             'job_id' => $shipment->job_id,
             'client_id' => $shipment->client_id,
             'order_id' => $shipment->order_id,
+            'asn_id' => null, // an order shipment (CHANGE_REQUESTS #124: set only for an inbound collection)
+            'shipment_type' => 'outbound',
             'fulfilment_id' => $shipment->fulfilment_id,
             'delivered_at' => '2026-09-07T09:30:00+10:00',
             'recipient_name' => 'Receiving Person',
@@ -163,6 +165,8 @@ class B7DriverPodTest extends TestCase
             'job_id' => $shipment->job_id,
             'client_id' => $shipment->client_id,
             'order_id' => $shipment->order_id,
+            'asn_id' => null,
+            'shipment_type' => 'outbound',
             'failed_at' => '2026-09-07T09:30:00+10:00',
             'failure_reason' => 'recipient_unavailable',
             'attempt_no' => 1,

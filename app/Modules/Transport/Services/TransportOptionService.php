@@ -219,6 +219,7 @@ final class TransportOptionService implements TransportOptionServiceContract
                     'zone' => $request['zone'] ?? '',
                     'items' => $request['items'] ?? [],
                     'receiver' => $request['receiver'] ?? [],
+                    'sender' => $request['sender'] ?? [], // pickup party — the driver page and consignment note of an inbound collection print it (#124)
                 ],
             ]),
         ];
@@ -394,8 +395,8 @@ final class TransportOptionService implements TransportOptionServiceContract
     /** orders.transport_preference (Orders, X1) as the client left it with the 估价 — read-only, customer fields only. */
     private function clientPreference(Shipment $shipment): ?array
     {
-        if (! Schema::hasColumn('orders', 'transport_preference')) {
-            return null;
+        if ($shipment->order_id === null || ! Schema::hasColumn('orders', 'transport_preference')) {
+            return null; // an inbound collection (#124) has no order and no client choice in v1: a person confirms on the shipment page
         }
         $raw = DB::table('orders')->where('id', $shipment->order_id)->value('transport_preference');
         $preference = is_string($raw) ? json_decode($raw, true) : (is_array($raw) ? $raw : null);
