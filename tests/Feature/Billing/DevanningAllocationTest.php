@@ -121,7 +121,7 @@ class DevanningAllocationTest extends TestCase
         $this->assertCount(2, $charges);
         $this->assertSame([$jobs[$negotiated->id] => 25000, $jobs[$standard->id] => 16500], $this->byJob('WH-DEVAN-40-LOOSE'));
         $this->assertSame(['client', 'standard'], Charge::query()->orderBy('job_id')->get()->map(fn (Charge $c) => $c->calculation_snapshot_json['card'])->all());
-        $this->assertFalse(Charge::query()->where('job_id', $jobs[$negotiated->id])->sole()->calculation_snapshot_json['min_charge_applied'] ?? false);
+        $this->assertTrue(Charge::query()->where('job_id', $jobs[$negotiated->id])->sole()->calculation_snapshot_json['allocated']); // priced as a fraction: 25000 < the card's 40000 minimum, not floored
         // The unpriced member gets a Missing Rate exception on ITS Job — the others are billed; never $0.
         $this->assertSame(1, ExceptionRecord::query()->where('type', 'missing_rate')->count());
         $this->assertDatabaseHas('exceptions', ['type' => 'missing_rate', 'source_module' => 'billing', 'job_id' => $jobs[$unpriced->id], 'client_id' => $unpriced->id, 'source_type' => 'container', 'source_id' => 77]);

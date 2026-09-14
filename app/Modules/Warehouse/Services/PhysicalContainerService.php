@@ -177,7 +177,7 @@ final class PhysicalContainerService
         $count = count($rows);
         $running = 0.0;
         foreach ($rows as $i => $row) {
-            $share = $i === $count - 1 ? round(1.0 - $running, 4) : round($quantities[$i] / $total, 4);
+            $share = $i === $count - 1 ? max(0.0, round(1.0 - $running, 4)) : round($quantities[$i] / $total, 4); // the last member absorbs the rounding so Σ = 1.0000, never below 0
             $running += $share;
             $rows[$i]['basis_qty'] = $quantities[$i];
             $rows[$i]['share'] = $share;

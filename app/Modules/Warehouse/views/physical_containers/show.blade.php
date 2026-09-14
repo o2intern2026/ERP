@@ -143,7 +143,7 @@
             <p class="text-muted">{{ __('warehouse.physical_containers.charges_none') }}</p>
         @else
             <table class="dense">
-                <thead><tr><th>{{ __('billing.charges.job') }}</th><th>{{ __('billing.charges.code') }}</th><th class="num">{{ __('billing.charges.qty') }}</th><th class="num">{{ __('billing.charges.amount') }}</th><th>{{ __('billing.charges.status') }}</th><th>v</th></tr></thead>
+                <thead><tr><th>{{ __('billing.charges.job') }}</th><th>{{ __('billing.charges.code') }}</th><th class="num">{{ __('billing.charges.qty') }}</th><th class="num">{{ __('billing.charges.amount') }}</th><th>{{ __('billing.charges.status') }}</th><th>{{ __('warehouse.physical_containers.allocation_version') }}</th></tr></thead>
                 <tbody>
                 @foreach ($charges as $jobId => $rows)
                     @foreach ($rows as $c)
