@@ -22,6 +22,8 @@ return [
         'remove_row' => '删除此行',
         'import' => '批量导入',
         'confirm' => '确认订单并检查库存',
+        // 2026-09-14 lead feedback: the confirm button and messages name what confirmation does for THIS order type; 提货直送 never touches stock.
+        'confirm_pickup_deliver' => '确认订单并生成运输方案',
     ],
     'filters' => [
         'all_clients' => '全部客户',
@@ -301,6 +303,7 @@ return [
         ],
         'timeline' => [
             'confirmed' => '订单已确认，等待 WMS 锁定实际库存。',
+            'confirmed_pickup_deliver' => '订单已确认，运输按申报包裹生成最终运输方案。',
             'allocated' => 'WMS 已返回预留结果并生成履约批次。',
             'picking' => 'WMS 拣货任务完成（批次 :seq），订单进入拣货。',
             'packed' => 'WMS 已打包批次 :seq；全部批次打包后订单为已打包。',
@@ -313,6 +316,7 @@ return [
         'created' => '订单 :order_no 已创建。',
         'updated' => '订单信息已更新。',
         'confirmed' => '订单已确认；WMS 将按货物行锁定库存并返回履约结果。',
+        'confirmed_pickup_deliver' => '订单已确认；运输将按申报包裹生成最终运输方案，客户下单时所选方案在容差内自动确认，超出则需客户重新确认。不经仓库，无需检查库存。',
         'locked' => '拣货开始后订单不能直接修改；已发运订单只能进入退货流程。',
     ],
     'validation' => [

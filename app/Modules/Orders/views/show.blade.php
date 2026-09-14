@@ -83,7 +83,8 @@
         @if (auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher']))
             <form method="post" action="{{ route('orders.confirm', $order) }}">
                 @csrf
-                <button type="submit">{{ __('orders.actions.confirm') }}</button>
+                {{-- 2026-09-14 lead feedback: 提货直送 never checks stock — the button says what confirmation does for this order type. --}}
+                <button type="submit">{{ __($order->order_type === 'pickup_deliver' ? 'orders.actions.confirm_pickup_deliver' : 'orders.actions.confirm') }}</button>
             </form>
         @else
             <p class="text-muted"><small>{{ __('orders.actions.confirm_needs_role') }}</small></p>

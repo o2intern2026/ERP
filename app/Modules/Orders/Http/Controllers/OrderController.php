@@ -172,9 +172,11 @@ final class OrderController extends Controller
             }
         }
 
-        $statuses->transitionOperational($order, 'confirmed', auth()->id(), __('orders.fulfilments.timeline.confirmed'));
+        // 2026-09-14 lead feedback: a 提货直送 order is never in stock — its timeline note and flash say so instead of "waiting for WMS".
+        $suffix = $order->order_type === 'pickup_deliver' ? '_pickup_deliver' : '';
+        $statuses->transitionOperational($order, 'confirmed', auth()->id(), __('orders.fulfilments.timeline.confirmed'.$suffix));
 
-        return back()->with('status', __('orders.messages.confirmed'));
+        return back()->with('status', __('orders.messages.confirmed'.$suffix));
     }
 
     /** A3 picking lock + A11 stage rules: free before picking, supervisor + reason from picking on, never after dispatch. */
