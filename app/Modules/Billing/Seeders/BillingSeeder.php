@@ -60,6 +60,7 @@ class BillingSeeder extends Seeder
         'TR-REDELIVERY' => ['transport', 'delivery', 'Re-delivery', null],
         'TR-WAITING' => ['transport', 'man_hour', 'Waiting time', null],
         'TR-PICKUP' => ['transport', 'delivery', 'Collection at sender (surcharge)', 'manual until priced — freight already covers pickup→door'], // CHANGE_REQUESTS #120
+        'TR-SIDELOADER' => ['transport', 'delivery', 'Sideloader surcharge (container delivery)', 'no Edward row: Missing Rate the first time a sideloader box is billed; allocated over the box members'], // CHANGE_REQUESTS #122
         'WH-STORAGE-CTN-WK' => ['storage', 'carton_week', 'Storage – loose carton', 'if the client card bills per carton'],
         'WH-STORAGE-CBM-WK' => ['storage', 'cbm_week', 'Storage – loose cartons by volume', 'if the client card bills per CBM'],
         'WH-STORAGE-QUARANTINE-PLT-WK' => ['storage', 'pallet_week', 'Storage – quarantined / damaged pallet', 'still charged, separate code (§4.8)'],
@@ -71,14 +72,22 @@ class BillingSeeder extends Seeder
      * orders and on shipment.quote_confirmed for pickup_deliver orders). (trigger_event, code) pairs are unique — run() upserts on them.
      */
     public const RULES = [
+        // Dormant (CHANGE_REQUESTS #7 / #34, superseded by #122): kept so an X2 cartage shipment payload with cartage_container_size still bills; nothing sets the key today.
         ['TR-CARTAGE-20', 'shipment.quote_confirmed', ['cartage_container_size' => '20'], 'one', 'shipment:{shipment_id}'],
         ['TR-CARTAGE-40', 'shipment.quote_confirmed', ['cartage_container_size' => '40'], 'one', 'shipment:{shipment_id}'],
-        ['WH-DEVAN-20-PLT', 'task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'pallet'], 'billable_qty', 'task:{task_id}'],
-        ['WH-DEVAN-20-LOOSE', 'task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'loose'], 'billable_qty', 'task:{task_id}'],
-        ['WH-DEVAN-20-MIXED', 'task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'mixed'], 'billable_qty', 'task:{task_id}'],
-        ['WH-DEVAN-40-PLT', 'task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'pallet'], 'billable_qty', 'task:{task_id}'],
-        ['WH-DEVAN-40-LOOSE', 'task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'loose'], 'billable_qty', 'task:{task_id}'],
-        ['WH-DEVAN-40-MIXED', 'task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'mixed'], 'billable_qty', 'task:{task_id}'],
+        // CHANGE_REQUESTS #122 (lead 2026-09-14, 按默认): the devanning rules read `allocated` — a task.completed with members[] (a shared
+        // physical container) yields one charge per member Job at rate × share, matched on the MEMBER's unpack_mode; without members the
+        // source degrades to billable_qty, so a single-client container bills byte-identically. Cartage / sideloader arise on the
+        // box's arrival event, allocated the same way, when the box is ours to cart (cartage_by_us) / flagged sideloader.
+        ['WH-DEVAN-20-PLT', 'task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'pallet'], 'allocated', 'task:{task_id}'],
+        ['WH-DEVAN-20-LOOSE', 'task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'loose'], 'allocated', 'task:{task_id}'],
+        ['WH-DEVAN-20-MIXED', 'task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'mixed'], 'allocated', 'task:{task_id}'],
+        ['WH-DEVAN-40-PLT', 'task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'pallet'], 'allocated', 'task:{task_id}'],
+        ['WH-DEVAN-40-LOOSE', 'task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'loose'], 'allocated', 'task:{task_id}'],
+        ['WH-DEVAN-40-MIXED', 'task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'mixed'], 'allocated', 'task:{task_id}'],
+        ['TR-CARTAGE-20', 'physical_container.arrived', ['container.size' => '20', 'cartage_by_us' => true], 'allocated', 'cartage:{physical_container_id}'],
+        ['TR-CARTAGE-40', 'physical_container.arrived', ['container.size' => '40', 'cartage_by_us' => true], 'allocated', 'cartage:{physical_container_id}'],
+        ['TR-SIDELOADER', 'physical_container.arrived', ['sideloader_required' => true], 'allocated', 'sideloader:{physical_container_id}'],
         ['WH-UNLOAD-PLT', 'task.completed', ['task_type' => 'receiving', 'asn.inbound_type' => 'loose_truck'], 'billable_qty', 'task:{task_id}'], // charge-codes.md #9: LCL trucks only
         ['WH-PUTAWAY-PLT', 'asn.putaway_completed', null, 'pallets', 'asn:{asn_id}'],
         ['WH-WRAP-IN-PLT', 'task.completed', ['task_type' => 'wrap', 'source_type' => ['asn', 'container']], 'billable_qty', 'task:{task_id}'],

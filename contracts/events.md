@@ -31,7 +31,8 @@ Every state change another module reacts to travels as an event through the tran
 | `stock.reservation_failed` | Warehouse (C) | Orders (OMS-7/8: warn, split fulfilment, backorder) |
 | `stock.released` | Warehouse (C) | Orders (status / hold bookkeeping) |
 | `asn.putaway_completed` | Warehouse (C) | Billing (putaway, inbound label, pallet purchase), Orders (A14 batch link), Platform (Job `in_stock`) |
-| `task.completed` | Warehouse (C) | Billing (devanning, unload, load-out, wrap, scan, labour, waste), Orders (pick / pack progress), Platform |
+| `task.completed` | Warehouse (C) | Billing (devanning, unload, load-out, wrap, scan, labour, waste), Orders (pick / pack progress), Platform. A box-level devanning (source_type `physical_container`, CHANGE_REQUESTS #122) has **no job / client on the envelope** — `members[]` carries the split |
+| `physical_container.arrived` | Warehouse (C) | Billing (cartage TR-CARTAGE-20/40 when `cartage_by_us`, TR-SIDELOADER when `sideloader_required` — allocated over `members[]`) — added 2026-09-14, CHANGE_REQUESTS #122; envelope job / client null |
 | `outbound.packed` | Warehouse (C) | Transport (final quote), Orders (→ `packed`), Billing (order processing, picks, outbound labels) |
 | `outbound.dispatched` | Warehouse (C) | Orders (→ `dispatched`), Transport (shipment left the warehouse), Billing (load-out is billed via `task.completed` `load`, not here) — added M4, CHANGE_REQUESTS #35 |
 | `shipment.quote_confirmed` | Transport (X2) | Billing (freight + tailgate + remote — the only place these arise; for `order_type = pickup_deliver` also the outbound handling codes from the declared packages — CHANGE_REQUESTS #120), Orders (quote snapshot), Platform |
@@ -101,7 +102,25 @@ billable_qty, billable_uom,
 hours_business, hours_after_hours,                                       # labour / vas_other (supervisor entered)
 scan_count,                                                              # scanning: = scan_records rows
 started_at, completed_at, completed_by
+# Box-level devanning of a shared physical container ONLY (source_type = physical_container, CHANGE_REQUESTS #122; additive, absent otherwise —
+# a single-client container row's devanning task carries none of these and bills exactly as before):
+job_id: null, client_id: null (envelope too), asn_id: null, container_id: null,
+physical_container_id,
+physical_container: {id, container_no, warehouse_id, size, unpack_mode, gross_weight_kg, consolidation (fcl | lcl), sideloader_required, cartage_by_us,
+                     line_count_total, cartons_expected_total, cartons_received_total, cbm_total, pallets_total, members_count},
+container: {size, unpack_mode, line_count: line_count_total, gross_weight_kg},   # the alias so the existing devanning conditions match; caps evaluated on the WHOLE box
+members: [{asn_id, asn_no, container_id, container_no, job_id, client_id, unpack_mode, line_count, cartons_expected, cartons_received, cbm, pallets, basis_qty, share}],   # share: 4 dp, Σ = 1.0000
+allocation_basis (cartons_received | pallets | cbm | lines | equal — the EFFECTIVE basis), allocation_basis_requested, basis_provisional (bool), basis_total,
+cartage_by_us, sideloader_required, activity_version   # = physical_containers.allocation_version; 重算分摊 re-emits the same task_id with + 1 and the engine reverses the older split
 ```
+### `physical_container.arrived` — 拼柜 cartage / sideloader (CHANGE_REQUESTS #122); Billing rows #1–#2 and TR-SIDELOADER
+```
+physical_container_id, physical_container: {…as above…}, container: {size, unpack_mode, line_count, gross_weight_kg},
+members: [{…as above…}], allocation_basis, allocation_basis_requested, basis_provisional, basis_total,
+cartage_by_us (bool), sideloader_required (bool),                        # → TR-CARTAGE-20/40 (cond container.size + cartage_by_us = true), TR-SIDELOADER (cond sideloader_required = true)
+activity_version, arrived_at, arrived_by
+```
+Published once by 登记到港 on the box page (envelope job / client null, correlation_id = the box number); 重算分摊 re-publishes it with `activity_version + 1` when it was published before. Supersedes the never-built cartage shipment of CHANGE_REQUESTS #7 / #34 — the dormant `shipment.quote_confirmed` cartage rules stay seeded.
 ### `outbound.packed` — §4.3 出库, §4.6 B4; Billing rows #20–#25, #28
 ```
 order_id, order_no, fulfilment_id, job_id, client_id, warehouse_id,
@@ -196,7 +215,7 @@ job_ids: [int], order_ids: [int],                                        # every
 subtotal_cents, gst_cents, total_cents, issued_at, due_date
 ```
 ## Billing trigger summary (`charge_rules.trigger_event`)
-`asn.putaway_completed` → putaway / inbound label / pallet purchase · `task.completed` → devanning (only here), unload, load-out, wrap, scan, labour, waste · `outbound.packed` → order processing (urgent by cut-off), picks, outbound labels · `shipment.quote_confirmed` → freight, tailgate, remote, cartage (only here) + for `order_type = pickup_deliver` the outbound handling codes from the declared packages (CHANGE_REQUESTS #120) · `delivery.extra_charge` → waiting / redelivery / failed · `snapshot.weekly` → storage, pallet rental, pickface · `return.financial_decision` → credit note. `shipment.booked` and `delivery.pod_captured` create **no** charge.
+`asn.putaway_completed` → putaway / inbound label / pallet purchase · `task.completed` → devanning (only here; a shared box's devanning allocated over `members[]` — #122), unload, load-out, wrap, scan, labour, waste · `outbound.packed` → order processing (urgent by cut-off), picks, outbound labels · `shipment.quote_confirmed` → freight, tailgate, remote + for `order_type = pickup_deliver` the outbound handling codes from the declared packages (CHANGE_REQUESTS #120); the cartage rules on this event are dormant (#7 / #34 superseded) · `physical_container.arrived` → cartage (`cartage_by_us`) and sideloader surcharge, allocated over the box members (#122) · `delivery.extra_charge` → waiting / redelivery / failed · `snapshot.weekly` → storage, pallet rental, pickface · `return.financial_decision` → credit note. `shipment.booked` and `delivery.pod_captured` create **no** charge.
 
 ## Consuming events in code (shipped in M1/A31)
 - Implement `App\Support\Outbox\EventConsumer` (`handle(array $envelope): void`) in your module's `Services/` (or a `Consumers/` folder inside it). Read only `$envelope['payload']` fields listed above plus the envelope keys.

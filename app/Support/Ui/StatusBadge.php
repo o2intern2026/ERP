@@ -27,6 +27,8 @@ final class StatusBadge
         'warehouse.task_statuses.' => ['pending' => 'warn', 'in_progress' => 'info', 'done' => 'ok', 'cancelled' => 'muted', 'exception' => 'danger'],
         'warehouse.reservation_statuses.' => ['active' => 'warn', 'released' => 'muted', 'consumed' => 'ok'],
         'warehouse.receipt_statuses.' => ['open' => 'warn', 'completed' => 'ok'],
+        'warehouse.physical_containers.statuses.' => ['expected' => 'muted', 'arrived' => 'info', 'devanned' => 'ok'],
+        'warehouse.physical_containers.consolidations.' => ['fcl' => 'muted', 'lcl' => 'info'],
         'warehouse.wave_statuses.' => ['released' => 'warn', 'picking' => 'warn', 'completed' => 'ok', 'cancelled' => 'danger'],
         'billing.invoices.statuses.' => ['draft' => 'muted', 'issued' => 'info', 'part_paid' => 'warn', 'paid' => 'ok', 'void' => 'danger'],
         'platform.exceptions.statuses.' => ['open' => 'danger', 'in_progress' => 'warn', 'resolved' => 'ok'],

@@ -108,7 +108,8 @@ final class FakeRateService implements RateService
             return $result;
         }
 
-        if (isset($thresholds['min_billable_qty']) && $qty < $thresholds['min_billable_qty']) {
+        // An allocated share of a shared box (#122) is never floored to the minimum quantity — same as the real service.
+        if (isset($thresholds['min_billable_qty']) && $qty < $thresholds['min_billable_qty'] && ! ($context['allocated'] ?? false)) {
             $result['qty'] = (float) $thresholds['min_billable_qty'];
             $result['min_charge_applied'] = true;
         }

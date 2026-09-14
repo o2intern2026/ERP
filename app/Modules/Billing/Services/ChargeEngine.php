@@ -13,11 +13,17 @@ use App\Support\Contracts\ExceptionService;
 use App\Support\Contracts\RateService;
 use App\Support\Exceptions\RuleViolation;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * A6a: Operational event → matching charge rules → charge code → rate item → charge (with snapshots and a business
  * idempotency key). Missing rate → exception, never $0. POA → needs_review. A newer activity_version reverses the
  * older charges (cancel / redo produce reversals, never deletions). ERP_PLAN §6.4.
+ *
+ * Shared physical containers (拼柜 / LCL, CHANGE_REQUESTS #122): a rule with quantity_source `allocated` yields one charge
+ * per `members[]` entry of the payload — qty = the member's share of one box, priced on the MEMBER's own card, matched on
+ * the member's own unpack_mode, written to the member's Job / client under the key `<rule key>:job:<job_id>`. A payload
+ * without members degrades to the plain billable_qty path, so a single-client container bills exactly as before.
  */
 final class ChargeEngine
 {
@@ -31,10 +37,11 @@ final class ChargeEngine
     {
         $eventName = $envelope['event_name'];
         $payload = $envelope['payload'];
-        $clientId = (int) ($payload['client_id'] ?? $envelope['client_id']);
-        $jobId = (int) ($payload['job_id'] ?? $envelope['job_id']);
+        $clientId = (int) ($payload['client_id'] ?? $envelope['client_id'] ?? 0);
+        $jobId = (int) ($payload['job_id'] ?? $envelope['job_id'] ?? 0);
         $version = (int) ($payload['activity_version'] ?? 1);
         $context = $this->context($payload);
+        $source = $this->source($eventName, $payload);
 
         $rules = ChargeRule::query()->with('chargeCode')->where('trigger_event', $eventName)->where('active', true)
             ->where(fn ($q) => $q->whereNull('effective_from')->orWhereDate('effective_from', '<=', today()))
@@ -43,15 +50,32 @@ final class ChargeEngine
 
         $charges = [];
         foreach ($rules as $rule) {
-            if (! $this->matches($rule->condition ?? [], $context)) {
+            $allocated = $rule->quantity_source === 'allocated' && $this->hasMembers($payload);
+            if (! $allocated && ! $this->matches($rule->condition ?? [], $context)) {
                 continue;
             }
-            foreach ($this->quantities($rule, $payload, $clientId, $eventName) as [$qty, $extraContext]) {
+            $baseKey = $this->render($rule->idempotency_key_template, $payload + ['client_id' => $clientId]);
+            if ($allocated) {
+                // 重算分摊: a higher version supersedes EVERY member charge of the box under this rule — including a member unlinked since.
+                $this->reverseOlderAllocated($rule->chargeCode, $baseKey, $version);
+            }
+            foreach ($this->quantities($rule, $payload, $clientId, $eventName) as $tuple) {
+                [$qty, $extraContext] = $tuple;
+                $tupleClient = (int) ($tuple[2] ?? $clientId);
+                $tupleJob = (int) ($tuple[3] ?? $jobId);
+                $tupleContext = array_replace($context, $extraContext);
+                if ($allocated && ! $this->matches($rule->condition ?? [], $tupleContext)) {
+                    continue; // per-member condition (a palletised member matches the PLT rule, a loose one the LOOSE rule)
+                }
                 if ($qty <= 0) {
                     continue;
                 }
-                $activityId = $this->render($rule->idempotency_key_template, $payload + ['client_id' => $clientId]);
-                $charge = $this->charge($rule->chargeCode, $clientId, $jobId, $qty, $context + $extraContext, $activityId, $version, $this->source($eventName, $payload));
+                if ($tupleClient <= 0 || $tupleJob <= 0) {
+                    Log::warning('billing: rule matched an event without a client / Job, skipped', ['event' => $eventName, 'rule' => $rule->id, 'key' => $baseKey]);
+
+                    continue;
+                }
+                $charge = $this->charge($rule->chargeCode, $tupleClient, $tupleJob, $qty, $tupleContext, $baseKey.($tuple[4] ?? ''), $version, $source, null, $tuple[5] ?? []);
                 if ($charge !== null) {
                     $charges[] = $charge;
                 }
@@ -64,10 +88,12 @@ final class ChargeEngine
     /**
      * Price and record one charge under its idempotency key. Same key + version → returns the existing charge;
      * higher version → reverses the older ones first.
+     *
+     * @param  array<string, mixed>  $snapshotExtra  merged into the calculation snapshot (e.g. the allocation of a shared box)
      */
-    public function charge(ChargeCode $code, int $clientId, int $jobId, float $qty, array $context, string $activityId, int $version, array $source, ?\DateTimeInterface $at = null): ?Charge
+    public function charge(ChargeCode $code, int $clientId, int $jobId, float $qty, array $context, string $activityId, int $version, array $source, ?\DateTimeInterface $at = null, array $snapshotExtra = []): ?Charge
     {
-        return DB::transaction(function () use ($code, $clientId, $jobId, $qty, $context, $activityId, $version, $source, $at): ?Charge {
+        return DB::transaction(function () use ($code, $clientId, $jobId, $qty, $context, $activityId, $version, $source, $at, $snapshotExtra): ?Charge {
             $existing = Charge::query()->withoutGlobalScopes()->where('source_activity_id', $activityId)->where('charge_code_id', $code->id)->where('activity_version', $version)->first();
             if ($existing !== null) {
                 return $existing;
@@ -105,7 +131,7 @@ final class ChargeEngine
                 'qty' => $priced['qty'],
                 'rate_snapshot_cents' => $priced['rate_cents'],
                 'amount_cents' => $priced['amount_cents'],
-                'calculation_snapshot_json' => $priced['calculation_snapshot'],
+                'calculation_snapshot_json' => $priced['calculation_snapshot'] + $snapshotExtra,
                 'tax_treatment' => $code->tax_treatment,
                 'status' => $priced['is_poa'] ? 'needs_review' : 'pending',
                 'source_type' => $source['type'],
@@ -219,7 +245,10 @@ final class ChargeEngine
         return true;
     }
 
-    /** @return list<array{0: float, 1: array<string, mixed>}> quantities with extra pricing context */
+    /**
+     * @return list<array{0: float, 1: array<string, mixed>, 2?: int, 3?: int, 4?: string, 5?: array<string, mixed>}>
+     *                                                                                                                quantity, extra pricing context, and for allocated tuples the member client, Job, key suffix and snapshot extra
+     */
     private function quantities(ChargeRule $rule, array $payload, int $clientId, string $eventName): array
     {
         return match ($rule->quantity_source) {
@@ -233,8 +262,62 @@ final class ChargeEngine
             'cbm' => [[(float) ($payload['cbm'] ?? 0), []]],
             'orders', 'one' => [[1.0, $this->pricingContext($payload)]],
             'cartons' => $this->cartonBands($rule, $payload, $clientId),
+            'allocated' => $this->allocated($payload),
             default => [],
         };
+    }
+
+    private function hasMembers(array $payload): bool
+    {
+        return is_array($payload['members'] ?? null) && $payload['members'] !== [];
+    }
+
+    /**
+     * 拼柜 (CHANGE_REQUESTS #122): one tuple per member — qty = share of one box, the member's own unpack_mode overriding the
+     * box's for the rule condition and the pricing context, `allocated` so RateService skips minimum quantity / charge on a
+     * fraction, and the allocation facts for the calculation snapshot. No members → the plain billable_qty path (FCL / legacy).
+     */
+    private function allocated(array $payload): array
+    {
+        if (! $this->hasMembers($payload)) {
+            return [[(float) ($payload['billable_qty'] ?? $payload['qty'] ?? 0), []]];
+        }
+
+        $tuples = [];
+        foreach ($payload['members'] as $member) {
+            $share = round((float) ($member['share'] ?? 0), 4);
+            $jobId = (int) ($member['job_id'] ?? 0);
+            $extra = ['allocated' => true, 'share' => $share];
+            if (isset($member['unpack_mode'])) {
+                $extra['container.unpack_mode'] = $member['unpack_mode'];
+                $extra['unpack_mode'] = $member['unpack_mode'];
+            }
+            $snapshot = ['allocation' => [
+                'basis' => $payload['allocation_basis'] ?? null,
+                'basis_provisional' => (bool) ($payload['basis_provisional'] ?? false),
+                'basis_qty' => $member['basis_qty'] ?? null,
+                'basis_total' => $payload['basis_total'] ?? null,
+                'share' => $share,
+                'physical_container_no' => $payload['physical_container']['container_no'] ?? null,
+                'members_count' => count($payload['members']),
+                'member_asn_no' => $member['asn_no'] ?? null,
+                'member_unpack_mode' => $member['unpack_mode'] ?? null,
+            ]];
+            $tuples[] = [$share, $extra, (int) ($member['client_id'] ?? 0), $jobId, ':job:'.$jobId, $snapshot];
+        }
+
+        return $tuples;
+    }
+
+    /** A newer allocation version supersedes every member charge of the box under this code, whatever the members are now. */
+    private function reverseOlderAllocated(ChargeCode $code, string $baseKey, int $version): void
+    {
+        $older = Charge::query()->withoutGlobalScopes()->where('charge_code_id', $code->id)
+            ->where('source_activity_id', 'like', addcslashes($baseKey, '%_\\').':job:%')
+            ->where('activity_version', '<', $version)->where('status', '!=', 'reversed')->whereNull('reversal_of_charge_id')->get();
+        foreach ($older as $old) {
+            $this->reverse($old, "superseded by activity version {$version}");
+        }
     }
 
     /** outbound.packed lines with unit_type carton, grouped by the weight band the rule's code matches; one charge per code. */
@@ -278,6 +361,7 @@ final class ChargeEngine
     private function source(string $eventName, array $payload): array
     {
         return match (true) {
+            isset($payload['physical_container_id']) => ['type' => 'container', 'id' => (int) $payload['physical_container_id']], // a shared box (#122): source container = physical_containers.id
             str_starts_with($eventName, 'task.') => ['type' => 'task', 'id' => $payload['task_id'] ?? null],
             str_starts_with($eventName, 'asn.') => ['type' => 'asn', 'id' => $payload['asn_id'] ?? null],
             str_starts_with($eventName, 'outbound.') => ['type' => 'order', 'id' => $payload['order_id'] ?? null],

@@ -11,6 +11,9 @@
     @role('admin|warehouse_supervisor|warehouse_operator|customer_service|finance')
         <li><a href="{{ route('warehouse.receipts.index') }}">{{ __('warehouse.nav_receipts') }}</a></li>
     @endrole
+    @role('admin|customer_service|warehouse_supervisor')
+        <li><a href="{{ route('warehouse.physical_containers.index') }}">{{ __('warehouse.nav_physical_containers') }}</a></li>
+    @endrole
     <li><a href="{{ route('warehouse.index') }}">{{ __('warehouse.nav') }}</a></li>
     @role('admin|warehouse_supervisor|warehouse_operator')
         <li><a href="{{ route('warehouse.putaway.index') }}">{{ __('warehouse.nav_putaway') }}</a></li>
