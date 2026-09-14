@@ -10,19 +10,22 @@ use InvalidArgumentException;
 
 final class ShipmentStatusMachine
 {
+    private const DELIVERY_TRANSITIONS = [
+        'quoting' => ['quoted', 'booking_cancelled'],
+        'quoted' => ['quote_confirmed', 'booking_cancelled'],
+        // B5d: a materially changed final quote returns to `quoted` for re-confirmation.
+        'quote_confirmed' => ['quoted', 'booked', 'booking_cancelled'],
+        'booked' => ['dispatched', 'booking_cancelled'],
+        'dispatched' => ['in_transit', 'failed'],
+        'in_transit' => ['delivered', 'failed'],
+        'delivered' => [],
+        'failed' => [],
+        'booking_cancelled' => [],
+    ];
+
     private const TRANSITIONS = [
-        'outbound' => [
-            'quoting' => ['quoted', 'booking_cancelled'],
-            'quoted' => ['quote_confirmed', 'booking_cancelled'],
-            // B5d: a materially changed final quote returns to `quoted` for re-confirmation.
-            'quote_confirmed' => ['quoted', 'booked', 'booking_cancelled'],
-            'booked' => ['dispatched', 'booking_cancelled'],
-            'dispatched' => ['in_transit', 'failed'],
-            'in_transit' => ['delivered', 'failed'],
-            'delivered' => [],
-            'failed' => [],
-            'booking_cancelled' => [],
-        ],
+        'outbound' => self::DELIVERY_TRANSITIONS,
+        'inbound_collection' => self::DELIVERY_TRANSITIONS, // 我方上门提货 (CHANGE_REQUESTS #124): same lifecycle, receiver = our warehouse
         'return' => [
             'return_requested' => ['return_in_transit'],
             'return_in_transit' => ['arrived_warehouse'],

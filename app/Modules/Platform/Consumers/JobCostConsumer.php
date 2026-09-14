@@ -31,7 +31,7 @@ final class JobCostConsumer implements EventConsumer
 
         if ($envelope['event_name'] === 'delivery.pod_captured') {
             $update['actual_cost_cents'] = (int) $costs->sum(fn ($c) => $c->actual_cost_cents ?? $c->expected_cost_cents);
-            $outstanding = DB::table('shipments')->where('job_id', $jobId)->where('shipment_type', 'outbound')->whereNotIn('status', ['delivered', 'booking_cancelled'])->exists();
+            $outstanding = DB::table('shipments')->where('job_id', $jobId)->whereIn('shipment_type', ['outbound', 'inbound_collection'])->whereNotIn('status', ['delivered', 'booking_cancelled'])->exists();
             $update['cost_status'] = $outstanding ? 'estimated' : 'confirmed';
         } else {
             $update['cost_status'] = DB::raw("IF(cost_status = 'confirmed', 'confirmed', 'estimated')");

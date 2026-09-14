@@ -32,15 +32,22 @@
 
             @foreach ($run->stops as $stop)
                 @php($receiver = data_get($stop->shipment->selectedQuote?->raw_response, '_quote_request.receiver', []))
+                @php($sender = data_get($stop->shipment->selectedQuote?->raw_response, '_quote_request.sender', []))
                 @php($deliveredPod = $stop->shipment->pods->firstWhere('delivered_at', '!=', null))
                 <section>
-                    <h2>{{ __('transport.driver.stop_number', ['sequence' => $stop->seq]) }} · {{ $stop->shipment->shipment_no }}</h2>
+                    <h2>{{ __('transport.driver.stop_number', ['sequence' => $stop->seq]) }} · {{ $stop->shipment->shipment_no }}@if ($stop->shipment->isCollection()) <span class="badge" data-tone="info">{{ __('transport.shipment_types.inbound_collection') }}</span>@endif</h2>
                     <dl>
                         <dt>{{ __('transport.driver.client') }}</dt>
                         <dd>{{ $stop->shipment->client->name }}</dd>
                         <dt>{{ __('transport.driver.eta') }}</dt>
                         <dd>{{ $stop->eta?->format('H:i') ?? __('transport.not_selected') }}</dd>
-                        <dt>{{ __('transport.driver.receiver') }}</dt>
+                        {{-- 我方上门提货 (CHANGE_REQUESTS #124): the driver collects at the pickup party and delivers to our warehouse. --}}
+                        @if ($stop->shipment->isCollection())
+                            <dt>{{ __('transport.driver.pickup_from') }}</dt>
+                            <dd>{{ data_get($sender, 'name', __('transport.not_selected')) }}@if (data_get($sender, 'phone')) · {{ data_get($sender, 'phone') }}@endif<br>
+                                {{ collect([data_get($sender, 'address'), data_get($sender, 'suburb'), data_get($sender, 'state'), data_get($sender, 'postcode')])->filter()->implode(', ') ?: __('transport.not_selected') }}</dd>
+                        @endif
+                        <dt>{{ $stop->shipment->isCollection() ? __('transport.driver.deliver_to_warehouse') : __('transport.driver.receiver') }}</dt>
                         <dd>{{ data_get($receiver, 'name', __('transport.not_selected')) }}</dd>
                         <dt>{{ __('transport.driver.address') }}</dt>
                         <dd>

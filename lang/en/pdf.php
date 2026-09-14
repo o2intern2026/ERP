@@ -125,6 +125,9 @@ return [
         'job' => 'Job',
         'client' => 'Client',
         'order' => 'Order',
+        'asn' => 'ASN',
+        'collect_from' => 'Collect from',
+        'deliver_to' => 'Deliver to',
         'carrier' => 'Carrier',
         'service_level' => 'Service level',
         'tailgate' => 'Tailgate required',
@@ -153,6 +156,9 @@ return [
         'pallet' => 'Pallet',
         'satchel' => 'Satchel',
         'crate' => 'Crate',
+        'tube' => 'Tube',
+        'flat_pack' => 'Flat pack',
+        'skid' => 'Skid',
     ],
 
     'label' => [

@@ -33,12 +33,14 @@ Every state change another module reacts to travels as an event through the tran
 | `asn.putaway_completed` | Warehouse (C) | Billing (putaway, inbound label, pallet purchase), Orders (A14 batch link), Platform (Job `in_stock`) |
 | `task.completed` | Warehouse (C) | Billing (devanning, unload, load-out, wrap, scan, labour, waste), Orders (pick / pack progress), Platform. A box-level devanning (source_type `physical_container`, CHANGE_REQUESTS #122) has **no job / client on the envelope** — `members[]` carries the split |
 | `physical_container.arrived` | Warehouse (C) | Billing (cartage TR-CARTAGE-20/40 when `cartage_by_us`, TR-SIDELOADER when `sideloader_required` — allocated over `members[]`) — added 2026-09-14, CHANGE_REQUESTS #122; envelope job / client null |
+| `asn.collection_requested` | Warehouse (C) | Transport (opens / re-quotes the ONE `inbound_collection` shipment of the ASN, final stage at once) — added 2026-09-14, CHANGE_REQUESTS #124 (预报单 到仓方式 我方上门提货) |
+| `asn.collection_cancelled` | Warehouse (C) | Transport (cancels the collection shipment while not booked; after booking ignored + logged — the dispatcher cancels on the shipment) — #124 |
 | `outbound.packed` | Warehouse (C) | Transport (final quote), Orders (→ `packed`), Billing (order processing, picks, outbound labels) |
 | `outbound.dispatched` | Warehouse (C) | Orders (→ `dispatched`), Transport (shipment left the warehouse), Billing (load-out is billed via `task.completed` `load`, not here) — added M4, CHANGE_REQUESTS #35 |
-| `shipment.quote_confirmed` | Transport (X2) | Billing (freight + tailgate + remote — the only place these arise; for `order_type = pickup_deliver` also the outbound handling codes from the declared packages — CHANGE_REQUESTS #120), Orders (quote snapshot), Platform |
-| `shipment.booked` | Transport (X2) | Platform (Job cost `estimated`), Orders (tracking on the order), Billing (records `carrier_costs.expected_cost` — no charge) |
-| `delivery.pod_captured` | Transport (X2) | Orders (→ `delivered`), Billing (freight settleable, cost confirmed), Platform (POD email) |
-| `delivery.failed` | Transport (X2) | Orders (hold `transport`), Platform (exception `delivery_failed`) |
+| `shipment.quote_confirmed` | Transport (X2) | Billing (freight + tailgate + remote — the only place these arise; for `order_type = pickup_deliver` also the outbound handling codes from the declared packages — CHANGE_REQUESTS #120), Orders (quote snapshot), Platform, Warehouse (an `inbound_collection` with `asn_id`: collection_status `confirmed` + the plan / client price on the 预报单 — #124) |
+| `shipment.booked` | Transport (X2) | Platform (Job cost `estimated`), Orders (tracking on the order), Billing (records `carrier_costs.expected_cost` — no charge), Warehouse (`asn_id` → collection_status `booked`, #124) |
+| `delivery.pod_captured` | Transport (X2) | Orders (→ `delivered`; returns early when `order_id` is null), Billing (freight settleable, cost confirmed), Platform (POD email), Warehouse (`asn_id` → the 预报单 is `arrived`, collection_status `delivered`, #124) |
+| `delivery.failed` | Transport (X2) | Orders (hold `transport`), Platform (exception `delivery_failed` — raised by Transport with a null order for a collection), Warehouse (`asn_id` → collection_status `failed`, #124) |
 | `delivery.extra_charge` | Transport (X2) | Billing (decides whether / how much to charge) |
 | `stock.daily_snapshot_taken` | Warehouse (C) | Billing (audit trail; weekly roll-up input) |
 | `snapshot.weekly` | Warehouse (C) | Billing (storage, pallet rental, pickface — once per unit per week) |
@@ -137,9 +139,24 @@ shipment_id (nullable — set when the handover is against a booked TMS shipment
 pallet_count (loaded pallets → also a `task.completed` `load` task for WH-LOAD-PLT), package_count, carton_labels: [string],
 dispatched_by, dispatched_at
 ```
+### `asn.collection_requested` — 预报单 到仓方式 我方上门提货 (CHANGE_REQUESTS #124); Warehouse → Transport
+```
+asn_id, asn_no, client_id, job_id, warehouse_id,
+warehouse: {name, phone, address, suburb, state, postcode, type: business},                # the RECEIVER of the collection shipment
+collection_address: {name, phone, address, suburb, state, postcode, type: business | residential},   # the SENDER (pickup party)
+ready_date, service_level: standard,
+packages: [{package_type, qty, weight_kg, length_mm, width_mm, height_mm}],              # declared pieces (weight_kg per piece); may be []
+lines: [{asn_line_id, description, expected_cartons, weight_kg, length_mm, width_mm, height_mm}],   # goods lines with weight (line total) + dims — the items when packages is []
+notes, requested_by, requested_at, activity_version                                       # activity_version = asns.collection_version; a higher one re-quotes the same shipment, a lower / equal one is a replay
+```
+Published by `AsnService::setCollection` (create form or the ASN page's 修改 / 改为我方上门提货), only while the ASN is `booked` and the collection is not yet booked by Transport. Transport keeps ONE `inbound_collection` shipment per `asn_id` (`shipments.asn_id`), `order_id` null, quotes it at the `final` stage at once (the declared list is final, as for pickup_deliver), `tailgate_required` = any declared piece ≥ the client's `TR-TAILGATE` threshold (pickup side; the receiver is our dock so residential never applies). Confirmation is the dispatcher's / customer service's manual one on the shipment page — no client choice in v1.
+### `asn.collection_cancelled` — 改为客户自送 before booking (#124); Warehouse → Transport
+```
+asn_id, asn_no, client_id, job_id, shipment_id (nullable — the shipment Transport reported back, when known), cancelled_by, reason, cancelled_at
+```
 ### `shipment.quote_confirmed` — §5.3, §6.4; Billing TR-* and cartage
 ```
-shipment_id, shipment_no, shipment_type, job_id, client_id, order_id, fulfilment_id,
+shipment_id, shipment_no, shipment_type, job_id, client_id, order_id (nullable — null for an inbound_collection, #124), asn_id (nullable — the 预报单 of an inbound_collection; null for order shipments, #124), fulfilment_id,
 transport_quote_id, quote_stage, source, carrier_id, service_level, pricing_mode,
 cost_cents, customer_price_cents, markup_percent (nullable), eta_days,
 tailgate_required (bool), zone,                                          # → TR-TAILGATE, TR-REMOTE conditions
@@ -152,21 +169,23 @@ is_urgent (bool; App\Support\UrgentDespatch: requested_date = the confirmation d
 lines: [{package_type, unit_type (pallet | carton — App\Support\PackageUnits::unitType), qty, unit_weight_kg (declared per-piece weight, 0 when not declared)}],
 pallet_count, carton_count, label_count (= Σ qty)                        # from orders.declared_packages — the final basis for pure transport
 ```
+An `inbound_collection` (#124) carries `order_type` null and none of the pickup_deliver handling keys: Billing bills TR-DELIVERY-BASE / TR-FUEL / TR-TAILGATE / TR-REMOTE keyed `shipment:{shipment_id}` on the ASN's Job and client exactly as for any shipment, and no outbound handling code; inbound handling (unload / putaway) keeps coming from `task.completed` / `asn.putaway_completed`. It also carries `activity_version` (= `asns.collection_version` the shipment was last quoted for): a collection re-requested before booking re-quotes and re-confirms the same shipment, and the higher version makes the engine reverse the earlier freight charges (cancel / redo = reversal rows); a plain re-confirmation keeps the version and never re-bills. Order shipments carry no `activity_version` (version 1, as before).
 Billing on `pickup_deliver` (CHANGE_REQUESTS #120): the FINAL-stage event bills WH-ORDER-DESPATCH (×1), WH-ORDER-DESPATCH-URGENT (`is_urgent`), WH-PICK-PLT and WH-LOAD-PLT (`pallet_count`), WH-PICK-CTN-LT22 / 22-45 / GE45 (`lines` with unit_type carton, banded on `unit_weight_kg`) and WH-LABEL-OUT (`label_count`) under the unique key `order:{order_id}` (version 1 — a reconfirmation never re-bills), next to the TR-* freight charges keyed `shipment:{shipment_id}`. The rule condition is the string `order_type = pickup_deliver`, so a payload without `order_type` is billed exactly as before. `PerJobInvoiceConsumer` runs after the charges, so the per_job service invoice draft already carries them.
 ### `shipment.booked` — no charge
 ```
-shipment_id, shipment_no, job_id, client_id, order_id, carrier_id, source, service_level,
+shipment_id, shipment_no, job_id, client_id, order_id (nullable, #124), asn_id (nullable, #124), shipment_type (#124), carrier_id, source, service_level,
 booking_ref, tracking_number, waybill_document_id (nullable), expected_cost_cents, delivery_run_id (nullable), booked_at
 ```
 ### `delivery.pod_captured`
 ```
-shipment_id, shipment_no, job_id, client_id, order_id, fulfilment_id, delivered_at, recipient_name,
+shipment_id, shipment_no, job_id, client_id, order_id (nullable, #124), asn_id (nullable, #124), shipment_type (#124), fulfilment_id, delivered_at, recipient_name,
 pod_document_id, photo_document_ids: [int], captured_by_type (driver | carrier_api), captured_by (nullable)
 ```
 ### `delivery.failed`
 ```
-shipment_id, shipment_no, job_id, client_id, order_id, failed_at, failure_reason, attempt_no, reported_by_type (driver | carrier_api)
+shipment_id, shipment_no, job_id, client_id, order_id (nullable, #124), asn_id (nullable, #124), shipment_type (#124), failed_at, failure_reason, attempt_no, reported_by_type (driver | carrier_api)
 ```
+For an `inbound_collection` the POD is captured at OUR warehouse: Warehouse marks the 预报单 `arrived` (once, when still `booked`) and its collection `delivered`; a failure sets the collection `failed` and Transport's `delivery_failed` exception carries no order (#124).
 ### `delivery.extra_charge` — §5.6 B8, §6.4
 ```
 shipment_id, shipment_no, job_id, client_id, order_id,

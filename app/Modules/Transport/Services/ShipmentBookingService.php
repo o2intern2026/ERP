@@ -5,6 +5,7 @@ namespace App\Modules\Transport\Services;
 use App\Modules\Transport\Events\ShipmentBooked;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Models\TransportQuote;
+use App\Modules\Transport\Support\TransportEnums;
 use App\Support\Contracts\CarrierAdapter;
 use App\Support\Contracts\ExceptionService;
 use App\Support\Outbox\OutboxPublisher;
@@ -113,6 +114,8 @@ final class ShipmentBookingService
                 'job_id' => $lockedShipment->job_id,
                 'client_id' => $lockedShipment->client_id,
                 'order_id' => $lockedShipment->order_id,
+                'asn_id' => $lockedShipment->asn_id, // inbound collection (#124): the 预报单; null for order shipments
+                'shipment_type' => $lockedShipment->shipment_type,
                 'carrier_id' => $lockedQuote->carrier_id,
                 'source' => $lockedQuote->source,
                 'service_level' => $lockedQuote->service_level,
@@ -130,7 +133,7 @@ final class ShipmentBookingService
 
     private function assertBookable(Shipment $shipment, ?TransportQuote $quote): void
     {
-        if ($shipment->shipment_type !== 'outbound'
+        if (! TransportEnums::isDelivery($shipment->shipment_type)
             || $shipment->status !== 'quote_confirmed'
             || $quote === null
             || $quote->shipment_id !== $shipment->id

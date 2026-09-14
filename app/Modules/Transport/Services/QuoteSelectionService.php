@@ -63,7 +63,7 @@ final class QuoteSelectionService
                 throw new DomainException(__('transport.selection.expired'));
             }
 
-            if ($lockedShipment->shipment_type !== 'outbound' || $lockedShipment->status !== 'quoted') {
+            if (! TransportEnums::isDelivery($lockedShipment->shipment_type) || $lockedShipment->status !== 'quoted') {
                 throw new DomainException(__('transport.selection.invalid_status'));
             }
 
@@ -181,6 +181,7 @@ final class QuoteSelectionService
             'job_id' => $shipment->job_id,
             'client_id' => $shipment->client_id,
             'order_id' => $shipment->order_id,
+            'asn_id' => $shipment->asn_id, // 我方上门提货 (CHANGE_REQUESTS #124): the 预报单 behind an inbound collection; null for order shipments
             'fulfilment_id' => $shipment->fulfilment_id,
             'transport_quote_id' => $quote->id,
             'quote_stage' => $quote->quote_stage,
@@ -202,7 +203,22 @@ final class QuoteSelectionService
             'confirmed_by_type' => $confirmedByType,
             'confirmed_by' => $confirmedBy,
             'confirmed_at' => $confirmedAt->toIso8601String(),
-        ], $this->orderContext($shipment, $confirmedAt));
+        ], $this->orderContext($shipment, $confirmedAt), $this->collectionContext($shipment));
+    }
+
+    /**
+     * Inbound collection only (CHANGE_REQUESTS #124): `activity_version` = the 预报单's collection_version the shipment was last
+     * (re-)quoted for. A re-request before booking re-quotes and re-confirms the same shipment; carrying the version lets the
+     * charge engine reverse the freight of the earlier confirmation instead of keeping the first price (cancel / redo = reversal
+     * rows). A plain re-confirmation of the same request keeps the version, so it never re-bills. Absent for order shipments.
+     *
+     * @return array<string, mixed>
+     */
+    private function collectionContext(Shipment $shipment): array
+    {
+        return $shipment->isCollection() && $shipment->asn_activity_version !== null
+            ? ['activity_version' => (int) $shipment->asn_activity_version]
+            : [];
     }
 
     /**
@@ -216,7 +232,8 @@ final class QuoteSelectionService
      */
     private function orderContext(Shipment $shipment, CarbonInterface $confirmedAt): array
     {
-        $order = Schema::hasTable('orders')
+        // An inbound collection (#124) has no order: order_type null, no handling keys — Billing's pickup_deliver rules never match.
+        $order = $shipment->order_id !== null && Schema::hasTable('orders')
             ? DB::table('orders')->where('id', $shipment->order_id)->first(['order_type', 'requested_date', 'client_id'])
             : null;
         $orderType = $order === null || $order->order_type === null ? null : (string) $order->order_type;

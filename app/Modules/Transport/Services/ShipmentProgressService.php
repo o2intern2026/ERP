@@ -3,6 +3,7 @@
 namespace App\Modules\Transport\Services;
 
 use App\Modules\Transport\Models\Shipment;
+use App\Modules\Transport\Support\TransportEnums;
 use Carbon\CarbonInterface;
 use DomainException;
 
@@ -17,7 +18,7 @@ final class ShipmentProgressService
 
     public function advance(Shipment $shipment, string $target, CarbonInterface $occurredAt): Shipment
     {
-        if ($shipment->shipment_type !== 'outbound') {
+        if (! TransportEnums::isDelivery($shipment->shipment_type)) {
             throw new DomainException(__('transport.tracking.outbound_only'));
         }
 

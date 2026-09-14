@@ -4,6 +4,7 @@ namespace App\Modules\Warehouse;
 
 use App\Modules\Warehouse\Console\ReconcileStockCommand;
 use App\Modules\Warehouse\Console\SnapshotStockCommand;
+use App\Modules\Warehouse\Consumers\AsnCollectionProgressConsumer;
 use App\Modules\Warehouse\Consumers\OrderCancelledConsumer;
 use App\Modules\Warehouse\Consumers\OrderConfirmedConsumer;
 use App\Modules\Warehouse\Consumers\OrderReducedConsumer;
@@ -39,6 +40,10 @@ class WarehouseServiceProvider extends ServiceProvider
         $registry->register('order.confirmed', OrderConfirmedConsumer::class);
         $registry->register('order.cancelled', OrderCancelledConsumer::class);
         $registry->register('order.reduced', OrderReducedConsumer::class);
+        // 我方上门提货 (CHANGE_REQUESTS #124): Transport's shipment events with asn_id drive the collection status on the 预报单; POD at our dock = arrived.
+        foreach (AsnCollectionProgressConsumer::EVENTS as $event) {
+            $registry->register($event, AsnCollectionProgressConsumer::class);
+        }
 
         // Role lists mirror routes.php: the read group for the module, a narrower one for 入库单 (no dispatcher) — audit 2026-09-10.
         $this->app->make(SearchRegistry::class)->register('warehouse', fn (string $q): array => array_merge(

@@ -21,7 +21,13 @@ class Asn extends Model
     protected $fillable = [
         'asn_no', 'job_id', 'client_id', 'warehouse_id', 'expected_date', 'inbound_type', 'status', 'created_by_type',
         'created_by', 'unplanned', 'unplanned_confirmed', 'client_confirmed_at', 'client_confirmed_by', 'arrived_at', 'receiving_completed_at', 'putaway_completed_at', 'closed_at', 'notes',
+        // 到仓方式 (CHANGE_REQUESTS #124): the collection request and what Transport reported back about its shipment.
+        'inbound_transport', 'collection_address', 'collection_ready_date', 'collection_packages', 'collection_notes', 'collection_requested_at',
+        'collection_requested_by', 'collection_version', 'collection_shipment_id', 'collection_status', 'collection_plan',
     ];
+
+    /** collection_status values after which the request is Transport's: edits and 改为客户自送 go through the dispatcher (#124). */
+    public const COLLECTION_LOCKED_STATUSES = ['booked', 'collected', 'delivered'];
 
     protected function casts(): array
     {
@@ -34,6 +40,11 @@ class Asn extends Model
             'receiving_completed_at' => 'datetime',
             'putaway_completed_at' => 'datetime',
             'closed_at' => 'datetime',
+            'collection_address' => 'array',
+            'collection_ready_date' => 'date',
+            'collection_packages' => 'array',
+            'collection_requested_at' => 'datetime',
+            'collection_plan' => 'array',
         ];
     }
 
@@ -73,9 +84,26 @@ class Asn extends Model
         return $this->inbound_type === 'container';
     }
 
+    /** 我方上门提货: Transport collects the goods at the client's pickup address and brings them here (CHANGE_REQUESTS #124). */
+    public function isCollection(): bool
+    {
+        return $this->inbound_transport === 'we_collect';
+    }
+
+    /** Once the collection is booked (or further), the request belongs to Transport — the ASN page no longer edits or cancels it. */
+    public function collectionLocked(): bool
+    {
+        return in_array($this->collection_status, self::COLLECTION_LOCKED_STATUSES, true);
+    }
+
+    public function collectionRequestedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'collection_requested_by');
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
-        return LogOptions::defaults()->logOnly(['status', 'expected_date', 'unplanned_confirmed', 'warehouse_id'])->logOnlyDirty()->dontSubmitEmptyLogs();
+        return LogOptions::defaults()->logOnly(['status', 'expected_date', 'unplanned_confirmed', 'warehouse_id', 'inbound_transport', 'collection_status'])->logOnlyDirty()->dontSubmitEmptyLogs();
     }
 
     public function createdBy(): BelongsTo

@@ -17,6 +17,19 @@
             <label>{{ __('warehouse.asns.reference') }}<input type="text" name="reference" value="{{ old('reference') }}"></label>
         </div>
         <label><input type="hidden" name="unplanned" value="0"><input type="checkbox" name="unplanned" value="1" @checked(old('unplanned'))> {{ __('warehouse.asns.unplanned') }}</label>
+        {{-- 到仓方式 (CHANGE_REQUESTS #124): 客户自送 (default) or 我方上门提货 — Transport collects at the pickup address and delivers to this warehouse. --}}
+        <fieldset id="inbound-transport">
+            <legend>{{ __('warehouse.asns.collection.title') }}</legend>
+            @error('collection')<p role="alert" style="color:var(--erp-danger)">{{ $message }}</p>@enderror
+            @foreach ($errors->keys() as $key)@if (str_starts_with($key, 'collection') && $key !== 'collection')<p role="alert" style="color:var(--erp-danger)">{{ $errors->first($key) }}</p>@endif @endforeach
+            @foreach (\App\Support\Enums::ASN_INBOUND_TRANSPORTS as $mode)
+                <label><input type="radio" name="inbound_transport" value="{{ $mode }}" @checked(old('inbound_transport', 'client_delivers') === $mode) @disabled($mode === 'we_collect' && ! $canRequestCollection)> {{ __('warehouse.asns.collection.modes.'.$mode) }} <small class="text-muted">{{ __('warehouse.asns.collection.mode_hints.'.$mode) }}</small></label>
+            @endforeach
+            @unless ($canRequestCollection)<p class="text-muted"><small>{{ __('warehouse.asns.collection.roles_hint') }}</small></p>@endunless
+            <div id="collection-fields" hidden>
+                @include('warehouse::asns.partials.collection-fields', ['asn' => null, 'idPrefix' => 'create-collection'])
+            </div>
+        </fieldset>
         <fieldset id="containers">
             <legend>{{ __('warehouse.asns.containers') }}</legend>
             @for ($i = 0; $i < 2; $i++)
@@ -39,5 +52,9 @@
     const typeSelect = document.getElementById('inbound_type'), containers = document.getElementById('containers');
     const toggle = () => { containers.hidden = typeSelect.value !== 'container'; };
     typeSelect.addEventListener('change', toggle); toggle();
+    // 到仓方式: the pickup fields appear only for 我方上门提货.
+    const transportRadios = document.querySelectorAll('input[name="inbound_transport"]'), collectionFields = document.getElementById('collection-fields');
+    const toggleCollection = () => { collectionFields.hidden = !document.querySelector('input[name="inbound_transport"][value="we_collect"]').checked; };
+    transportRadios.forEach((radio) => radio.addEventListener('change', toggleCollection)); toggleCollection();
 </script>
 @endpush

@@ -140,6 +140,8 @@ final class DriverPodService
                     'job_id' => $shipment->job_id,
                     'client_id' => $shipment->client_id,
                     'order_id' => $shipment->order_id,
+                    'asn_id' => $shipment->asn_id, // inbound collection (#124): Warehouse marks the 预报单 arrived on this POD
+                    'shipment_type' => $shipment->shipment_type,
                     'fulfilment_id' => $shipment->fulfilment_id,
                     'delivered_at' => $deliveredAt->toIso8601String(),
                     'recipient_name' => trim($recipientName),
@@ -200,6 +202,8 @@ final class DriverPodService
                 'job_id' => $shipment->job_id,
                 'client_id' => $shipment->client_id,
                 'order_id' => $shipment->order_id,
+                'asn_id' => $shipment->asn_id,
+                'shipment_type' => $shipment->shipment_type,
                 'failed_at' => $failedAt->toIso8601String(),
                 'failure_reason' => $reason,
                 'attempt_no' => $attemptNo,

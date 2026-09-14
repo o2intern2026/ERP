@@ -51,10 +51,16 @@ final class ChargeEngine
         $charges = [];
         foreach ($rules as $rule) {
             $allocated = $rule->quantity_source === 'allocated' && $this->hasMembers($payload);
+            $baseKey = $this->render($rule->idempotency_key_template, $payload + ['client_id' => $clientId]);
             if (! $allocated && ! $this->matches($rule->condition ?? [], $context)) {
+                // A newer activity_version supersedes the older charges of this key even when the rule no longer matches — e.g. a
+                // re-quoted collection whose tailgate dropped (CHANGE_REQUESTS #124): the version-1 TR-TAILGATE is reversed, not kept.
+                if ($version > 1) {
+                    $this->reverseOlder($rule->chargeCode, $baseKey, $version);
+                }
+
                 continue;
             }
-            $baseKey = $this->render($rule->idempotency_key_template, $payload + ['client_id' => $clientId]);
             if ($allocated) {
                 // 重算分摊: a higher version supersedes EVERY member charge of the box under this rule — including a member unlinked since.
                 $this->reverseOlderAllocated($rule->chargeCode, $baseKey, $version);
@@ -307,6 +313,16 @@ final class ChargeEngine
         }
 
         return $tuples;
+    }
+
+    /** Older versions of one key under this code leave the pool (reversal rows) when a newer version of the event arrives without the rule matching. */
+    private function reverseOlder(ChargeCode $code, string $baseKey, int $version): void
+    {
+        $older = Charge::query()->withoutGlobalScopes()->where('charge_code_id', $code->id)->where('source_activity_id', $baseKey)
+            ->where('activity_version', '<', $version)->where('status', '!=', 'reversed')->whereNull('reversal_of_charge_id')->get();
+        foreach ($older as $old) {
+            $this->reverse($old, "superseded by activity version {$version}");
+        }
     }
 
     /** A newer allocation version supersedes every member charge of the box under this code, whatever the members are now. */

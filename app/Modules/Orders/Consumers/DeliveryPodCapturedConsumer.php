@@ -12,6 +12,10 @@ final class DeliveryPodCapturedConsumer implements EventConsumer
 
     public function handle(array $envelope): void
     {
+        if (($envelope['payload']['order_id'] ?? null) === null) {
+            return; // an inbound collection for a 预报单 (CHANGE_REQUESTS #124) has no order behind it — Warehouse consumes that POD
+        }
+
         $this->fulfilments->markDelivered($envelope['payload']);
     }
 }

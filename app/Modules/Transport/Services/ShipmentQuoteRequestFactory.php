@@ -14,6 +14,9 @@ class ShipmentQuoteRequestFactory
     /** @return array<string, mixed>|null */
     public function build(Shipment $shipment, string $stage): ?array
     {
+        if ($shipment->asn_id !== null || $shipment->isCollection()) {
+            return $this->buildCollection($shipment);
+        }
         if (! Schema::hasTable('orders')) {
             return null;
         }
@@ -53,6 +56,89 @@ class ShipmentQuoteRequestFactory
             'requested_date' => isset($order->requested_date) ? (string) $order->requested_date : null,
             'zone' => (string) $order->deliver_to_postcode,
         ];
+    }
+
+    /**
+     * 我方上门提货 (CHANGE_REQUESTS #124): the request for an inbound collection is read from the 预报单 (Warehouse's `asns`, query
+     * builder — the same read-only projection as orders): sender = the pickup address, receiver = the ASN's warehouse, items = the
+     * declared packages or, when none, the goods lines with cartons × weight / dims; the zone is the PICKUP postcode and the
+     * tailgate applies at pickup (the receiver is our own dock). Same shape at both stages — the declared list is final.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function buildCollection(Shipment $shipment): ?array
+    {
+        if (! Schema::hasTable('asns') || ! Schema::hasTable('warehouses')) {
+            return null;
+        }
+        $asn = DB::table('asns')->where('id', $shipment->asn_id)->first();
+        if ($asn === null) {
+            return null;
+        }
+        $warehouse = DB::table('warehouses')->where('id', $asn->warehouse_id)->first();
+        $receiver = $warehouse === null ? null : self::partyForWarehouse($warehouse);
+
+        $sender = is_string($asn->collection_address ?? null) ? json_decode($asn->collection_address, true) : (array) ($asn->collection_address ?? []);
+        $sender = is_array($sender) ? $sender : [];
+        $sender += ['name' => null, 'phone' => null, 'email' => null];
+        $sender['company_name'] = $sender['name'];
+        $sender['type'] = filled($sender['type'] ?? null) ? $sender['type'] : 'business';
+
+        $items = self::collectionItems($asn);
+        if ($receiver === null || ! $this->completeParty($sender) || $items === []) {
+            return null;
+        }
+
+        return [
+            'client_id' => $shipment->client_id,
+            'sender' => $sender,
+            'receiver' => $receiver,
+            'items' => $items,
+            'declared_value_cents' => 0,
+            'description' => $shipment->shipment_no,
+            'tailgate_pickup' => $shipment->tailgate_required,
+            'tailgate_delivery' => false,
+            'requested_date' => isset($asn->collection_ready_date) ? (string) $asn->collection_ready_date : null,
+            'zone' => (string) ($sender['postcode'] ?? ''),
+        ];
+    }
+
+    /**
+     * The parcels of a collection: the declared packages (qty × per-piece weight / dims) or, when none were declared, the ASN's
+     * goods lines through itemsFromLines() (expected_cartons as the quantity, weight_kg the line total — as order lines).
+     *
+     * @return list<array{description:string, qty:int, weight_kg:float, length_mm:int, width_mm:int, height_mm:int}>
+     */
+    public static function collectionItems(object $asn): array
+    {
+        $packages = is_string($asn->collection_packages ?? null) ? json_decode($asn->collection_packages, true) : (array) ($asn->collection_packages ?? []);
+        $items = [];
+        foreach (is_array($packages) ? $packages : [] as $package) {
+            if (! is_array($package) || (int) ($package['qty'] ?? 0) < 1) {
+                continue;
+            }
+            $items[] = [
+                'description' => (string) ($package['package_type'] ?? 'carton'),
+                'qty' => (int) $package['qty'],
+                'weight_kg' => (float) ($package['weight_kg'] ?? 0),
+                'length_mm' => (int) ($package['length_mm'] ?? 0),
+                'width_mm' => (int) ($package['width_mm'] ?? 0),
+                'height_mm' => (int) ($package['height_mm'] ?? 0),
+            ];
+        }
+        if ($items !== [] || ! Schema::hasTable('asn_lines')) {
+            return $items;
+        }
+
+        return self::itemsFromLines(DB::table('asn_lines')->where('asn_id', $asn->id)->orderBy('id')->get()->map(fn (object $line): array => [
+            'carton_qty' => $line->expected_cartons,
+            'actual_weight_kg' => $line->weight_kg,
+            'length_mm' => $line->length_mm,
+            'width_mm' => $line->width_mm,
+            'height_mm' => $line->height_mm,
+            'description_en' => $line->description,
+            'package_type' => $line->package_type,
+        ]));
     }
 
     /** @return array<string, mixed>|null */

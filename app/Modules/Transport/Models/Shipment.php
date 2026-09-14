@@ -19,7 +19,7 @@ class Shipment extends Model
     use BelongsToClient;
 
     protected $fillable = [
-        'shipment_no', 'job_id', 'client_id', 'order_id', 'fulfilment_id', 'shipment_type', 'status',
+        'shipment_no', 'job_id', 'client_id', 'order_id', 'asn_id', 'asn_activity_version', 'fulfilment_id', 'shipment_type', 'status',
         'selected_quote_id', 'carrier_id', 'service_level', 'booking_ref', 'tracking_number',
         'waybill_document_id', 'consignment_note_document_id', 'tailgate_required', 'delivery_run_id',
         'dispatched_at', 'delivered_at',
@@ -49,6 +49,12 @@ class Shipment extends Model
             'dispatched_at' => 'immutable_datetime',
             'delivered_at' => 'immutable_datetime',
         ];
+    }
+
+    /** 我方上门提货 (CHANGE_REQUESTS #124): a collection for a 预报单 — no order, `asn_id` set, receiver = our warehouse. */
+    public function isCollection(): bool
+    {
+        return $this->shipment_type === 'inbound_collection';
     }
 
     public function job(): BelongsTo

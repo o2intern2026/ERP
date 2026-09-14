@@ -715,6 +715,7 @@ asns                       入库主单(挂 Job;收货 / 差异 / 上架 / 库�
 ├─ inbound_type            container | loose_truck | parcel
 ├─ status                  booked → arrived → receiving → putaway → closed
 ├─ created_by_type         client(门户预告)| coordinator(内部建单)
+├─ inbound_transport       到仓方式:client_delivers(客户自送,默认)| we_collect(我方上门提货:提货地址 / 可提货日 / 申报包裹 → Transport 建 inbound_collection 运单,POD 到仓即 arrived;CHANGE_REQUESTS #124)
 └─ unplanned               无预报到货:临时收货单,需 协调员 确认后才可上架
 
 containers                 整柜入库才创建(ASN 下的可选物理对象,0..n;只记计费需要的基础字段,不做柜级生命周期)
@@ -1137,6 +1138,7 @@ carrier_invoices           承运商账单 + 逐票比对行
 ```
 OMS 确认订单时:Preliminary Estimate(按 declared_packages 申报的尺寸重量出初步方案与估价,写入客户报价单)
 纯运输订单(pickup_deliver):不经过 WMS,永远没有 outbound.packed —— 以 `order.confirmed` 为触发,按 declared_packages 直接出最终方案;司机取货时可复核,差异走 delivery.extra_charge;其操作费(订单处理 / 拣货 / 出库 label / 装车)在最终 shipment.quote_confirmed 按申报包裹产生(CHANGE_REQUESTS #120)
+入库提货(预报单 到仓方式 = 我方上门提货,CHANGE_REQUESTS #124):`asn.collection_requested` 触发,建 `inbound_collection` 运单(无订单,发货方 = 提货地址,收货方 = 我方仓库),按申报包裹直接出最终方案,调度 / 客服在运单页确认(v1 客户不选)→ 订舱 → 司机提货 → 到仓 POD 即预报单 arrived;运费 TR-* 记预报单的 Job,不产生出库操作费
 WMS 事件 outbound.packed(带包裹实测重量/尺寸/件数)
   → Quote:   Final Carrier Quote —— TransportOptionService 汇总方案(与初步估价差异超过容差 → 要求客户或 协调员 重新确认)
               ├─ own_fleet:后台固定费率 → 客户价

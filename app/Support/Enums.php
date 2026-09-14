@@ -51,6 +51,18 @@ final class Enums
 
     public const ASN_STATUSES = ['booked', 'arrived', 'receiving', 'putaway', 'closed'];
 
+    /** asns.inbound_transport — 到仓方式: the client brings the goods (default) or Transport collects them (CHANGE_REQUESTS #124). */
+    public const ASN_INBOUND_TRANSPORTS = ['client_delivers', 'we_collect'];
+
+    /** asns.collection_status — display only, driven by Transport's events (#124); `quoted` / `collected` are reserved (no event sets them in v1). */
+    public const ASN_COLLECTION_STATUSES = ['requested', 'quoted', 'confirmed', 'booked', 'collected', 'delivered', 'failed'];
+
+    /** Declared package types of a collection request — the list the order forms use (Orders OrderEnums::PACKAGE_TYPES, copied; #124). */
+    public const COLLECTION_PACKAGE_TYPES = ['carton', 'satchel', 'pallet', 'crate', 'tube', 'flat_pack', 'skid'];
+
+    /** Address types of a collection pickup party (the Orders deliver_to_address_type vocabulary). */
+    public const ADDRESS_TYPES = ['business', 'residential'];
+
     public const CONTAINER_SIZES = ['20', '40'];
 
     public const UNPACK_MODES = ['pallet', 'loose', 'mixed'];

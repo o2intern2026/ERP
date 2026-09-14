@@ -35,6 +35,9 @@ class AsnController extends Controller
     /** Who may import the client's pending orders as goods lines on the ASN page (CHANGE_REQUESTS #119). */
     private const IMPORT_ORDERS_ROLES = ['admin', 'customer_service', 'warehouse_supervisor'];
 
+    /** Who may request 我方上门提货 or switch back to 客户自送 (CHANGE_REQUESTS #124) — mirrors routes.php. */
+    private const COLLECTION_ROLES = ['admin', 'customer_service', 'warehouse_supervisor'];
+
     public function index(Request $request): View
     {
         $filters = $request->validate(['status' => ['nullable', Rule::in(Enums::ASN_STATUSES)], 'client_id' => ['nullable', 'integer'], 'pending' => ['nullable', 'boolean']]);
@@ -58,6 +61,7 @@ class AsnController extends Controller
             'clients' => Client::query()->where('status', 'active')->orderBy('name')->get(['id', 'code', 'name']),
             'warehouses' => Warehouse::query()->where('active', true)->orderBy('code')->get(['id', 'code', 'name']),
             'jobs' => Job::query()->whereIn('operational_status', ['open', 'receiving'])->orderByDesc('id')->limit(200)->get(['id', 'job_no', 'client_id']),
+            'canRequestCollection' => (bool) auth()->user()?->hasAnyRole(self::COLLECTION_ROLES),
         ]);
     }
 
@@ -65,11 +69,14 @@ class AsnController extends Controller
     {
         // The form renders empty container rows; only rows with a container number count.
         $request->merge(['containers' => array_values(array_filter((array) $request->input('containers', []), fn ($c) => filled($c['container_no'] ?? null)))]);
+        $this->pruneCollectionPackages($request);
+        $weCollect = $request->input('inbound_transport') === 'we_collect';
 
         $data = $request->validate([
             'client_id' => ['required', 'integer', Rule::exists('clients', 'id')],
             'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')],
             'inbound_type' => ['required', Rule::in(Enums::INBOUND_TYPES)],
+            'inbound_transport' => ['nullable', Rule::in(Enums::ASN_INBOUND_TRANSPORTS)],
             'expected_date' => ['nullable', 'date'],
             'job_id' => ['nullable', 'integer', Rule::exists('jobs', 'id')],
             'reference' => ['nullable', 'string', 'max:255'],
@@ -80,20 +87,130 @@ class AsnController extends Controller
             'containers.*.size' => ['required', Rule::in(Enums::CONTAINER_SIZES)],
             'containers.*.unpack_mode' => ['required', Rule::in(Enums::UNPACK_MODES)],
             'containers.*.gross_weight_kg' => ['nullable', 'numeric', 'min:0'],
-        ]);
+        ] + $this->collectionRules($weCollect, packagesRequired: true), $this->collectionMessages());
 
         $data['containers'] = $data['inbound_type'] === 'container'
             ? array_values(array_filter($data['containers'] ?? [], fn ($c) => ! empty($c['container_no'])))
             : [];
 
-        $asn = $asns->create($data);
+        if ($weCollect) {
+            RequiredRoles::requireAny(self::COLLECTION_ROLES);
+        }
+
+        try {
+            $asn = DB::transaction(function () use ($asns, $data, $weCollect): Asn {
+                $asn = $asns->create(Arr::except($data, ['inbound_transport', 'collection', 'collection_ready_date', 'collection_notes', 'collection_packages']));
+                if ($weCollect) {
+                    $asn = $asns->setCollection($asn, $this->collectionPayload($data), auth()->id());
+                }
+
+                return $asn;
+            });
+        } catch (InvalidArgumentException $e) {
+            return back()->withInput()->withErrors(['collection' => RuleViolation::display($e)]);
+        }
 
         return redirect()->route('warehouse.asns.show', $asn)->with('status', __('warehouse.asns.created', ['asn_no' => $asn->asn_no]));
     }
 
+    /** 我方上门提货 (CHANGE_REQUESTS #124): request or re-request the collection — Transport quotes it; the plan is confirmed on the shipment page. */
+    public function updateCollection(Request $request, Asn $asn, AsnService $asns): RedirectResponse
+    {
+        RequiredRoles::requireAny(self::COLLECTION_ROLES);
+        $this->pruneCollectionPackages($request);
+        $data = $request->validate($this->collectionRules(true, packagesRequired: false), $this->collectionMessages());
+
+        try {
+            $asns->setCollection($asn, $this->collectionPayload($data), auth()->id());
+        } catch (InvalidArgumentException $e) {
+            return back()->withInput()->withErrors(['collection' => RuleViolation::display($e)]);
+        }
+
+        return redirect()->route('warehouse.asns.show', $asn)->withFragment('collection')->with('status', __('warehouse.asns.collection.requested', ['no' => $asn->asn_no]));
+    }
+
+    /** 改为客户自送: only while Transport has not booked the collection. */
+    public function destroyCollection(Asn $asn, AsnService $asns): RedirectResponse
+    {
+        RequiredRoles::requireAny(self::COLLECTION_ROLES);
+
+        try {
+            $asns->clearCollection($asn, auth()->id());
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['collection' => RuleViolation::display($e)]);
+        }
+
+        return redirect()->route('warehouse.asns.show', $asn)->withFragment('collection')->with('status', __('warehouse.asns.collection.cancelled', ['no' => $asn->asn_no]));
+    }
+
+    /** The form renders empty package rows; only rows with a quantity count. */
+    private function pruneCollectionPackages(Request $request): void
+    {
+        $request->merge(['collection_packages' => array_values(array_filter((array) $request->input('collection_packages', []), fn ($p) => is_array($p) && filled($p['qty'] ?? null)))]);
+    }
+
+    /**
+     * Validation of the 到仓方式 fields (shared by the create form and 修改). `$required` = the request is a collection (fields
+     * mandatory); `$packagesRequired` = no goods lines exist yet (the create form), so the packages must be declared.
+     *
+     * @return array<string, list<mixed>>
+     */
+    private function collectionRules(bool $required, bool $packagesRequired): array
+    {
+        $when = $required ? 'required' : 'nullable';
+
+        return [
+            'collection' => [$when, 'array'],
+            'collection.name' => [$when, 'string', 'max:255'],
+            'collection.phone' => ['nullable', 'string', 'max:40'],
+            'collection.address' => [$when, 'string', 'max:255'],
+            'collection.suburb' => [$when, 'string', 'max:100'],
+            'collection.state' => [$when, Rule::in(Enums::STATES)],
+            'collection.postcode' => [$when, 'string', 'max:10'],
+            'collection.type' => ['nullable', Rule::in(Enums::ADDRESS_TYPES)],
+            'collection_ready_date' => [$when, 'date', 'after_or_equal:today'],
+            'collection_notes' => ['nullable', 'string', 'max:2000'],
+            'collection_packages' => [$required && $packagesRequired ? 'required' : 'nullable', 'array'],
+            'collection_packages.*.package_type' => ['required', Rule::in(Enums::COLLECTION_PACKAGE_TYPES)],
+            'collection_packages.*.qty' => ['required', 'integer', 'min:1'],
+            'collection_packages.*.weight_kg' => ['required', 'numeric', 'min:0.001'],
+            'collection_packages.*.length_mm' => ['required', 'integer', 'min:1'],
+            'collection_packages.*.width_mm' => ['required', 'integer', 'min:1'],
+            'collection_packages.*.height_mm' => ['required', 'integer', 'min:1'],
+        ];
+    }
+
+    /** @return array<string, string> */
+    private function collectionMessages(): array
+    {
+        return [
+            'collection.*.required' => __('warehouse.asns.collection.errors.address_incomplete'),
+            'collection.required' => __('warehouse.asns.collection.errors.address_incomplete'),
+            'collection_ready_date.required' => __('warehouse.asns.collection.errors.ready_date_required'),
+            'collection_ready_date.after_or_equal' => __('warehouse.asns.collection.errors.ready_date_past'),
+            'collection_packages.required' => __('warehouse.asns.collection.errors.no_packages'),
+            'collection_packages.*.*.required' => __('warehouse.asns.collection.errors.package_incomplete'),
+            'collection_packages.*.*.min' => __('warehouse.asns.collection.errors.package_incomplete'),
+            'collection_packages.*.*.integer' => __('warehouse.asns.collection.errors.package_incomplete'),
+            'collection_packages.*.*.numeric' => __('warehouse.asns.collection.errors.package_incomplete'),
+            'collection_packages.*.*.in' => __('warehouse.asns.collection.errors.package_incomplete'),
+        ];
+    }
+
+    /** @return array{address:array<string, mixed>, ready_date:string, packages:list<array<string, mixed>>, notes:?string} */
+    private function collectionPayload(array $data): array
+    {
+        return [
+            'address' => $data['collection'] ?? [],
+            'ready_date' => (string) ($data['collection_ready_date'] ?? ''),
+            'packages' => $data['collection_packages'] ?? [],
+            'notes' => $data['collection_notes'] ?? null,
+        ];
+    }
+
     public function show(Asn $asn, GoodsReceiptService $receipts): View
     {
-        $asn->load(['client', 'warehouse', 'job', 'containers.physicalContainer', 'lines.stockUnits', 'lines.receiptLine', 'lines.container', 'createdBy', 'clientConfirmedBy']);
+        $asn->load(['client', 'warehouse', 'job', 'containers.physicalContainer', 'lines.stockUnits', 'lines.receiptLine', 'lines.container', 'createdBy', 'clientConfirmedBy', 'collectionRequestedBy']);
         $canImportOrders = in_array($asn->status, ['booked', 'arrived', 'receiving'], true) && auth()->user()?->hasAnyRole(self::IMPORT_ORDERS_ROLES);
         $orderCandidates = $canImportOrders ? app(OrderService::class)->awaitingAsn((int) $asn->client_id) : [];
         $orderRefs = $this->orderRefs($asn);
@@ -116,6 +233,8 @@ class AsnController extends Controller
             'canImportOrders' => $canImportOrders,
             'orderCandidates' => $orderCandidates,
             'blockedJobs' => $this->blockedJobs($asn, $orderCandidates),
+            // 到仓方式 (CHANGE_REQUESTS #124): request / edit / 改为客户自送 while the ASN is still booked and Transport has not booked the collection.
+            'canManageCollection' => $asn->status === 'booked' && ! $asn->collectionLocked() && auth()->user()?->hasAnyRole(self::COLLECTION_ROLES),
         ]);
     }
 

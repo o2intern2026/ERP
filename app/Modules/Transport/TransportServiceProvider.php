@@ -7,6 +7,8 @@ use App\Modules\Transport\Adapters\ManualCarrierAdapter;
 use App\Modules\Transport\Adapters\OwnFleetCarrierAdapter;
 use App\Modules\Transport\Adapters\TransdirectAdapter;
 use App\Modules\Transport\Console\SyncTrackingCommand;
+use App\Modules\Transport\Consumers\AsnCollectionCancelledConsumer;
+use App\Modules\Transport\Consumers\AsnCollectionRequestedConsumer;
 use App\Modules\Transport\Consumers\OrderConfirmedConsumer;
 use App\Modules\Transport\Consumers\OutboundDispatchedConsumer;
 use App\Modules\Transport\Consumers\OutboundPackedConsumer;
@@ -82,6 +84,9 @@ class TransportServiceProvider extends ServiceProvider
         $registry->register('order.confirmed', OrderConfirmedConsumer::class);
         $registry->register('outbound.packed', OutboundPackedConsumer::class);
         $registry->register('outbound.dispatched', OutboundDispatchedConsumer::class);
+        // 我方上门提货 (CHANGE_REQUESTS #124, integrator edit): a 预报单's collection request opens an inbound collection shipment.
+        $registry->register('asn.collection_requested', AsnCollectionRequestedConsumer::class);
+        $registry->register('asn.collection_cancelled', AsnCollectionCancelledConsumer::class);
 
         $this->commands([SyncTrackingCommand::class]);
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {

@@ -5,6 +5,7 @@ namespace App\Modules\Transport\Services;
 use App\Models\User;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Models\TransportQuote;
+use App\Modules\Transport\Support\TransportEnums;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -16,7 +17,7 @@ final class RedeliveryService
         return DB::transaction(function () use ($failedShipment, $coordinator): Shipment {
             $failed = Shipment::query()->with('selectedQuote')->lockForUpdate()->findOrFail($failedShipment->id);
             $quote = $failed->selectedQuote;
-            if ($failed->shipment_type !== 'outbound' || $failed->status !== 'failed' || $quote === null) {
+            if (! TransportEnums::isDelivery($failed->shipment_type) || $failed->status !== 'failed' || $quote === null) {
                 throw new DomainException(__('transport.redelivery.failed_only'));
             }
 
@@ -25,8 +26,10 @@ final class RedeliveryService
                 'job_id' => $failed->job_id,
                 'client_id' => $failed->client_id,
                 'order_id' => $failed->order_id,
+                'asn_id' => $failed->asn_id, // a failed collection is re-attempted the same way (#124)
+                'asn_activity_version' => $failed->asn_activity_version,
                 'fulfilment_id' => $failed->fulfilment_id,
-                'shipment_type' => 'outbound',
+                'shipment_type' => $failed->shipment_type,
                 'status' => 'quote_confirmed',
                 'carrier_id' => $failed->carrier_id,
                 'service_level' => $failed->service_level,

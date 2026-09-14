@@ -27,6 +27,8 @@
         </dl>
     </article>
 
+    @include('portal::asns.partials.collection', ['asn' => $asn])
+
     <h2>{{ __('portal.asns.sections.lines') }}</h2>
     @if ($asn->lines->isEmpty())
         <p class="text-muted">{{ __('portal.asns.lines_none') }}</p>

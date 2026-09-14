@@ -306,6 +306,16 @@ return [
             'download' => '下载入库单 PDF',
             'batch' => '批次 :batch',
         ],
+        // 到仓方式 我方上门提货 (CHANGE_REQUESTS #124): read-only card — pickup address, ready date, status, chosen plan and the client price; never the carrier cost.
+        'collection' => [
+            'title' => '到仓方式',
+            'modes' => ['client_delivers' => '客户自送', 'we_collect' => '我方上门提货'],
+            'hint' => '我们派车到贵司指定地址提货运回仓库；运费按确认的运输方案计入本 Job，入库费照常。',
+            'statuses' => ['requested' => '运输报价中', 'quoted' => '已报价', 'confirmed' => '方案已确认', 'booked' => '已订舱', 'collected' => '已提货', 'delivered' => '已到仓', 'failed' => '提货失败，我们会联系您'],
+            'fields' => ['pickup' => '提货地址', 'ready_date' => '可提货日期', 'packages' => '申报包裹', 'status' => '提货进度', 'plan' => '运输方案', 'customer_price' => '运费（客户价）', 'notes' => '提货备注'],
+            'plan_pending' => '运输方案确认后在这里显示运费。',
+            'package_types' => ['carton' => '纸箱', 'satchel' => '快递袋', 'pallet' => '托盘', 'crate' => '木箱', 'tube' => '圆筒', 'flat_pack' => '扁平包', 'skid' => '滑托'],
+        ],
     ],
     // CHANGE_REQUESTS #123: 入库清单 CSV / Excel 提交 — the client's list becomes its orders; customer service builds the ASN from them.
     'inbound' => [
