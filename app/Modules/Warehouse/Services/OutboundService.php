@@ -6,6 +6,7 @@ use App\Modules\Warehouse\Events\OutboundDispatched;
 use App\Modules\Warehouse\Events\OutboundPacked;
 use App\Modules\Warehouse\Models\OutboundDispatch;
 use App\Modules\Warehouse\Models\Package;
+use App\Modules\Warehouse\Models\StockLedgerEntry;
 use App\Modules\Warehouse\Models\StockReservation;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Modules\Warehouse\Models\WarehouseTask;
@@ -150,13 +151,10 @@ final class OutboundService
                 ]));
             }
 
-            $lines = $task->lines->filter(fn ($l) => $l->completed_qty > 0)->map(function (WarehouseTaskLine $l) {
-                $unit = $l->stockUnit;
-                $unitWeight = $unit->unit_type === 'pallet'
-                    ? ($unit->weight_kg !== null ? (float) $unit->weight_kg : null)
-                    : ($unit->asnLine?->weight_kg !== null ? round((float) $unit->asnLine->weight_kg / max(1, (int) $unit->asnLine->expected_cartons), 3) : null);
+            $lines = $task->lines->filter(fn ($l) => $l->completed_qty > 0)->map(function (WarehouseTaskLine $l) use ($task) {
+                [$unitType, $unitWeight] = $this->pickBilling($l->stockUnit, $l, $task);
 
-                return ['order_line_id' => $l->order_line_id, 'stock_unit_id' => $l->stock_unit_id, 'unit_type' => $unit->unit_type, 'qty' => $l->completed_qty, 'unit_weight_kg' => $unitWeight];
+                return ['order_line_id' => $l->order_line_id, 'stock_unit_id' => $l->stock_unit_id, 'unit_type' => $unitType, 'qty' => $l->completed_qty, 'unit_weight_kg' => $unitWeight];
             })->values();
 
             $cutoff = $order ? DB::table('clients')->where('id', $order->client_id)->value('dispatch_cutoff_time') : null;
@@ -224,5 +222,35 @@ final class OutboundService
         if ($waveId && WarehouseTask::query()->withoutGlobalScopes()->where('wave_id', $waveId)->where('task_type', 'pick')->where('status', '!=', 'done')->doesntExist()) {
             Wave::query()->whereKey($waveId)->update(['status' => 'completed']);
         }
+    }
+
+    /**
+     * How a pick line is billed (lead decision 2026-09-14, CHANGE_REQUESTS #121): a pallet unit is a pallet pick only when the
+     * line took everything the pallet still held — the pallet left whole. Taking part of a pallet ("一托上十几箱，一箱一箱出") is
+     * carton picks, banded on the pallet's weight spread over the cartons it held when received. Carton units are carton picks
+     * with the ASN line's per-carton weight, as before. The pick movement written by confirmPick() tells which case this was.
+     *
+     * @return array{string, ?float} [unit_type for Billing (pallet | carton), unit weight in kg or null when unknown]
+     */
+    private function pickBilling(StockUnit $unit, WarehouseTaskLine $line, WarehouseTask $task): array
+    {
+        $asnLine = $unit->asnLine;
+        $cartonWeight = $asnLine?->weight_kg !== null ? round((float) $asnLine->weight_kg / max(1, (int) $asnLine->expected_cartons), 3) : null;
+        if ($unit->unit_type !== 'pallet') {
+            return ['carton', $cartonWeight];
+        }
+
+        $pick = StockLedgerEntry::query()->where('stock_unit_id', $unit->id)->where('movement_type', 'pick')
+            ->where('source_type', 'task')->where('source_id', $task->id)->orderByDesc('id')->first(['qty_before', 'qty_after']);
+        $wholePallet = $pick === null || (int) $pick->qty_after === 0; // no movement (legacy data) → the old behaviour
+        if ($wholePallet) {
+            return ['pallet', $unit->weight_kg !== null ? (float) $unit->weight_kg : null];
+        }
+
+        $received = (int) (StockLedgerEntry::query()->where('stock_unit_id', $unit->id)->where('movement_type', 'receipt')->orderBy('id')->value('qty_after') ?? 0);
+        $cartonsOnPallet = max(1, $received > 0 ? $received : (int) $pick->qty_before);
+        $perCarton = $unit->weight_kg !== null ? round((float) $unit->weight_kg / $cartonsOnPallet, 3) : $cartonWeight;
+
+        return ['carton', $perCarton];
     }
 }
