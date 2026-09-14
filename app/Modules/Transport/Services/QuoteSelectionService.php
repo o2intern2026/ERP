@@ -8,27 +8,42 @@ use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Models\TransportQuote;
 use App\Modules\Transport\Support\TransportEnums;
 use App\Support\Outbox\OutboxPublisher;
+use App\Support\PackageUnits;
+use App\Support\UrgentDespatch;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
+use DateTimeInterface;
 use DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /** Selects preliminary estimates and confirms final carrier quotes atomically. */
 final class QuoteSelectionService
 {
     public function __construct(private readonly OutboxPublisher $outbox) {}
 
+    /**
+     * @param  DateTimeInterface|null  $confirmedAt  the moment the confirmation was decided. A person's click leaves it null (= now());
+     *                                               an automatic confirmation (CHANGE_REQUESTS #118 / #120) passes the moment of the
+     *                                               event that triggered it — the order's `confirmed_at` — so a final quote confirmed
+     *                                               by the outbox consumer carries the client's decision time, not the cron / retry time,
+     *                                               and `is_urgent` for a 提货直送 order is judged against the cut-off the way the 估价 was.
+     */
     public function select(
         Shipment $shipment,
         TransportQuote $quote,
         string $selectedBy,
         ?int $selectedByUserId = null,
+        ?DateTimeInterface $confirmedAt = null,
     ): Shipment {
         if (! in_array($selectedBy, TransportEnums::SELECTED_BY, true)) {
             throw new DomainException(__('transport.selection.invalid_selector'));
         }
 
         $this->validateActor($shipment, $selectedBy, $selectedByUserId);
+        $confirmedAt = $confirmedAt === null ? null : CarbonImmutable::instance($confirmedAt);
 
-        return DB::transaction(function () use ($shipment, $quote, $selectedBy, $selectedByUserId): Shipment {
+        return DB::transaction(function () use ($shipment, $quote, $selectedBy, $selectedByUserId, $confirmedAt): Shipment {
             $lockedShipment = Shipment::query()->lockForUpdate()->findOrFail($shipment->getKey());
             $lockedQuote = TransportQuote::query()->lockForUpdate()->findOrFail($quote->getKey());
 
@@ -77,12 +92,12 @@ final class QuoteSelectionService
                 return $lockedShipment->refresh();
             }
 
-            $confirmedAt = now();
+            $confirmedAt ??= now();
             $lockedShipment->status = 'quote_confirmed';
             $lockedShipment->save();
 
             $this->outbox->publish(new ShipmentQuoteConfirmed(
-                $this->payload($lockedShipment, $lockedQuote, $selectedBy, $selectedByUserId, $confirmedAt->toIso8601String()),
+                $this->payload($lockedShipment, $lockedQuote, $selectedBy, $selectedByUserId, $confirmedAt),
                 jobId: $lockedShipment->job_id,
                 clientId: $lockedShipment->client_id,
                 correlationId: $lockedShipment->shipment_no,
@@ -130,7 +145,7 @@ final class QuoteSelectionService
         TransportQuote $quote,
         string $confirmedByType,
         ?int $confirmedBy,
-        string $confirmedAt,
+        CarbonInterface $confirmedAt,
     ): array {
         $raw = $quote->raw_response ?? [];
         $request = is_array($raw['_quote_request'] ?? null) ? $raw['_quote_request'] : [];
@@ -159,7 +174,7 @@ final class QuoteSelectionService
             $pricingMode = $quote->source === 'own_fleet' ? 'fixed' : 'cost_plus';
         }
 
-        return [
+        return array_merge([
             'shipment_id' => $shipment->id,
             'shipment_no' => $shipment->shipment_no,
             'shipment_type' => $shipment->shipment_type,
@@ -186,7 +201,62 @@ final class QuoteSelectionService
             ],
             'confirmed_by_type' => $confirmedByType,
             'confirmed_by' => $confirmedBy,
-            'confirmed_at' => $confirmedAt,
-        ];
+            'confirmed_at' => $confirmedAt->toIso8601String(),
+        ], $this->orderContext($shipment, $confirmedAt));
+    }
+
+    /**
+     * Additive keys read from the order (CHANGE_REQUESTS #120): `order_type` for every shipment; for a 提货直送 (pickup_deliver)
+     * order — no stock, no outbound.packed — also the client's declared packages as billing lines, so the handling charges
+     * (order processing / urgent, picks per pallet or carton band, labels, load) arise from this event, and `is_urgent`
+     * by the client's dispatch cut-off at the confirmation moment. from_stock shipments get none of those: their handling
+     * charges come from outbound.packed.
+     *
+     * @return array<string, mixed>
+     */
+    private function orderContext(Shipment $shipment, CarbonInterface $confirmedAt): array
+    {
+        $order = Schema::hasTable('orders')
+            ? DB::table('orders')->where('id', $shipment->order_id)->first(['order_type', 'requested_date', 'client_id'])
+            : null;
+        $orderType = $order === null || $order->order_type === null ? null : (string) $order->order_type;
+        $context = ['order_type' => $orderType];
+
+        if ($orderType !== 'pickup_deliver') {
+            return $context;
+        }
+
+        $cutoff = DB::table('clients')->where('id', $order->client_id)->value('dispatch_cutoff_time');
+        $lines = Schema::hasTable('declared_packages')
+            ? DB::table('declared_packages')
+                ->where('order_id', $shipment->order_id)
+                ->orderBy('id')
+                ->get()
+                ->map(fn (object $package): array => [
+                    'package_type' => (string) $package->package_type,
+                    'unit_type' => PackageUnits::unitType($package->package_type),
+                    'qty' => max(0, (int) $package->qty),
+                    'unit_weight_kg' => (float) ($package->weight_kg ?? 0),
+                ])
+                ->values()
+                ->all()
+            : [];
+
+        $count = fn (?string $unitType): int => array_sum(array_map(
+            fn (array $line): int => $unitType === null || $line['unit_type'] === $unitType ? $line['qty'] : 0,
+            $lines,
+        ));
+
+        $context['is_urgent'] = UrgentDespatch::isUrgent(
+            isset($order->requested_date) ? (string) $order->requested_date : null,
+            $cutoff === null ? null : (string) $cutoff,
+            $confirmedAt,
+        );
+        $context['lines'] = $lines;
+        $context['pallet_count'] = $count('pallet');
+        $context['carton_count'] = $count('carton');
+        $context['label_count'] = $count(null);
+
+        return $context;
     }
 }

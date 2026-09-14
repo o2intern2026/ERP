@@ -34,7 +34,7 @@ Every state change another module reacts to travels as an event through the tran
 | `task.completed` | Warehouse (C) | Billing (devanning, unload, load-out, wrap, scan, labour, waste), Orders (pick / pack progress), Platform |
 | `outbound.packed` | Warehouse (C) | Transport (final quote), Orders (→ `packed`), Billing (order processing, picks, outbound labels) |
 | `outbound.dispatched` | Warehouse (C) | Orders (→ `dispatched`), Transport (shipment left the warehouse), Billing (load-out is billed via `task.completed` `load`, not here) — added M4, CHANGE_REQUESTS #35 |
-| `shipment.quote_confirmed` | Transport (X2) | Billing (freight + tailgate + remote — the only place these arise), Orders (quote snapshot), Platform |
+| `shipment.quote_confirmed` | Transport (X2) | Billing (freight + tailgate + remote — the only place these arise; for `order_type = pickup_deliver` also the outbound handling codes from the declared packages — CHANGE_REQUESTS #120), Orders (quote snapshot), Platform |
 | `shipment.booked` | Transport (X2) | Platform (Job cost `estimated`), Orders (tracking on the order), Billing (records `carrier_costs.expected_cost` — no charge) |
 | `delivery.pod_captured` | Transport (X2) | Orders (→ `delivered`), Billing (freight settleable, cost confirmed), Platform (POD email) |
 | `delivery.failed` | Transport (X2) | Orders (hold `transport`), Platform (exception `delivery_failed`) |
@@ -126,8 +126,14 @@ cost_cents, customer_price_cents, markup_percent (nullable), eta_days,
 tailgate_required (bool), zone,                                          # → TR-TAILGATE, TR-REMOTE conditions
 cartage_container_size (nullable: "20" | "40"; set only on container cartage shipments → TR-CARTAGE-20/40 instead of TR-DELIVERY-BASE)   # added by C after the drift check
 packages: {count, total_weight_kg, total_cbm},
-confirmed_by_type (client | coordinator | system), confirmed_by, confirmed_at
+confirmed_by_type (client | coordinator | system), confirmed_by, confirmed_at,
+order_type (from_stock | pickup_deliver | return — read from orders; every shipment)                                  # CHANGE_REQUESTS #120 (2026-09-14)
+# pickup_deliver shipments ONLY (additive, absent for from_stock / return — their handling charges come from outbound.packed):
+is_urgent (bool; App\Support\UrgentDespatch: requested_date = the confirmation day and confirmed after clients.dispatch_cutoff_time),
+lines: [{package_type, unit_type (pallet | carton — App\Support\PackageUnits::unitType), qty, unit_weight_kg (declared per-piece weight, 0 when not declared)}],
+pallet_count, carton_count, label_count (= Σ qty)                        # from orders.declared_packages — the final basis for pure transport
 ```
+Billing on `pickup_deliver` (CHANGE_REQUESTS #120): the FINAL-stage event bills WH-ORDER-DESPATCH (×1), WH-ORDER-DESPATCH-URGENT (`is_urgent`), WH-PICK-PLT and WH-LOAD-PLT (`pallet_count`), WH-PICK-CTN-LT22 / 22-45 / GE45 (`lines` with unit_type carton, banded on `unit_weight_kg`) and WH-LABEL-OUT (`label_count`) under the unique key `order:{order_id}` (version 1 — a reconfirmation never re-bills), next to the TR-* freight charges keyed `shipment:{shipment_id}`. The rule condition is the string `order_type = pickup_deliver`, so a payload without `order_type` is billed exactly as before. `PerJobInvoiceConsumer` runs after the charges, so the per_job service invoice draft already carries them.
 ### `shipment.booked` — no charge
 ```
 shipment_id, shipment_no, job_id, client_id, order_id, carrier_id, source, service_level,
@@ -190,7 +196,7 @@ job_ids: [int], order_ids: [int],                                        # every
 subtotal_cents, gst_cents, total_cents, issued_at, due_date
 ```
 ## Billing trigger summary (`charge_rules.trigger_event`)
-`asn.putaway_completed` → putaway / inbound label / pallet purchase · `task.completed` → devanning (only here), unload, load-out, wrap, scan, labour, waste · `outbound.packed` → order processing (urgent by cut-off), picks, outbound labels · `shipment.quote_confirmed` → freight, tailgate, remote, cartage (only here) · `delivery.extra_charge` → waiting / redelivery / failed · `snapshot.weekly` → storage, pallet rental, pickface · `return.financial_decision` → credit note. `shipment.booked` and `delivery.pod_captured` create **no** charge.
+`asn.putaway_completed` → putaway / inbound label / pallet purchase · `task.completed` → devanning (only here), unload, load-out, wrap, scan, labour, waste · `outbound.packed` → order processing (urgent by cut-off), picks, outbound labels · `shipment.quote_confirmed` → freight, tailgate, remote, cartage (only here) + for `order_type = pickup_deliver` the outbound handling codes from the declared packages (CHANGE_REQUESTS #120) · `delivery.extra_charge` → waiting / redelivery / failed · `snapshot.weekly` → storage, pallet rental, pickface · `return.financial_decision` → credit note. `shipment.booked` and `delivery.pod_captured` create **no** charge.
 
 ## Consuming events in code (shipped in M1/A31)
 - Implement `App\Support\Outbox\EventConsumer` (`handle(array $envelope): void`) in your module's `Services/` (or a `Consumers/` folder inside it). Read only `$envelope['payload']` fields listed above plus the envelope keys.

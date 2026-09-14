@@ -29,6 +29,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Fluent;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -256,7 +257,9 @@ final class OrderController extends Controller
             'declared_packages' => ['nullable', 'required_if:order_type,pickup_deliver', 'array'],
             'declared_packages.*.package_type' => ['required_with:declared_packages.*.qty', 'nullable', Rule::in(OrderEnums::PACKAGE_TYPES)],
             'declared_packages.*.qty' => ['required_with:declared_packages.*.package_type', 'nullable', 'integer', 'min:1'],
-            'declared_packages.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
+            // CHANGE_REQUESTS #120: a 提货直送 order is handled and billed to the outbound standards from what the client declared — the
+            // per-piece weight bands the carton pick, so it is required (> 0) for that type only; the other types keep it optional.
+            'declared_packages.*.weight_kg' => Rule::when(fn (Fluent $input) => $input->get('order_type') === 'pickup_deliver', ['required', 'numeric', 'min:0.001'], ['nullable', 'numeric', 'min:0']),
             'declared_packages.*.length_mm' => ['nullable', 'integer', 'min:0'],
             'declared_packages.*.width_mm' => ['nullable', 'integer', 'min:0'],
             'declared_packages.*.height_mm' => ['nullable', 'integer', 'min:0'],

@@ -9,8 +9,11 @@ use App\Modules\Billing\Services\QuoteService;
 use App\Modules\Orders\Exceptions\OrderRuleViolation;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderLine;
+use App\Modules\Orders\OrderEnums;
 use App\Support\Contracts\RateService;
 use App\Support\Money;
+use App\Support\PackageUnits;
+use App\Support\UrgentDespatch;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
@@ -19,6 +22,8 @@ use Illuminate\Support\Facades\DB;
  *
  * Warehouse service fees are priced through Billing's RateService and persisted as a customer quote through Billing's
  * QuoteService (CHANGE_REQUESTS #10 — customer_quotes belong to Billing; Orders only keeps `orders.customer_quote_id`).
+ * A from_stock order is priced from its goods lines; a pickup_deliver order (提货直送) is handled to the same standards and
+ * priced from the client's declared packages, which are the final basis for pure transport (CHANGE_REQUESTS #120).
  * Freight is Transport's business: `order.confirmed` makes Transport write preliminary `transport_quotes`; this service
  * reads them read-only (customer price only — never cost), takes the recommended / cheapest one and stores it on the quote
  * as a pre-priced `TR-DELIVERY-BASE` line (`amount_cents` + `transport_quote_id`, CHANGE_REQUESTS #50 → #68) so the customer
@@ -120,14 +125,17 @@ final class OrderEstimateService
     /**
      * The quote lines for QuoteService: order processing (+ urgent), picks per unit, outbound labels, load-out.
      *
+     * from_stock: one pick unit per goods line (stock units decide pallet vs carton, pickUnit()). pickup_deliver (CHANGE_REQUESTS
+     * #120): the same codes from the client's declared packages — a pallet / skid piece is a pallet pick, any other piece a
+     * carton pick banded on its declared PER-PIECE weight (never divided; null → lightest band, flagged), every piece is
+     * labelled and every pallet loaded. Billing bills the same quantities at `shipment.quote_confirmed`, so the estimate and
+     * the invoice agree. Return orders are never priced (canEstimate()).
+     *
      * @return list<array{charge_code:string, qty:float, context:array<string, mixed>, description?:string}>
      */
     public function lines(Order $order): array
     {
-        $order->loadMissing('lines', 'client');
-        if ($order->order_type === 'pickup_deliver') {
-            return []; // pure transport: no warehouse handling, the estimate is the freight quote alone (A11b)
-        }
+        $order->loadMissing('lines', 'declaredPackages', 'client');
 
         $urgent = $this->isUrgent($order);
         $lines = [['charge_code' => 'WH-ORDER-DESPATCH', 'qty' => 1.0, 'context' => ['is_urgent' => $urgent]]];
@@ -137,24 +145,46 @@ final class OrderEstimateService
 
         $pallets = 0;
         $pieces = 0;
-        foreach ($order->lines as $line) {
-            $unit = $this->pickUnit($line);
-            $pieces += $unit['pallets'] + $unit['cartons'];
-            if ($unit['pallets'] > 0) {
-                $pallets += $unit['pallets'];
-                $lines[] = ['charge_code' => 'WH-PICK-PLT', 'qty' => (float) $unit['pallets'], 'context' => ['order_line_id' => $line->id, 'unit_source' => $unit['source']], 'description' => __('orders.estimate.descriptions.pick_pallet', ['goods' => $this->goods($line)])];
+        if ($order->order_type === 'pickup_deliver') {
+            foreach ($order->declaredPackages as $package) {
+                $qty = max(1, (int) $package->qty);
+                $pieces += $qty;
+                $type = OrderEnums::packageTypeLabel($package->package_type);
+                $context = ['declared_package_id' => $package->id, 'unit_source' => 'declared_packages'];
+                if (PackageUnits::unitType($package->package_type) === 'pallet') {
+                    $pallets += $qty;
+                    $lines[] = ['charge_code' => 'WH-PICK-PLT', 'qty' => (float) $qty, 'context' => $context, 'description' => __('orders.estimate.descriptions.pick_declared_pallet', ['type' => $type])];
+
+                    continue;
+                }
+                $weight = $package->weight_kg === null ? null : (float) $package->weight_kg; // declared per piece — the band input as entered
+                $lines[] = [
+                    'charge_code' => $this->cartonPickCode($order->client_id, $weight ?? 0.0),
+                    'qty' => (float) $qty,
+                    'context' => ['weight_kg' => $weight ?? 0.0, 'weight_assumed' => $weight === null] + $context,
+                    'description' => __($weight === null ? 'orders.estimate.descriptions.pick_declared_carton_unknown' : 'orders.estimate.descriptions.pick_declared_carton', ['type' => $type, 'weight' => number_format((float) $weight, 2)]),
+                ];
             }
-            if ($unit['cartons'] === 0) {
-                continue;
+        } else {
+            foreach ($order->lines as $line) {
+                $unit = $this->pickUnit($line);
+                $pieces += $unit['pallets'] + $unit['cartons'];
+                if ($unit['pallets'] > 0) {
+                    $pallets += $unit['pallets'];
+                    $lines[] = ['charge_code' => 'WH-PICK-PLT', 'qty' => (float) $unit['pallets'], 'context' => ['order_line_id' => $line->id, 'unit_source' => $unit['source']], 'description' => __('orders.estimate.descriptions.pick_pallet', ['goods' => $this->goods($line)])];
+                }
+                if ($unit['cartons'] === 0) {
+                    continue;
+                }
+                // CHANGE_REQUESTS #121: cartons taken off a pallet (a partial pallet) are carton picks, banded by weight — same as Billing.
+                $weight = $unit['weight_kg'];
+                $lines[] = [
+                    'charge_code' => $this->cartonPickCode($order->client_id, $weight ?? 0.0),
+                    'qty' => (float) $unit['cartons'],
+                    'context' => ['weight_kg' => $weight ?? 0.0, 'weight_assumed' => $weight === null, 'order_line_id' => $line->id, 'unit_source' => $unit['source']],
+                    'description' => __($weight === null ? 'orders.estimate.descriptions.pick_carton_unknown' : 'orders.estimate.descriptions.pick_carton', ['goods' => $this->goods($line), 'weight' => number_format((float) $weight, 2)]),
+                ];
             }
-            // CHANGE_REQUESTS #121: cartons taken off a pallet (a partial pallet) are carton picks, banded by weight — same as Billing.
-            $weight = $unit['weight_kg'];
-            $lines[] = [
-                'charge_code' => $this->cartonPickCode($order->client_id, $weight ?? 0.0),
-                'qty' => (float) $unit['cartons'],
-                'context' => ['weight_kg' => $weight ?? 0.0, 'weight_assumed' => $weight === null, 'order_line_id' => $line->id, 'unit_source' => $unit['source']],
-                'description' => __($weight === null ? 'orders.estimate.descriptions.pick_carton_unknown' : 'orders.estimate.descriptions.pick_carton', ['goods' => $this->goods($line), 'weight' => number_format((float) $weight, 2)]),
-            ];
         }
 
         if ($pieces > 0) {
@@ -358,18 +388,16 @@ final class OrderEstimateService
     }
 
     /**
-     * Urgent = the same predicate Warehouse applies at packing (`outbound.packed.is_urgent`, OutboundService::pack): the client
-     * has a dispatch cut-off, dispatch is requested for today, and the clock is already past the cut-off. No cut-off → never
-     * urgent (review of PR #18, CHANGE_REQUESTS #75). The estimate can only look at "now"; Warehouse decides at pack time.
+     * Urgent = the same predicate Warehouse applies at packing (`outbound.packed.is_urgent`, OutboundService::pack) and Transport
+     * at quote confirmation of a pickup_deliver order (CHANGE_REQUESTS #120), shared as UrgentDespatch: the client has a dispatch
+     * cut-off, dispatch is requested for today, and the clock is already past the cut-off. No cut-off → never urgent (review of
+     * PR #18, CHANGE_REQUESTS #75). The estimate can only look at "now"; Warehouse / Transport decide at their own moment.
      */
     public function isUrgent(Order $order): bool
     {
         $cutoff = $order->client?->dispatch_cutoff_time;
-        if (blank($cutoff) || $order->requested_date === null) {
-            return false;
-        }
 
-        return $order->requested_date->toDateString() === today()->toDateString() && now()->format('H:i:s') > substr((string) $cutoff, 0, 8);
+        return UrgentDespatch::isUrgent($order->requested_date?->toDateString(), $cutoff === null ? null : (string) $cutoff, now());
     }
 
     /**

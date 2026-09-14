@@ -387,7 +387,7 @@ fulfilments                履约批次:一张订单可以分多次、跨多仓�
 ├─ fulfilment_lines        order_line_id, qty
 └─ shipment_ref            对应 TMS 的 shipment
 
-declared_packages          申报包裹(来自清单或客户填写;初步报价依据;纯运输的最终依据)
+declared_packages          申报包裹(来自清单或客户填写;初步报价依据;纯运输的最终依据;纯运输时也是操作费与估价的依据,weight_kg 必填 —— CHANGE_REQUESTS #120)
 ├─ order_id, package_type, qty, weight, length, width, height
 └─ 打包后的实测包裹在 WMS 的 packages 表,两者分开;运费最终按实测(纯运输按申报,司机取货可复核)
 
@@ -516,6 +516,7 @@ PRD 写的是给客户看的 6 步:`Received → Confirmed → In warehouse → 
 `依赖 A3 · 对标:CartonCloud 订单类型分离`
 
 - **OMS-6 纯运输任务** — 不进仓库的任务:从客户处取货直接送达;订单记录任务类型、取货地址与 declared_packages;确认即触发运输报价(不等 WMS 事件),申报包裹即最终依据。
+  - 计费(CHANGE_REQUESTS #120,2026-09-14 按默认):与出库订单相同的操作费标准 —— 订单处理 / 加急 / 整托拣货 / 分档纸箱拣货 / 出库 label / 装车 —— 在最终 `shipment.quote_confirmed` 按申报包裹一次性产生(幂等键 `order:{order_id}`),与运费同一事件、同一张 per_job 发票;估价同样显示这些行;上门提货附加费 `TR-PICKUP` 仅手工计费。
 
 **A13 · 财务锁 / 放行(置锁、放行、阻止进入拣货、时间线留痕)**
 
@@ -1121,7 +1122,7 @@ carrier_invoices           承运商账单 + 逐票比对行
 
 ```
 OMS 确认订单时:Preliminary Estimate(按 declared_packages 申报的尺寸重量出初步方案与估价,写入客户报价单)
-纯运输订单(pickup_deliver):不经过 WMS,永远没有 outbound.packed —— 以 `order.confirmed` 为触发,按 declared_packages 直接出最终方案;司机取货时可复核,差异走 delivery.extra_charge
+纯运输订单(pickup_deliver):不经过 WMS,永远没有 outbound.packed —— 以 `order.confirmed` 为触发,按 declared_packages 直接出最终方案;司机取货时可复核,差异走 delivery.extra_charge;其操作费(订单处理 / 拣货 / 出库 label / 装车)在最终 shipment.quote_confirmed 按申报包裹产生(CHANGE_REQUESTS #120)
 WMS 事件 outbound.packed(带包裹实测重量/尺寸/件数)
   → Quote:   Final Carrier Quote —— TransportOptionService 汇总方案(与初步估价差异超过容差 → 要求客户或 协调员 重新确认)
               ├─ own_fleet:后台固定费率 → 客户价
@@ -1429,7 +1430,7 @@ customer_quote_lines       charge_code, qty, uom, amount_cents, assumptions(拆�
 | `asn.putaway_completed` | 上架费(payload 带托盘数)+ 进库 label 费(按打印箱标数)+ 仓库供应托盘的购买费(按 pallet_source)(**拆柜费不在此产生**) | per pallet / per label |
 | `stock.daily_snapshot_taken` → `snapshot.weekly` | 每周出仓储费(按托盘类型)+ 托盘租赁费(按 pallet_source)+ pickface 周费(按占用格数):每个计费单元每周最多一次,幂等键 = 单元 + 周 + code | 托盘:**per pallet·week**;pickface:per pickface·week;散箱:per carton·week 或 per cbm·week(按客户价目表) |
 | `outbound.packed` | 订单处理费(加急按客户 cut-off 判定)+ 拣货费(整托 per pallet / 纸箱按单箱重量分档)+ 出库 label & despatch 费(按箱标数) | per order / per pallet / per carton(分档)/ per label |
-| `shipment.quote_confirmed` | 运费(客户价)+ 尾板费(如判定)—— **唯一产生点**,在打包实测之后、预订之前 | 自派:固定费率(如 pallet $75);第三方:报价成本 × markup |
+| `shipment.quote_confirmed` | 运费(客户价)+ 尾板费(如判定)—— **唯一产生点**,在打包实测之后、预订之前;纯运输订单(order_type = pickup_deliver)另按申报包裹产生与 `outbound.packed` 相同的订单处理 / 加急 / 拣货 / 出库 label / 装车费(同 code 同费率,幂等键 order:{order_id} —— CHANGE_REQUESTS #120) | 自派:固定费率(如 pallet $75);第三方:报价成本 × markup |
 | `shipment.booked` | 不产生费用;记 carrier_cost(成本)与预订信息 | — |
 | `delivery.extra_charge` | 等候、二次派送、失败派送等附加费 | 按价目表附加费项;Billing 决定是否收费 |
 | `task.completed`(warehouse_tasks) | 拆柜费(**唯一触发点**,按柜型 × 拆柜方式;mixed 或行数超上限 → 待报价)、卸货费、装车费、缠膜打带(进 / 出库 code)、序列号扫描费、人工时(班内 / 班外)、废弃物(最低 1 CBM) | per container / pallet / scan / man_hour / cbm(取 billable_qty / billable_uom) |

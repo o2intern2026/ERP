@@ -59,57 +59,74 @@ class BillingSeeder extends Seeder
         'TR-FAILED' => ['transport', 'delivery', 'Failed delivery', null],
         'TR-REDELIVERY' => ['transport', 'delivery', 'Re-delivery', null],
         'TR-WAITING' => ['transport', 'man_hour', 'Waiting time', null],
+        'TR-PICKUP' => ['transport', 'delivery', 'Collection at sender (surcharge)', 'manual until priced — freight already covers pickup→door'], // CHANGE_REQUESTS #120
         'WH-STORAGE-CTN-WK' => ['storage', 'carton_week', 'Storage – loose carton', 'if the client card bills per carton'],
         'WH-STORAGE-CBM-WK' => ['storage', 'cbm_week', 'Storage – loose cartons by volume', 'if the client card bills per CBM'],
         'WH-STORAGE-QUARANTINE-PLT-WK' => ['storage', 'pallet_week', 'Storage – quarantined / damaged pallet', 'still charged, separate code (§4.8)'],
     ];
 
-    /** code => [trigger_event, condition, quantity_source, idempotency template] */
+    /**
+     * List of [code, trigger_event, condition, quantity_source, idempotency template]. A list, not a code-keyed map, so one code can
+     * carry a rule per trigger event (CHANGE_REQUESTS #120: the outbound handling codes fire on outbound.packed for from_stock
+     * orders and on shipment.quote_confirmed for pickup_deliver orders). (trigger_event, code) pairs are unique — run() upserts on them.
+     */
     public const RULES = [
-        'TR-CARTAGE-20' => ['shipment.quote_confirmed', ['cartage_container_size' => '20'], 'one', 'shipment:{shipment_id}'],
-        'TR-CARTAGE-40' => ['shipment.quote_confirmed', ['cartage_container_size' => '40'], 'one', 'shipment:{shipment_id}'],
-        'WH-DEVAN-20-PLT' => ['task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'pallet'], 'billable_qty', 'task:{task_id}'],
-        'WH-DEVAN-20-LOOSE' => ['task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'loose'], 'billable_qty', 'task:{task_id}'],
-        'WH-DEVAN-20-MIXED' => ['task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'mixed'], 'billable_qty', 'task:{task_id}'],
-        'WH-DEVAN-40-PLT' => ['task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'pallet'], 'billable_qty', 'task:{task_id}'],
-        'WH-DEVAN-40-LOOSE' => ['task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'loose'], 'billable_qty', 'task:{task_id}'],
-        'WH-DEVAN-40-MIXED' => ['task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'mixed'], 'billable_qty', 'task:{task_id}'],
-        'WH-UNLOAD-PLT' => ['task.completed', ['task_type' => 'receiving', 'asn.inbound_type' => 'loose_truck'], 'billable_qty', 'task:{task_id}'], // charge-codes.md #9: LCL trucks only
-        'WH-PUTAWAY-PLT' => ['asn.putaway_completed', null, 'pallets', 'asn:{asn_id}'],
-        'WH-WRAP-IN-PLT' => ['task.completed', ['task_type' => 'wrap', 'source_type' => ['asn', 'container']], 'billable_qty', 'task:{task_id}'],
-        'WH-LABEL-IN' => ['asn.putaway_completed', null, 'labels', 'asn:{asn_id}'],
-        'WH-STORAGE-PLT-WK' => ['snapshot.weekly', ['unit_type' => 'pallet', 'pallet_class' => 'standard', 'condition' => 'good'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
-        'WH-STORAGE-PLT-WIDE-WK' => ['snapshot.weekly', ['unit_type' => 'pallet', 'pallet_class' => 'oversize_wide', 'condition' => 'good'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
-        'WH-STORAGE-PLT-HIGH-WK' => ['snapshot.weekly', ['unit_type' => 'pallet', 'pallet_class' => 'oversize_high', 'condition' => 'good'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
-        'WH-STORAGE-PICKFACE-WK' => ['snapshot.weekly', ['location_type' => 'pickface'], 'pickface_slots', 'client:{client_id}:pickface:week:{week}'],
-        'WH-STORAGE-PLT-OVERWEIGHT-WK' => ['snapshot.weekly', ['unit_type' => 'pallet', 'pallet_class' => 'overweight', 'condition' => 'good'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
-        'WH-PALLET-RENT-PLAIN-WK' => ['snapshot.weekly', ['unit_type' => 'pallet', 'pallet_source' => 'warehouse_plain'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
-        'WH-PALLET-RENT-POOL-WK' => ['snapshot.weekly', ['unit_type' => 'pallet', 'pallet_source' => ['chep', 'loscam']], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
-        'WH-ORDER-DESPATCH' => ['outbound.packed', null, 'orders', 'fulfilment:{fulfilment_id}'], // every packed order; urgent ADDS #21 on top (CHANGE_REQUESTS #5, 2026-09-08)
-        'WH-ORDER-DESPATCH-URGENT' => ['outbound.packed', ['is_urgent' => true], 'orders', 'fulfilment:{fulfilment_id}'],
-        'WH-PICK-PLT' => ['outbound.packed', null, 'pallets', 'fulfilment:{fulfilment_id}'],
-        'WH-PICK-CTN-GE45' => ['outbound.packed', null, 'cartons', 'fulfilment:{fulfilment_id}'],
-        'WH-PICK-CTN-22-45' => ['outbound.packed', null, 'cartons', 'fulfilment:{fulfilment_id}'],
-        'WH-PICK-CTN-LT22' => ['outbound.packed', null, 'cartons', 'fulfilment:{fulfilment_id}'],
-        'WH-LOAD-PLT' => ['task.completed', ['task_type' => 'load'], 'billable_qty', 'task:{task_id}'],
-        'WH-WRAP-OUT-PLT' => ['task.completed', ['task_type' => 'wrap', 'source_type' => ['order', 'fulfilment']], 'billable_qty', 'task:{task_id}'],
-        'WH-LABEL-OUT' => ['outbound.packed', null, 'labels', 'fulfilment:{fulfilment_id}'],
-        'VAS-SCAN' => ['task.completed', ['task_type' => 'scanning'], 'scans', 'task:{task_id}'],
-        'VAS-WASTE-CBM' => ['task.completed', ['task_type' => 'waste'], 'billable_qty', 'task:{task_id}'],
-        'VAS-PALLET-PURCHASE' => ['asn.putaway_completed', null, 'pallets_warehouse_plain', 'asn:{asn_id}'],
-        'VAS-PALLET-PURCHASE-NONSTD' => ['manual', null, 'one', 'manual:{charge_id}'],
-        'VAS-LABOUR-HR' => ['task.completed', ['task_type' => ['labour', 'vas_other']], 'hours_business', 'task:{task_id}'],
-        'VAS-LABOUR-HR-AH' => ['task.completed', ['task_type' => ['labour', 'vas_other']], 'hours_after_hours', 'task:{task_id}'],
-        'TR-DELIVERY-BASE' => ['shipment.quote_confirmed', ['cartage_container_size' => null], 'one', 'shipment:{shipment_id}'],
-        'TR-TAILGATE' => ['shipment.quote_confirmed', ['tailgate_required' => true], 'one', 'shipment:{shipment_id}'],
-        'TR-REMOTE' => ['shipment.quote_confirmed', ['zone' => 'remote'], 'one', 'shipment:{shipment_id}'],
-        'TR-FUEL' => ['shipment.quote_confirmed', ['cartage_container_size' => null], 'one', 'shipment:{shipment_id}'],
-        'TR-FAILED' => ['delivery.extra_charge', ['charge_type' => 'failed'], 'one', 'extra:{shipment_id}:{charge_type}:{occurred_at}'],
-        'TR-REDELIVERY' => ['delivery.extra_charge', ['charge_type' => 'redelivery'], 'one', 'extra:{shipment_id}:{charge_type}:{occurred_at}'],
-        'TR-WAITING' => ['delivery.extra_charge', ['charge_type' => 'waiting'], 'billable_qty', 'extra:{shipment_id}:{charge_type}:{occurred_at}'], // qty = hours reported by the driver / coordinator
-        'WH-STORAGE-CTN-WK' => ['snapshot.weekly', ['unit_type' => 'carton', 'condition' => 'good'], 'cartons', 'unit:{stock_unit_id}:week:{week}'],
-        'WH-STORAGE-CBM-WK' => ['snapshot.weekly', ['unit_type' => 'carton', 'condition' => 'good'], 'cbm', 'unit:{stock_unit_id}:week:{week}'],
-        'WH-STORAGE-QUARANTINE-PLT-WK' => ['snapshot.weekly', ['unit_type' => 'pallet', 'condition' => ['quarantine', 'damaged']], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
+        ['TR-CARTAGE-20', 'shipment.quote_confirmed', ['cartage_container_size' => '20'], 'one', 'shipment:{shipment_id}'],
+        ['TR-CARTAGE-40', 'shipment.quote_confirmed', ['cartage_container_size' => '40'], 'one', 'shipment:{shipment_id}'],
+        ['WH-DEVAN-20-PLT', 'task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'pallet'], 'billable_qty', 'task:{task_id}'],
+        ['WH-DEVAN-20-LOOSE', 'task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'loose'], 'billable_qty', 'task:{task_id}'],
+        ['WH-DEVAN-20-MIXED', 'task.completed', ['task_type' => 'devanning', 'container.size' => '20', 'container.unpack_mode' => 'mixed'], 'billable_qty', 'task:{task_id}'],
+        ['WH-DEVAN-40-PLT', 'task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'pallet'], 'billable_qty', 'task:{task_id}'],
+        ['WH-DEVAN-40-LOOSE', 'task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'loose'], 'billable_qty', 'task:{task_id}'],
+        ['WH-DEVAN-40-MIXED', 'task.completed', ['task_type' => 'devanning', 'container.size' => '40', 'container.unpack_mode' => 'mixed'], 'billable_qty', 'task:{task_id}'],
+        ['WH-UNLOAD-PLT', 'task.completed', ['task_type' => 'receiving', 'asn.inbound_type' => 'loose_truck'], 'billable_qty', 'task:{task_id}'], // charge-codes.md #9: LCL trucks only
+        ['WH-PUTAWAY-PLT', 'asn.putaway_completed', null, 'pallets', 'asn:{asn_id}'],
+        ['WH-WRAP-IN-PLT', 'task.completed', ['task_type' => 'wrap', 'source_type' => ['asn', 'container']], 'billable_qty', 'task:{task_id}'],
+        ['WH-LABEL-IN', 'asn.putaway_completed', null, 'labels', 'asn:{asn_id}'],
+        ['WH-STORAGE-PLT-WK', 'snapshot.weekly', ['unit_type' => 'pallet', 'pallet_class' => 'standard', 'condition' => 'good'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
+        ['WH-STORAGE-PLT-WIDE-WK', 'snapshot.weekly', ['unit_type' => 'pallet', 'pallet_class' => 'oversize_wide', 'condition' => 'good'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
+        ['WH-STORAGE-PLT-HIGH-WK', 'snapshot.weekly', ['unit_type' => 'pallet', 'pallet_class' => 'oversize_high', 'condition' => 'good'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
+        ['WH-STORAGE-PICKFACE-WK', 'snapshot.weekly', ['location_type' => 'pickface'], 'pickface_slots', 'client:{client_id}:pickface:week:{week}'],
+        ['WH-STORAGE-PLT-OVERWEIGHT-WK', 'snapshot.weekly', ['unit_type' => 'pallet', 'pallet_class' => 'overweight', 'condition' => 'good'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
+        ['WH-PALLET-RENT-PLAIN-WK', 'snapshot.weekly', ['unit_type' => 'pallet', 'pallet_source' => 'warehouse_plain'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
+        ['WH-PALLET-RENT-POOL-WK', 'snapshot.weekly', ['unit_type' => 'pallet', 'pallet_source' => ['chep', 'loscam']], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
+        ['WH-ORDER-DESPATCH', 'outbound.packed', null, 'orders', 'fulfilment:{fulfilment_id}'], // every packed order; urgent ADDS #21 on top (CHANGE_REQUESTS #5, 2026-09-08)
+        ['WH-ORDER-DESPATCH-URGENT', 'outbound.packed', ['is_urgent' => true], 'orders', 'fulfilment:{fulfilment_id}'],
+        ['WH-PICK-PLT', 'outbound.packed', null, 'pallets', 'fulfilment:{fulfilment_id}'],
+        ['WH-PICK-CTN-GE45', 'outbound.packed', null, 'cartons', 'fulfilment:{fulfilment_id}'],
+        ['WH-PICK-CTN-22-45', 'outbound.packed', null, 'cartons', 'fulfilment:{fulfilment_id}'],
+        ['WH-PICK-CTN-LT22', 'outbound.packed', null, 'cartons', 'fulfilment:{fulfilment_id}'],
+        ['WH-LOAD-PLT', 'task.completed', ['task_type' => 'load'], 'billable_qty', 'task:{task_id}'],
+        ['WH-WRAP-OUT-PLT', 'task.completed', ['task_type' => 'wrap', 'source_type' => ['order', 'fulfilment']], 'billable_qty', 'task:{task_id}'],
+        ['WH-LABEL-OUT', 'outbound.packed', null, 'labels', 'fulfilment:{fulfilment_id}'],
+        ['VAS-SCAN', 'task.completed', ['task_type' => 'scanning'], 'scans', 'task:{task_id}'],
+        ['VAS-WASTE-CBM', 'task.completed', ['task_type' => 'waste'], 'billable_qty', 'task:{task_id}'],
+        ['VAS-PALLET-PURCHASE', 'asn.putaway_completed', null, 'pallets_warehouse_plain', 'asn:{asn_id}'],
+        ['VAS-PALLET-PURCHASE-NONSTD', 'manual', null, 'one', 'manual:{charge_id}'],
+        ['VAS-LABOUR-HR', 'task.completed', ['task_type' => ['labour', 'vas_other']], 'hours_business', 'task:{task_id}'],
+        ['VAS-LABOUR-HR-AH', 'task.completed', ['task_type' => ['labour', 'vas_other']], 'hours_after_hours', 'task:{task_id}'],
+        ['TR-DELIVERY-BASE', 'shipment.quote_confirmed', ['cartage_container_size' => null], 'one', 'shipment:{shipment_id}'],
+        ['TR-TAILGATE', 'shipment.quote_confirmed', ['tailgate_required' => true], 'one', 'shipment:{shipment_id}'],
+        ['TR-REMOTE', 'shipment.quote_confirmed', ['zone' => 'remote'], 'one', 'shipment:{shipment_id}'],
+        ['TR-FUEL', 'shipment.quote_confirmed', ['cartage_container_size' => null], 'one', 'shipment:{shipment_id}'],
+        ['TR-FAILED', 'delivery.extra_charge', ['charge_type' => 'failed'], 'one', 'extra:{shipment_id}:{charge_type}:{occurred_at}'],
+        ['TR-REDELIVERY', 'delivery.extra_charge', ['charge_type' => 'redelivery'], 'one', 'extra:{shipment_id}:{charge_type}:{occurred_at}'],
+        ['TR-WAITING', 'delivery.extra_charge', ['charge_type' => 'waiting'], 'billable_qty', 'extra:{shipment_id}:{charge_type}:{occurred_at}'], // qty = hours reported by the driver / coordinator
+        ['WH-STORAGE-CTN-WK', 'snapshot.weekly', ['unit_type' => 'carton', 'condition' => 'good'], 'cartons', 'unit:{stock_unit_id}:week:{week}'],
+        ['WH-STORAGE-CBM-WK', 'snapshot.weekly', ['unit_type' => 'carton', 'condition' => 'good'], 'cbm', 'unit:{stock_unit_id}:week:{week}'],
+        ['WH-STORAGE-QUARANTINE-PLT-WK', 'snapshot.weekly', ['unit_type' => 'pallet', 'condition' => ['quarantine', 'damaged']], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
+        // CHANGE_REQUESTS #120 (lead 2026-09-14, 按默认): a pickup_deliver order never reaches outbound.packed — the same handling codes,
+        // same rates, arise once at the final shipment.quote_confirmed from the client's DECLARED packages (lines / pallet_count /
+        // label_count in that payload). A missing order_type never matches the string 'pickup_deliver', so every other event is untouched.
+        ['WH-ORDER-DESPATCH', 'shipment.quote_confirmed', ['order_type' => 'pickup_deliver'], 'orders', 'order:{order_id}'],
+        ['WH-ORDER-DESPATCH-URGENT', 'shipment.quote_confirmed', ['order_type' => 'pickup_deliver', 'is_urgent' => true], 'orders', 'order:{order_id}'],
+        ['WH-PICK-PLT', 'shipment.quote_confirmed', ['order_type' => 'pickup_deliver'], 'pallets', 'order:{order_id}'],
+        ['WH-PICK-CTN-GE45', 'shipment.quote_confirmed', ['order_type' => 'pickup_deliver'], 'cartons', 'order:{order_id}'],
+        ['WH-PICK-CTN-22-45', 'shipment.quote_confirmed', ['order_type' => 'pickup_deliver'], 'cartons', 'order:{order_id}'],
+        ['WH-PICK-CTN-LT22', 'shipment.quote_confirmed', ['order_type' => 'pickup_deliver'], 'cartons', 'order:{order_id}'],
+        ['WH-LABEL-OUT', 'shipment.quote_confirmed', ['order_type' => 'pickup_deliver'], 'labels', 'order:{order_id}'],
+        ['WH-LOAD-PLT', 'shipment.quote_confirmed', ['order_type' => 'pickup_deliver'], 'pallets', 'order:{order_id}'],
+        ['TR-PICKUP', 'manual', null, 'one', 'manual:{charge_id}'], // never auto-billed until priced (CHANGE_REQUESTS #120)
     ];
 
     /** Edward 2026-02-27: code => [rate_cents|null(POA), extra rate_item attributes]. 34 rows. */
@@ -157,7 +174,7 @@ class BillingSeeder extends Seeder
         }
         $codes = ChargeCode::query()->pluck('id', 'code');
 
-        foreach (self::RULES as $code => [$event, $condition, $qtySource, $template]) {
+        foreach (self::RULES as [$code, $event, $condition, $qtySource, $template]) {
             ChargeRule::query()->updateOrCreate(
                 ['trigger_event' => $event, 'charge_code_id' => $codes[$code]],
                 ['condition' => $condition, 'quantity_source' => $qtySource, 'rate_match_priority' => 'client_then_standard', 'idempotency_key_template' => $template, 'active' => true],

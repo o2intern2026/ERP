@@ -52,10 +52,25 @@ final class ShipmentIntakeService
 
         if (in_array($shipment->status, ['quoting', 'quoted'], true)) {
             $stage = $payload['order_type'] === 'pickup_deliver' ? 'final' : 'preliminary';
-            $this->quotes->quote($shipment->id, $stage);
+            // CHANGE_REQUESTS #120: the order's confirmation moment, so an automatic final confirmation is dated (and its urgency judged)
+            // when the order was confirmed, not when the outbox row happened to be processed.
+            $this->quotes->quote($shipment->id, $stage, $this->moment($payload['confirmed_at'] ?? $envelope['occurred_at'] ?? null));
         }
 
         return $shipment->refresh();
+    }
+
+    private function moment(mixed $raw): ?CarbonImmutable
+    {
+        if (! is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+
+        try {
+            return CarbonImmutable::parse($raw);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /** @param array<string, mixed> $envelope */

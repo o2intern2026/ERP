@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Portal;
 
+use App\Modules\Billing\Models\CustomerQuote;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Orders\Models\ClientAddress;
 use App\Modules\Orders\Models\Order;
@@ -109,6 +110,56 @@ class PortalOrdersTest extends TestCase
 
         $this->actingAs($user)->post(route('portal.orders.store'), $payload)->assertSessionHasNoErrors()->assertRedirect();
         $this->assertSame(1, Order::query()->withoutGlobalScopes()->where('external_ref', 'PORTAL-PREVIEW-1')->count());
+    }
+
+    /**
+     * CHANGE_REQUESTS #120: a 提货直送 form is estimated from its declared packages to the same handling standards as an outbound
+     * order (order processing, pallet / banded carton picks, labels, load-out) next to the freight options, and every package
+     * needs its per-piece weight — the band input — before any estimate or submission.
+     */
+    public function test_client_previews_a_pickup_deliver_order_with_handling_fees_from_the_declared_packages(): void
+    {
+        $client = $this->client();
+        $user = $this->clientUser($client);
+        $payload = [
+            'order_type' => 'pickup_deliver', 'external_ref' => 'PORTAL-PD-1',
+            'deliver_to_name' => 'Receiver', 'deliver_to_address' => '1 Test St', 'deliver_to_suburb' => 'Melbourne', 'deliver_to_state' => 'VIC', 'deliver_to_postcode' => '3000', 'deliver_to_address_type' => 'business',
+            'requested_date' => today()->addDays(3)->toDateString(), 'service_level' => 'standard',
+            'pickup_name' => 'Factory', 'pickup_address_line' => '9 Supplier Rd', 'pickup_suburb' => 'Laverton', 'pickup_state' => 'VIC', 'pickup_postcode' => '3028',
+            'declared_packages' => [
+                ['package_type' => 'pallet', 'qty' => 2, 'weight_kg' => 300], // pallet pieces → pallet picks + load-out
+                ['package_type' => 'carton', 'qty' => 3, 'weight_kg' => 10],  // 10 kg per piece → < 22 band
+                ['package_type' => 'carton', 'qty' => 1, 'weight_kg' => 30],  // 30 kg per piece → 22–45 band
+            ],
+        ];
+
+        $this->actingAs($user)->post(route('portal.orders.preview'), $payload)->assertOk()
+            ->assertSee(__('portal.estimate.preview_title'))->assertSee(__('portal.actions.confirm_submit'))
+            ->assertSeeInOrder(['WH-ORDER-DESPATCH', 'WH-PICK-PLT', 'WH-PICK-CTN-LT22', 'WH-PICK-CTN-22-45', 'WH-LABEL-OUT', 'WH-LOAD-PLT'])
+            ->assertSee(__('orders.estimate.descriptions.pick_declared_pallet', ['type' => __('orders.package_types.pallet')]))
+            ->assertSee(__('orders.estimate.descriptions.pick_declared_carton', ['type' => __('orders.package_types.carton'), 'weight' => '10.00']))
+            ->assertSee('$30.80'); // 500 + 2×400 + 3×150 + 350 + 6×30 + 2×400 on the Edward card
+        $this->assertSame(0, Order::query()->withoutGlobalScopes()->count());
+
+        // A package without its per-piece weight is refused before any estimate, in plain Chinese, and cannot be submitted either.
+        $noWeight = $payload;
+        $noWeight['declared_packages'][1]['weight_kg'] = '';
+        $this->actingAs($user)->from(route('portal.orders.create'))->post(route('portal.orders.preview'), $noWeight)
+            ->assertRedirect(route('portal.orders.create'))->assertSessionHasErrors(['declared_packages.1.weight_kg' => '第 2 个申报包裹缺少单件重量（提货直送计费需要）。']);
+        $this->actingAs($user)->get(route('portal.orders.create'))->assertOk()->assertSee('第 2 个申报包裹缺少单件重量（提货直送计费需要）。')->assertDontSee('declared_packages.1');
+        $this->actingAs($user)->post(route('portal.orders.store'), $noWeight)->assertSessionHasErrors(['declared_packages.1.weight_kg']);
+        $this->assertSame(0, Order::query()->withoutGlobalScopes()->count());
+
+        // Submitted with every weight: the order is created and the estimate saved with it carries the same lines.
+        $this->actingAs($user)->post(route('portal.orders.store'), $payload)->assertSessionHasNoErrors()->assertRedirect();
+        $order = Order::query()->withoutGlobalScopes()->where('external_ref', 'PORTAL-PD-1')->sole();
+        $this->assertSame([300.0, 10.0, 30.0], $order->declaredPackages->map(fn ($p) => (float) $p->weight_kg)->all());
+        $quote = CustomerQuote::query()->withoutGlobalScopes()->with('lines')->findOrFail($order->customer_quote_id);
+        $this->assertSame(
+            ['WH-ORDER-DESPATCH' => 500, 'WH-PICK-PLT' => 800, 'WH-PICK-CTN-LT22' => 450, 'WH-PICK-CTN-22-45' => 350, 'WH-LABEL-OUT' => 180, 'WH-LOAD-PLT' => 800],
+            $quote->lines->pluck('amount_cents', 'charge_code')->map(fn ($v) => (int) $v)->all(),
+        );
+        $this->actingAs($user)->get(route('portal.orders.show', $order))->assertOk()->assertSee($quote->quote_no)->assertSee('$30.80');
     }
 
     public function test_client_downloads_only_its_own_pod_and_never_sees_internal_notes(): void

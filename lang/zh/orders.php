@@ -406,6 +406,10 @@ return [
             'declared_packages.*.qty.min' => '第 :position 个申报包裹的数量至少为 :min。',
             'declared_packages.*.package_type.required_with' => '第 :position 个申报包裹请选择包装类型。',
             'declared_packages.*.package_type.in' => '第 :position 个申报包裹的包装类型不在可选范围内。',
+            // CHANGE_REQUESTS #120: 提货直送 is billed from the declared per-piece weight (carton pick bands), so it is required for that type.
+            'declared_packages.*.weight_kg.required' => '第 :position 个申报包裹缺少单件重量（提货直送计费需要）。',
+            'declared_packages.*.weight_kg.numeric' => '第 :position 个申报包裹的单件重量必须是数字。',
+            'declared_packages.*.weight_kg.min' => '第 :position 个申报包裹的单件重量必须大于 0（提货直送计费需要）。',
             'pickup_address_line.required_if' => '纯运输订单必须填写取货地址。',
             'pickup_suburb.required_if' => '纯运输订单必须填写取货城区。',
             'pickup_state.required_if' => '纯运输订单必须选择取货州。',
@@ -419,7 +423,7 @@ return [
     ],
     'pickup' => [
         'title' => '取货信息（纯运输订单）',
-        'hint' => '纯运输订单不经过仓库：从取货地址直接送到收件地址，确认后即进入运输报价；申报包裹是运费的最终依据。',
+        'hint' => '纯运输订单不经过仓库：从取货地址直接送到收件地址，确认后即进入运输报价。申报包裹（包装类型、数量、单件重量、尺寸）是运费与操作费的最终依据：操作费按与库存出库相同的标准计（订单处理、拣货、贴标、装车，散箱按单件重量分档），在运输方案确认时一次计入，因此每个申报包裹都必须填写单件重量。',
         'name' => '取货联系人',
         'phone' => '取货电话',
         'address' => '取货地址',
@@ -430,6 +434,7 @@ return [
         'package_type' => '包装类型',
         'qty' => '数量',
         'weight_kg' => '单件重量（kg）',
+        'weight_required' => '提货直送必填',
         'dims' => '单件尺寸（mm）',
         'new_job' => '— 自动新建 Job —',
         'new_job_hint' => '不选 Job 时系统自动开一个 Job（纯运输订单为 transport_only）。',
@@ -682,7 +687,7 @@ return [
     ],
     'estimate' => [
         'title' => '客户报价 / 估价',
-        'hint' => '按客户价目表预估这张订单的仓库服务费(订单处理、拣货、出库贴标、装车),运费取运输模块在订单确认后自动生成的初步报价(推荐 / 最低价),作为一行运费存入报价单。只显示客户价;POA 或缺费率的项目显示“待报价”,不会按 $0 计。估价是生成时的快照,运输报价到位后可“重新估价”。正式费用以打包后的最终报价与发票为准。',
+        'hint' => '按客户价目表预估这张订单的仓库服务费(订单处理、拣货、出库贴标、装车),运费取运输模块在订单确认后自动生成的初步报价(推荐 / 最低价),作为一行运费存入报价单。提货直送订单按申报包裹以同一标准计操作费。只显示客户价;POA 或缺费率的项目显示“待报价”,不会按 $0 计。估价是生成时的快照,运输报价到位后可“重新估价”。正式费用以打包后的最终报价与发票为准(提货直送以运输方案确认时的申报包裹为准)。',
         'form_hint' => '建单后可在订单页点“生成估价”按客户价目表预估服务费与运费(A7b)。',
         'none' => '尚未生成估价。',
         'open_quote' => '在计费模块查看报价单',
@@ -704,6 +709,10 @@ return [
             'pick_pallet' => '拣货 · 整托 · :goods',
             'pick_carton' => '拣货 · 散箱 · :goods(约 :weight kg/箱)',
             'pick_carton_unknown' => '拣货 · 散箱 · :goods(重量未知)',
+            // CHANGE_REQUESTS #120: 提货直送 lines come from the declared packages (:type = 包装类型), the weight is the declared per-piece weight.
+            'pick_declared_pallet' => '拣货 · 整托 · :type',
+            'pick_declared_carton' => '拣货 · 散箱 · :type(申报 :weight kg/件)',
+            'pick_declared_carton_unknown' => '拣货 · 散箱 · :type(未申报重量)',
             'freight' => '运费 · :label(运输模块报价,客户价)',
             'freight_preference' => '运费 · :label(下单时客户选择,估价)',
         ],

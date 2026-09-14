@@ -4,11 +4,15 @@ namespace Tests\Feature\Transport;
 
 use App\Modules\MasterData\Models\Carrier;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Orders\Models\Order;
+use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Platform\Models\OutboxEvent;
 use App\Modules\Transport\Models\CarrierService;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Models\TransportQuote;
 use App\Modules\Transport\Services\QuoteSelectionService;
+use App\Modules\Transport\Services\ShipmentIntakeService;
+use App\Modules\Transport\Services\ShipmentProgressService;
 use App\Modules\Transport\Services\ShipmentQuoteRequestFactory;
 use App\Modules\Transport\Services\TransportOptionService;
 use App\Support\Contracts\CarrierAdapter;
@@ -18,6 +22,7 @@ use App\Support\Contracts\RateService;
 use Carbon\Carbon;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Mockery;
 use Tests\Support\CreatesUsers;
 use Tests\TestCase;
@@ -118,8 +123,10 @@ class B5dQuoteSelectionTest extends TestCase
             'shipment_id', 'shipment_no', 'shipment_type', 'job_id', 'client_id', 'order_id', 'fulfilment_id',
             'transport_quote_id', 'quote_stage', 'source', 'carrier_id', 'service_level', 'pricing_mode',
             'cost_cents', 'customer_price_cents', 'markup_percent', 'eta_days', 'tailgate_required', 'zone',
-            'packages', 'confirmed_by_type', 'confirmed_by', 'confirmed_at',
+            'packages', 'confirmed_by_type', 'confirmed_by', 'confirmed_at', 'order_type',
         ], array_keys($event->payload));
+        $this->assertNull($event->payload['order_type'], 'No orders row behind this shipment: order_type is present but null (CR #120).');
+        $this->assertArrayNotHasKey('lines', $event->payload, 'Only pickup_deliver shipments carry declared-package billing lines.');
         $this->assertSame('cost_plus', $event->payload['pricing_mode']);
         $this->assertSame(12500, $event->payload['customer_price_cents']);
         $this->assertTrue($event->payload['tailgate_required']);
@@ -206,7 +213,155 @@ class B5dQuoteSelectionTest extends TestCase
         $this->assertSame('system', OutboxEvent::query()->where('event_name', 'shipment.quote_confirmed')->sole()->payload['confirmed_by_type']);
     }
 
-    private function finalQuoteService(Shipment $shipment, int $price, float $tolerance): TransportOptionService
+    public function test_pickup_deliver_confirmation_carries_declared_packages_as_billing_lines_and_urgency(): void
+    {
+        Carbon::setTestNow('2026-09-07 10:30:00'); // after the 10:00 cut-off, on the requested day → urgent
+        $client = $this->client(['dispatch_cutoff_time' => '10:00:00']);
+        $order = $this->pickupOrder($client, '2026-09-07', [
+            ['package_type' => 'pallet', 'qty' => 2, 'weight_kg' => 300, 'length_mm' => 1200, 'width_mm' => 1200, 'height_mm' => 1400],
+            ['package_type' => 'carton', 'qty' => 3, 'weight_kg' => 12.5, 'length_mm' => 400, 'width_mm' => 300, 'height_mm' => 250],
+            ['package_type' => 'Skid', 'qty' => 1, 'weight_kg' => 450, 'length_mm' => 1200, 'width_mm' => 1000, 'height_mm' => 900],
+            ['package_type' => 'carton', 'qty' => 1, 'weight_kg' => null, 'length_mm' => 300, 'width_mm' => 300, 'height_mm' => 300],
+        ]);
+        $shipment = $this->shipment(['status' => 'quoted', 'order_id' => $order->id, 'client_id' => $order->client_id, 'job_id' => $order->job_id]);
+        $quote = $this->quote($shipment, $this->carrier('OWN-PD-B5D'), [
+            'raw_response' => [
+                'pricing_mode' => 'fixed',
+                '_quote_request' => ['zone' => 'metro', 'items' => [['qty' => 2, 'weight_kg' => 300, 'length_mm' => 1200, 'width_mm' => 1200, 'height_mm' => 1400]]],
+            ],
+        ]);
+        $coordinator = $this->staff('transport_operator');
+
+        app(QuoteSelectionService::class)->select($shipment, $quote, 'coordinator', $coordinator->id);
+
+        $payload = OutboxEvent::query()->where('event_name', 'shipment.quote_confirmed')->sole()->payload;
+        $this->assertSame('pickup_deliver', $payload['order_type']);
+        $this->assertTrue($payload['is_urgent']);
+        $this->assertEquals([
+            ['package_type' => 'pallet', 'unit_type' => 'pallet', 'qty' => 2, 'unit_weight_kg' => 300.0],
+            ['package_type' => 'carton', 'unit_type' => 'carton', 'qty' => 3, 'unit_weight_kg' => 12.5],
+            ['package_type' => 'Skid', 'unit_type' => 'pallet', 'qty' => 1, 'unit_weight_kg' => 450.0],
+            ['package_type' => 'carton', 'unit_type' => 'carton', 'qty' => 1, 'unit_weight_kg' => 0.0], // null weight → 0 → the LT22 band, as the engine already does
+        ], $payload['lines']);
+        $this->assertSame(3, $payload['pallet_count']);
+        $this->assertSame(4, $payload['carton_count']);
+        $this->assertSame(7, $payload['label_count']);
+        // The freight keys are untouched: packages still summarise the quote request, not the declared list.
+        $this->assertEqualsCanonicalizing(['count' => 2, 'total_weight_kg' => 600, 'total_cbm' => 4.032], $payload['packages']);
+        $this->assertSame($order->id, $payload['order_id']);
+        $this->assertSame(now()->toIso8601String(), $payload['confirmed_at']);
+    }
+
+    public function test_pickup_deliver_is_not_urgent_before_the_cutoff_or_without_one(): void
+    {
+        Carbon::setTestNow('2026-09-07 09:30:00'); // before the 10:00 cut-off
+        $client = $this->client(['dispatch_cutoff_time' => '10:00:00']);
+        $order = $this->pickupOrder($client, '2026-09-07', [['package_type' => 'carton', 'qty' => 2, 'weight_kg' => 30]]);
+        $shipment = $this->shipment(['status' => 'quoted', 'order_id' => $order->id, 'client_id' => $order->client_id, 'job_id' => $order->job_id]);
+        $quote = $this->quote($shipment, $this->carrier('OWN-PD1-B5D'));
+        $coordinator = $this->staff('transport_operator');
+
+        app(QuoteSelectionService::class)->select($shipment, $quote, 'coordinator', $coordinator->id);
+
+        $payload = OutboxEvent::query()->where('event_name', 'shipment.quote_confirmed')->sole()->payload;
+        $this->assertSame('pickup_deliver', $payload['order_type']);
+        $this->assertFalse($payload['is_urgent']);
+        $this->assertSame([0, 2, 2], [$payload['pallet_count'], $payload['carton_count'], $payload['label_count']]);
+
+        // Past the cut-off but for a later day → not urgent either.
+        Carbon::setTestNow('2026-09-07 10:30:00');
+        $later = $this->pickupOrder($client, '2026-09-08', [['package_type' => 'pallet', 'qty' => 1, 'weight_kg' => 200]]);
+        $laterShipment = $this->shipment(['status' => 'quoted', 'order_id' => $later->id, 'client_id' => $later->client_id, 'job_id' => $later->job_id]);
+        app(QuoteSelectionService::class)->select($laterShipment, $this->quote($laterShipment, $this->carrier('OWN-PD2-B5D')), 'coordinator', $coordinator->id);
+        $this->assertFalse(OutboxEvent::query()->where('event_name', 'shipment.quote_confirmed')->where('correlation_id', $laterShipment->shipment_no)->sole()->payload['is_urgent']);
+
+        // No cut-off configured for the client → never urgent.
+        $noCutoff = $this->client(['dispatch_cutoff_time' => null]);
+        $open = $this->pickupOrder($noCutoff, '2026-09-07', [['package_type' => 'pallet', 'qty' => 1, 'weight_kg' => 200]]);
+        $openShipment = $this->shipment(['status' => 'quoted', 'order_id' => $open->id, 'client_id' => $open->client_id, 'job_id' => $open->job_id]);
+        app(QuoteSelectionService::class)->select($openShipment, $this->quote($openShipment, $this->carrier('OWN-PD3-B5D')), 'coordinator', $coordinator->id);
+        $this->assertFalse(OutboxEvent::query()->where('event_name', 'shipment.quote_confirmed')->where('correlation_id', $openShipment->shipment_no)->sole()->payload['is_urgent']);
+    }
+
+    /**
+     * CHANGE_REQUESTS #120 review: the automatic final confirmation (client's 估价 choice within tolerance, `system` actor, run by the
+     * `order.confirmed` outbox consumer) is dated the order's confirmation moment, not the moment the outbox row happens to be processed.
+     * Confirmed at 09:58 (before the 10:00 cut-off) but processed at 10:01 → NOT urgent, `confirmed_at` = 09:58. Without a triggering
+     * moment the same path falls back to now() and is urgent — the drift the fix removes.
+     */
+    public function test_automatic_pickup_deliver_confirmation_judges_urgency_at_the_order_confirmation_moment(): void
+    {
+        Carbon::setTestNow('2026-09-07 09:58:00'); // the client / CS confirmed the order before the 10:00 cut-off
+        $client = $this->client(['dispatch_cutoff_time' => '10:00:00']);
+        $carrier = $this->carrier('OWN-AUTO-PD-B5D');
+        $this->carrierService($carrier, 'own_fleet', 'standard');
+        $order = $this->pickupOrder($client, '2026-09-07', [['package_type' => 'carton', 'qty' => 2, 'weight_kg' => 30]]);
+        $this->chooseOwnFleet($order, $carrier);
+        $confirmedAt = now()->toIso8601String();
+
+        Carbon::setTestNow('2026-09-07 10:01:00'); // queue:work / outbox:dispatch delivers order.confirmed after the cut-off
+        $intake = new ShipmentIntakeService($this->finalQuoteService(null, 10000, 10), app(ShipmentProgressService::class));
+        $shipment = $intake->fromConfirmedOrder($this->confirmedEnvelope($order, $confirmedAt));
+
+        $this->assertSame('quote_confirmed', $shipment->status);
+        $payload = OutboxEvent::query()->where('event_name', 'shipment.quote_confirmed')->where('correlation_id', $shipment->shipment_no)->sole()->payload;
+        $this->assertSame('system', $payload['confirmed_by_type']);
+        $this->assertSame('pickup_deliver', $payload['order_type']);
+        $this->assertFalse($payload['is_urgent'], 'Urgency follows the order confirmation moment (09:58), not the outbox processing time (10:01).');
+        $this->assertSame($confirmedAt, $payload['confirmed_at']);
+
+        // Control: the same automatic path with no triggering moment in the envelope falls back to now() (10:01) and is urgent.
+        $late = $this->pickupOrder($client, '2026-09-07', [['package_type' => 'carton', 'qty' => 1, 'weight_kg' => 30]]);
+        $this->chooseOwnFleet($late, $carrier);
+        $lateIntake = new ShipmentIntakeService($this->finalQuoteService(null, 10000, 10), app(ShipmentProgressService::class));
+        $lateShipment = $lateIntake->fromConfirmedOrder($this->confirmedEnvelope($late, null));
+
+        $latePayload = OutboxEvent::query()->where('event_name', 'shipment.quote_confirmed')->where('correlation_id', $lateShipment->shipment_no)->sole()->payload;
+        $this->assertSame('system', $latePayload['confirmed_by_type']);
+        $this->assertTrue($latePayload['is_urgent']);
+        $this->assertSame(now()->toIso8601String(), $latePayload['confirmed_at']);
+    }
+
+    /** The client's 估价 choice (CHANGE_REQUESTS #118) on the order row, as Orders leaves it — the reference the final stage confirms against. */
+    private function chooseOwnFleet(Order $order, Carrier $carrier): void
+    {
+        DB::table('orders')->where('id', $order->id)->update(['transport_preference' => json_encode([
+            'source' => 'own_fleet', 'service_level' => 'standard', 'carrier_id' => $carrier->id, 'customer_price_cents' => 10000,
+        ])]);
+    }
+
+    /** @return array<string, mixed> the order.confirmed envelope per contracts/events.md (only the keys Transport reads). */
+    private function confirmedEnvelope(Order $order, ?string $confirmedAt): array
+    {
+        return [
+            'event_id' => (string) str()->uuid(), 'event_name' => 'order.confirmed', 'event_version' => 1,
+            'correlation_id' => $order->order_no, 'job_id' => $order->job_id, 'client_id' => $order->client_id, 'occurred_at' => $confirmedAt,
+            'payload' => [
+                'order_id' => $order->id, 'order_no' => $order->order_no, 'order_type' => 'pickup_deliver', 'client_id' => $order->client_id,
+                'job_id' => $order->job_id, 'service_level' => 'standard', 'tailgate_required' => false, 'confirmed_at' => $confirmedAt,
+            ],
+        ];
+    }
+
+    /**
+     * A 提货直送 order with the client's declared packages (CR #120): no goods lines, its own transport_only Job.
+     *
+     * @param  list<array<string, mixed>>  $declaredPackages
+     */
+    private function pickupOrder(Client $client, string $requestedDate, array $declaredPackages): Order
+    {
+        $this->actingAs($this->staff('customer_service'));
+
+        return app(OrderCreationService::class)->create([
+            'client_id' => $client->id, 'order_type' => 'pickup_deliver', 'external_ref' => 'PD-'.str()->upper(str()->random(6)),
+            'pickup_address' => ['name' => 'Factory', 'phone' => '0400000000', 'address' => '9 Supplier Rd', 'suburb' => 'Laverton', 'state' => 'VIC', 'postcode' => '3028'],
+            'deliver_to_name' => 'Receiver', 'deliver_to_address' => '2 End St', 'deliver_to_suburb' => 'Sydney', 'deliver_to_state' => 'NSW', 'deliver_to_postcode' => '2000',
+            'deliver_to_address_type' => 'business', 'requested_date' => $requestedDate, 'service_level' => 'standard',
+            'declared_packages' => $declaredPackages,
+        ], null, 'manual');
+    }
+
+    private function finalQuoteService(?Shipment $shipment, int $price, float $tolerance): TransportOptionService
     {
         $factory = Mockery::mock(ShipmentQuoteRequestFactory::class);
         $factory->shouldReceive('build')->once()->andReturn($this->request());
