@@ -3,10 +3,12 @@
 @section('title', __('portal.asns.title'))
 
 @section('content')
-    <header>
+    <header class="grid">
         <h1>{{ __('portal.asns.title') }}</h1>
-        <p class="text-muted"><small>{{ __('portal.asns.hint') }}</small></p>
+        {{-- CHANGE_REQUESTS #123: the client submits its 入库清单 here; the list becomes its orders and customer service builds the ASN. --}}
+        <p style="text-align:right"><a role="button" href="{{ route('portal.asns.imports.create') }}">{{ __('portal.inbound.upload_button') }}</a> <a role="button" class="secondary" href="{{ route('portal.asns.imports.index') }}">{{ __('portal.inbound.list_title') }}</a></p>
     </header>
+    <p class="text-muted"><small>{{ __('portal.asns.hint') }}</small></p>
 
     <form method="get">
         <div class="grid">

@@ -162,7 +162,7 @@ Currency `AUD`, money as integer cents (`app/Support/Money`); timezone `Australi
 | `clients.status` | `pending` \| `active` \| `inactive` (`pending` = self-registered at `/register`, waiting for staff approval — tester feedback #8, CHANGE_REQUESTS #89; `Enums::CLIENT_STATUSES`) |
 | `suppliers.status`, `carriers.status` | `active` \| `inactive` (`Enums::MASTER_STATUSES`) |
 | `order_events.actor_type` | `user` \| `system` |
-| `order_imports.source` | `excel` \| `pdf` |
+| `order_imports.source` | `excel` \| `pdf` \| `portal` (the client's own 入库清单 upload in the portal — CHANGE_REQUESTS #123; its orders are created with `orders.source = portal`) |
 | `order_imports.status`, `asn_imports.status` | `pending` \| `imported` \| `failed` |
 | `waves.status` | `planned` \| `released` \| `completed` \| `cancelled` |
 | `stocktakes.status` | `open` \| `counted` \| `adjusted` \| `cancelled` |

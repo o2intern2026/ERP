@@ -103,14 +103,14 @@ final class OrderImportController extends Controller
                 continue;
             }
             foreach ($group['row_numbers'] as $row) {
-                $rows[] = ['row' => $row, 'column' => 'consignment_mark', 'message' => $group['message']];
+                $rows[] = ['row' => $row, 'column' => 'consignment_mark', 'label' => __('orders.imports.columns.consignment_mark'), 'message' => $group['message']];
             }
         }
 
         $handle = fopen('php://temp', 'w+');
-        fputcsv($handle, [__('orders.imports.csv.row'), __('orders.imports.csv.column'), __('orders.imports.csv.message')]);
+        fputcsv($handle, [__('orders.imports.csv.row'), __('orders.imports.csv.column'), __('orders.imports.csv.message')], ',', '"', '');
         foreach ($rows as $row) {
-            fputcsv($handle, [$row['row'], $row['column'], $row['message']]);
+            fputcsv($handle, [$row['row'], $row['label'] ?? $row['column'], $row['message']], ',', '"', ''); // the column as the person sees it (CR #123)
         }
         rewind($handle);
         $csv = stream_get_contents($handle);
