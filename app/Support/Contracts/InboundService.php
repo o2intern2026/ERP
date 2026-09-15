@@ -27,4 +27,17 @@ interface InboundService
      * @return array{asn_id:int, asn_no:string, lines:list<array{order_line_id:int, asn_line_id:int}>}
      */
     public function addOrderLinesToAsn(int $asnId, array $lines): array;
+
+    /**
+     * 到仓方式 = 我方上门提货 on an ASN another module has just opened (CHANGE_REQUESTS #125: 待建预报 generates the ASN for a client's
+     * portal collection request). Same rules and event as the ASN page (AsnService::setCollection, #124): row-locked, refused with a
+     * RuleViolation (`warehouse.asns.collection.errors.*`) when the pickup address is incomplete, the ready date is past, nothing
+     * can be priced (no packages and no goods line with weight + dims) or the warehouse has no address; publishes
+     * `asn.collection_requested` in the caller's transaction. `client_preference` is whitelisted to the customer snapshot keys
+     * (never cost / markup); when the key is absent the stored preference is kept.
+     *
+     * @param  array{address:array{name?:?string, phone?:?string, address:string, suburb:string, state:string, postcode:string, type?:?string}, ready_date:string, notes?:?string, packages?:list<array<string, mixed>>, client_preference?:?array<string, mixed>, requested_via?:?string, import_id?:?int}  $data
+     * @return array{asn_id:int, collection_version:int}
+     */
+    public function requestCollection(int $asnId, array $data, ?int $actorId): array;
 }

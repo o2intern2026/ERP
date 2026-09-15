@@ -24,6 +24,8 @@ class Asn extends Model
         // 到仓方式 (CHANGE_REQUESTS #124): the collection request and what Transport reported back about its shipment.
         'inbound_transport', 'collection_address', 'collection_ready_date', 'collection_packages', 'collection_notes', 'collection_requested_at',
         'collection_requested_by', 'collection_version', 'collection_shipment_id', 'collection_status', 'collection_plan',
+        // CHANGE_REQUESTS #125: the plan the client ticked in the portal (customer fields only), who asked (client | staff), the portal import.
+        'collection_preference', 'collection_requested_via', 'collection_import_id',
     ];
 
     /** collection_status values after which the request is Transport's: edits and 改为客户自送 go through the dispatcher (#124). */
@@ -45,6 +47,8 @@ class Asn extends Model
             'collection_packages' => 'array',
             'collection_requested_at' => 'datetime',
             'collection_plan' => 'array',
+            'collection_preference' => 'array',
+            'collection_import_id' => 'integer',
         ];
     }
 

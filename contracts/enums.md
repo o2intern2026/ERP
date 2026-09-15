@@ -96,6 +96,7 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 | `asns.status` | `booked` → `arrived` → `receiving` → `putaway` → `closed` — **terminology (lead decision 2026-09-08, #92): ASN = 预报单 (ASN) in every UI string; 入库单 is reserved for `goods_receipts`** |
 | `asns.inbound_transport` | `client_delivers` (default — the client brings the goods) \| `we_collect` (我方上门提货: Transport collects at the pickup address and delivers to our warehouse; CHANGE_REQUESTS #124) — `Enums::ASN_INBOUND_TRANSPORTS` |
 | `asns.collection_status` | `requested` → `confirmed` → `booked` → `delivered` (= the ASN is `arrived`) ; `failed` — display only, driven by Transport's `shipment.quote_confirmed` / `shipment.booked` / `delivery.pod_captured` / `delivery.failed` with `asn_id`; `quoted` and `collected` are reserved values no event sets in v1 (#124) — `Enums::ASN_COLLECTION_STATUSES`. Edits / 改为客户自送 from the ASN page only before `booked` |
+| `asns.collection_requested_via` | `client` (the client asked in the portal 入库清单 and customer service generated the ASN in 待建预报 — the ASN carries its `collection_preference` and `collection_import_id`) \| `staff` (the ASN page, or 待建预报 without a portal import); null while 客户自送 — `Enums::ASN_COLLECTION_REQUESTED_VIA` (CHANGE_REQUESTS #125) |
 | `goods_receipts.status` | `open` (lines are being received) → `completed` (入库完成: totals snapshotted, PDF filed) — one batch per delivery, `receipt_no = {asn_no}-R{batch_no}` (#90) |
 | `asns.created_by_type` | `client` \| `coordinator` |
 | `containers.size` | `20` \| `40` |

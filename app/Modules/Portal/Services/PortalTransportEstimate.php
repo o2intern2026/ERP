@@ -3,7 +3,9 @@
 namespace App\Modules\Portal\Services;
 
 use App\Modules\Orders\Models\Order;
+use App\Modules\Orders\Services\OrderInboundService;
 use App\Modules\Transport\Services\ShipmentQuoteRequestFactory;
+use App\Modules\Transport\Support\CollectionTailgate;
 use App\Support\Contracts\TransportOptionService;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -13,11 +15,14 @@ use Illuminate\Support\Facades\DB;
  * carrier request Transport would build for the order (warehouse → consignee, parcels from the declared cartons) and asks
  * TransportOptionService::estimate() — customer prices and flags only, nothing written. The option the client ticks is stored on
  * the order as `transport_preference`; Transport selects / confirms that option later on its own.
+ *
+ * CHANGE_REQUESTS #125: collectionOptions() does the same for a portal 入库清单 with 需要我们上门提货 — the plans for collecting the
+ * goods at the client's pickup address and bringing them to our warehouse, before any ASN exists.
  */
 final class PortalTransportEstimate
 {
-    /** Snapshot fields kept on the order — customer-facing only, never cost or markup. */
-    private const SNAPSHOT = ['carrier_id', 'carrier_name', 'source', 'service_level', 'customer_price_cents', 'eta_days', 'is_recommended', 'is_cheapest', 'is_fastest'];
+    /** Snapshot fields kept on the order / the collection request — customer-facing only, never cost or markup. */
+    public const SNAPSHOT = ['carrier_id', 'carrier_name', 'source', 'service_level', 'customer_price_cents', 'eta_days', 'is_recommended', 'is_cheapest', 'is_fastest'];
 
     public function __construct(private readonly TransportOptionService $transport) {}
 
@@ -41,17 +46,95 @@ final class PortalTransportEstimate
     {
         foreach ($this->options($clientId, $order)['options'] as $option) {
             if ($option['key'] === $key) {
-                return Arr::only($option, self::SNAPSHOT) + ['chosen_at' => now()->toIso8601String(), 'chosen_by' => $userId];
+                return self::snapshot($option, $userId);
             }
         }
 
         return null;
     }
 
+    /**
+     * CHANGE_REQUESTS #125: the collection plans for a portal 入库清单 whose client asked us to collect. The carrier request is built by
+     * the SAME code Transport's ShipmentQuoteRequestFactory::buildCollection uses for the ASN customer service will generate from these
+     * rows (collectionSender / collectionRequest): sender = the pickup address, receiver = the chosen warehouse, parcels = the rows as the
+     * ASN goods lines they become (cartons, line weight, dims, description), zone = the pickup postcode, tailgate at pickup by
+     * CollectionTailgate — only `description` differs ('estimate' instead of the shipment number). Customer prices and flags only,
+     * nothing written.
+     *
+     * @param  array<string, mixed>  $collection  errors.context.inbound.collection {warehouse_id, address, ready_date, notes}
+     * @param  list<array<string, mixed>>  $rows  the parser rows of the ready groups (carton_qty, actual_weight_kg = line total, dims, row)
+     * @return array{options: list<array<string, mixed>>, reason: ?string, packages: list<array<string, mixed>>, unpriced_rows: list<int>} reason: no_address | no_items | none | null
+     */
+    public function collectionOptions(int $clientId, array $collection, array $rows): array
+    {
+        $packages = [];
+        $unpriced = [];
+        $lines = [];
+        foreach ($rows as $row) {
+            $qty = max(0, (int) ($row['carton_qty'] ?? 0));
+            $total = is_numeric($row['actual_weight_kg'] ?? null) ? (float) $row['actual_weight_kg'] : null;
+            $dims = ['length_mm' => $this->mm($row['length_mm'] ?? null), 'width_mm' => $this->mm($row['width_mm'] ?? null), 'height_mm' => $this->mm($row['height_mm'] ?? null)];
+            $packages[] = ['row' => (int) ($row['row'] ?? 0), 'package_type' => (string) (($row['package_type'] ?? null) ?: 'carton'), 'qty' => $qty,
+                'weight_kg' => $total === null || $qty < 1 ? null : round($total / $qty, 3)] + $dims;
+            if ($total === null || $total <= 0 || in_array(null, $dims, true) || min($dims) <= 0) {
+                $unpriced[] = (int) ($row['row'] ?? 0);
+            }
+            // The ASN goods line this row becomes (order line → OrderInboundService::linePayload → asn_lines) in the shape collectionItems() reads.
+            $lines[] = ['carton_qty' => $qty, 'actual_weight_kg' => $total] + $dims + [
+                'description_en' => OrderInboundService::asnLineDescription($row['description_cn'] ?? null, $row['description_en'] ?? null),
+                'package_type' => $row['package_type'] ?? null,
+            ];
+        }
+        $result = ['options' => [], 'reason' => null, 'packages' => $packages, 'unpriced_rows' => array_values(array_unique($unpriced))];
+
+        $address = (array) ($collection['address'] ?? []);
+        $sender = ShipmentQuoteRequestFactory::collectionSender($address);
+        $warehouse = filled($collection['warehouse_id'] ?? null) ? DB::table('warehouses')->where('id', (int) $collection['warehouse_id'])->first() : null;
+        $receiver = $warehouse === null ? null : ShipmentQuoteRequestFactory::partyForWarehouse($warehouse);
+        if ($receiver === null || ! ShipmentQuoteRequestFactory::completeParty($sender)) {
+            return ['reason' => 'no_address'] + $result;
+        }
+
+        $items = ShipmentQuoteRequestFactory::itemsFromLines($lines);
+        if ($items === []) {
+            return ['reason' => 'no_items'] + $result;
+        }
+        // Same pieces Warehouse hands Transport when no packages are declared (AsnService::collectionLines: cartons + weight + all dims).
+        $priceable = array_values(array_filter($lines, fn (array $l): bool => $l['carton_qty'] > 0 && (float) $l['actual_weight_kg'] > 0
+            && (int) $l['length_mm'] > 0 && (int) $l['width_mm'] > 0 && (int) $l['height_mm'] > 0));
+        $tailgate = CollectionTailgate::required($clientId, [], array_map(fn (array $l): array => ['weight_kg' => (float) $l['actual_weight_kg'], 'expected_cartons' => $l['carton_qty']], $priceable));
+
+        $readyDate = filled($collection['ready_date'] ?? null) ? (string) $collection['ready_date'] : null;
+        $request = ShipmentQuoteRequestFactory::collectionRequest($clientId, $sender, $receiver, $items, $tailgate, $readyDate, 'estimate');
+        $options = $request === null ? [] : array_map(fn (array $o): array => $o + ['key' => self::key($o)], $this->transport->estimate($clientId, $request));
+
+        return ['options' => $options, 'reason' => $options === [] ? 'none' : null] + $result;
+    }
+
+    /**
+     * The snapshot kept of an option the client ticked: SNAPSHOT keys only (never cost / markup), who and when.
+     *
+     * @param  array<string, mixed>  $option
+     * @return array<string, mixed>
+     */
+    public static function snapshot(array $option, ?int $userId): array
+    {
+        return Arr::only($option, self::SNAPSHOT) + ['chosen_at' => now()->toIso8601String(), 'chosen_by' => $userId];
+    }
+
     /** @param array<string, mixed> $option */
     public static function key(array $option): string
     {
         return $option['source'].'|'.$option['service_level'].'|'.($option['carrier_id'] ?? '');
+    }
+
+    /** The warehouse holding the client's goods (its latest ASN), else the first active warehouse. */
+    public static function defaultWarehouse(int $clientId): ?object
+    {
+        $warehouseId = DB::table('asns')->where('client_id', $clientId)->orderByDesc('id')->value('warehouse_id');
+        $warehouse = $warehouseId === null ? null : DB::table('warehouses')->where('id', $warehouseId)->first();
+
+        return $warehouse ?? DB::table('warehouses')->where('active', true)->orderBy('code')->first();
     }
 
     /** @return array<string, mixed>|string the carrier request, or the reason none can be built */
@@ -76,7 +159,7 @@ final class PortalTransportEstimate
                 return 'no_address';
             }
         } else {
-            $warehouse = $this->defaultWarehouse($clientId);
+            $warehouse = self::defaultWarehouse($clientId);
             $sender = $warehouse === null ? null : ShipmentQuoteRequestFactory::partyForWarehouse($warehouse);
             if ($sender === null) {
                 return 'no_address';
@@ -103,12 +186,8 @@ final class PortalTransportEstimate
         ];
     }
 
-    /** The warehouse holding the client's goods (its latest ASN), else the first active warehouse. */
-    private function defaultWarehouse(int $clientId): ?object
+    private function mm(mixed $value): ?int
     {
-        $warehouseId = DB::table('asns')->where('client_id', $clientId)->orderByDesc('id')->value('warehouse_id');
-        $warehouse = $warehouseId === null ? null : DB::table('warehouses')->where('id', $warehouseId)->first();
-
-        return $warehouse ?? DB::table('warehouses')->where('active', true)->orderBy('code')->first();
+        return is_numeric($value) ? (int) $value : null;
     }
 }

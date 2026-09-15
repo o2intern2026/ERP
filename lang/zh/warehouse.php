@@ -132,6 +132,7 @@ return [
         'import_orders_select_all' => '全选',
         'import_orders_container' => '导入到柜号（多柜预报单必选）',
         'import_orders_job_has_asn' => 'Job 已有预报单，不能并入',
+        'import_orders_collection_warning' => '客户申请了上门提货，导入后请在到仓方式中设置', // CHANGE_REQUESTS #125
         'orders_imported' => '已导入 :count 张订单的 :lines 行货物。',
         'manual_add_summary' => '手工添加预报货物行（例外情况：订单里没有的货物）',
         'from_orders_badge' => '由订单生成',
@@ -181,7 +182,11 @@ return [
                 'name' => '提货联系人 / 企业', 'phone' => '联系电话', 'type' => '地址类型', 'address' => '提货地址', 'suburb' => '城区', 'state' => '州', 'postcode' => '邮编',
                 'ready_date' => '可提货日期', 'notes' => '提货备注', 'packages' => '申报包裹', 'pickup' => '提货地址', 'shipment' => '运单号', 'booking_ref' => '订舱参考号',
                 'plan' => '运输方案', 'customer_price' => '客户价', 'requested' => '提交时间 / 人',
+                // CHANGE_REQUESTS #125: a collection the client requested in the portal.
+                'client_choice' => '客户选择的方案', 'chosen_at' => '选择时间', 'origin' => '来源',
             ],
+            'origins' => ['client' => '客户门户申请', 'staff' => '客服发起'],
+            'edit_client_hint' => '这是客户在门户申请并自选方案的提货：修改地址或包裹会重新报价，价格变化超出客户容差时需要客户在门户重新确认（或调度 / 客服在运单页代为确认）。',
             'package_fields' => ['package_type' => '包裹类型', 'qty' => '件数', 'weight_kg' => '单件重量 (kg)', 'length_mm' => '长 (mm)', 'width_mm' => '宽 (mm)', 'height_mm' => '高 (mm)'],
             'packages_hint' => '按件申报：类型、件数、单件重量和尺寸，运输按此报价（新建预报单时必填；已有带重量尺寸的货物行时可留空，按货物行报价）。单件 ≥ 客户尾板阈值（默认 25 kg）时提货侧自动加尾板。',
             'notes_placeholder' => '例如：提货时段、门禁、联系人要求',

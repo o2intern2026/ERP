@@ -57,6 +57,9 @@ final class Enums
     /** asns.collection_status — display only, driven by Transport's events (#124); `quoted` / `collected` are reserved (no event sets them in v1). */
     public const ASN_COLLECTION_STATUSES = ['requested', 'quoted', 'confirmed', 'booked', 'collected', 'delivered', 'failed'];
 
+    /** asns.collection_requested_via — who asked for the collection: the client in the portal (入库清单, reviewed in 待建预报) or staff (CHANGE_REQUESTS #125). */
+    public const ASN_COLLECTION_REQUESTED_VIA = ['client', 'staff'];
+
     /** Declared package types of a collection request — the list the order forms use (Orders OrderEnums::PACKAGE_TYPES, copied; #124). */
     public const COLLECTION_PACKAGE_TYPES = ['carton', 'satchel', 'pallet', 'crate', 'tube', 'flat_pack', 'skid'];
 

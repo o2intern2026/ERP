@@ -7,6 +7,7 @@ use App\Modules\Orders\Models\Order;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Models\TransportQuote;
 use App\Modules\Transport\Services\QuoteSelectionService;
+use App\Modules\Warehouse\Models\Asn;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -40,5 +41,34 @@ final class PortalQuoteController extends Controller
         }
 
         return redirect()->route('portal.orders.show', $order)->with('status', __('portal.quotes.confirmed', ['shipment_no' => $shipment->shipment_no]));
+    }
+
+    /**
+     * CHANGE_REQUESTS #125: the client re-confirms the plan of its own collection when the final price moved beyond the tolerance of the
+     * plan it ticked in the portal. The ASN resolves through the client-scoped model and the quote must be a final quote of that ASN's
+     * inbound collection shipment of this client — anything else is a 404. Only a collection the client requested with a plan it ticked
+     * (the same condition the 预报入库 page uses to offer the table): a collection customer service requested, or one without the client's
+     * plan, is confirmed by the dispatcher / customer service on the shipment page (#124) — a hand-made POST is a 404 too.
+     * Transport's QuoteSelectionService does the rest.
+     */
+    public function confirmCollection(Request $request, int $asn, int $quote, QuoteSelectionService $selection): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user?->isClientUser() && $user->client_id !== null, 403, __('portal.messages.client_only'));
+        $asn = Asn::query()->findOrFail($asn);
+        abort_unless($asn->collection_requested_via === 'client' && is_array($asn->collection_preference) && filled($asn->collection_preference['source'] ?? null), 404);
+
+        $quote = TransportQuote::query()->whereKey($quote)->where('quote_stage', 'final')
+            ->whereHas('shipment', fn ($q) => $q->where('asn_id', $asn->id)->where('shipment_type', 'inbound_collection')->where('client_id', $user->client_id))
+            ->firstOrFail();
+        $shipment = Shipment::query()->where('asn_id', $asn->id)->where('shipment_type', 'inbound_collection')->findOrFail($quote->shipment_id);
+
+        try {
+            $selection->select($shipment, $quote, 'client', $user->id);
+        } catch (DomainException $e) {
+            return back()->withErrors(['quote' => $e->getMessage()]);
+        }
+
+        return redirect()->route('portal.asns.show', $asn)->withFragment('collection')->with('status', __('portal.asns.collection.confirmed', ['no' => $asn->asn_no]));
     }
 }

@@ -46,4 +46,6 @@ Route::prefix('portal')->name('portal.')->group(function () {
     // CHANGE_REQUESTS #117 预报入库, read-only: the ASNs staff opened for the client's goods (progress, lines, 入库单 PDFs). Clients do not create ASNs.
     Route::get('/asns', [PortalAsnController::class, 'index'])->name('asns.index');
     Route::get('/asns/{asn}', [PortalAsnController::class, 'show'])->whereNumber('asn')->name('asns.show');
+    // CHANGE_REQUESTS #125: the client re-confirms the plan of its own collection when the final price moved beyond its tolerance.
+    Route::post('/asns/{asn}/collection/quotes/{quote}/confirm', [PortalQuoteController::class, 'confirmCollection'])->whereNumber('asn')->whereNumber('quote')->name('asns.collection.quotes.confirm');
 });
