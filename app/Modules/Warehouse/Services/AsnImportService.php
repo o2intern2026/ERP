@@ -54,6 +54,8 @@ final class AsnImportService
                 'width_mm' => $row['width_mm'],
                 'height_mm' => $row['height_mm'],
                 'cbm' => $row['cbm'],
+                'storage_tier' => $row['storage_tier'] ?? 'standard', // CHANGE_REQUESTS #126: the manifest's 存储等级, declared by staff
+                'storage_tier_source' => ! empty($row['storage_tier_declared']) ? 'staff' : null,
             ], $parsed['rows']);
 
             $this->asns->addLines($asn, $lines);

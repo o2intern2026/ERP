@@ -34,6 +34,8 @@ final class SnapshotService
                     'pallet_source' => $u->pallet_source,
                     'location_id' => $u->location_id,
                     'location_type' => $u->location?->type,
+                    'location_storage_tier' => $u->location?->storage_tier, // CHANGE_REQUESTS #126: the weekly bottom surcharge reads both tiers
+                    'required_storage_tier' => $u->required_storage_tier,
                     'condition' => $u->condition,
                     'qty_on_hand' => $u->qty_on_hand,
                     'qty_reserved' => $u->qty_reserved,
@@ -70,6 +72,9 @@ final class SnapshotService
                     'cartons' => (int) $rows->sum('qty_on_hand'),
                     'pickface_slots' => $rows->where('location_type', 'pickface')->pluck('location_id')->unique()->count(),
                     'damaged_units' => $rows->where('condition', '!=', 'good')->count(),
+                    // #126: pallets in a bottom-level storage location, and pallets declared bottom that are not in one.
+                    'bottom_pallets' => $pallets->where('location_type', 'storage')->where('location_storage_tier', 'bottom')->count(),
+                    'declared_bottom_elsewhere' => $pallets->where('required_storage_tier', 'bottom')->filter(fn ($s) => ! ($s->location_type === 'storage' && $s->location_storage_tier === 'bottom'))->count(),
                 ];
             })->values();
     }

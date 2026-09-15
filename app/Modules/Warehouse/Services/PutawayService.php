@@ -19,9 +19,14 @@ final class PutawayService
 {
     public function __construct(private readonly StockLedger $ledger, private readonly OutboxPublisher $outbox) {}
 
-    public function putaway(StockUnit $unit, Location $location): StockUnit
+    /**
+     * CHANGE_REQUESTS #126 (lead answers 2, 3, 8): a GOOD PALLET declared `bottom` going into a `storage` location that is not bottom is
+     * refused unless a reason is given (stored on the unit). A standard pallet into a bottom location is allowed (the page warns).
+     * Cartons, pickface and quarantine have no tier rule; MoveService has none either.
+     */
+    public function putaway(StockUnit $unit, Location $location, ?string $reason = null): StockUnit
     {
-        return DB::transaction(function () use ($unit, $location): StockUnit {
+        return DB::transaction(function () use ($unit, $location, $reason): StockUnit {
             $asn = $unit->asnLine->asn;
             if ($asn->unplanned && ! $asn->unplanned_confirmed) {
                 throw new RuleViolation('Unplanned arrivals must be confirmed by a coordinator before putaway.', 'warehouse.putaway.errors.unplanned_unconfirmed');
@@ -33,13 +38,35 @@ final class PutawayService
                 throw new RuleViolation('Damaged / quarantined stock must be put away into a quarantine location.', 'warehouse.putaway.errors.held_needs_quarantine');
             }
 
+            $override = [];
+            if (self::tierMismatch($unit, $location)) {
+                if (! filled($reason)) {
+                    throw new RuleViolation("{$unit->label_code} is declared bottom-level; {$location->full_code} is not a bottom-level location.", 'warehouse.putaway.errors.tier_mismatch', ['label' => $unit->label_code, 'code' => $location->full_code]);
+                }
+                $override = ['storage_tier_override_reason' => mb_substr(trim((string) $reason), 0, 255)];
+            }
+
             $this->ledger->record($unit, 'putaway', 0, ['from_location_id' => $unit->location_id, 'to_location_id' => $location->id, 'source_type' => 'asn', 'source_id' => $asn->id]);
-            $unit->update(['putaway_completed' => true, 'pallet_class' => $location->type === 'pickface' ? 'pickface' : $unit->pallet_class]);
+            $unit->update(['putaway_completed' => true, 'pallet_class' => $location->type === 'pickface' ? 'pickface' : $unit->pallet_class] + $override);
 
             $this->completeIfDone($asn->fresh());
 
             return $unit->fresh();
         });
+    }
+
+    /** #126: a good pallet declared bottom, going into a storage location that is not bottom. */
+    public static function tierMismatch(StockUnit $unit, Location $location): bool
+    {
+        return $unit->unit_type === 'pallet' && $unit->condition === 'good' && $location->type === 'storage'
+            && $unit->required_storage_tier === 'bottom' && $location->storage_tier !== 'bottom';
+    }
+
+    /** #126: a standard good pallet going into a bottom-level storage location — allowed, the putaway page warns. */
+    public static function standardIntoBottom(StockUnit $unit, Location $location): bool
+    {
+        return $unit->unit_type === 'pallet' && $unit->condition === 'good' && $location->type === 'storage'
+            && $unit->required_storage_tier !== 'bottom' && $location->storage_tier === 'bottom';
     }
 
     private function completeIfDone(Asn $asn): void

@@ -346,11 +346,26 @@ class AsnController extends Controller
             'width_mm' => ['nullable', 'integer', 'min:0'],
             'height_mm' => ['nullable', 'integer', 'min:0'],
             'cbm' => ['nullable', 'numeric', 'min:0'],
+            'storage_tier' => ['nullable', Rule::in(Enums::STORAGE_TIERS)], // CHANGE_REQUESTS #126
         ]);
+        if (filled($data['storage_tier'] ?? null)) {
+            $data['storage_tier_source'] = 'staff';
+        }
 
         $asns->addLines($asn, [$data]);
 
         return redirect()->route('warehouse.asns.show', $asn)->with('status', __('warehouse.asns.line_added'));
+    }
+
+    /** 存储等级 of one goods line (CHANGE_REQUESTS #126): staff only — the line's existing stock units follow. */
+    public function updateStorageTier(Request $request, Asn $asn, AsnLine $line, AsnService $asns): RedirectResponse
+    {
+        abort_unless($line->asn_id === $asn->id, 404);
+        $data = $request->validate(['storage_tier' => ['required', Rule::in(Enums::STORAGE_TIERS)]]);
+
+        $asns->setLineStorageTier($line, $data['storage_tier']);
+
+        return redirect()->to(route('warehouse.asns.show', $asn).'#lines')->with('status', __('warehouse.line_tier.updated', ['line' => $line->id, 'tier' => __('warehouse.storage_tiers.'.$data['storage_tier'])]));
     }
 
     /** 编辑收件信息 (CHANGE_REQUESTS #115): the consignee fields 从预报单生成派送订单 needs, one goods line at a time (optionally copied to its mark). */

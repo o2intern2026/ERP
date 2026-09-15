@@ -284,6 +284,8 @@ final class OrderInboundService
                     'width_mm' => $line->width_mm,
                     'height_mm' => $line->height_mm,
                     'cbm' => $line->cbm,
+                    'storage_tier' => $line->storage_tier ?? 'standard', // CHANGE_REQUESTS #126: the declared tier travels to the ASN line
+                    'storage_tier_source' => $line->storage_tier_source,
                 ];
             }
         }

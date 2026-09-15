@@ -56,6 +56,7 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/asns/{asn}/lines', [AsnController::class, 'storeLine'])->name('asns.lines.store');
         Route::get('/asns/{asn}/lines/{line}/delivery', [AsnController::class, 'editDelivery'])->name('asns.lines.delivery.edit'); // 编辑收件信息: what 从预报单生成派送订单 needs per line (CHANGE_REQUESTS #115)
         Route::post('/asns/{asn}/lines/{line}/delivery', [AsnController::class, 'updateDelivery'])->name('asns.lines.delivery.update');
+        Route::patch('/asns/{asn}/lines/{line}/storage-tier', [AsnController::class, 'updateStorageTier'])->middleware('role:admin|customer_service|warehouse_supervisor')->name('asns.lines.storage_tier.update')->whereNumber('asn')->whereNumber('line'); // 存储等级 (CHANGE_REQUESTS #126)
         Route::post('/asns/{asn}/import', [AsnController::class, 'import'])->name('asns.import');
         Route::post('/asns/{asn}/import-orders', [AsnController::class, 'importOrders'])->middleware('role:admin|customer_service|warehouse_supervisor')->name('asns.import_orders'); // 从订单导入货物行 — the client's pending orders become goods lines (CHANGE_REQUESTS #119)
         // 到仓方式 我方上门提货 (CHANGE_REQUESTS #124): request / re-request the collection, or back to 客户自送 while Transport has not booked it.
@@ -96,6 +97,7 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/tasks/{task}/complete', [TaskController::class, 'complete'])->name('tasks.complete');
         Route::post('/tasks/{task}/cancel', [TaskController::class, 'cancel'])->name('tasks.cancel'); // hand-made records only (tester feedback #6)
         Route::post('/config/locations', [LocationController::class, 'store'])->name('locations.store');
+        Route::post('/config/locations/bulk', [LocationController::class, 'bulk'])->middleware('role:admin|warehouse_supervisor')->name('locations.bulk'); // 批量设置层位 / 存储等级 (CHANGE_REQUESTS #126)
         Route::post('/config/warehouses', [WarehouseController::class, 'store'])->name('warehouses.store');
         Route::get('/stocktakes/create', [StocktakeController::class, 'create'])->name('stocktakes.create');
         Route::post('/stocktakes', [StocktakeController::class, 'store'])->name('stocktakes.store');

@@ -45,10 +45,11 @@ final class PortalStockController extends Controller
                 ->orWhere('l.fba_reference', 'like', "%{$q}%")))
             ->when(($filters['condition'] ?? null) === 'good', fn ($query) => $query->where('u.condition', 'good'))
             ->when(($filters['condition'] ?? null) === 'abnormal', fn ($query) => $query->whereIn('u.condition', ['quarantine', 'damaged']))
-            ->groupBy('l.id', 'l.consignment_mark', 'l.description', 'l.fba_reference', 'a.asn_no', 'loc.type', 'u.condition', 'u.putaway_completed')
+            ->groupBy('l.id', 'l.consignment_mark', 'l.description', 'l.fba_reference', 'l.storage_tier', 'a.asn_no', 'loc.type', 'u.condition', 'u.putaway_completed')
             ->orderBy('l.consignment_mark')->orderBy('l.id')->orderBy('loc.type')->orderBy('u.condition')
             ->get([
-                'l.id as asn_line_id', 'l.consignment_mark', 'l.description', 'l.fba_reference', 'a.asn_no', 'loc.type as location_type', 'u.condition', 'u.putaway_completed',
+                // l.storage_tier = the tier the client declared for the goods (CHANGE_REQUESTS #126) — never a location code or a price.
+                'l.id as asn_line_id', 'l.consignment_mark', 'l.description', 'l.fba_reference', 'l.storage_tier', 'a.asn_no', 'loc.type as location_type', 'u.condition', 'u.putaway_completed',
                 DB::raw('count(*) as units'),
                 DB::raw("sum(case when u.unit_type = 'pallet' then 1 else 0 end) as pallets"),
                 DB::raw('coalesce(sum(u.qty_on_hand), 0) as qty_on_hand'),

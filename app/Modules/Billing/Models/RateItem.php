@@ -15,6 +15,7 @@ class RateItem extends Model
     protected $fillable = [
         'rate_card_id', 'charge_code_id', 'pallet_class', 'threshold_json', 'weight_band_min', 'weight_band_max', 'zone',
         'pricing_mode', 'carrier_id', 'service_level', 'markup_percent', 'rate_cents', 'min_charge_cents', 'is_poa', 'notes',
+        'warehouse_id', // null = every warehouse (CHANGE_REQUESTS #126)
     ];
 
     protected function casts(): array
@@ -25,7 +26,7 @@ class RateItem extends Model
     /** §2.5 #4: who changed which rate of which card, when. */
     public function getActivitylogOptions(): LogOptions
     {
-        return LogOptions::defaults()->logOnly(['rate_card_id', 'charge_code_id', 'pricing_mode', 'rate_cents', 'min_charge_cents', 'markup_percent', 'is_poa', 'threshold_json', 'weight_band_min', 'weight_band_max', 'zone', 'notes'])
+        return LogOptions::defaults()->logOnly(['rate_card_id', 'charge_code_id', 'pricing_mode', 'rate_cents', 'min_charge_cents', 'markup_percent', 'is_poa', 'threshold_json', 'weight_band_min', 'weight_band_max', 'zone', 'notes', 'warehouse_id'])
             ->logOnlyDirty()->dontSubmitEmptyLogs()->useLogName('rate_card');
     }
 

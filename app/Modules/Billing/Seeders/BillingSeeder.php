@@ -64,6 +64,16 @@ class BillingSeeder extends Seeder
         'WH-STORAGE-CTN-WK' => ['storage', 'carton_week', 'Storage – loose carton', 'if the client card bills per carton'],
         'WH-STORAGE-CBM-WK' => ['storage', 'cbm_week', 'Storage – loose cartons by volume', 'if the client card bills per CBM'],
         'WH-STORAGE-QUARANTINE-PLT-WK' => ['storage', 'pallet_week', 'Storage – quarantined / damaged pallet', 'still charged, separate code (§4.8)'],
+        'WH-STORAGE-TIER-PLT-WK' => ['storage', 'pallet_week', 'Storage – bottom-level location surcharge', 'percent of the pallet’s weekly storage charge; declared bottom AND in a bottom-level location (CHANGE_REQUESTS #126)'],
+    ];
+
+    /**
+     * CHANGE_REQUESTS #126: the bottom-level surcharge line of the standard card — 10 % of the pallet's base storage charge, every
+     * warehouse, band 10–20 % (lead answer 7). Finance adds per-warehouse rows (MEL / SYD) in a new card version.
+     */
+    public const TIER_ITEM = [
+        'pricing_mode' => 'percent', 'markup_percent' => 10.00, 'warehouse_id' => null, 'rate_cents' => null, 'is_poa' => false,
+        'threshold_json' => ['min_percent' => 10, 'max_percent' => 20], 'notes' => 'Bottom-level location surcharge (CR #126)',
     ];
 
     /**
@@ -124,6 +134,7 @@ class BillingSeeder extends Seeder
         ['WH-STORAGE-CTN-WK', 'snapshot.weekly', ['unit_type' => 'carton', 'condition' => 'good'], 'cartons', 'unit:{stock_unit_id}:week:{week}'],
         ['WH-STORAGE-CBM-WK', 'snapshot.weekly', ['unit_type' => 'carton', 'condition' => 'good'], 'cbm', 'unit:{stock_unit_id}:week:{week}'],
         ['WH-STORAGE-QUARANTINE-PLT-WK', 'snapshot.weekly', ['unit_type' => 'pallet', 'condition' => ['quarantine', 'damaged']], 'weeks', 'unit:{stock_unit_id}:week:{week}'],
+        ['WH-STORAGE-TIER-PLT-WK', 'snapshot.weekly', ['unit_type' => 'pallet', 'condition' => 'good', 'location_type' => 'storage', 'location_storage_tier' => 'bottom', 'required_storage_tier' => 'bottom'], 'weeks', 'unit:{stock_unit_id}:week:{week}'], // CHANGE_REQUESTS #126
         // CHANGE_REQUESTS #120 (lead 2026-09-14, 按默认): a pickup_deliver order never reaches outbound.packed — the same handling codes,
         // same rates, arise once at the final shipment.quote_confirmed from the client's DECLARED packages (lines / pallet_count /
         // label_count in that payload). A missing order_type never matches the string 'pickup_deliver', so every other event is untouched.
@@ -198,6 +209,14 @@ class BillingSeeder extends Seeder
             foreach (self::EDWARD_ITEMS as $code => [$rateCents, $extra]) {
                 RateItem::query()->create($extra + ['rate_card_id' => $card->id, 'charge_code_id' => $codes[$code], 'pricing_mode' => 'fixed', 'rate_cents' => $rateCents, 'is_poa' => $extra['is_poa'] ?? false]);
             }
+        }
+
+        // CHANGE_REQUESTS #126, re-run by hand on a live server: the surcharge line joins every standard card still in use (active + drafts)
+        // that has no line for the code yet. Versioning: this ADDS a line for a code no card priced before — no existing rate or charge
+        // snapshot changes, superseded versions stay untouched, and the next 复制为新版本 copies the line. Keyed on (card, code): a second
+        // run, or a card where Finance already priced the code (any warehouse), adds nothing.
+        foreach (RateCard::query()->where('is_standard', true)->whereIn('status', ['active', 'draft'])->get() as $standard) {
+            RateItem::query()->firstOrCreate(['rate_card_id' => $standard->id, 'charge_code_id' => $codes['WH-STORAGE-TIER-PLT-WK']], self::TIER_ITEM);
         }
 
         // Every client is bound to the standard card unless Finance unbinds it (§6.3 rate_cards.is_standard).

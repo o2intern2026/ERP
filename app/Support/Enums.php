@@ -69,6 +69,16 @@ final class Enums
 
     public const LOCATION_TYPES = ['receiving', 'storage', 'pickface', 'packing', 'staging', 'quarantine'];
 
+    /**
+     * locations.storage_tier / asn_lines.storage_tier / order_lines.storage_tier / stock_units.required_storage_tier (CHANGE_REQUESTS #126):
+     * `bottom` = the bottom rack level (expensive goods, surcharge WH-STORAGE-TIER-PLT-WK). Two tiers in v1; locations.rack_level keeps the
+     * physical level so a middle tier can be added later.
+     */
+    public const STORAGE_TIERS = ['standard', 'bottom'];
+
+    /** order_lines / asn_lines.storage_tier_source — who declared the tier: the client's sheet, staff, or the declared-value pre-fill (#126). */
+    public const STORAGE_TIER_SOURCES = ['client', 'staff', 'value_rule'];
+
     public const UNIT_TYPES = ['pallet', 'carton'];
 
     public const PALLET_CLASSES = ['standard', 'oversize_wide', 'oversize_high', 'overweight', 'pickface'];

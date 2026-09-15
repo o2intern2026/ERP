@@ -21,8 +21,31 @@
             @foreach ($conditions as $c)<option value="{{ $c }}" @selected(($filters['condition'] ?? '') === $c)>{{ __('warehouse.conditions.'.$c) }}</option>@endforeach
         </select>
         <label><input type="checkbox" name="available_only" value="1" @checked(! empty($filters['available_only']))> {{ __('warehouse.stock.available_only') }}</label>
+        <label><input type="checkbox" name="bottom_leftover" value="1" @checked(! empty($filters['bottom_leftover']))> {{ __('warehouse.stock.bottom_leftover.filter') }}</label>
         <button type="submit" class="secondary">{{ __('platform.common.filter') }}</button>
     </form>
+    @if ($leftover !== null)
+        {{-- CHANGE_REQUESTS #126 (lead answer 6): partly picked pallets still in a bottom location pay the full weekly surcharge — consolidate them. --}}
+        <article class="kv-card" id="bottom-leftover">
+            <strong>{{ __('warehouse.stock.bottom_leftover.title') }}</strong>
+            <p class="text-muted" style="margin:.3rem 0"><small>{{ __('warehouse.stock.bottom_leftover.hint') }}</small></p>
+            @if ($leftover->isEmpty())
+                <p class="text-muted">{{ __('warehouse.stock.bottom_leftover.empty') }}</p>
+            @else
+                <div class="overflow-auto"><table class="dense">
+                    <thead><tr><th>{{ __('warehouse.stock.label_code') }}</th><th>{{ __('warehouse.stock.location') }}</th><th>{{ __('warehouse.stock.client') }}</th><th>{{ __('warehouse.stock.bottom_leftover.asn_line') }}</th><th class="num">{{ __('warehouse.stock.bottom_leftover.cartons') }}</th><th class="num">{{ __('warehouse.stock.bottom_leftover.share') }}</th></tr></thead>
+                    <tbody>@foreach ($leftover as $u)<tr>
+                        <td><a href="{{ route('warehouse.stock.show', $u) }}"><code>{{ $u->label_code }}</code></a></td>
+                        <td><code>{{ $u->location?->full_code }}</code></td>
+                        <td>{{ $u->asnLine->asn->client->name }}</td>
+                        <td>{{ $u->asnLine->asn->asn_no }} · #{{ $u->asn_line_id }} {{ $u->asnLine->consignment_mark }} {{ $u->asnLine->description }}</td>
+                        <td class="num">{{ $u->qty_on_hand }} / {{ (int) $u->received_qty }}</td>
+                        <td class="num">{{ (int) $u->received_qty > 0 ? round($u->qty_on_hand / (int) $u->received_qty * 100) : 0 }}%</td>
+                    </tr>@endforeach</tbody>
+                </table></div>
+            @endif
+        </article>
+    @endif
     @if ($units->isEmpty())
         <p class="text-muted">{{ __('warehouse.stock.empty') }}</p>
     @else

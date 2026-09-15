@@ -55,6 +55,16 @@ return [
         'errors' => [
             'negative_on_hand' => '库存单元 :label 的在库数量不能为负(当前 :before,变动 :delta),操作已拒绝。',
         ],
+        // CHANGE_REQUESTS #126
+        'bottom_leftover' => [
+            'filter' => '底层库位剩货托盘',
+            'title' => '底层库位剩货托盘',
+            'hint' => '放在底层库位、已被部分拣走的托盘:仍按整托收底层附加费(按周最后一次快照)。可考虑并托或移到标准库位。按剩余比例从低到高排列。',
+            'empty' => '没有部分拣货后仍留在底层库位的托盘。',
+            'asn_line' => '预报单 / 货物行',
+            'cartons' => '现存 / 收货时箱数',
+            'share' => '剩余比例',
+        ],
     ],
     'reservations' => ['title' => '预留列表', 'empty' => '没有活动预留。', 'created_at' => '预留时间'],
     'reservation_statuses' => ['active' => '有效', 'released' => '已释放', 'consumed' => '已出库'],
@@ -381,7 +391,14 @@ return [
             'unplanned_unconfirmed' => '无预报到货需要协调员确认后才能上架。',
             'invalid_target' => '库位 :code 不能作为 :label 的上架目标:必须是同一仓库、已启用的存储 / pickface / 隔离库位。',
             'held_needs_quarantine' => '破损 / 隔离货只能上架到隔离库位。',
+            'tier_mismatch' => ':label 声明为底层存储,库位 :code 不是底层库位:请换一个底层库位,或填写原因后再上架。',
         ],
+        // CHANGE_REQUESTS #126
+        'required_tier' => '存储等级',
+        'bottom_hint' => '建议::code',
+        'no_free_bottom' => '当前没有空闲的底层库位',
+        'tier_reason' => '不放底层的原因(必填)',
+        'standard_into_bottom' => '提醒:该托盘声明为标准存储,库位 :code 是底层库位(不收底层附加费,底层库位可能不够贵重货用)。',
     ],
 
     'tasks' => [
@@ -438,6 +455,34 @@ return [
         'type' => '类型',
         'full_code' => '库位码',
         'active' => '启用',
+        // CHANGE_REQUESTS #126
+        'rack_level' => '层位',
+        'storage_tier' => '存储等级',
+        'tier_hint' => '层位:1 = 地面 / 最底层横梁。存储等级只对「存储」库位有效:「底层」给贵重货用,放底层的托盘按周加收底层附加费(客户声明底层 + 实际在底层库位才收)。',
+        'bulk' => [
+            'title' => '批量设置层位 / 存储等级',
+            'hint' => '只作用于所选仓库的「存储」库位:按区、巷道起止、货位起止筛选(留空 = 不限),设置层位和 / 或存储等级。每个改动都记入审计日志。',
+            'aisle_from' => '巷道 从',
+            'aisle_to' => '巷道 到',
+            'bin_from' => '货位 从',
+            'bin_to' => '货位 到',
+            'set_rack_level' => '设为层位',
+            'set_storage_tier' => '设为存储等级',
+            'keep_tier' => '存储等级:不改',
+            'submit' => '批量设置',
+            'done' => '已更新 :changed 个库位(匹配 :matched 个存储库位)。',
+            'nothing_to_set' => '请至少填写层位或选择存储等级。',
+        ],
+    ],
+
+    // CHANGE_REQUESTS #126: locations.storage_tier / stock_units.required_storage_tier.
+    'storage_tiers' => ['standard' => '标准', 'bottom' => '底层'],
+    // CHANGE_REQUESTS #126: the declared tier of an ASN goods line.
+    'line_tier' => [
+        'column' => '存储等级',
+        'save' => '改',
+        'updated' => '货物行 #:line 的存储等级已改为「:tier」,该行已收货的库存单元同步更新。',
+        'sources' => ['client' => '客户清单声明', 'staff' => '员工设置', 'value_rule' => '按单价预选'],
     ],
 
     'snapshots' => [
@@ -452,6 +497,8 @@ return [
         'damaged' => '隔离 / 破损单元',
         'empty' => '这一天没有快照。快照每天 23:55 自动生成;也可运行 php artisan stock:snapshot --date=YYYY-MM-DD 补做。',
         'hint' => '仓储费、托盘租赁费、pickface 周费都从快照按周汇总(M6 计费)。',
+        'bottom_pallets' => '底层库位托盘',
+        'declared_bottom_elsewhere' => '声明底层但不在底层库位',
     ],
     'stocktakes' => [
         'title' => '盘点',

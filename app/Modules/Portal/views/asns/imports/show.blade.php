@@ -30,6 +30,9 @@
     @if ($import->status === 'pending')
         <p>{{ __('portal.inbound.ready_count', ['ready' => $readyCount, 'blocked' => $blockedCount, 'errors' => $errorRows]) }}</p>
     @endif
+    @if ($tierSurcharge !== [])
+        <p class="text-muted"><small>{{ __('portal.inbound.tier_surcharge', ['percent' => count(array_unique($tierSurcharge)) === 1 ? collect($tierSurcharge)->first() : collect($tierSurcharge)->map(fn ($p, $code) => $code.' '.$p)->implode(' · ')]) }}</small></p>
+    @endif
 
     @if (($audit['issues'] ?? []) !== [])
         <article>
@@ -52,7 +55,7 @@
                 <th>{{ __('portal.inbound.fields.mark') }}</th><th>{{ __('portal.inbound.fields.consignee') }}</th><th>{{ __('portal.inbound.fields.address') }}</th>
                 <th>{{ __('portal.inbound.fields.suburb') }}</th><th>{{ __('portal.inbound.fields.state') }}</th><th>{{ __('portal.inbound.fields.postcode') }}</th><th>{{ __('portal.inbound.fields.fba') }}</th>
                 <th>{{ __('portal.inbound.fields.goods') }}</th><th>{{ __('portal.inbound.fields.package_type') }}</th><th class="num">{{ __('portal.inbound.fields.cartons') }}</th>
-                <th class="num">{{ __('portal.inbound.fields.weight') }}</th><th>{{ __('portal.inbound.fields.dims') }}</th><th>{{ __('portal.inbound.fields.row_numbers') }}</th><th>{{ __('portal.inbound.fields.status') }}</th>
+                <th class="num">{{ __('portal.inbound.fields.weight') }}</th><th>{{ __('portal.inbound.fields.dims') }}</th><th>{{ __('portal.inbound.fields.storage_tier') }}</th><th>{{ __('portal.inbound.fields.row_numbers') }}</th><th>{{ __('portal.inbound.fields.status') }}</th>
             </tr></thead>
             <tbody>
             @foreach ($groups as $group)
@@ -73,6 +76,7 @@
                         <td class="num">{{ $row['carton_qty'] }}</td>
                         <td class="num">{{ $row['actual_weight_kg'] ?? '—' }}</td>
                         <td>@if ($row['length_mm'] || $row['width_mm'] || $row['height_mm']){{ $row['length_mm'] ?? '—' }}×{{ $row['width_mm'] ?? '—' }}×{{ $row['height_mm'] ?? '—' }}@else — @endif</td>
+                        <td>@if (($row['storage_tier'] ?? null) === 'bottom')<span class="badge" data-tone="warn">{{ __('portal.stock.storage_tiers.bottom') }}</span>@else{{ __('portal.stock.storage_tiers.standard') }}@endif @if (($row['storage_tier_source'] ?? null) === 'value_rule')<br><span class="badge" data-tone="info">{{ __('portal.inbound.tier_prefilled') }}</span>@endif</td>
                         <td>{{ $row['row'] }}</td>
                         @if ($loop->first)
                             <td rowspan="{{ $span }}">

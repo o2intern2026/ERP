@@ -88,13 +88,22 @@
         <p class="text-muted"><small>{{ __('warehouse.asns.no_lines_hint') }} @if ($canImportOrders)<a href="#import-orders">{{ __('warehouse.asns.import_orders_title') }}</a>@endif</small></p>
     @else
         <div class="overflow-auto"><table class="dense">
-            <thead><tr><th>#</th><th>{{ __('warehouse.stock.mark') }}</th><th>{{ __('warehouse.stock.description') }}</th><th>{{ __('warehouse.asns.order_col') }}</th><th>{{ __('warehouse.asns.container_no') }}</th><th class="num">{{ __('warehouse.asns.expected') }}</th><th class="num">{{ __('warehouse.asns.received') }}</th><th class="num">{{ __('warehouse.asns.damaged') }}</th><th class="num">{{ __('warehouse.asns.units') }}</th><th>{{ __('platform.common.actions') }}</th></tr></thead>
+            <thead><tr><th>#</th><th>{{ __('warehouse.stock.mark') }}</th><th>{{ __('warehouse.stock.description') }}</th><th>{{ __('warehouse.asns.order_col') }}</th><th>{{ __('warehouse.asns.container_no') }}</th><th class="num">{{ __('warehouse.asns.expected') }}</th><th class="num">{{ __('warehouse.asns.received') }}</th><th class="num">{{ __('warehouse.asns.damaged') }}</th><th class="num">{{ __('warehouse.asns.units') }}</th><th>{{ __('warehouse.line_tier.column') }}</th><th>{{ __('platform.common.actions') }}</th></tr></thead>
             <tbody>
             @foreach ($asn->lines as $l)
                 <tr>
                     <td>{{ $l->id }}</td><td>{{ $l->consignment_mark }}</td><td>{{ $l->description }} <small class="text-muted">@if ($l->hasCompleteDelivery()){{ $l->deliver_to_name }} · {{ $l->deliver_to_suburb }} {{ $l->deliver_to_state }} {{ $l->deliver_to_postcode }}@elseif (! $l->isOnOrder())<mark>{{ __('warehouse.asns.delivery_incomplete') }}</mark>@else{{ $l->deliver_to_name }}@endif</small></td>
                     <td>@if (isset($orderRefs[$l->id]))<a href="{{ route('orders.show', $orderRefs[$l->id]['order_id']) }}">{{ $orderRefs[$l->id]['order_no'] }}</a>@else<span class="text-muted">—</span>@endif</td><td>{{ $l->container?->container_no }}</td>
                     <td class="num">{{ $l->expected_cartons }}</td><td class="num">{{ $l->received_cartons }}</td><td class="num">{{ $l->damaged_cartons }}</td><td class="num">{{ $l->stockUnits->count() }}</td>
+                    {{-- CHANGE_REQUESTS #126: declared storage tier; staff change it here (units follow), clients ask customer service. --}}
+                    <td>
+                        @role('admin|customer_service|warehouse_supervisor')
+                            <form method="post" action="{{ route('warehouse.asns.lines.storage_tier.update', [$asn, $l]) }}" class="inline">@csrf @method('PATCH')<select name="storage_tier" aria-label="{{ __('warehouse.line_tier.column') }}" style="width:auto;margin:0">@foreach (\App\Support\Enums::STORAGE_TIERS as $tier)<option value="{{ $tier }}" @selected($l->storage_tier === $tier)>{{ __('warehouse.storage_tiers.'.$tier) }}</option>@endforeach</select><button type="submit" class="secondary outline" style="width:auto;padding:.2rem .6rem;margin:0">{{ __('warehouse.line_tier.save') }}</button></form>
+                        @else
+                            <span class="badge" data-tone="{{ $l->storage_tier === 'bottom' ? 'warn' : 'muted' }}">{{ __('warehouse.storage_tiers.'.($l->storage_tier ?: 'standard')) }}</span>
+                        @endrole
+                        @if ($l->storage_tier_source)<br><small class="text-muted">{{ __('warehouse.line_tier.sources.'.$l->storage_tier_source) }}</small>@endif
+                    </td>
                     <td>
                         @role('admin|warehouse_supervisor|warehouse_operator')
                             @if (in_array($asn->status, ['booked', 'arrived', 'receiving']) && ! $l->isReceived())
@@ -216,6 +225,7 @@
                             <input type="text" name="deliver_to_name" placeholder="{{ __('warehouse.asns.delivery_fields.deliver_to_name') }}" value="{{ old('deliver_to_name') }}">
                             <input type="text" name="deliver_to_phone" placeholder="{{ __('warehouse.asns.delivery_fields.deliver_to_phone') }}" value="{{ old('deliver_to_phone') }}" maxlength="40">
                             <input type="text" name="fba_reference" placeholder="{{ __('warehouse.asns.delivery_fields.fba_reference') }}" value="{{ old('fba_reference') }}" maxlength="60">
+                            <select name="storage_tier" aria-label="{{ __('warehouse.line_tier.column') }}">@foreach (\App\Support\Enums::STORAGE_TIERS as $tier)<option value="{{ $tier }}" @selected(old('storage_tier', 'standard') === $tier)>{{ __('warehouse.line_tier.column') }}: {{ __('warehouse.storage_tiers.'.$tier) }}</option>@endforeach</select>
                         </div>
                         <div class="grid">
                             <input type="text" name="deliver_to_address" placeholder="{{ __('warehouse.asns.delivery_fields.deliver_to_address') }}" value="{{ old('deliver_to_address') }}">

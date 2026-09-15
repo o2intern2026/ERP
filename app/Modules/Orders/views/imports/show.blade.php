@@ -48,11 +48,13 @@
         <form method="post" action="{{ route('orders.imports.confirm', $import) }}">
             @csrf
             <div class="overflow-auto"><table class="dense">
-                <thead><tr>@unless ($portal)<th>{{ __('orders.imports.fields.select') }}</th>@endunless<th>{{ __('orders.fields.consignment_mark') }}</th><th>{{ __('orders.fields.destination') }}</th><th>{{ __('orders.fields.fba_reference') }}</th><th>{{ __('orders.imports.fields.rows') }}</th><th>{{ __('orders.imports.fields.status') }}</th><th>{{ __('orders.imports.fields.address_book') }}</th></tr></thead>
+                <thead><tr>@unless ($portal)<th>{{ __('orders.imports.fields.select') }}</th>@endunless<th>{{ __('orders.fields.consignment_mark') }}</th><th>{{ __('orders.fields.destination') }}</th><th>{{ __('orders.fields.fba_reference') }}</th><th>{{ __('orders.imports.fields.rows') }}</th><th>{{ __('orders.imports.fields.storage_tier') }}</th><th>{{ __('orders.imports.fields.status') }}</th><th>{{ __('orders.imports.fields.address_book') }}</th></tr></thead>
                 <tbody>@foreach (($audit['groups'] ?? []) as $group)<tr>
                     @unless ($portal)<td>@if ($group['status'] === 'ready')<input type="checkbox" name="groups[]" value="{{ $group['key'] }}" checked>@else—@endif</td>@endunless
                     <td>{{ $group['consignment_mark'] }}</td><td>{{ $group['deliver_to_name'] }}<br><small>{{ $group['deliver_to_address'] }}, {{ $group['deliver_to_state'] }} {{ $group['deliver_to_postcode'] }}</small></td>
                     <td>{{ $group['fba_reference'] ?: __('orders.not_provided') }}</td><td>{{ implode(', ', $group['row_numbers']) }}</td>
+                    @php($bottomRows = collect($group['rows'] ?? [])->where('storage_tier', 'bottom'))
+                    <td>@if ($bottomRows->isNotEmpty())<span class="badge" data-tone="warn">{{ __('orders.imports.tier_bottom_rows', ['count' => $bottomRows->count()]) }}</span>@if ($bottomRows->contains('storage_tier_source', 'value_rule'))<br><small>{{ __('orders.imports.tier_prefilled') }}</small>@endif @else{{ __('orders.imports.tier_standard') }}@endif</td>
                     <td>{!! \App\Support\Ui\StatusBadge::render('orders.imports.group_statuses.', $group['status']) !!}@if ($group['message'])<br><small>{{ $group['message'] }}</small>@endif</td>
                     <td>@if (! $portal && $group['status'] === 'ready' && $group['save_address_suggested'])<label><input type="checkbox" name="save_addresses[]" value="{{ $group['key'] }}"> {{ __('orders.imports.actions.save_address') }}</label>@elseif ($group['client_address_id']){{ __('orders.imports.address_matched') }}@if ($group['delivery_instructions'])<br><small>{{ $group['delivery_instructions'] }}</small>@endif @else—@endif</td>
                 </tr>@endforeach</tbody>

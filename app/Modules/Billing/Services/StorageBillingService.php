@@ -25,7 +25,7 @@ final class StorageBillingService
         $start = $anyDayInWeek->copy()->startOfWeek(CarbonInterface::MONDAY);
         $end = $start->copy()->endOfWeek(CarbonInterface::SUNDAY);
         $week = $start->format('o-\WW');
-        $codes = ChargeCode::query()->whereIn('code', ['WH-STORAGE-PLT-WK', 'WH-STORAGE-PLT-WIDE-WK', 'WH-STORAGE-PLT-HIGH-WK', 'WH-STORAGE-PLT-OVERWEIGHT-WK', 'WH-STORAGE-QUARANTINE-PLT-WK', 'WH-PALLET-RENT-PLAIN-WK', 'WH-PALLET-RENT-POOL-WK', 'WH-STORAGE-CTN-WK', 'WH-STORAGE-CBM-WK', 'WH-STORAGE-PICKFACE-WK'])->get()->keyBy('code');
+        $codes = ChargeCode::query()->whereIn('code', ['WH-STORAGE-PLT-WK', 'WH-STORAGE-PLT-WIDE-WK', 'WH-STORAGE-PLT-HIGH-WK', 'WH-STORAGE-PLT-OVERWEIGHT-WK', 'WH-STORAGE-QUARANTINE-PLT-WK', 'WH-PALLET-RENT-PLAIN-WK', 'WH-PALLET-RENT-POOL-WK', 'WH-STORAGE-CTN-WK', 'WH-STORAGE-CBM-WK', 'WH-STORAGE-PICKFACE-WK', 'WH-STORAGE-TIER-PLT-WK'])->get()->keyBy('code');
 
         $snapshots = StockSnapshot::query()->withoutGlobalScopes()->whereBetween('snapshot_date', [$start->toDateString(), $end->toDateString()])->orderBy('snapshot_date')->get();
         $charges = [];
@@ -40,12 +40,25 @@ final class StorageBillingService
                 if ($s->location_type === 'pickface') {
                     // billed per slot below, not per pallet
                 } elseif ($s->condition !== 'good') {
-                    $charges[] = $this->engine->charge($codes['WH-STORAGE-QUARANTINE-PLT-WK'], $s->client_id, $s->job_id, 1, ['pallet_class' => $s->pallet_class], $key, 1, $source, $end);
+                    $charges[] = $this->engine->charge($codes['WH-STORAGE-QUARANTINE-PLT-WK'], $s->client_id, $s->job_id, 1, ['pallet_class' => $s->pallet_class, 'warehouse_id' => (int) $s->warehouse_id], $key, 1, $source, $end);
                 } else {
                     $code = match ($s->pallet_class) {
                         'oversize_wide' => 'WH-STORAGE-PLT-WIDE-WK', 'oversize_high' => 'WH-STORAGE-PLT-HIGH-WK', 'overweight' => 'WH-STORAGE-PLT-OVERWEIGHT-WK', default => 'WH-STORAGE-PLT-WK',
                     };
-                    $charges[] = $this->engine->charge($codes[$code], $s->client_id, $s->job_id, 1, ['pallet_class' => $s->pallet_class ?? 'standard'], $key, 1, $source, $end);
+                    $base = $this->engine->charge($codes[$code], $s->client_id, $s->job_id, 1, ['pallet_class' => $s->pallet_class ?? 'standard', 'warehouse_id' => (int) $s->warehouse_id], $key, 1, $source, $end);
+                    $charges[] = $base;
+
+                    // CHANGE_REQUESTS #126: 底层库位附加费 — only when the last snapshot of the week has the pallet in a bottom-level STORAGE
+                    // location AND the pallet was declared bottom (lead answer 2). A percent of THIS pallet's base storage charge; a missing or
+                    // POA base passes no base_cents, so RateService flags the surcharge POA / needs review — never a $0 line. Partly picked
+                    // pallets pay it in full (answer 6), no proration or mid-week check (answer 8). Pre-#126 snapshot rows carry NULL tiers.
+                    if (isset($codes['WH-STORAGE-TIER-PLT-WK']) && $s->location_type === 'storage' && $s->location_storage_tier === 'bottom' && $s->required_storage_tier === 'bottom') {
+                        $context = ['storage_tier' => 'bottom', 'warehouse_id' => (int) $s->warehouse_id];
+                        if ($base !== null && $base->status !== 'needs_review') {
+                            $context['base_cents'] = (int) $base->amount_cents;
+                        }
+                        $charges[] = $this->engine->charge($codes['WH-STORAGE-TIER-PLT-WK'], $s->client_id, $s->job_id, 1, $context, $key, 1, $source, $end);
+                    }
                 }
                 if ($s->pallet_source === 'warehouse_plain') {
                     $charges[] = $this->engine->charge($codes['WH-PALLET-RENT-PLAIN-WK'], $s->client_id, $s->job_id, 1, [], $key, 1, $source, $end);

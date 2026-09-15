@@ -6,8 +6,10 @@ use App\Modules\Warehouse\Events\AsnCollectionCancelled;
 use App\Modules\Warehouse\Events\AsnCollectionRequested;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnLine;
+use App\Modules\Warehouse\Models\StockUnit;
 use App\Support\Contracts\InboundService;
 use App\Support\Contracts\JobService;
+use App\Support\Enums;
 use App\Support\Exceptions\RuleViolation;
 use App\Support\Outbox\OutboxPublisher;
 use Illuminate\Support\Arr;
@@ -74,6 +76,11 @@ final class AsnService implements InboundService
                     $line['container_id'] = $containers->get($line['container_no'])?->id;
                     unset($line['container_no']);
                 }
+                // CHANGE_REQUESTS #126: an unknown / absent tier is `standard`; an unknown source is dropped.
+                $line['storage_tier'] = in_array($line['storage_tier'] ?? null, Enums::STORAGE_TIERS, true) ? $line['storage_tier'] : 'standard';
+                if (! in_array($line['storage_tier_source'] ?? null, Enums::STORAGE_TIER_SOURCES, true)) {
+                    unset($line['storage_tier_source']);
+                }
                 $created[] = $asn->lines()->create($line);
             }
 
@@ -82,6 +89,34 @@ final class AsnService implements InboundService
             }
 
             return $created;
+        });
+    }
+
+    /**
+     * CHANGE_REQUESTS #126: staff set the declared storage tier of one goods line (a client's change request goes through customer
+     * service — the portal stays read-only). Source becomes `staff`; the line's existing stock units get the same required tier, so the
+     * next putaway check and the next daily snapshot see it. Logged (activitylog `asn_line`; unit changes through StockUnit's own log).
+     */
+    public function setLineStorageTier(AsnLine $line, string $tier): AsnLine
+    {
+        if (! in_array($tier, Enums::STORAGE_TIERS, true)) {
+            throw new \InvalidArgumentException("Unknown storage tier: {$tier}");
+        }
+
+        return DB::transaction(function () use ($line, $tier): AsnLine {
+            $old = ['storage_tier' => $line->storage_tier, 'storage_tier_source' => $line->storage_tier_source];
+            $line->update(['storage_tier' => $tier, 'storage_tier_source' => 'staff']);
+            foreach (StockUnit::query()->withoutGlobalScopes()->where('asn_line_id', $line->id)->get() as $unit) {
+                $unit->update(['required_storage_tier' => $tier]);
+            }
+
+            $log = activity('asn_line')->performedOn($line)->withProperties(['old' => $old, 'attributes' => ['storage_tier' => $tier, 'storage_tier_source' => 'staff']]);
+            if (auth()->user() !== null) {
+                $log->causedBy(auth()->user());
+            }
+            $log->log('storage_tier');
+
+            return $line->fresh();
         });
     }
 
@@ -433,6 +468,7 @@ final class AsnService implements InboundService
         $created = $this->addLines($asn, array_map(fn (array $line): array => Arr::only($line, [
             'order_line_id', 'container_no', 'consignment_mark', 'description', 'expected_cartons', 'package_type', 'deliver_to_name', 'deliver_to_phone',
             'deliver_to_address', 'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'fba_reference', 'weight_kg', 'length_mm', 'width_mm', 'height_mm', 'cbm',
+            'storage_tier', 'storage_tier_source', // CHANGE_REQUESTS #126
         ]), $lines));
 
         return [

@@ -4,6 +4,7 @@ namespace App\Modules\Warehouse\Services;
 
 use App\Modules\Warehouse\Events\ReturnInspected;
 use App\Modules\Warehouse\Events\ReturnReceived;
+use App\Modules\Warehouse\Models\AsnLine;
 use App\Modules\Warehouse\Models\Location;
 use App\Modules\Warehouse\Models\ReturnReceipt;
 use App\Modules\Warehouse\Models\ReturnReceiptLine;
@@ -112,6 +113,7 @@ final class ReturnService
                     'condition' => $held ? ($disposition === 'damaged' ? 'damaged' : 'quarantine') : 'good',
                     'condition_reason' => $held ? 'returned goods: '.$disposition : null, 'condition_changed_at' => $held ? now() : null,
                     'putaway_completed' => $held, 'received_at' => now(),
+                    'required_storage_tier' => AsnLine::query()->whereKey($line->asn_line_id)->value('storage_tier') ?: 'standard', // #126
                 ]);
                 $this->ledger->record($unit, 'return', $line->received_qty, ['to_location_id' => $location->id, 'source_type' => 'return_receipt', 'source_id' => $receipt->id, 'operator_id' => $userId]);
                 $unitId = $unit->id;

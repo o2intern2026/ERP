@@ -10,12 +10,14 @@ use App\Modules\Orders\Services\OrderImportService;
 use App\Modules\Platform\Models\Document;
 use App\Modules\Portal\Http\PortalValidation;
 use App\Modules\Warehouse\Models\Asn;
+use App\Support\Contracts\RateService;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response as ResponseFacade;
 use Illuminate\Validation\Rule;
 
@@ -30,7 +32,7 @@ use Illuminate\Validation\Rule;
 final class PortalInboundImportController extends Controller
 {
     /** Header row of the CSV template — every entry is an alias SpreadsheetManifestParser::HEADERS accepts, in the client's reading order. */
-    private const TEMPLATE_HEADERS = ['唛头', '中文品名', '英文品名', '包装类型', '箱数', '产品数量', '实重(KG)', '长(CM)', '宽(CM)', '高(CM)', '收件人', '电话', '地址', '城区', '州', '邮编', 'FBA参考号', '要求送达日'];
+    private const TEMPLATE_HEADERS = ['唛头', '中文品名', '英文品名', '包装类型', '箱数', '产品数量', '实重(KG)', '长(CM)', '宽(CM)', '高(CM)', '收件人', '电话', '地址', '城区', '州', '邮编', 'FBA参考号', '要求送达日', '存储等级'];
 
     public function index(Request $request): View
     {
@@ -62,8 +64,8 @@ final class PortalInboundImportController extends Controller
         $date = today()->addDays(14)->toDateString();
         $out = fopen('php://temp', 'r+');
         fputcsv($out, self::TEMPLATE_HEADERS, ',', '"', '');
-        fputcsv($out, ['EDW-001', '蓝牙音箱', 'Bluetooth speaker', '纸箱', '10', '200', '85', '60', '40', '40', 'Amazon FBA BWU2', '0400 000 000', '1 Warehouse Rd', 'Moorebank', 'NSW', '2170', 'FBA15ABC123', $date], ',', '"', '');
-        fputcsv($out, ['EDW-002', '电热水壶', 'Kettle', '纸箱', '5', '30', '32.5', '45', '35', '30', 'Shop B', '03 9999 0000', '12 High St', 'Richmond', 'VIC', '3121', '', $date], ',', '"', '');
+        fputcsv($out, ['EDW-001', '蓝牙音箱', 'Bluetooth speaker', '纸箱', '10', '200', '85', '60', '40', '40', 'Amazon FBA BWU2', '0400 000 000', '1 Warehouse Rd', 'Moorebank', 'NSW', '2170', 'FBA15ABC123', $date, '标准'], ',', '"', '');
+        fputcsv($out, ['EDW-002', '电热水壶', 'Kettle', '纸箱', '5', '30', '32.5', '45', '35', '30', 'Shop B', '03 9999 0000', '12 High St', 'Richmond', 'VIC', '3121', '', $date, '底层'], ',', '"', '');
         rewind($out);
         $csv = "\xEF\xBB\xBF".stream_get_contents($out);
         fclose($out);
@@ -131,7 +133,28 @@ final class PortalInboundImportController extends Controller
             'orders' => Order::query()->whereKey($orderIds)->get(['id', 'order_no', 'operational_status'])->keyBy('id'),
             'asns' => $this->asnsByOrder($orderIds),
             'document' => $import->document_id ? Document::query()->find($import->document_id) : null, // client-scoped; client_visible for the client's own upload
+            'tierSurcharge' => $this->tierSurcharge((int) $import->client_id), // CHANGE_REQUESTS #126
         ]);
+    }
+
+    /**
+     * CHANGE_REQUESTS #126: the client's OWN bottom-level surcharge percent per warehouse, read through RateService (a price, never cost).
+     * Empty when no card of the client prices WH-STORAGE-TIER-PLT-WK as a percent.
+     *
+     * @return array<string, string> warehouse code → "10%"
+     */
+    private function tierSurcharge(int $clientId): array
+    {
+        $rates = app(RateService::class);
+        $out = [];
+        foreach (DB::table('warehouses')->where('active', true)->orderBy('code')->pluck('code', 'id') as $warehouseId => $code) {
+            $priced = $rates->price($clientId, 'WH-STORAGE-TIER-PLT-WK', 1, ['storage_tier' => 'bottom', 'warehouse_id' => (int) $warehouseId, 'base_cents' => 1_000_000]);
+            if (! $priced['missing_rate'] && ! $priced['is_poa'] && ! $priced['min_charge_applied'] && ($priced['calculation_snapshot']['pricing_mode'] ?? null) === 'percent') {
+                $out[(string) $code] = rtrim(rtrim(number_format($priced['amount_cents'] / 10_000, 2, '.', ''), '0'), '.').'%';
+            }
+        }
+
+        return $out;
     }
 
     /** All groups the preview marked ready; the client never saves addresses to the address book from a list. */

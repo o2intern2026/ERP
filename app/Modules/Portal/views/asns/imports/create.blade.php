@@ -38,6 +38,7 @@
             <p><small><a href="{{ route('portal.asns.imports.template') }}">{{ __('portal.inbound.template') }}</a> · {{ __('portal.inbound.template_hint') }}</small></p>
             <p class="text-muted"><small>{{ implode(' · ', $templateHeaders) }}</small></p>
             <p class="text-muted"><small>{{ __('portal.inbound.defaults_hint') }}</small></p>
+            <p class="text-muted"><small>{{ __('portal.inbound.storage_tier_hint') }}</small></p>
             <p class="text-muted"><small>{{ __('portal.inbound.pitfalls') }}</small></p>
         </article>
 

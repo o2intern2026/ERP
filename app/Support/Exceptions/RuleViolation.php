@@ -18,6 +18,12 @@ class RuleViolation extends InvalidArgumentException
         parent::__construct($message);
     }
 
+    /** The lang key of the refusal, for a controller that reacts to one specific rule (e.g. the putaway tier check reveals a reason input, #126). */
+    public function langKey(): string
+    {
+        return $this->langKey;
+    }
+
     public function userMessage(): string
     {
         return __($this->langKey, $this->replace);

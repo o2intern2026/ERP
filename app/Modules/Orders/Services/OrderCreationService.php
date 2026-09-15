@@ -75,6 +75,7 @@ final class OrderCreationService
                     'description_cn', 'description_en', 'hs_code', 'material', 'usage', 'brand', 'package_type',
                     'carton_qty', 'unit_qty', 'unit_price_cents', 'total_price_cents', 'actual_weight_kg',
                     'length_mm', 'width_mm', 'height_mm', 'cbm', 'asn_line_id', 'stock_unit_ref', 'original_order_line_id',
+                    'storage_tier', 'storage_tier_source', // CHANGE_REQUESTS #126
                 ]));
             }
 

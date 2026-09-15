@@ -86,6 +86,13 @@ final class SpreadsheetManifestParser implements ManifestParser
         'requesteddate' => 'requested_date', 'deliverydate' => 'requested_date', 'requesteddeliverydate' => 'requested_date', 'requireddate' => 'requested_date', 'deliverby' => 'requested_date',
         '要求送达日' => 'requested_date', '要求送达日期' => 'requested_date', '送达日期' => 'requested_date', '送货日期' => 'requested_date', '要求送货日' => 'requested_date', '要求送货日期' => 'requested_date', '派送日期' => 'requested_date',
         'servicelevel' => 'service_level', 'service' => 'service_level', '服务等级' => 'service_level', '服务级别' => 'service_level', '时效' => 'service_level',
+        'storagetier' => 'storage_tier', '存储等级' => 'storage_tier', '存储要求' => 'storage_tier', '库位等级' => 'storage_tier', // CHANGE_REQUESTS #126
+    ];
+
+    /** 存储等级 cell → contracts/enums.md storage tier (CHANGE_REQUESTS #126); an empty cell is 标准, anything else is a row error. */
+    private const STORAGE_TIER_VALUES = [
+        'bottom' => 'bottom', '底层' => 'bottom', '最底层' => 'bottom', '地面' => 'bottom',
+        'standard' => 'standard', '标准' => 'standard',
     ];
 
     /**
@@ -541,6 +548,16 @@ final class SpreadsheetManifestParser implements ManifestParser
                 $error('service_level', 'invalid_service_level', ['value' => (string) $mapped['service_level']]);
             }
         }
+        // CHANGE_REQUESTS #126 存储等级: null when the sheet has no such column; an empty cell is 标准 but not a declaration.
+        $storageTier = isset($columns['storage_tier']) ? 'standard' : null;
+        $tierDeclared = false;
+        if (filled($mapped['storage_tier'] ?? null)) {
+            $storageTier = self::STORAGE_TIER_VALUES[$this->normaliseHeader($mapped['storage_tier'])] ?? null;
+            if ($storageTier === null) {
+                $error('storage_tier', 'invalid_storage_tier', ['value' => (string) $mapped['storage_tier']]);
+            }
+            $tierDeclared = $storageTier !== null;
+        }
 
         if ($errors !== []) {
             return ['row' => null, 'errors' => $errors, 'warnings' => $warnings];
@@ -583,6 +600,8 @@ final class SpreadsheetManifestParser implements ManifestParser
             'external_ref' => $mapped['external_ref'] ?? null,
             'requested_date' => $requestedDate,
             'service_level' => $serviceLevel,
+            'storage_tier' => $storageTier,
+            'storage_tier_declared' => $tierDeclared,
             'raw_json' => $raw,
         ], 'errors' => [], 'warnings' => $warnings];
     }

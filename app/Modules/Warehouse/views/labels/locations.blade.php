@@ -16,7 +16,10 @@
     <div class="label">
         <div style="display:inline-block">{!! $barcodes[$l->id] !!}</div>
         <div class="code">{{ $l->full_code }}</div>
-        <div class="type">{{ $l->warehouse->name }} · {{ __('pdf.location_types.'.$l->type) }}</div>
+        <div class="type">{{ $l->warehouse->name }} · {{ __('pdf.location_types.'.$l->type) }}@if ($l->rack_level) · {{ __('pdf.location_label.level', ['level' => $l->rack_level]) }}@endif</div>
+        @if ($l->type === 'storage' && $l->storage_tier === 'bottom')
+            <div class="tier">{{ __('pdf.storage_tiers.bottom') }}</div>
+        @endif
     </div>
 @endforeach
 </body>

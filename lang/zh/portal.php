@@ -254,7 +254,9 @@ return [
         'empty' => '当前没有在库货物。',
         'not_put_away' => '待上架',
         'totals' => '合计 · :lines 个货物行 · :units 个库存单元',
-        'fields' => ['consignment_mark' => '唛头', 'description' => '品名', 'asn_no' => '预报单号 (ASN)', 'location_type' => '库位类型', 'condition' => '货物状态', 'pallets' => '托数', 'on_hand' => '在库箱数', 'reserved' => '已预留', 'available' => '可用', 'inbound' => '在途 / 待收'],
+        'fields' => ['consignment_mark' => '唛头', 'description' => '品名', 'asn_no' => '预报单号 (ASN)', 'storage_tier' => '存储等级', 'location_type' => '库位类型', 'condition' => '货物状态', 'pallets' => '托数', 'on_hand' => '在库箱数', 'reserved' => '已预留', 'available' => '可用', 'inbound' => '在途 / 待收'],
+        // CHANGE_REQUESTS #126: the tier the client declared for its goods (底层 = bottom-level storage, charged a weekly surcharge).
+        'storage_tiers' => ['standard' => '标准', 'bottom' => '底层'],
         'location_types' => ['receiving' => '收货区', 'storage' => '存储区', 'pickface' => '拣货位', 'packing' => '打包区', 'staging' => '待发区', 'quarantine' => '隔离区'],
         'conditions' => ['good' => '正常', 'quarantine' => '隔离', 'damaged' => '破损'],
     ],
@@ -360,7 +362,12 @@ return [
             'message' => '问题',
             'requested_date' => '要求送达日（默认）',
             'unselected' => '未选择',
+            'storage_tier' => '存储等级',
         ],
+        // CHANGE_REQUESTS #126
+        'storage_tier_hint' => '「存储等级」列可选：贵重货填“底层”（放货架最底层，不易碰撞，按周另收底层附加费），其余填“标准”或留空；提交后如需修改请联系客服。',
+        'tier_prefilled' => '按单价预选',
+        'tier_surcharge' => '底层库位：比标准仓储高 :percent',
         'actions' => [
             'upload' => '上传并预览',
             'confirm' => '确认提交',

@@ -81,6 +81,7 @@ final class ReceivingService
                     'condition' => 'good',
                     'putaway_completed' => false,
                     'received_at' => now(),
+                    'required_storage_tier' => $line->storage_tier ?: 'standard', // the tier declared on the goods line travels with the goods (#126)
                 ]);
                 $this->ledger->record($unit, 'receipt', (int) $spec['carton_qty'], ['to_location_id' => $receivingLocation->id, 'source_type' => 'asn', 'source_id' => $asn->id]);
                 $units[] = $unit;
@@ -91,7 +92,7 @@ final class ReceivingService
                 $damaged = StockUnit::query()->create([
                     'client_id' => $asn->client_id, 'job_id' => $asn->job_id, 'asn_line_id' => $line->id, 'warehouse_id' => $asn->warehouse_id,
                     'unit_type' => 'carton', 'label_code' => sprintf('%s-L%d-DMG', $asn->asn_no, $line->id), 'location_id' => $receivingLocation->id,
-                    'qty_on_hand' => 0, 'condition' => 'damaged', 'putaway_completed' => false, 'received_at' => now(),
+                    'qty_on_hand' => 0, 'condition' => 'damaged', 'putaway_completed' => false, 'received_at' => now(), 'required_storage_tier' => $line->storage_tier ?: 'standard',
                 ]);
                 $this->ledger->record($damaged, 'receipt', (int) $data['damaged_cartons'], ['to_location_id' => $receivingLocation->id, 'source_type' => 'asn', 'source_id' => $asn->id]);
                 $units[] = $damaged;
