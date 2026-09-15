@@ -203,6 +203,7 @@ by_client: [{client_id, pallets, cartons, cbm, pickface_slots}]
 ```
 period_start, period_end, timezone, warehouse_id,
 units: [{stock_unit_id, client_id, job_id, asn_line_id, unit_type, pallet_class, pallet_source, condition, location_type,
+         location_storage_tier, required_storage_tier, warehouse_id,  # CHANGE_REQUESTS #126, additive (documentation: StorageBillingService reads stock_snapshots directly)
          billable_qty, billable_cbm, days_present}],                 # one row per billable unit that appeared in any daily snapshot of the week
 pickfaces: [{location_id, client_id, job_id (nullable), slot_count}]
 ```

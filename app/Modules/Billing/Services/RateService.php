@@ -158,10 +158,15 @@ final class RateService implements RateServiceContract
             return null;
         }
 
-        // Most specific first: carrier + service level, then zone, then weight band / pallet class, then the plain row.
-        $items = $items->sortByDesc(fn (RateItem $i) => ($i->carrier_id ? 8 : 0) + ($i->service_level ? 4 : 0) + ($i->zone ? 2 : 0) + ($i->weight_band_min !== null || $i->pallet_class ? 1 : 0));
+        // Most specific first: warehouse (CHANGE_REQUESTS #126), carrier + service level, then zone, then weight band / pallet class, then the plain row.
+        $items = $items->sortByDesc(fn (RateItem $i) => ($i->warehouse_id ? 16 : 0) + ($i->carrier_id ? 8 : 0) + ($i->service_level ? 4 : 0) + ($i->zone ? 2 : 0) + ($i->weight_band_min !== null || $i->pallet_class ? 1 : 0));
 
         foreach ($items as $item) {
+            // A warehouse row applies to that warehouse only — like carrier_id, a context WITHOUT warehouse_id never reaches it, so a
+            // caller that does not know the warehouse (thresholds(), manual charges, quote events) reads the all-warehouse row (review #126).
+            if ($item->warehouse_id && (int) ($context['warehouse_id'] ?? 0) !== (int) $item->warehouse_id) {
+                continue;
+            }
             if ($item->carrier_id && (int) ($context['carrier_id'] ?? 0) !== (int) $item->carrier_id) {
                 continue;
             }

@@ -62,6 +62,16 @@ return [
         'carton' => 'ctn',
     ],
 
+    // CHANGE_REQUESTS #126: location labels print the rack level and the bottom-level storage tier.
+    'location_label' => [
+        'level' => 'Level :level',
+    ],
+
+    'storage_tiers' => [
+        'standard' => 'Standard',
+        'bottom' => 'BOTTOM LEVEL',
+    ],
+
     'location_types' => [
         'receiving' => 'Receiving',
         'storage' => 'Storage',

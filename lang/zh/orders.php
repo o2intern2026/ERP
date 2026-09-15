@@ -140,6 +140,7 @@ return [
             'created_at' => '上传时间',
             'select' => '生成',
             'address_book' => '地址簿',
+            'storage_tier' => '存储等级',
         ],
         // CHANGE_REQUESTS #123: how a column is named in a message when the sheet has no header for it (the sheet's own header wins).
         'columns' => [
@@ -173,9 +174,15 @@ return [
             'external_ref' => '客户参考号',
             'requested_date' => '要求送达日',
             'service_level' => '服务等级',
+            'storage_tier' => '存储等级',
         ],
+        // CHANGE_REQUESTS #126: the 存储等级 column of the staff import preview.
+        'tier_bottom_rows' => '底层 :count 行',
+        'tier_standard' => '标准',
+        'tier_prefilled' => '含按单价预选',
         // CHANGE_REQUESTS #123: what the parser fixed on its own — shown to the person so they can check, never blocking.
         'warnings' => [
+            'tier_value_prefill' => '第 :row 行按单价预选底层(单价达到价目表的底层预选门槛),如不需要请改清单的「存储等级」列为“标准”。',
             'encoding' => '文件按 :encoding 编码读取，已转换为 UTF-8。',
             'delimiter' => '文件按“:delimiter”分隔读取。',
             'postcode_padded' => '第 :row 行「:field」补回了前导 0（:from → :to）。',
@@ -214,6 +221,7 @@ return [
             'phone_scientific' => '第 :row 行「:field」被 Excel 转成了数字（:value），号码已失真；请把电话列设为文本、重新填写后再上传。',
             'invalid_date' => '第 :row 行「:field」不是有效日期（现为“:value”）；请用 2026-10-01 这样的格式。',
             'invalid_service_level' => '第 :row 行「:field」无法识别（现为“:value”）；请填 标准 / 加急 / 当日送达。',
+            'invalid_storage_tier' => '第 :row 行「:field」无法识别（现为“:value”）；请填 标准 或 底层，或留空。',
             'inconsistent_group' => '唛头 :mark 下的收件地址或 FBA 货件编号不一致，已阻断，请人工修正。',
             'matching_asn' => '唛头 :mark 已存在于所选 Job 的 ASN，请从 ASN 生成订单，避免重复导入。',
             'duplicate_order' => '唛头 :mark 已有相同订单，本组未重复生成。',

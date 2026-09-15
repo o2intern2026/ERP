@@ -68,7 +68,13 @@ return [
         'approved_badge' => '已批准,可生效', 'pending_badge' => '审批中', 'draft_hint' => '草稿可编辑费率;生效后不可修改,改价请复制为新版本。', 'add_item' => '添加费率项',
         'rate' => '单价 (AUD)', 'min_charge' => '最低收费', 'poa' => 'POA(面议)', 'pricing_mode' => '计价方式', 'markup' => '加成 %', 'pallet_class' => '托盘类型', 'band' => '重量分档 (kg)', 'zone' => '分区', 'service_level' => '服务等级', 'thresholds' => '阈值参数 (JSON)', 'thresholds_placeholder' => '阈值参数 (JSON),例如 {"tailgate_weight_kg":25}',
         'band_min' => '下限 (kg)', 'band_max' => '上限 (kg)', 'approval_note' => ':name v:version,:date 起生效',
+        // CHANGE_REQUESTS #126
+        'warehouse' => '仓库', 'all_warehouses' => '全部仓库',
+        'tier_hint' => '底层库位附加费 WH-STORAGE-TIER-PLT-WK:计价方式选「百分比附加」,加成 % 在阈值 min_percent – max_percent 之间(标准表 10 – 20);可按仓库(墨尔本 / 悉尼)各设一行,指定仓库的行只用于该仓库的每周仓储计费并优先于「全部仓库」的行;阈值(托盘尺寸档、单价预选等)和其他费用始终读「全部仓库」的行。tier_value_threshold_cents = 单价达到该值(分)时导入清单预选底层。',
         'errors' => [
+            'tier_percent_only' => '底层库位附加费 (WH-STORAGE-TIER-PLT-WK) 只能用「百分比附加」计价。',
+            'tier_band' => '底层库位附加费的加成必须在 :min% – :max% 之间(价目表阈值 min_percent / max_percent)。',
+            'tier_percent_required' => '底层库位附加费必须填写加成 %。',
             'active_immutable' => '已生效的价目表不能改费率,请「复制为新版本」后再改价。',
             'draft_only_items' => '只有草稿状态的价目表可以添加费率项。',
             'draft_only_submit' => '只有草稿状态的价目表可以送审批。',

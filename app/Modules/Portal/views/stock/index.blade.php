@@ -34,6 +34,7 @@
                     <th>{{ __('portal.stock.fields.consignment_mark') }}</th>
                     <th>{{ __('portal.stock.fields.description') }}</th>
                     <th>{{ __('portal.stock.fields.asn_no') }}</th>
+                    <th>{{ __('portal.stock.fields.storage_tier') }}</th>
                     <th>{{ __('portal.stock.fields.location_type') }}</th>
                     <th>{{ __('portal.stock.fields.condition') }}</th>
                     <th class="num">{{ __('portal.stock.fields.pallets') }}</th>
@@ -48,6 +49,7 @@
                             <td><strong>{{ $row->consignment_mark }}</strong>@if ($row->fba_reference)<br><small class="text-muted">{{ $row->fba_reference }}</small>@endif</td>
                             <td>{{ $row->description }}</td>
                             <td>{{ $row->asn_no }}</td>
+                            <td>@if ($row->storage_tier === 'bottom')<span class="badge" data-tone="warn">{{ __('portal.stock.storage_tiers.bottom') }}</span>@else{{ __('portal.stock.storage_tiers.standard') }}@endif</td>
                             <td>{{ $row->location_type ? __('portal.stock.location_types.'.$row->location_type) : __('portal.not_provided') }}
                                 @unless ($row->putaway_completed)<br><small class="text-muted">{{ __('portal.stock.not_put_away') }}</small>@endunless
                             </td>
@@ -62,7 +64,7 @@
                 </tbody>
                 <tfoot>
                     <tr>
-                        <th colspan="5">{{ __('portal.stock.totals', ['lines' => $rows->unique('asn_line_id')->count(), 'units' => $totals['units']]) }}</th>
+                        <th colspan="6">{{ __('portal.stock.totals', ['lines' => $rows->unique('asn_line_id')->count(), 'units' => $totals['units']]) }}</th>
                         <th class="num">{{ $totals['pallets'] }}</th>
                         <th class="num">{{ $totals['qty_on_hand'] }}</th>
                         <th class="num">{{ $totals['qty_reserved'] }}</th>

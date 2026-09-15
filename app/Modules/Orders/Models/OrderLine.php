@@ -13,6 +13,7 @@ class OrderLine extends Model
         'package_type', 'carton_qty', 'unit_qty', 'unit_price_cents', 'total_price_cents',
         'actual_weight_kg', 'length_mm', 'width_mm', 'height_mm', 'cbm', 'qty_shipped',
         'qty_backordered', 'asn_line_id', 'stock_unit_ref', 'original_order_line_id',
+        'storage_tier', 'storage_tier_source', // CHANGE_REQUESTS #126
     ];
 
     protected function casts(): array

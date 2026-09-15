@@ -22,9 +22,11 @@ class WarehouseSeeder extends Seeder
             }
         }
         foreach ($locations as [$zone, $aisle, $bin, $type]) {
+            // CHANGE_REQUESTS #126 demo: rack beam = bin number in zone A; A-*-01 is the bottom level (贵重货).
+            $rack = $zone === 'A' ? ['rack_level' => (int) $bin, 'storage_tier' => (int) $bin === 1 ? 'bottom' : 'standard'] : [];
             Location::query()->updateOrCreate(
                 ['warehouse_id' => $mel->id, 'full_code' => Location::buildFullCode('MEL', $zone, $aisle, $bin)],
-                ['zone' => $zone, 'aisle' => $aisle, 'bin' => $bin, 'type' => $type, 'active' => true],
+                ['zone' => $zone, 'aisle' => $aisle, 'bin' => $bin, 'type' => $type, 'active' => true] + $rack,
             );
         }
     }

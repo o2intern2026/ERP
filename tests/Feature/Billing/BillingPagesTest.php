@@ -116,7 +116,7 @@ class BillingPagesTest extends TestCase
         $this->actingAs($finance)->get("/billing/rate-cards/{$standard->id}")->assertOk()->assertSee('WH-PUTAWAY-PLT');
         $this->actingAs($finance)->post("/billing/rate-cards/{$standard->id}/new-version", ['effective_from' => today()->toDateString(), 'notes' => 'putaway to 5.00'])->assertRedirect();
         $v2 = RateCard::query()->where('is_standard', true)->where('version', 2)->firstOrFail();
-        $this->assertSame(['draft', 34], [$v2->status, $v2->items()->count()]);
+        $this->assertSame(['draft', 35], [$v2->status, $v2->items()->count()]); // 34 Edward rows + the bottom-level surcharge line (CHANGE_REQUESTS #126)
 
         $item = RateItem::query()->where('rate_card_id', $v2->id)->whereHas('chargeCode', fn ($q) => $q->where('code', 'WH-PUTAWAY-PLT'))->firstOrFail();
         $this->actingAs($finance)->post("/billing/rate-items/{$item->id}", ['rate' => 5.00])->assertSessionHasNoErrors();

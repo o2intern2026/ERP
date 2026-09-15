@@ -16,6 +16,7 @@ use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
@@ -28,6 +29,7 @@ class StockController extends Controller
             'client_id' => ['nullable', 'integer'], 'warehouse_id' => ['nullable', 'integer'], 'job_no' => ['nullable', 'string', 'max:30'],
             'consignment_mark' => ['nullable', 'string', 'max:60'], 'location' => ['nullable', 'string', 'max:40'],
             'condition' => ['nullable', Rule::in(Enums::CONDITIONS)], 'available_only' => ['nullable', 'boolean'],
+            'bottom_leftover' => ['nullable', 'boolean'], // 底层库位剩货托盘 (CHANGE_REQUESTS #126)
         ]);
 
         $units = StockUnit::query()->with(['asnLine.asn.job', 'asnLine.asn.client', 'location'])
@@ -42,10 +44,32 @@ class StockController extends Controller
 
         return view('warehouse::stock.index', [
             'units' => $units, 'filters' => $filters,
+            'leftover' => ! empty($filters['bottom_leftover']) ? $this->bottomLeftovers($filters['warehouse_id'] ?? WarehouseContext::currentId()) : null,
             'clients' => Client::query()->orderBy('name')->get(['id', 'name']),
             'warehouses' => Warehouse::query()->orderBy('code')->get(['id', 'code', 'name']),
             'conditions' => Enums::CONDITIONS,
         ]);
+    }
+
+    /**
+     * 底层库位剩货托盘 (CHANGE_REQUESTS #126, lead answer 6): pallet units in a bottom-level storage location holding fewer cartons than
+     * they held at receipt (the unit's first `receipt` ledger movement, qty_after) — they still pay the full weekly bottom surcharge, so the
+     * supervisor can consolidate. Lowest remaining share first; no threshold is invented.
+     *
+     * @return Collection<int, StockUnit>
+     */
+    private function bottomLeftovers(?int $warehouseId)
+    {
+        $received = "(select sl.qty_after from stock_ledger sl where sl.stock_unit_id = stock_units.id and sl.movement_type = 'receipt' order by sl.id limit 1)";
+
+        return StockUnit::query()->with(['asnLine.asn.client', 'location'])
+            ->select('stock_units.*')->selectRaw("{$received} as received_qty")
+            ->where('stock_units.unit_type', 'pallet')->where('stock_units.qty_on_hand', '>', 0)
+            ->whereHas('location', fn ($l) => $l->where('type', 'storage')->where('storage_tier', 'bottom'))
+            ->when($warehouseId, fn ($q, $v) => $q->where('stock_units.warehouse_id', $v))
+            ->whereRaw("stock_units.qty_on_hand < {$received}")
+            ->orderByRaw("stock_units.qty_on_hand / {$received}")->orderBy('stock_units.id')
+            ->limit(200)->get();
     }
 
     public function show(StockUnit $unit): View

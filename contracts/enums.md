@@ -89,6 +89,9 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 | field | values |
 |---|---|
 | `locations.type` | `receiving` \| `storage` \| `pickface` \| `packing` \| `staging` \| `quarantine` |
+| `locations.storage_tier` | `standard` (default) \| `bottom` (the bottom rack level for expensive goods — only on `type = storage`; `Enums::STORAGE_TIERS`, CHANGE_REQUESTS #126). `locations.rack_level` is a number (1 = floor / bottom beam), not an enum — it lets a middle tier be added later |
+| `order_lines.storage_tier`, `asn_lines.storage_tier`, `stock_units.required_storage_tier`, `stock_snapshots.location_storage_tier` / `.required_storage_tier` | same values as `locations.storage_tier`; `order_lines` null = nothing declared; snapshot columns null = written before #126 |
+| `order_lines.storage_tier_source`, `asn_lines.storage_tier_source` | `client` (the client's sheet / portal upload) \| `staff` (staff import, ASN line form or tier edit) \| `value_rule` (pre-filled from the declared unit price ≥ `tier_value_threshold_cents`) — `Enums::STORAGE_TIER_SOURCES` (#126) |
 | `asns.inbound_type` | `container` \| `loose_truck` \| `parcel` |
 | `asns.status` | `booked` → `arrived` → `receiving` → `putaway` → `closed` — **terminology (lead decision 2026-09-08, #92): ASN = 预报单 (ASN) in every UI string; 入库单 is reserved for `goods_receipts`** |
 | `asns.inbound_transport` | `client_delivers` (default — the client brings the goods) \| `we_collect` (我方上门提货: Transport collects at the pickup address and delivers to our warehouse; CHANGE_REQUESTS #124) — `Enums::ASN_INBOUND_TRANSPORTS` |

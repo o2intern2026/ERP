@@ -7,6 +7,7 @@ use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderImport;
 use App\Support\Contracts\DocumentService;
 use App\Support\Contracts\JobService;
+use App\Support\Contracts\RateService;
 use App\Support\Exceptions\RuleViolation;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,7 @@ final class OrderImportService
         private readonly OrderCreationService $orders,
         private readonly DocumentService $documents,
         private readonly JobService $jobs,
+        private readonly RateService $rates,
     ) {}
 
     /**
@@ -54,6 +56,7 @@ final class OrderImportService
         ], fn ($value) => $value !== null));
 
         $parsed = $this->parser->parse(Storage::disk('local')->path($path));
+        $parsed['rows'] = $this->storageTiers($parsed['rows'], (int) $context['client_id'], $context['source'] === 'portal' ? 'client' : 'staff', $parsed['warnings']);
         $previousFile = OrderImport::query()->where('client_id', $context['client_id'])->whereKeyNot($import->id)->get()
             ->first(fn (OrderImport $candidate) => data_get($candidate->errors, 'context.sha256') === $sha256);
         if ($previousFile !== null) {
@@ -271,6 +274,32 @@ final class OrderImportService
         }
 
         return $groups;
+    }
+
+    /**
+     * CHANGE_REQUESTS #126 存储等级: a declared cell keeps its tier with source `client` (portal) / `staff` (staff import). Without a
+     * declaration, a row whose declared unit price (单价, cents) reaches the client's `tier_value_threshold_cents` — read from the
+     * WH-STORAGE-TIER-PLT-WK rate item through RateService::thresholds; absent → no pre-fill — is pre-filled `bottom` with source
+     * `value_rule` and a warning. The value never prices anything (lead answer 4); the stored declaration is what counts.
+     *
+     * @param  list<array<string,mixed>>  $rows
+     * @param  list<array<string,mixed>>  $warnings
+     * @return list<array<string,mixed>>
+     */
+    private function storageTiers(array $rows, int $clientId, string $declaredBy, array &$warnings): array
+    {
+        $threshold = $this->rates->thresholds($clientId, 'WH-STORAGE-TIER-PLT-WK')['tier_value_threshold_cents'] ?? null;
+        foreach ($rows as &$row) {
+            $row['storage_tier_source'] = ! empty($row['storage_tier_declared']) ? $declaredBy : null;
+            if ($row['storage_tier_source'] === null && is_numeric($threshold) && isset($row['unit_price_cents']) && (int) $row['unit_price_cents'] >= (int) $threshold) {
+                $row['storage_tier'] = 'bottom';
+                $row['storage_tier_source'] = 'value_rule';
+                $warnings[] = ['row' => (int) $row['row'], 'column' => 'storage_tier', 'label' => __('orders.imports.columns.storage_tier'), 'message' => __('orders.imports.warnings.tier_value_prefill', ['row' => $row['row']])];
+            }
+        }
+        unset($row);
+
+        return $rows;
     }
 
     /** @param array<string,mixed> $group */

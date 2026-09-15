@@ -14,7 +14,7 @@ class StockSnapshot extends Model
 
     protected $fillable = [
         'snapshot_date', 'warehouse_id', 'client_id', 'job_id', 'stock_unit_id', 'asn_line_id', 'unit_type', 'pallet_class',
-        'pallet_source', 'location_id', 'location_type', 'condition', 'qty_on_hand', 'qty_reserved', 'created_at',
+        'pallet_source', 'location_id', 'location_type', 'location_storage_tier', 'required_storage_tier', 'condition', 'qty_on_hand', 'qty_reserved', 'created_at',
     ];
 
     protected function casts(): array

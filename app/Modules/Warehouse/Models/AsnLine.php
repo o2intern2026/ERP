@@ -14,7 +14,7 @@ class AsnLine extends Model
         'asn_id', 'container_id', 'consignment_mark', 'deliver_to_name', 'deliver_to_phone', 'deliver_to_address',
         'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'fba_reference', 'description', 'package_type',
         'expected_cartons', 'received_cartons', 'damaged_cartons', 'variance_reason', 'weight_kg', 'length_mm',
-        'width_mm', 'height_mm', 'cbm', 'order_line_id',
+        'width_mm', 'height_mm', 'cbm', 'order_line_id', 'storage_tier', 'storage_tier_source', // tier: CHANGE_REQUESTS #126
     ];
 
     protected function casts(): array
