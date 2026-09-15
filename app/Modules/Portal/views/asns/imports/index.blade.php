@@ -31,7 +31,7 @@
                     <td>{{ ($context['inbound']['container_no'] ?? null) ?: '—' }}</td>
                     <td>{{ ($context['inbound']['expected_date'] ?? null) ?: '—' }}</td>
                     <td class="num">{{ $import->row_count }}</td>
-                    <td>{!! \App\Support\Ui\StatusBadge::render('portal.inbound.statuses.', $import->status) !!}</td>
+                    <td>{!! \App\Support\Ui\StatusBadge::render('portal.inbound.statuses.', $import->status) !!}@if (is_array($context['inbound']['collection'] ?? null)) <span class="badge" data-tone="info">{{ __('portal.inbound.collection.badge') }}</span>@endif</td>
                     <td>@forelse ($created as $entry)<a href="{{ route('portal.orders.show', $entry['order_id']) }}">{{ $entry['order_no'] }}</a>@if (! $loop->last), @endif @empty — @endforelse</td>
                     <td>{{ collect($created)->flatMap(fn ($entry) => $asns[(int) $entry['order_id']] ?? [])->unique()->implode(', ') ?: '—' }}</td>
                 </tr>

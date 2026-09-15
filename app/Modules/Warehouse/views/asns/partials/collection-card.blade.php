@@ -21,6 +21,16 @@
             <dd>@if ($asn->collection_shipment_id)<a href="{{ route('transport.shipments.show', $asn->collection_shipment_id) }}">{{ $plan['shipment_no'] ?? ('#'.$asn->collection_shipment_id) }}</a>@if (filled($plan['booking_ref'] ?? null)) <small class="text-muted">· {{ __('warehouse.asns.collection.fields.booking_ref') }} {{ $plan['booking_ref'] }}</small>@endif @else<span class="text-muted">{{ __('warehouse.asns.collection.shipment_pending') }}</span>@endif</dd>
             <dt>{{ __('warehouse.asns.collection.fields.plan') }}</dt>
             <dd>@if (filled($plan['source'] ?? null)){{ $plan['carrier_name'] ?? __('transport.sources.'.$plan['source']) }} · {{ __('transport.service_levels.'.($plan['service_level'] ?? 'standard')) }} · {{ __('warehouse.asns.collection.fields.customer_price') }} {{ \App\Support\Money::cents((int) ($plan['customer_price_cents'] ?? 0))->format() }}@else<span class="text-muted">{{ __('warehouse.asns.collection.plan_pending') }}</span>@endif</dd>
+            @php($preference = is_array($asn->collection_preference) ? $asn->collection_preference : null)
+            @if ($preference && filled($preference['source'] ?? null))
+                {{-- CHANGE_REQUESTS #125: the plan the client ticked in the portal — the customer price, never a cost. --}}
+                <dt>{{ __('warehouse.asns.collection.fields.client_choice') }}</dt>
+                <dd>{{ ($preference['carrier_name'] ?? null) ?: __('transport.sources.'.$preference['source']) }} · {{ __('transport.service_levels.'.($preference['service_level'] ?? 'standard')) }} · {{ __('warehouse.asns.collection.fields.customer_price') }} {{ \App\Support\Money::cents((int) ($preference['customer_price_cents'] ?? 0))->format() }}@if (filled($preference['chosen_at'] ?? null)) <small class="text-muted">· {{ __('warehouse.asns.collection.fields.chosen_at') }} {{ \Illuminate\Support\Carbon::parse($preference['chosen_at'])->format('Y-m-d H:i') }}</small>@endif</dd>
+            @endif
+            @if ($asn->collection_requested_via === 'client')
+                <dt>{{ __('warehouse.asns.collection.fields.origin') }}</dt>
+                <dd>{{ __('warehouse.asns.collection.origins.client') }}@if ($asn->collection_import_id) <a href="{{ route('orders.imports.show', $asn->collection_import_id) }}">#{{ $asn->collection_import_id }}</a>@endif</dd>
+            @endif
             @if ($asn->collection_notes)<dt>{{ __('warehouse.asns.collection.fields.notes') }}</dt><dd>{{ $asn->collection_notes }}</dd>@endif
             <dt>{{ __('warehouse.asns.collection.fields.requested') }}</dt>
             <dd>{{ $asn->collection_requested_at?->format('Y-m-d H:i') ?? '—' }} · {{ $asn->collectionRequestedBy?->name ?? '—' }} <small class="text-muted">· v{{ $asn->collection_version }}</small></dd>
@@ -31,6 +41,7 @@
                 <details id="collection-edit"{{ $formOpen ? ' open' : '' }}>
                     <summary>{{ __('warehouse.asns.collection.edit') }}</summary>
                     <p class="text-muted"><small>{{ __('warehouse.asns.collection.edit_hint') }}</small></p>
+                    @if (is_array($asn->collection_preference))<p class="text-muted"><small>{{ __('warehouse.asns.collection.edit_client_hint') }}</small></p>@endif
                     @foreach ($errors->keys() as $key)@if (str_starts_with($key, 'collection') && $key !== 'collection')<p role="alert" style="color:var(--erp-danger)">{{ $errors->first($key) }}</p>@endif @endforeach
                     <form method="post" action="{{ route('warehouse.asns.collection.update', $asn) }}">
                         @csrf @method('put')

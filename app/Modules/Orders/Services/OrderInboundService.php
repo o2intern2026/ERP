@@ -3,6 +3,7 @@
 namespace App\Modules\Orders\Services;
 
 use App\Modules\Orders\Models\Order;
+use App\Modules\Orders\Models\OrderImport;
 use App\Modules\Orders\Models\OrderLine;
 use App\Modules\Platform\Models\Job;
 use App\Support\Contracts\InboundService;
@@ -23,6 +24,10 @@ use InvalidArgumentException;
  *
  * CHANGE_REQUESTS #119 adds the mirror image on the ASN page: an existing booked / arrived / receiving ASN imports the client's
  * pending orders as goods lines (attachToAsn) under exactly the same rules — eligibility, Job merge, line payload, link-back.
+ *
+ * CHANGE_REQUESTS #125: the ASN can be generated with 到仓方式 = 我方上门提货 — customer service reviews a client's portal collection
+ * request here, and the collection is requested in the SAME transaction (InboundService::requestCollection), carrying the plan the
+ * client ticked (read server side from the portal import). Any refusal rolls the whole generation back.
  */
 final class OrderInboundService
 {
@@ -52,14 +57,17 @@ final class OrderInboundService
 
     /**
      * The client's orders still waiting for an ASN, oldest first — the pick list of 从订单导入货物行 on the ASN page
-     * (contracts/services.md §2 OrderService::awaitingAsn, CHANGE_REQUESTS #119).
+     * (contracts/services.md §2 OrderService::awaitingAsn, CHANGE_REQUESTS #119). `collection_requested` (additive, #125): the order
+     * came from a portal 入库清单 on which the client asked us to collect the goods — the ASN page warns before the request is lost.
      *
-     * @return list<array{order_id:int, order_no:string, job_id:int, job_no:string, consignment_mark:?string, deliver_to_name:?string, deliver_to_suburb:?string, deliver_to_state:?string, requested_date:?string, operational_status:string, unlinked_lines:int, total_lines:int, unlinked_cartons:int}>
+     * @return list<array{order_id:int, order_no:string, job_id:int, job_no:string, consignment_mark:?string, deliver_to_name:?string, deliver_to_suburb:?string, deliver_to_state:?string, requested_date:?string, operational_status:string, unlinked_lines:int, total_lines:int, unlinked_cartons:int, collection_requested:bool}>
      */
     public function awaitingAsn(int $clientId): array
     {
+        $requested = $this->collectionRequests($clientId);
+
         return $this->eligible()->with(['job', 'lines'])->where('client_id', $clientId)->orderBy('id')->get()
-            ->map(function (Order $order): array {
+            ->map(function (Order $order) use ($requested): array {
                 $unlinked = $order->lines->whereNull('asn_line_id');
 
                 return [
@@ -76,13 +84,35 @@ final class OrderInboundService
                     'unlinked_lines' => $unlinked->count(),
                     'total_lines' => $order->lines->count(),
                     'unlinked_cartons' => (int) $unlinked->sum('carton_qty'),
+                    'collection_requested' => isset($requested[(int) $order->id]),
                 ];
             })->values()->all();
     }
 
     /**
+     * CHANGE_REQUESTS #125: the client's orders that came out of a portal 入库清单 carrying 需要我们上门提货.
+     *
+     * @return array<int, int> order id → portal import id
+     */
+    public function collectionRequests(int $clientId): array
+    {
+        $map = [];
+        OrderImport::query()->where('client_id', $clientId)->where('source', 'portal')->where('status', 'imported')->latest('id')->limit(300)->get()
+            ->each(function (OrderImport $import) use (&$map): void {
+                if (! is_array($import->errors['context']['inbound']['collection'] ?? null)) {
+                    return;
+                }
+                foreach (array_column($import->errors['result']['created'] ?? [], 'order_id') as $orderId) {
+                    $map[(int) $orderId] ??= (int) $import->id;
+                }
+            });
+
+        return $map;
+    }
+
+    /**
      * @param  list<int>  $orderIds
-     * @param  array{warehouse_id:int|string, inbound_type:string, expected_date?:?string, notes?:?string, container_no?:?string, container_size?:?string, unpack_mode?:?string, gross_weight_kg?:mixed}  $header
+     * @param  array{warehouse_id:int|string, inbound_type:string, expected_date?:?string, notes?:?string, container_no?:?string, container_size?:?string, unpack_mode?:?string, gross_weight_kg?:mixed, inbound_transport?:?string, collection?:?array<string, mixed>, collection_ready_date?:?string, collection_notes?:?string, collection_import_id?:int|string|null}  $header
      * @return array{asn_id:int, asn_no:string, job_id:int, job_no:string, orders:int, lines:int, merged:list<string>, cancelled:list<string>}
      */
     public function generate(array $orderIds, array $header, ?int $actorId): array
@@ -119,6 +149,11 @@ final class OrderInboundService
             ], $lines);
 
             $this->linkLines($orders, $result, $actorId);
+
+            // CHANGE_REQUESTS #125: 到仓方式 = 我方上门提货 — requested inside this transaction, so a refusal leaves no ASN and the orders untouched.
+            if (($header['inbound_transport'] ?? 'client_delivers') === 'we_collect') {
+                $this->inbound->requestCollection($result['asn_id'], $this->collectionRequest($header, (int) $master->client_id), $actorId);
+            }
 
             return [
                 'asn_id' => $result['asn_id'],
@@ -182,6 +217,52 @@ final class OrderInboundService
                 'job_no' => $jobNo,
             ];
         });
+    }
+
+    /**
+     * The ASN goods line description of an order line: 中文品名 / English, '—' when both are blank. Public so the portal's collection
+     * estimate (CHANGE_REQUESTS #125) describes the parcels exactly as Transport will read them from the ASN.
+     */
+    public static function asnLineDescription(?string $descriptionCn, ?string $descriptionEn): string
+    {
+        return trim(implode(' / ', array_filter([$descriptionCn, $descriptionEn]))) ?: '—';
+    }
+
+    /**
+     * The collection request handed to Warehouse (CHANGE_REQUESTS #125). Packages stay empty: Transport prices the ASN goods lines,
+     * which mirror the orders. With `collection_import_id` the client's chosen plan is read HERE from that portal import — never
+     * from the form — and the import must be an imported portal submission of the orders' client carrying a collection request.
+     *
+     * @param  array<string, mixed>  $header
+     * @return array{address:array<string, mixed>, ready_date:string, notes:?string, packages:list<array<string, mixed>>, requested_via:string, client_preference:?array<string, mixed>, import_id:?int}
+     */
+    private function collectionRequest(array $header, int $clientId): array
+    {
+        $request = [
+            'address' => is_array($header['collection'] ?? null) ? $header['collection'] : [],
+            'ready_date' => (string) ($header['collection_ready_date'] ?? ''),
+            'notes' => filled($header['collection_notes'] ?? null) ? (string) $header['collection_notes'] : null,
+            'packages' => [],
+            'requested_via' => 'staff',
+            'client_preference' => null,
+            'import_id' => null,
+        ];
+        if (! filled($header['collection_import_id'] ?? null)) {
+            return $request;
+        }
+
+        $importId = (int) $header['collection_import_id'];
+        $import = OrderImport::query()->find($importId);
+        $collection = $import?->errors['context']['inbound']['collection'] ?? null;
+        if ($import === null || $import->source !== 'portal' || (int) $import->client_id !== $clientId || $import->status !== 'imported' || ! is_array($collection)) {
+            throw new RuleViolation("Import {$importId} is not a portal collection request of this client.", 'orders.inbound.errors.collection_import_invalid', ['id' => $importId]);
+        }
+
+        return [
+            'requested_via' => 'client',
+            'client_preference' => is_array($collection['preference'] ?? null) ? $collection['preference'] : null,
+            'import_id' => $importId,
+        ] + $request;
     }
 
     /**
@@ -269,7 +350,7 @@ final class OrderInboundService
                     'order_line_id' => $line->id,
                     'container_no' => $containerNo,
                     'consignment_mark' => $order->consignment_mark,
-                    'description' => trim(implode(' / ', array_filter([$line->description_cn, $line->description_en]))) ?: '—',
+                    'description' => self::asnLineDescription($line->description_cn, $line->description_en),
                     'expected_cartons' => (int) $line->carton_qty,
                     'package_type' => $line->package_type,
                     'deliver_to_name' => $order->deliver_to_name,

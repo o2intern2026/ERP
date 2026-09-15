@@ -8,6 +8,7 @@ use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnLine;
 use App\Support\Contracts\InboundService;
 use App\Support\Contracts\JobService;
+use App\Support\Enums;
 use App\Support\Exceptions\RuleViolation;
 use App\Support\Outbox\OutboxPublisher;
 use Illuminate\Support\Arr;
@@ -22,6 +23,12 @@ final class AsnService implements InboundService
 
     /** Keys of one declared package row (asns.collection_packages[]). */
     private const PACKAGE_KEYS = ['package_type', 'qty', 'weight_kg', 'length_mm', 'width_mm', 'height_mm'];
+
+    /**
+     * Keys kept of the client's chosen collection plan (asns.collection_preference, CHANGE_REQUESTS #125): the portal's customer
+     * snapshot (Portal PortalTransportEstimate::SNAPSHOT) plus who chose it and when — never cost or markup.
+     */
+    public const PREFERENCE_KEYS = ['carrier_id', 'carrier_name', 'source', 'service_level', 'customer_price_cents', 'eta_days', 'is_recommended', 'is_cheapest', 'is_fastest', 'chosen_at', 'chosen_by'];
 
     public function __construct(private readonly JobService $jobs, private readonly OutboxPublisher $outbox) {}
 
@@ -141,7 +148,7 @@ final class AsnService implements InboundService
                 'collection_version' => $version,
                 'collection_status' => 'requested',
                 'collection_plan' => null,
-            ]);
+            ] + $this->collectionOrigin($locked, $data));
 
             $this->outbox->publish(new AsnCollectionRequested([
                 'asn_id' => $locked->id,
@@ -167,10 +174,46 @@ final class AsnService implements InboundService
                 'requested_by' => $userId,
                 'requested_at' => $requestedAt->toIso8601String(),
                 'activity_version' => $version,
+                // CHANGE_REQUESTS #125: the plan the client ticked in the portal (customer fields only) and who asked — Transport confirms that option within tolerance.
+                'client_preference' => $locked->collection_preference,
+                'requested_via' => $locked->collection_requested_via,
             ], jobId: (int) $locked->job_id, clientId: (int) $locked->client_id, correlationId: $locked->job?->job_no ?? $locked->asn_no));
 
             return $locked->refresh();
         });
+    }
+
+    /**
+     * InboundService (CHANGE_REQUESTS #125): 待建预报 opened this ASN for a client's portal collection request — same rules and event as
+     * the ASN page, inside the caller's transaction, so a refusal rolls the whole generation back.
+     */
+    public function requestCollection(int $asnId, array $data, ?int $actorId): array
+    {
+        $asn = $this->setCollection(Asn::query()->withoutGlobalScopes()->findOrFail($asnId), $data, $actorId);
+
+        return ['asn_id' => (int) $asn->id, 'collection_version' => (int) $asn->collection_version];
+    }
+
+    /**
+     * Who asked and what the client chose (CHANGE_REQUESTS #125). `client_preference` present → whitelisted to PREFERENCE_KEYS (null
+     * clears it); absent (a staff edit on the ASN page) → the stored preference stays, so a re-quote still confirms the client's
+     * option within tolerance. `requested_via` / `import_id` follow the same rule; a request without any origin is staff's.
+     *
+     * @return array{collection_requested_via:string, collection_preference?:?array<string, mixed>, collection_import_id?:?int}
+     */
+    private function collectionOrigin(Asn $asn, array $data): array
+    {
+        $via = array_key_exists('requested_via', $data) ? $data['requested_via'] : $asn->collection_requested_via;
+        $origin = ['collection_requested_via' => in_array($via, Enums::ASN_COLLECTION_REQUESTED_VIA, true) ? $via : 'staff'];
+        if (array_key_exists('client_preference', $data)) {
+            $kept = is_array($data['client_preference']) ? Arr::only($data['client_preference'], self::PREFERENCE_KEYS) : [];
+            $origin['collection_preference'] = $kept === [] ? null : $kept;
+        }
+        if (array_key_exists('import_id', $data)) {
+            $origin['collection_import_id'] = filled($data['import_id']) ? (int) $data['import_id'] : null;
+        }
+
+        return $origin;
     }
 
     /**
@@ -189,7 +232,8 @@ final class AsnService implements InboundService
             }
 
             $shipmentId = $locked->collection_shipment_id;
-            $locked->update(['inbound_transport' => 'client_delivers', 'collection_status' => null, 'collection_shipment_id' => null, 'collection_plan' => null]);
+            $locked->update(['inbound_transport' => 'client_delivers', 'collection_status' => null, 'collection_shipment_id' => null, 'collection_plan' => null,
+                'collection_preference' => null, 'collection_requested_via' => null, 'collection_import_id' => null]); // #125: the client's request ends with it
 
             $this->outbox->publish(new AsnCollectionCancelled([
                 'asn_id' => $locked->id,

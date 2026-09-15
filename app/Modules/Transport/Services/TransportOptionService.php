@@ -392,13 +392,24 @@ final class TransportOptionService implements TransportOptionServiceContract
         return ($carrierId > 0 ? $same->first(fn (TransportQuote $q): bool => (int) $q->carrier_id === $carrierId) : null) ?? $same->first();
     }
 
-    /** orders.transport_preference (Orders, X1) as the client left it with the 估价 — read-only, customer fields only. */
+    /**
+     * What the client committed to, read-only, customer fields only: `orders.transport_preference` (Orders, X1) as the client left it with
+     * the 估价 — or, for an inbound collection (no order), `asns.collection_preference` (Warehouse, C): the plan the client ticked with
+     * its portal collection request (CHANGE_REQUESTS #125). A staff-requested collection carries none: a person confirms on the
+     * shipment page, as in #124.
+     */
     private function clientPreference(Shipment $shipment): ?array
     {
-        if ($shipment->order_id === null || ! Schema::hasColumn('orders', 'transport_preference')) {
-            return null; // an inbound collection (#124) has no order and no client choice in v1: a person confirms on the shipment page
+        if ($shipment->order_id !== null) {
+            if (! Schema::hasColumn('orders', 'transport_preference')) {
+                return null;
+            }
+            $raw = DB::table('orders')->where('id', $shipment->order_id)->value('transport_preference');
+        } elseif ($shipment->asn_id !== null && Schema::hasColumn('asns', 'collection_preference')) {
+            $raw = DB::table('asns')->where('id', $shipment->asn_id)->value('collection_preference');
+        } else {
+            return null;
         }
-        $raw = DB::table('orders')->where('id', $shipment->order_id)->value('transport_preference');
         $preference = is_string($raw) ? json_decode($raw, true) : (is_array($raw) ? $raw : null);
 
         return is_array($preference) && isset($preference['source'], $preference['service_level']) ? $preference : null;

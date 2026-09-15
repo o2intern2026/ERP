@@ -135,7 +135,7 @@
                             @php($blocked = in_array($c['job_id'], $blockedJobs, true))
                             <tr>
                                 <td><input type="checkbox" name="order_ids[]" value="{{ $c['order_id'] }}" aria-label="{{ $c['order_no'] }}"{{ ! $blocked && in_array($c['order_id'], old('order_ids', []), false) ? ' checked' : '' }}{{ $blocked ? ' disabled' : '' }}></td>
-                                <td><a href="{{ route('orders.show', $c['order_id']) }}">{{ $c['order_no'] }}</a></td>
+                                <td><a href="{{ route('orders.show', $c['order_id']) }}">{{ $c['order_no'] }}</a>@if (! empty($c['collection_requested']))<br><span class="badge" data-tone="warn">{{ __('warehouse.asns.import_orders_collection_warning') }}</span>@endif</td>
                                 <td>{{ $c['job_no'] }} @if ($blocked)<mark>{{ __('warehouse.asns.import_orders_job_has_asn') }}</mark>@endif</td>
                                 <td>{{ $c['consignment_mark'] ?: __('orders.not_provided') }}</td>
                                 <td>{{ $c['deliver_to_name'] ?? '—' }} <small class="text-muted">{{ $c['deliver_to_suburb'] }} {{ $c['deliver_to_state'] }}</small></td>

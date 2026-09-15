@@ -60,6 +60,8 @@ final class OrderInboundController extends Controller
     public function store(Request $request, OrderInboundService $service): RedirectResponse
     {
         RequiredRoles::requireAny(OrderInboundService::ROLES);
+        // CHANGE_REQUESTS #125: the 到仓方式 fields only exist for 我方上门提货 — with 客户自送 they are dropped before any rule runs.
+        $collect = fn (array $rules): array => ['exclude_unless:inbound_transport,we_collect', ...$rules];
         $data = $request->validate([
             'order_ids' => ['required', 'array', 'min:1'],
             'order_ids.*' => ['integer', Rule::exists('orders', 'id')],
@@ -71,6 +73,19 @@ final class OrderInboundController extends Controller
             'gross_weight_kg' => ['nullable', 'numeric', 'min:0'],
             'expected_date' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'inbound_transport' => ['nullable', Rule::in(Enums::ASN_INBOUND_TRANSPORTS)],
+            'collection' => $collect(['required_if:inbound_transport,we_collect', 'array']),
+            'collection.name' => $collect(['required_if:inbound_transport,we_collect', 'string', 'max:255']),
+            'collection.phone' => $collect(['nullable', 'string', 'max:40']),
+            'collection.address' => $collect(['required_if:inbound_transport,we_collect', 'string', 'max:255']),
+            'collection.suburb' => $collect(['required_if:inbound_transport,we_collect', 'string', 'max:100']),
+            'collection.state' => $collect(['required_if:inbound_transport,we_collect', Rule::in(Enums::STATES)]),
+            'collection.postcode' => $collect(['required_if:inbound_transport,we_collect', 'regex:/^\d{4}$/']),
+            'collection.type' => $collect(['nullable', Rule::in(Enums::ADDRESS_TYPES)]),
+            // No "not before today" rule here on purpose: Warehouse refuses a past ready date (RuleViolation) and the whole generation rolls back.
+            'collection_ready_date' => $collect(['required_if:inbound_transport,we_collect', 'date']),
+            'collection_notes' => $collect(['nullable', 'string', 'max:2000']),
+            'collection_import_id' => $collect(['nullable', 'integer']),
         ], OrderValidation::messages(), OrderValidation::attributes());
 
         try {
@@ -90,9 +105,11 @@ final class OrderInboundController extends Controller
     /**
      * CHANGE_REQUESTS #123: the 柜号 / 柜型 / 预计到港 / 参考号 / 备注 a client submitted with its portal 入库清单, for the candidate orders
      * that came out of those uploads — one entry per submission that still has an order waiting here, keyed by client.
+     * CHANGE_REQUESTS #125: `collection` = the client's 需要我们上门提货 request on that list (warehouse_id, address, ready_date, notes,
+     * preference — the plan it ticked with the client price; staff may see it), null when the client delivers itself.
      *
      * @param  Collection<int, Order>  $orders
-     * @return array<int, list<array{import:OrderImport, inbound:array<string, mixed>, file:?string, order_ids:list<int>, order_nos:list<string>}>>
+     * @return array<int, list<array{import:OrderImport, inbound:array<string, mixed>, collection:?array<string, mixed>, file:?string, order_ids:list<int>, order_nos:list<string>}>>
      */
     private function portalSubmissions(Collection $orders): array
     {
@@ -108,9 +125,11 @@ final class OrderInboundController extends Controller
                 if ($ids === []) {
                     return;
                 }
+                $inbound = is_array($import->errors['context']['inbound'] ?? null) ? $import->errors['context']['inbound'] : [];
                 $result[(int) $import->client_id][] = [
                     'import' => $import,
-                    'inbound' => is_array($import->errors['context']['inbound'] ?? null) ? $import->errors['context']['inbound'] : [],
+                    'inbound' => $inbound,
+                    'collection' => is_array($inbound['collection'] ?? null) ? $inbound['collection'] : null,
                     'file' => $import->errors['context']['original_name'] ?? null,
                     'order_ids' => $ids,
                     'order_nos' => array_map(fn (int $id) => (string) $byId[$id]->order_no, $ids),

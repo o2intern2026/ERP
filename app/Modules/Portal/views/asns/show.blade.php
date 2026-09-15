@@ -27,7 +27,8 @@
         </dl>
     </article>
 
-    @include('portal::asns.partials.collection', ['asn' => $asn])
+    @if (session('status'))<article>{{ session('status') }}</article>@endif
+    @include('portal::asns.partials.collection', ['asn' => $asn, 'collectionQuotes' => $collectionQuotes ?? null])
 
     <h2>{{ __('portal.asns.sections.lines') }}</h2>
     @if ($asn->lines->isEmpty())

@@ -4,6 +4,7 @@ namespace App\Modules\Portal\Services;
 
 use App\Modules\Orders\Models\Order;
 use App\Modules\Transport\Models\Shipment;
+use App\Modules\Warehouse\Models\Asn;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -66,6 +67,46 @@ final class PortalTransportQuotes
                 'all_expired' => $confirmable && $own->isNotEmpty() && $own->every(fn ($q) => $q->expired),
             ];
         })->values()->all();
+    }
+
+    /**
+     * CHANGE_REQUESTS #125: the inbound collection shipment of a 预报单 with its final quotes — the same customer columns, expiry and
+     * confirmability as forOrder() — for the portal's 提货运费有变化，请确认方案 table and the confirmed plan. Null while Transport has
+     * not opened the shipment. Client-scoped through Shipment.
+     *
+     * @return array{shipment_no:string, status:string, quotes: Collection<int, object>, selected: ?object, can_confirm: bool, all_expired: bool}|null
+     */
+    public function forAsnCollection(Asn $asn): ?array
+    {
+        $shipment = Shipment::query()->where('asn_id', $asn->id)->where('shipment_type', 'inbound_collection')->latest('id')->first();
+        if ($shipment === null) {
+            return null;
+        }
+
+        $quotes = DB::table('transport_quotes as q')
+            ->leftJoin('carriers as c', 'c.id', '=', 'q.carrier_id')
+            ->where('q.shipment_id', $shipment->id)
+            ->where('q.quote_stage', 'final')
+            ->whereIn('q.status', ['quoted', 'selected'])
+            ->orderByDesc('q.status') // the selected quote first
+            ->orderByDesc('q.is_recommended')
+            ->orderBy('q.customer_price_cents')
+            ->orderByDesc('q.id')
+            ->get(self::CUSTOMER_COLUMNS);
+        $confirmable = $shipment->status === 'quoted';
+        foreach ($quotes as $q) {
+            $q->expired = $q->status === 'quoted' && $q->expires_at !== null && Carbon::parse($q->expires_at)->isPast();
+            $q->can_confirm = $confirmable && $q->status === 'quoted' && ! $q->expired;
+        }
+
+        return [
+            'shipment_no' => (string) $shipment->shipment_no,
+            'status' => (string) $shipment->status,
+            'quotes' => $quotes,
+            'selected' => $quotes->first(fn ($q) => $q->status === 'selected' || (int) $q->id === (int) $shipment->selected_quote_id),
+            'can_confirm' => $confirmable,
+            'all_expired' => $confirmable && $quotes->isNotEmpty() && $quotes->every(fn ($q) => $q->expired),
+        ];
     }
 
     /** Client-scoped (Shipment uses BelongsToClient): another client's shipments never appear. */
