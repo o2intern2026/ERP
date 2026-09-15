@@ -23,6 +23,7 @@ use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Services\AsnService;
 use App\Support\Contracts\CarrierAdapter;
 use App\Support\Contracts\ExceptionService;
+use App\Support\Contracts\InboundService;
 use App\Support\Contracts\RateService;
 use App\Support\Contracts\TransportOptionService as TransportOptionServiceContract;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -286,6 +287,43 @@ class AsnCollectionTest extends TestCase
         app(AsnService::class)->markArrived($asn);
         $this->actingAs($cs)->put(route('warehouse.asns.collection.update', $asn), $this->collectionFields())
             ->assertSessionHasErrors(['collection' => __('warehouse.asns.collection.errors.asn_not_booked', ['no' => $asn->asn_no])]);
+    }
+
+    /**
+     * CHANGE_REQUESTS #125 (review TEST-1): Warehouse itself whitelists a client preference to the customer snapshot keys — whatever a caller
+     * of InboundService::requestCollection hands over (a quote row, a raw option carrying cost / markup), neither asns.collection_preference
+     * nor the asn.collection_requested payload ever holds anything else. A staff edit without the key keeps the stored plan.
+     */
+    public function test_request_collection_keeps_only_the_customer_snapshot_of_a_client_preference(): void
+    {
+        $client = $this->client();
+        $warehouse = $this->warehouse();
+        $chooser = $this->clientUser($client);
+        $asn = app(AsnService::class)->create(['client_id' => $client->id, 'warehouse_id' => $warehouse->id, 'inbound_type' => 'loose_truck']);
+        $snapshot = ['carrier_id' => 7, 'carrier_name' => 'Edward Own Fleet', 'source' => 'own_fleet', 'service_level' => 'standard', 'customer_price_cents' => 7500, 'eta_days' => 1,
+            'is_recommended' => true, 'is_cheapest' => true, 'is_fastest' => false, 'chosen_at' => now()->toIso8601String(), 'chosen_by' => $chooser->id];
+        $fields = $this->collectionFields();
+
+        $result = app(InboundService::class)->requestCollection($asn->id, [
+            'address' => $fields['collection'], 'ready_date' => $fields['collection_ready_date'], 'packages' => $fields['collection_packages'], 'notes' => null,
+            'client_preference' => $snapshot + ['cost_cents' => 6000, 'markup_percent' => 25, 'margin_cents' => 1500, 'key' => 'own_fleet|standard|7', 'raw_response' => ['cost' => 6000]],
+            'requested_via' => 'client', 'import_id' => 42,
+        ], null);
+
+        $asn->refresh();
+        $this->assertSame(['asn_id' => $asn->id, 'collection_version' => 1], $result);
+        $this->assertEqualsCanonicalizing(AsnService::PREFERENCE_KEYS, array_keys($asn->collection_preference));
+        $this->assertEquals($snapshot, $asn->collection_preference);
+        $this->assertSame(['client', 42], [$asn->collection_requested_via, $asn->collection_import_id]);
+        $payload = OutboxEvent::query()->where('event_name', 'asn.collection_requested')->sole()->payload;
+        $this->assertEqualsCanonicalizing(AsnService::PREFERENCE_KEYS, array_keys($payload['client_preference']));
+        $this->assertStringNotContainsString('6000', json_encode($payload['client_preference']));
+
+        // A staff edit on the ASN page (no client_preference key) keeps the whitelisted plan and origin.
+        app(AsnService::class)->setCollection($asn, ['address' => $fields['collection'], 'ready_date' => today()->addDays(3)->toDateString(), 'packages' => $fields['collection_packages']], null);
+        $asn->refresh();
+        $this->assertSame([2, 'client', 42], [$asn->collection_version, $asn->collection_requested_via, $asn->collection_import_id]);
+        $this->assertEquals($snapshot, $asn->collection_preference);
     }
 
     /** A collection requested on the create form and handed to Transport (dispatched once). */

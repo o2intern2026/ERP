@@ -157,19 +157,38 @@ class PortalCollectionRequestTest extends TestCase
         $this->assertSame(0, Asn::query()->withoutGlobalScopes()->count());
     }
 
-    public function test_without_a_priced_plan_the_client_still_confirms_and_the_page_says_customer_service_confirms_the_freight(): void
+    public function test_a_list_with_no_row_to_collect_by_is_refused_and_without_an_automatic_plan_the_client_still_confirms(): void
     {
         Storage::fake('local');
         $user = $this->clientUser($this->client());
         $warehouse = $this->warehouse();
+        $cs = $this->staff('customer_service');
         $import = $this->uploadCollection($user, $warehouse, ['MK-C,样品,Samples,纸箱,2,10,10,,,,Shop C,03 9999 0001,5 Low St,Richmond,VIC,3121,,']);
+        $confirmButton = '<button type="submit">'.__('portal.inbound.actions.confirm').'</button>';
 
+        // No row carries weight AND length / width / height: Warehouse would refuse the collection when customer service generates the ASN
+        // (no_packages) and 待建预报 has no package fields — so the portal refuses it now, in Chinese, before any order exists.
         $this->actingAs($user)->get(route('portal.asns.imports.show', $import))->assertOk()
-            ->assertSee(__('portal.inbound.collection.no_plan.no_items'))->assertSee(__('portal.inbound.collection.no_plan_hint'))->assertDontSee('name="collection_choice"', false);
-        $this->confirmCollection($user, $import, null)->assertSessionHasNoErrors()->assertRedirect(route('portal.asns.imports.show', $import));
-        $import->refresh();
-        $this->assertSame('imported', $import->status);
-        $this->assertNull($import->errors['context']['inbound']['collection']['preference']);
-        $this->actingAs($user)->get(route('portal.asns.imports.show', $import))->assertOk()->assertSee(__('portal.inbound.collection.pending_freight'));
+            ->assertSee(__('portal.inbound.collection.errors.no_items'))->assertDontSee(__('portal.inbound.collection.no_plan_hint'))
+            ->assertDontSee('name="collection_choice"', false)->assertDontSee($confirmButton, false)->assertSee(__('portal.inbound.actions.reupload'));
+        $this->confirmCollection($user, $import, null)->assertRedirect(route('portal.asns.imports.show', $import))
+            ->assertSessionHasErrors(['collection_choice' => __('portal.inbound.collection.errors.no_items')]);
+        $this->assertSame(['pending', 0], [$import->fresh()->status, Order::query()->withoutGlobalScopes()->count()]);
+        $this->assertArrayNotHasKey('preference', $import->fresh()->errors['context']['inbound']['collection']);
+
+        // Rows that can be priced but no carrier answers (no automatic plan): the client still confirms, the page says the freight is
+        // confirmed later, and customer service's generation goes through on the goods lines — no dead end.
+        $this->bindStubCarriers([]);
+        $priced = $this->uploadCollection($user, $warehouse);
+        $this->actingAs($user)->get(route('portal.asns.imports.show', $priced))->assertOk()
+            ->assertSee(__('portal.inbound.collection.no_plan.none'))->assertSee(__('portal.inbound.collection.no_plan_hint'))->assertDontSee('name="collection_choice"', false)->assertSee($confirmButton, false);
+        $this->confirmCollection($user, $priced, null)->assertSessionHasNoErrors()->assertRedirect(route('portal.asns.imports.show', $priced));
+        $priced->refresh();
+        $this->assertSame('imported', $priced->status);
+        $this->assertNull($priced->errors['context']['inbound']['collection']['preference']);
+        $this->actingAs($user)->get(route('portal.asns.imports.show', $priced))->assertOk()->assertSee(__('portal.inbound.collection.pending_freight'));
+        $this->generateFromImport($cs, $priced)->assertSessionHasNoErrors();
+        $asn = Asn::query()->withoutGlobalScopes()->sole();
+        $this->assertSame(['we_collect', 'client', null], [$asn->inbound_transport, $asn->collection_requested_via, $asn->collection_preference]);
     }
 }

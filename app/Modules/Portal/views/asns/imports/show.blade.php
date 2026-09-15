@@ -135,7 +135,10 @@
                     @php($plans = $collectionEstimate['options'])
                     <article class="kv-card" id="collection-plans">
                         <strong>{{ __('portal.inbound.collection.plans_title') }}</strong>
-                        @if ($plans === [])
+                        @if (($collectionEstimate['reason'] ?? null) === 'no_items')
+                            {{-- Review UX-1: no row can be collected by (weight + L/W/H) — confirm is refused, the client re-uploads. --}}
+                            <p role="alert" style="margin:.3rem 0;color:var(--erp-danger)">{{ __('portal.inbound.collection.errors.no_items') }}</p>
+                        @elseif ($plans === [])
                             <p style="margin:.3rem 0">{{ __('portal.inbound.collection.no_plan.'.($collectionEstimate['reason'] ?? 'none')) }} {{ __('portal.inbound.collection.no_plan_hint') }}</p>
                         @else
                             <p class="text-muted" style="margin:.3rem 0"><small>{{ __('portal.inbound.collection.plans_hint') }}</small></p>
@@ -160,7 +163,9 @@
                         @endif
                     </article>
                 @endif
-                <button type="submit">{{ __('portal.inbound.actions.confirm') }}</button>
+                @unless ($collection && ($collectionEstimate['reason'] ?? null) === 'no_items')
+                    <button type="submit">{{ __('portal.inbound.actions.confirm') }}</button>
+                @endunless
                 <a class="secondary" role="button" href="{{ route('portal.asns.imports.create') }}">{{ __('portal.inbound.actions.reupload') }}</a>
             </form>
         @else

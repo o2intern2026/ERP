@@ -29,8 +29,9 @@ trait PortalCollectionFlow
         StubCarrierAdapter::$requests = [];
         $adapters = [];
         foreach ($carriers as $source => $c) {
-            $carrier = Carrier::query()->create(['code' => $c['code'], 'name' => $c['name'], 'status' => 'active']);
-            CarrierService::query()->create(['carrier_id' => $carrier->id, 'source' => $source, 'service_level' => $c['level'], 'default_eta_days' => 1, 'active' => true]);
+            // Idempotent, so a test can re-bind with an extra carrier after setUp() bound the first ones.
+            $carrier = Carrier::query()->firstOrCreate(['code' => $c['code']], ['name' => $c['name'], 'status' => 'active']);
+            CarrierService::query()->firstOrCreate(['carrier_id' => $carrier->id, 'source' => $source, 'service_level' => $c['level']], ['default_eta_days' => 1, 'active' => true]);
             StubCarrierAdapter::$costs[$source] = $c['cost'];
             $adapters[] = new StubCarrierAdapter($source, $c['level']);
         }

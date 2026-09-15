@@ -196,6 +196,12 @@ final class PortalInboundImportController extends Controller
         $collection = $import->errors['context']['inbound']['collection'] ?? null;
         if (is_array($collection)) {
             $plans = $estimate->collectionOptions((int) $import->client_id, $collection, $this->readyRows($groups));
+            // Review UX-1: without one row carrying cartons + weight + all three dimensions there is nothing to collect by — Warehouse
+            // refuses the collection when customer service generates the ASN (no_packages) and 待建预报 has no package fields. Refused here,
+            // before any order exists: the client re-uploads with 重量 / 长宽高 (or chooses to deliver itself).
+            if ($plans['reason'] === 'no_items') {
+                return redirect()->route('portal.asns.imports.show', $import)->withErrors(['collection_choice' => __('portal.inbound.collection.errors.no_items')]);
+            }
             $preference = null;
             if ($plans['options'] !== []) {
                 $key = $request->input('collection_choice');

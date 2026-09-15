@@ -127,7 +127,8 @@
                 <fieldset id="collection-fields" {{ $weCollect ? '' : 'hidden disabled' }}>
                     <p class="text-muted" style="margin:.2rem 0"><small>{{ __('orders.inbound.collection.hint') }}</small></p>
                     <input type="hidden" name="collection_import_id" value="{{ old('collection_import_id') }}">
-                    <p id="collection-import-note" class="text-muted" style="margin:.2rem 0" {{ old('collection_import_id') ? '' : 'hidden' }}><small data-template="{{ __('orders.inbound.collection.from_import', ['id' => '__ID__']) }}">{{ old('collection_import_id') ? __('orders.inbound.collection.from_import', ['id' => old('collection_import_id')]) : '' }}</small></p>
+                    <p id="collection-import-note" class="text-muted" style="margin:.2rem 0" {{ old('collection_import_id') ? '' : 'hidden' }}><small data-template="{{ __('orders.inbound.collection.from_import', ['id' => '__ID__']) }}" data-partial="{{ __('orders.inbound.collection.partial_import', ['id' => '__ID__']) }}">{{ old('collection_import_id') ? __('orders.inbound.collection.from_import', ['id' => old('collection_import_id')]) : '' }}</small></p>
+                    <p id="collection-import-cleared" class="text-muted" style="margin:.2rem 0" hidden><small>{{ __('orders.inbound.collection.import_cleared') }}</small></p>
                     <div class="grid">
                         <label>{{ __('orders.inbound.collection.fields.name') }}<input type="text" name="collection[name]" maxlength="255" value="{{ old('collection.name') }}"></label>
                         <label>{{ __('orders.inbound.collection.fields.phone') }}<input type="text" name="collection[phone]" maxlength="40" value="{{ old('collection.phone') }}"></label>
@@ -172,12 +173,30 @@
                     var client = checked.length ? checked[0].dataset.client : null;
                     boxes.forEach(function (b) { b.disabled = client !== null && b.dataset.client !== client; });
                 }
-                boxes.forEach(function (b) { b.addEventListener('change', limit); });
+                // CHANGE_REQUESTS #125 review: the import link covers only that submission's orders (the server refuses others). Ticking another
+                // order drops the link (the pickup fields stay); ticking only part of the submission says the client's whole-list plan is not carried.
+                var importInput = form.querySelector('[name="collection_import_id"]');
+                var importNote = document.getElementById('collection-import-note');
+                var importCleared = document.getElementById('collection-import-cleared');
+                var importOrders = null;
+                function checkImport() {
+                    if (!importInput.value || importOrders === null) { return; }
+                    var checked = boxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+                    var note = importNote.querySelector('small');
+                    if (checked.some(function (id) { return importOrders.indexOf(id) === -1; })) {
+                        importInput.value = '';
+                        importOrders = null;
+                        importNote.hidden = true;
+                        importCleared.hidden = false;
+                        return;
+                    }
+                    var partial = importOrders.some(function (id) { return checked.indexOf(id) === -1; });
+                    note.textContent = (partial ? note.dataset.partial : note.dataset.template).replace('__ID__', importInput.value);
+                }
+                boxes.forEach(function (b) { b.addEventListener('change', function () { limit(); checkImport(); }); });
                 limit();
                 // CHANGE_REQUESTS #123: 选中并填入 — tick the orders of one portal submission and copy its 柜号 / 柜型 / 预计到港 / 备注 into the ASN header.
                 // CHANGE_REQUESTS #125: a collection request also sets 我方上门提货 and fills the pickup fields, the warehouse and the import id.
-                var importInput = form.querySelector('[name="collection_import_id"]');
-                var importNote = document.getElementById('collection-import-note');
                 Array.prototype.slice.call(document.querySelectorAll('[data-select-import]')).forEach(function (btn) {
                     btn.addEventListener('click', function () {
                         var ids = btn.dataset.orders.split(',');
@@ -197,12 +216,16 @@
                             if (btn.dataset.warehouseId) { form.querySelector('[name="warehouse_id"]').value = btn.dataset.warehouseId; }
                             if (!btn.dataset.containerNo && type.value === 'container') { type.value = 'loose_truck'; }
                             importInput.value = btn.dataset.importId;
+                            importOrders = ids;
                             var note = importNote.querySelector('small');
                             note.textContent = note.dataset.template.replace('__ID__', btn.dataset.importId);
                             importNote.hidden = false;
+                            importCleared.hidden = true;
                         } else {
                             importInput.value = '';
+                            importOrders = null;
                             importNote.hidden = true;
+                            importCleared.hidden = true;
                             form.querySelector('input[name="inbound_transport"][value="client_delivers"]').checked = true;
                         }
                         toggle();

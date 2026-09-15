@@ -152,7 +152,7 @@ final class OrderInboundService
 
             // CHANGE_REQUESTS #125: 到仓方式 = 我方上门提货 — requested inside this transaction, so a refusal leaves no ASN and the orders untouched.
             if (($header['inbound_transport'] ?? 'client_delivers') === 'we_collect') {
-                $this->inbound->requestCollection($result['asn_id'], $this->collectionRequest($header, (int) $master->client_id), $actorId);
+                $this->inbound->requestCollection($result['asn_id'], $this->collectionRequest($header, (int) $master->client_id, $orders->pluck('id')->map(fn ($id) => (int) $id)->all()), $actorId);
             }
 
             return [
@@ -231,12 +231,17 @@ final class OrderInboundService
     /**
      * The collection request handed to Warehouse (CHANGE_REQUESTS #125). Packages stay empty: Transport prices the ASN goods lines,
      * which mirror the orders. With `collection_import_id` the client's chosen plan is read HERE from that portal import — never
-     * from the form — and the import must be an imported portal submission of the orders' client carrying a collection request.
+     * from the form — and the import must be an imported portal submission of the orders' client carrying a collection request, and every
+     * generated order must have come out of that submission (else `collection_import_orders`: the client never priced those goods).
+     * The client's plan and price were for the WHOLE list, so the preference is carried only when this ASN takes every order the
+     * submission created; a partial generation keeps the client origin and the import link but no preference — its freight waits for
+     * the dispatcher / customer service, and no second ASN can reuse the whole-list price.
      *
      * @param  array<string, mixed>  $header
+     * @param  list<int>  $orderIds  the orders this ASN is generated from
      * @return array{address:array<string, mixed>, ready_date:string, notes:?string, packages:list<array<string, mixed>>, requested_via:string, client_preference:?array<string, mixed>, import_id:?int}
      */
-    private function collectionRequest(array $header, int $clientId): array
+    private function collectionRequest(array $header, int $clientId, array $orderIds): array
     {
         $request = [
             'address' => is_array($header['collection'] ?? null) ? $header['collection'] : [],
@@ -257,10 +262,16 @@ final class OrderInboundService
         if ($import === null || $import->source !== 'portal' || (int) $import->client_id !== $clientId || $import->status !== 'imported' || ! is_array($collection)) {
             throw new RuleViolation("Import {$importId} is not a portal collection request of this client.", 'orders.inbound.errors.collection_import_invalid', ['id' => $importId]);
         }
+        $importOrderIds = array_values(array_unique(array_map('intval', array_column($import->errors['result']['created'] ?? [], 'order_id'))));
+        $foreign = array_diff($orderIds, $importOrderIds);
+        if ($orderIds === [] || $foreign !== []) {
+            throw new RuleViolation("Orders not created by import {$importId} cannot carry its collection request.", 'orders.inbound.errors.collection_import_orders', ['id' => $importId]);
+        }
+        $wholeList = array_diff($importOrderIds, $orderIds) === [];
 
         return [
             'requested_via' => 'client',
-            'client_preference' => is_array($collection['preference'] ?? null) ? $collection['preference'] : null,
+            'client_preference' => $wholeList && is_array($collection['preference'] ?? null) ? $collection['preference'] : null,
             'import_id' => $importId,
         ] + $request;
     }

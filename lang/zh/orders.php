@@ -883,6 +883,7 @@ return [
             'asn_other_client' => '订单 :order_no 不属于该预报单的客户。',
             'events_pending' => '订单 :order_no 还有未处理的事件，请稍后再导入。',
             'collection_import_invalid' => '门户清单 #:id 不是该客户已生成订单的上门提货申请，不能带入客户选择的方案。', // CHANGE_REQUESTS #125
+            'collection_import_orders' => '勾选的订单不全来自门户清单 #:id，不能带入该清单的上门提货申请：请只勾选这份清单的订单，或点其他提交的“选中并填入”重新选择。', // CHANGE_REQUESTS #125 review
         ],
         // CHANGE_REQUESTS #125: 到仓方式 on the generate form — 我方上门提货 requests the collection together with the ASN.
         'collection' => [
@@ -890,6 +891,8 @@ return [
             'modes' => ['client_delivers' => '客户自送（默认）', 'we_collect' => '我方上门提货'],
             'hint' => '选“我方上门提货”时，预报单生成后立即提交运输报价：提货地址和可提货日期以这里为准（可修改），运费按订单货物行的箱数、重量、尺寸计算。客户在门户选过方案的，最终报价在客户容差内自动按其选择确认，超出时客户在门户“预报入库”页重新确认（或调度 / 客服在运单页代为确认）。',
             'from_import' => '已带入门户清单 #:id 的上门提货申请；客户选择的方案在服务端按该清单读取。',
+            'partial_import' => '只勾选了门户清单 #:id 的部分订单：客户所选方案是按整份清单报的价，不会带入，运费由调度 / 客服在运单页确认。',
+            'import_cleared' => '勾选了其他订单，已不再关联门户清单的上门提货申请（提货信息保留，可修改）。',
             'fields' => ['name' => '提货联系人 / 企业', 'phone' => '提货电话', 'type' => '地址类型', 'address' => '提货地址', 'suburb' => '城区', 'state' => '州', 'postcode' => '邮编', 'ready_date' => '可提货日期', 'notes' => '提货备注'],
             'address_types' => ['business' => '商业地址', 'residential' => '住宅地址'],
         ],

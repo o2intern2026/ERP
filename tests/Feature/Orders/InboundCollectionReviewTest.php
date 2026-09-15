@@ -124,6 +124,44 @@ class InboundCollectionReviewTest extends TestCase
         $this->assertSame('client', Asn::query()->withoutGlobalScopes()->sole()->collection_requested_via);
     }
 
+    public function test_the_import_link_covers_only_its_own_orders_and_a_partial_generation_carries_no_whole_list_plan(): void
+    {
+        Storage::fake('local');
+        $client = $this->client();
+        $user = $this->clientUser($client);
+        $warehouse = $this->warehouse();
+        $cs = $this->staff('customer_service');
+        $import = $this->uploadCollection($user, $warehouse);
+        $this->confirmCollection($user, $import, $this->planKey('own_fleet', 'standard'))->assertSessionHasNoErrors();
+        [$first, $second] = $this->importedOrderIds($import);
+        $plain = app(OrderCreationService::class)->create([
+            'client_id' => $client->id, 'order_type' => 'from_stock', 'consignment_mark' => 'MK-P', 'deliver_to_name' => 'Shop P', 'deliver_to_phone' => '0400 000 000',
+            'deliver_to_address' => '1 High St', 'deliver_to_suburb' => 'Richmond', 'deliver_to_state' => 'VIC', 'deliver_to_postcode' => '3121', 'deliver_to_address_type' => 'business',
+            'requested_date' => today()->addDays(14)->toDateString(), 'service_level' => 'standard',
+            'lines' => [['description_en' => 'Kettle', 'package_type' => 'carton', 'carton_qty' => 4, 'actual_weight_kg' => 20, 'length_mm' => 400, 'width_mm' => 300, 'height_mm' => 250]],
+        ], $cs->id, 'manual');
+
+        // Another order of the same client ticked next to the submission's: the client never priced those goods — refused in Chinese, no ASN.
+        $this->generateFromImport($cs, $import, ['order_ids' => [$first, $second, $plain->id]])
+            ->assertSessionHasErrors(['inbound' => __('orders.inbound.errors.collection_import_orders', ['id' => $import->id])]);
+        $this->assertSame(0, Asn::query()->withoutGlobalScopes()->count());
+        $this->assertSame(0, OrderLine::query()->whereIn('order_id', [$first, $second, $plain->id])->whereNotNull('asn_line_id')->count());
+        $this->generateFromImport($cs, $import, ['order_ids' => [$plain->id]])
+            ->assertSessionHasErrors(['inbound' => __('orders.inbound.errors.collection_import_orders', ['id' => $import->id])]);
+        $this->assertSame(0, Asn::query()->withoutGlobalScopes()->count());
+
+        // Part of the submission: still the client's request from that import, but the plan priced for the whole list is not carried.
+        $this->generateFromImport($cs, $import, ['order_ids' => [$first]])->assertSessionHasNoErrors();
+        $asn = Asn::query()->withoutGlobalScopes()->sole();
+        $this->assertSame(['we_collect', 'client', $import->id, null], [$asn->inbound_transport, $asn->collection_requested_via, $asn->collection_import_id, $asn->collection_preference]);
+        $event = OutboxEvent::query()->where('event_name', 'asn.collection_requested')->sole();
+        $this->assertSame(['client', null], [$event->payload['requested_via'], $event->payload['client_preference']]);
+
+        // The rest later, with the same import: again no plan — no second ASN reuses the whole-list price.
+        $this->generateFromImport($cs, $import, ['order_ids' => [$second]])->assertSessionHasNoErrors();
+        $this->assertSame([2, 0], [Asn::query()->withoutGlobalScopes()->where('collection_import_id', $import->id)->count(), Asn::query()->withoutGlobalScopes()->whereNotNull('collection_preference')->count()]);
+    }
+
     public function test_staff_request_a_collection_without_an_import_and_the_asn_import_card_warns_about_client_requests(): void
     {
         Storage::fake('local');
