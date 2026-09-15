@@ -4,6 +4,7 @@ namespace App\Modules\Transport\Services;
 
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Models\TransportQuote;
+use App\Modules\Transport\Support\CollectionTailgate;
 use App\Support\Contracts\RateService;
 use App\Support\Contracts\TransportOptionService;
 use Carbon\CarbonImmutable;
@@ -15,9 +16,6 @@ use Illuminate\Support\Str;
 /** Applies the Orders/Warehouse event contracts to Transport-owned shipment state. */
 final class ShipmentIntakeService
 {
-    /** Tailgate weight threshold when the client's card names none (Orders TailgateRule::DEFAULT_WEIGHT_KG). */
-    private const DEFAULT_TAILGATE_KG = 25.0;
-
     /** Once the collection is booked the request belongs to the dispatcher: a re-request / cancel from the ASN is refused and logged (#124). */
     private const LOCKED_STATUSES = ['booked', 'dispatched', 'in_transit', 'delivered', 'failed'];
 
@@ -52,7 +50,7 @@ final class ShipmentIntakeService
 
             $attributes = [
                 'service_level' => (string) ($payload['service_level'] ?? 'standard'),
-                'tailgate_required' => $this->collectionNeedsTailgate((int) $payload['client_id'], $payload['packages'] ?? [], $payload['lines'] ?? []),
+                'tailgate_required' => CollectionTailgate::required((int) $payload['client_id'], $payload['packages'] ?? [], $payload['lines'] ?? [], $this->rates),
                 'asn_activity_version' => $version,
             ];
 
@@ -127,25 +125,6 @@ final class ShipmentIntakeService
 
             return $shipment->refresh();
         });
-    }
-
-    /**
-     * Pickup-side tailgate: any declared piece (or, without packages, any goods line's per-carton weight) at or above the client's
-     * TR-TAILGATE threshold (`tailgate_weight_kg`, default 25 kg). The receiver is our warehouse, so "residential" never applies.
-     *
-     * @param  list<array<string, mixed>>  $packages
-     * @param  list<array<string, mixed>>  $lines
-     */
-    private function collectionNeedsTailgate(int $clientId, array $packages, array $lines): bool
-    {
-        $rates = $this->rates ?? app(RateService::class);
-        $threshold = (float) (($rates->thresholds($clientId, 'TR-TAILGATE')['tailgate_weight_kg'] ?? null) ?: self::DEFAULT_TAILGATE_KG);
-        $pieces = $packages !== []
-            ? array_map(fn ($p) => (float) ($p['weight_kg'] ?? 0), $packages)
-            : array_map(fn ($l) => (float) ($l['weight_kg'] ?? 0) / max(1, (int) ($l['expected_cartons'] ?? 1)), $lines);
-        $heaviest = $pieces === [] ? 0.0 : max($pieces);
-
-        return $heaviest > 0 && $heaviest >= $threshold;
     }
 
     /** @param array<string, mixed> $envelope */

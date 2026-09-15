@@ -335,6 +335,9 @@ final class TransportOptionService implements TransportOptionServiceContract
                 return; // nothing was committed to: the quotes wait for a person, as before
             }
             [$actor, $userId] = $this->preferenceActor($shipment, $reference);
+            if ($shipment->order_id === null && $shipment->asn_id !== null) {
+                [$reference, $actor, $userId] = $this->collectionReference($shipment, $reference, $actor, $userId);
+            }
         }
 
         $match = $this->matching($finalQuotes, $reference);
@@ -344,14 +347,7 @@ final class TransportOptionService implements TransportOptionServiceContract
             return;
         }
 
-        $thresholds = $this->rates->thresholds($shipment->client_id, 'TR-DELIVERY-BASE') ?? [];
-        $tolerance = max(0.0, (float) ($thresholds['variance_tolerance_percent'] ?? 10));
-        $referencePrice = (int) ($reference['customer_price_cents'] ?? 0);
-        $variance = $referencePrice > 0
-            ? abs($match->customer_price_cents - $referencePrice) / $referencePrice * 100
-            : INF;
-
-        if ($variance > $tolerance) {
+        if (! $this->withinTolerance($shipment, (int) $match->customer_price_cents, (int) ($reference['customer_price_cents'] ?? 0))) {
             $this->awaitReconfirmation($shipment);
 
             return;
@@ -366,6 +362,64 @@ final class TransportOptionService implements TransportOptionServiceContract
         } catch (DomainException) {
             $this->awaitReconfirmation($shipment);
         }
+    }
+
+    /** The client's variance tolerance (TR-DELIVERY-BASE thresholds, default 10 %); a reference without a price never matches. */
+    private function withinTolerance(Shipment $shipment, int $priceCents, int $referencePriceCents): bool
+    {
+        $thresholds = $this->rates->thresholds($shipment->client_id, 'TR-DELIVERY-BASE') ?? [];
+        $tolerance = max(0.0, (float) ($thresholds['variance_tolerance_percent'] ?? 10));
+        $variance = $referencePriceCents > 0
+            ? abs($priceCents - $referencePriceCents) / $referencePriceCents * 100
+            : INF;
+
+        return $variance <= $tolerance;
+    }
+
+    /**
+     * CHANGE_REQUESTS #125 (review): the reference of a client-requested collection on a re-request (collection_version bump). The plan
+     * the client ticked on the upload is where it starts; then the shipment's earlier final selections are replayed oldest first. A
+     * selection of the same option within the tolerance of the current reference is what the automatic rule picks — it never moves
+     * the reference, so repeated re-requests cannot creep the price up step by step. Any other selection is a person's explicit
+     * decision (the client re-confirming in the portal, the dispatcher / customer service on the shipment page) and becomes the
+     * reference, in the name of whoever made it: the client when that user is still an active user of the client, else the system.
+     * So a staff edit never swaps the client's later explicit choice back to the upload-time plan, nor makes it re-confirm a price it
+     * already accepted.
+     *
+     * @param  array<string, mixed>  $preference
+     * @return array{0: array<string, mixed>, 1: string, 2: ?int}
+     */
+    private function collectionReference(Shipment $shipment, array $preference, string $actor, ?int $userId): array
+    {
+        $reference = $preference;
+        $decisions = TransportQuote::query()
+            ->where('shipment_id', $shipment->id)
+            ->where('quote_stage', 'final')
+            ->whereNotNull('selected_by')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($decisions as $selection) {
+            $carrierId = (int) ($reference['carrier_id'] ?? 0);
+            $sameOption = $selection->source === ($reference['source'] ?? null)
+                && $selection->service_level === ($reference['service_level'] ?? null)
+                && ($carrierId === 0 || (int) $selection->carrier_id === $carrierId);
+            if ($sameOption && $this->withinTolerance($shipment, (int) $selection->customer_price_cents, (int) ($reference['customer_price_cents'] ?? 0))) {
+                continue;
+            }
+
+            $reference = [
+                'source' => $selection->source,
+                'service_level' => $selection->service_level,
+                'carrier_id' => $selection->carrier_id,
+                'customer_price_cents' => (int) $selection->customer_price_cents,
+            ];
+            [$actor, $userId] = $selection->selected_by === 'client' && $selection->selected_by_user_id
+                ? $this->preferenceActor($shipment, ['chosen_by' => (int) $selection->selected_by_user_id])
+                : ['system', null];
+        }
+
+        return [$reference, $actor, $userId];
     }
 
     private function awaitReconfirmation(Shipment $shipment): void
@@ -392,13 +446,24 @@ final class TransportOptionService implements TransportOptionServiceContract
         return ($carrierId > 0 ? $same->first(fn (TransportQuote $q): bool => (int) $q->carrier_id === $carrierId) : null) ?? $same->first();
     }
 
-    /** orders.transport_preference (Orders, X1) as the client left it with the 估价 — read-only, customer fields only. */
+    /**
+     * What the client committed to, read-only, customer fields only: `orders.transport_preference` (Orders, X1) as the client left it with
+     * the 估价 — or, for an inbound collection (no order), `asns.collection_preference` (Warehouse, C): the plan the client ticked with
+     * its portal collection request (CHANGE_REQUESTS #125). A staff-requested collection carries none: a person confirms on the
+     * shipment page, as in #124.
+     */
     private function clientPreference(Shipment $shipment): ?array
     {
-        if ($shipment->order_id === null || ! Schema::hasColumn('orders', 'transport_preference')) {
-            return null; // an inbound collection (#124) has no order and no client choice in v1: a person confirms on the shipment page
+        if ($shipment->order_id !== null) {
+            if (! Schema::hasColumn('orders', 'transport_preference')) {
+                return null;
+            }
+            $raw = DB::table('orders')->where('id', $shipment->order_id)->value('transport_preference');
+        } elseif ($shipment->asn_id !== null && Schema::hasColumn('asns', 'collection_preference')) {
+            $raw = DB::table('asns')->where('id', $shipment->asn_id)->value('collection_preference');
+        } else {
+            return null;
         }
-        $raw = DB::table('orders')->where('id', $shipment->order_id)->value('transport_preference');
         $preference = is_string($raw) ? json_decode($raw, true) : (is_array($raw) ? $raw : null);
 
         return is_array($preference) && isset($preference['source'], $preference['service_level']) ? $preference : null;

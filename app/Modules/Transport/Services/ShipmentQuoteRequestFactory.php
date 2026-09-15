@@ -76,29 +76,63 @@ class ShipmentQuoteRequestFactory
             return null;
         }
         $warehouse = DB::table('warehouses')->where('id', $asn->warehouse_id)->first();
-        $receiver = $warehouse === null ? null : self::partyForWarehouse($warehouse);
 
-        $sender = is_string($asn->collection_address ?? null) ? json_decode($asn->collection_address, true) : (array) ($asn->collection_address ?? []);
-        $sender = is_array($sender) ? $sender : [];
-        $sender += ['name' => null, 'phone' => null, 'email' => null];
+        $address = is_string($asn->collection_address ?? null) ? json_decode($asn->collection_address, true) : (array) ($asn->collection_address ?? []);
+
+        return self::collectionRequest(
+            (int) $shipment->client_id,
+            self::collectionSender(is_array($address) ? $address : []),
+            $warehouse === null ? null : self::partyForWarehouse($warehouse),
+            self::collectionItems($asn),
+            (bool) $shipment->tailgate_required,
+            isset($asn->collection_ready_date) ? (string) $asn->collection_ready_date : null,
+            (string) $shipment->shipment_no,
+        );
+    }
+
+    /**
+     * The pickup party of a collection as the carrier request carries it (#124): the stored pickup address plus `email` null,
+     * `company_name` = the contact name, `type` business unless residential. Shared with the portal estimate (#125).
+     *
+     * @param  array<string, mixed>  $address  asns.collection_address {name, phone, address, suburb, state, postcode, type}
+     * @return array<string, mixed>
+     */
+    public static function collectionSender(array $address): array
+    {
+        $sender = $address + ['name' => null, 'phone' => null, 'email' => null];
         $sender['company_name'] = $sender['name'];
         $sender['type'] = filled($sender['type'] ?? null) ? $sender['type'] : 'business';
 
-        $items = self::collectionItems($asn);
-        if ($receiver === null || ! $this->completeParty($sender) || $items === []) {
+        return $sender;
+    }
+
+    /**
+     * The carrier request of an inbound collection — ONE builder for Transport's shipment (buildCollection, #124) and the portal's
+     * collection estimate before the ASN exists (CHANGE_REQUESTS #125), so both are the same shape for the same data: zone = the
+     * pickup postcode, tailgate at pickup, nothing declared as value. Null when the pickup party is incomplete, the warehouse has
+     * no address or no parcel can be priced.
+     *
+     * @param  array<string, mixed>  $sender  collectionSender()
+     * @param  ?array<string, mixed>  $receiver  partyForWarehouse()
+     * @param  list<array<string, mixed>>  $items  collectionItems() / itemsFromLines()
+     * @return array<string, mixed>|null
+     */
+    public static function collectionRequest(int $clientId, array $sender, ?array $receiver, array $items, bool $tailgatePickup, ?string $readyDate, string $description): ?array
+    {
+        if ($receiver === null || ! self::completeParty($sender) || $items === []) {
             return null;
         }
 
         return [
-            'client_id' => $shipment->client_id,
+            'client_id' => $clientId,
             'sender' => $sender,
             'receiver' => $receiver,
             'items' => $items,
             'declared_value_cents' => 0,
-            'description' => $shipment->shipment_no,
-            'tailgate_pickup' => $shipment->tailgate_required,
+            'description' => $description,
+            'tailgate_pickup' => $tailgatePickup,
             'tailgate_delivery' => false,
-            'requested_date' => isset($asn->collection_ready_date) ? (string) $asn->collection_ready_date : null,
+            'requested_date' => $readyDate,
             'zone' => (string) ($sender['postcode'] ?? ''),
         ];
     }

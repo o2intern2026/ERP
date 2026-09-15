@@ -7,6 +7,7 @@ use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderImport;
 use App\Support\Contracts\DocumentService;
 use App\Support\Contracts\JobService;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -188,6 +189,36 @@ final class OrderImportService
         });
 
         return $import->fresh();
+    }
+
+    /**
+     * CHANGE_REQUESTS #125: the client's 需要我们上门提货 on a portal 入库清单 — the plan it ticked (customer snapshot, or null when none
+     * could be priced) and the packages derived from the list rows — merged into `errors.context.inbound.collection` right before
+     * confirm(). The pickup address / ready date / warehouse stay as uploaded; only `preference` and `packages` are written. Row-locked;
+     * pending portal imports that carry a collection request only. Pass the returned model to confirm(): it writes its own audit copy.
+     *
+     * @param  array{preference?:?array<string, mixed>, packages?:list<array<string, mixed>>}  $collection
+     */
+    public function recordInboundCollection(OrderImport $import, array $collection): OrderImport
+    {
+        return DB::transaction(function () use ($import, $collection): OrderImport {
+            $locked = OrderImport::query()->lockForUpdate()->findOrFail($import->id);
+            abort_unless($locked->status === 'pending', 409, __('orders.imports.errors.already_processed'));
+            $audit = $locked->errors ?? [];
+            $current = $audit['context']['inbound']['collection'] ?? null;
+            if ($locked->source !== 'portal' || ! is_array($current)) {
+                throw new RuleViolation("Import {$locked->id} carries no collection request.", 'orders.imports.errors.no_collection_request', ['id' => $locked->id]);
+            }
+            foreach (['preference', 'packages'] as $key) {
+                if (array_key_exists($key, $collection)) {
+                    $current[$key] = $collection[$key];
+                }
+            }
+            $audit['context']['inbound']['collection'] = $current;
+            $locked->update(['errors' => $audit]);
+
+            return $locked->fresh();
+        });
     }
 
     /** @param list<array<string,mixed>> $rows @param array<string,mixed> $context @return list<array<string,mixed>> */

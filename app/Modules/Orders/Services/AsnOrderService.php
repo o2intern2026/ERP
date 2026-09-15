@@ -16,9 +16,10 @@ final class AsnOrderService implements OrderService
     ) {}
 
     /**
-     * 从订单导入货物行 (CHANGE_REQUESTS #119): the client's orders still waiting for an ASN, oldest first.
+     * 从订单导入货物行 (CHANGE_REQUESTS #119): the client's orders still waiting for an ASN, oldest first; `collection_requested`
+     * (additive, #125) flags the orders of a portal 入库清单 on which the client asked us to collect.
      *
-     * @return list<array{order_id:int, order_no:string, job_id:int, job_no:string, consignment_mark:?string, deliver_to_name:?string, deliver_to_suburb:?string, deliver_to_state:?string, requested_date:?string, operational_status:string, unlinked_lines:int, total_lines:int, unlinked_cartons:int}>
+     * @return list<array{order_id:int, order_no:string, job_id:int, job_no:string, consignment_mark:?string, deliver_to_name:?string, deliver_to_suburb:?string, deliver_to_state:?string, requested_date:?string, operational_status:string, unlinked_lines:int, total_lines:int, unlinked_cartons:int, collection_requested:bool}>
      */
     public function awaitingAsn(int $clientId): array
     {

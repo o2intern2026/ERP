@@ -4,6 +4,7 @@ namespace App\Modules\Portal\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Portal\Http\PortalValidation;
+use App\Modules\Portal\Services\PortalTransportQuotes;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnImport;
 use App\Support\Enums;
@@ -38,7 +39,7 @@ final class PortalAsnController extends Controller
         return view('portal::asns.index', ['asns' => $asns, 'filters' => $filters, 'statuses' => Enums::ASN_STATUSES]);
     }
 
-    public function show(Request $request, Asn $asn): View
+    public function show(Request $request, Asn $asn, PortalTransportQuotes $quotes): View
     {
         $this->clientId($request);
         $asn->load(['warehouse', 'job', 'containers', 'lines.container', 'goodsReceipts.pdfDocument', 'clientConfirmedBy']);
@@ -46,6 +47,8 @@ final class PortalAsnController extends Controller
         return view('portal::asns.show', [
             'asn' => $asn,
             'imports' => AsnImport::query()->where('asn_id', $asn->id)->orderByDesc('id')->get(),
+            // CHANGE_REQUESTS #125: the collection shipment's status and final quotes, customer fields only (re-confirmation / confirmed plan).
+            'collectionQuotes' => $asn->isCollection() ? $quotes->forAsnCollection($asn) : null,
         ]);
     }
 
