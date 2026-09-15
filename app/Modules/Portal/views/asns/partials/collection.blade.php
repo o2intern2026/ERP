@@ -56,7 +56,7 @@
                                 @if ($quote->is_recommended)<span class="badge" data-tone="ok">{{ __('orders.estimate.freight_flags.recommended') }}</span>@endif
                                 @if ($quote->is_cheapest)<span class="badge" data-tone="muted">{{ __('orders.estimate.freight_flags.cheapest') }}</span>@endif
                                 @if ($quote->is_fastest)<span class="badge" data-tone="muted">{{ __('orders.estimate.freight_flags.fastest') }}</span>@endif
-                                @if (($preference['source'] ?? null) === $quote->source && ($preference['service_level'] ?? null) === $quote->service_level)<span class="badge" data-tone="info">{{ __('portal.asns.collection.your_choice') }}</span>@endif
+                                @if (($preference['source'] ?? null) === $quote->source && ($preference['service_level'] ?? null) === $quote->service_level && ((int) ($preference['carrier_id'] ?? 0) === 0 || (int) $preference['carrier_id'] === (int) $quote->carrier_id))<span class="badge" data-tone="info">{{ __('portal.asns.collection.your_choice') }}</span>@endif
                             </td>
                             <td>
                                 {{ $quote->expires_at ? \Illuminate\Support\Carbon::parse($quote->expires_at)->format('Y-m-d H:i') : __('portal.not_provided') }}

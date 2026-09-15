@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 final class PortalTransportQuotes
 {
     /** Quote columns a client may see (never cost / markup). */
-    private const CUSTOMER_COLUMNS = ['q.id', 'q.shipment_id', 'q.source', 'q.service_level', 'q.customer_price_cents', 'q.eta_days', 'q.is_recommended', 'q.is_cheapest', 'q.is_fastest', 'q.status', 'q.selected_by', 'q.quoted_at', 'q.expires_at', 'c.name as carrier_name'];
+    private const CUSTOMER_COLUMNS = ['q.id', 'q.shipment_id', 'q.carrier_id', 'q.source', 'q.service_level', 'q.customer_price_cents', 'q.eta_days', 'q.is_recommended', 'q.is_cheapest', 'q.is_fastest', 'q.status', 'q.selected_by', 'q.quoted_at', 'q.expires_at', 'c.name as carrier_name'];
 
     /**
      * Every outbound batch shipment of the order (fulfilment_id set — one per packed batch, §3.8 #8), else the preliminary
