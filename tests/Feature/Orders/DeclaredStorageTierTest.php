@@ -68,10 +68,13 @@ class DeclaredStorageTierTest extends TestCase
         $this->assertSame(['standard', 'client'], [$rows['MK-C']['storage_tier'], $rows['MK-C']['storage_tier_source']]);
 
         // The preview shows the column and the client's own surcharge percent (the standard card's 10 %) — never cost.
-        $this->actingAs($user)->get(route('portal.asns.imports.show', $import))->assertOk()
-            ->assertSee(__('portal.inbound.fields.storage_tier'))->assertSee('底层')
+        $preview = $this->actingAs($user)->get(route('portal.asns.imports.show', $import))->assertOk()
+            ->assertSee('<th>'.__('portal.inbound.fields.storage_tier').'</th>', false)
             ->assertSee(__('portal.inbound.tier_surcharge', ['percent' => '10%']))
-            ->assertDontSee('portal.inbound.')->assertDontSee('cost');
+            ->assertDontSee('portal.inbound.')->assertDontSee('cost')->getContent();
+        // The per-row 存储等级 cell itself (not the surcharge line): one bottom badge for MK-A, no 按单价预选 badge.
+        $this->assertSame(1, substr_count($preview, '<span class="badge" data-tone="warn">'.__('portal.stock.storage_tiers.bottom').'</span>'));
+        $this->assertStringNotContainsString('<span class="badge" data-tone="info">'.__('portal.inbound.tier_prefilled').'</span>', $preview);
 
         $this->actingAs($user)->post(route('portal.asns.imports.confirm', $import))->assertRedirect();
         $lines = OrderLine::query()->with('order')->get()->keyBy(fn ($l) => $l->order->consignment_mark);
@@ -119,6 +122,9 @@ class DeclaredStorageTierTest extends TestCase
         // The client's card (here the bound standard card) sets tier_value_threshold_cents = $1,000.
         $item = RateItem::query()->where('rate_card_id', RateCard::query()->where('is_standard', true)->value('id'))->whereHas('chargeCode', fn ($q) => $q->where('code', 'WH-STORAGE-TIER-PLT-WK'))->sole();
         $item->update(['threshold_json' => $item->threshold_json + ['tier_value_threshold_cents' => 100000]]);
+        // Finance adds a SYD row at 20 % without the pre-fill key (review 2026-09-15): thresholds() has no warehouse, so the SYD row must
+        // not hide the all-warehouse row's tier_value_threshold_cents — the pre-fill keeps working for every warehouse.
+        RateItem::query()->create(['rate_card_id' => $item->rate_card_id, 'charge_code_id' => $item->charge_code_id, 'pricing_mode' => 'percent', 'markup_percent' => 20, 'warehouse_id' => $this->warehouse('SYD')->id, 'threshold_json' => ['min_percent' => 10, 'max_percent' => 20]]);
 
         $this->actingAs($user)->post(route('portal.asns.imports.store'), ['manifest' => $this->csv([
             $this->row('VAL-2', '1500', '', 'Shop 1'),
@@ -131,7 +137,8 @@ class DeclaredStorageTierTest extends TestCase
         $this->assertSame(['standard', 'client'], [$rows['VAL-3']['storage_tier'], $rows['VAL-3']['storage_tier_source']], 'an explicit cell beats the pre-fill');
         $this->assertSame(['standard', null], [$rows['VAL-4']['storage_tier'], $rows['VAL-4']['storage_tier_source']]);
         $this->assertSame([__('orders.imports.warnings.tier_value_prefill', ['row' => 2])], collect($import->errors['warnings'])->where('column', 'storage_tier')->pluck('message')->values()->all());
-        $this->actingAs($user)->get(route('portal.asns.imports.show', $import))->assertOk()->assertSee(__('portal.inbound.tier_prefilled'))->assertSee('第 2 行按单价预选底层');
+        $this->actingAs($user)->get(route('portal.asns.imports.show', $import))->assertOk()
+            ->assertSee('<span class="badge" data-tone="info">'.__('portal.inbound.tier_prefilled').'</span>', false)->assertSee('第 2 行按单价预选底层');
 
         // Staff see the same import read-only with a 存储等级 column; a staff upload declares with source staff.
         $cs = $this->staff('customer_service');

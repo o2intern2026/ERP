@@ -41,6 +41,13 @@ class LocationTierTest extends TestCase
         $page = $this->actingAs($supervisor)->get(route('warehouse.locations.index'))->assertOk()
             ->assertSee(__('warehouse.locations.rack_level'))->assertSee(__('warehouse.locations.storage_tier'))->assertSee(__('warehouse.storage_tiers.bottom'))
             ->assertSee(__('warehouse.locations.bulk.title'));
+        // The table itself — the create / bulk forms above it print the same words: header cells and MEL-B-01-01's level + tier cells.
+        $html = $page->getContent();
+        $this->assertStringContainsString('<th class="num">'.__('warehouse.locations.rack_level').'</th><th>'.__('warehouse.locations.storage_tier').'</th>', $html);
+        $this->assertStringContainsString('<code>MEL-B-01-01</code>', $html);
+        $row = substr($html, (int) strpos($html, '<code>MEL-B-01-01</code>'));
+        $row = substr($row, 0, (int) strpos($row, '</tr>'));
+        $this->assertStringContainsString('<td class="num">1</td><td><span class="badge" data-tone="warn">'.__('warehouse.storage_tiers.bottom').'</span></td>', $row);
         foreach (['warehouse.locations.', 'warehouse.storage_tiers.'] as $rawKey) {
             $page->assertDontSee($rawKey);
         }

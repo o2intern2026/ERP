@@ -60,20 +60,22 @@ final class StorageBillingService
                         $charges[] = $this->engine->charge($codes['WH-STORAGE-TIER-PLT-WK'], $s->client_id, $s->job_id, 1, $context, $key, 1, $source, $end);
                     }
                 }
+                // #126 review: every weekly storage line names the snapshot's warehouse, so a MEL / SYD rate row prices only its own warehouse.
                 if ($s->pallet_source === 'warehouse_plain') {
-                    $charges[] = $this->engine->charge($codes['WH-PALLET-RENT-PLAIN-WK'], $s->client_id, $s->job_id, 1, [], $key, 1, $source, $end);
+                    $charges[] = $this->engine->charge($codes['WH-PALLET-RENT-PLAIN-WK'], $s->client_id, $s->job_id, 1, ['warehouse_id' => (int) $s->warehouse_id], $key, 1, $source, $end);
                 } elseif (in_array($s->pallet_source, ['chep', 'loscam'], true)) {
-                    $charges[] = $this->engine->charge($codes['WH-PALLET-RENT-POOL-WK'], $s->client_id, $s->job_id, 1, [], $key, 1, $source, $end);
+                    $charges[] = $this->engine->charge($codes['WH-PALLET-RENT-POOL-WK'], $s->client_id, $s->job_id, 1, ['warehouse_id' => (int) $s->warehouse_id], $key, 1, $source, $end);
                 }
             } elseif ($s->location_type !== 'pickface') {
                 // Loose cartons: per carton if the card has it, else per CBM (qty from the unit's dims), else Missing Rate once.
-                $cartonProbe = app(RateService::class)->price($s->client_id, 'WH-STORAGE-CTN-WK', 1);
+                $warehouse = ['warehouse_id' => (int) $s->warehouse_id];
+                $cartonProbe = app(RateService::class)->price($s->client_id, 'WH-STORAGE-CTN-WK', 1, $warehouse);
                 if (! $cartonProbe['missing_rate']) {
-                    $charges[] = $this->engine->charge($codes['WH-STORAGE-CTN-WK'], $s->client_id, $s->job_id, (float) $s->qty_on_hand, [], $key, 1, $source, $end);
+                    $charges[] = $this->engine->charge($codes['WH-STORAGE-CTN-WK'], $s->client_id, $s->job_id, (float) $s->qty_on_hand, $warehouse, $key, 1, $source, $end);
                 } else {
                     $unit = StockUnit::query()->withoutGlobalScopes()->find($unitId);
                     $cbm = $unit && $unit->length_mm && $unit->width_mm && $unit->height_mm ? round($unit->length_mm * $unit->width_mm * $unit->height_mm / 1e9 * max(1, $s->qty_on_hand), 4) : 0.0;
-                    $charges[] = $this->engine->charge($codes['WH-STORAGE-CBM-WK'], $s->client_id, $s->job_id, $cbm > 0 ? $cbm : 1.0, [], $key, 1, $source, $end);
+                    $charges[] = $this->engine->charge($codes['WH-STORAGE-CBM-WK'], $s->client_id, $s->job_id, $cbm > 0 ? $cbm : 1.0, $warehouse, $key, 1, $source, $end);
                 }
             }
         }
@@ -82,7 +84,7 @@ final class StorageBillingService
         foreach ($snapshots->where('location_type', 'pickface')->groupBy(fn ($s) => $s->client_id.':'.$s->job_id) as $group) {
             $first = $group->first();
             $slots = $group->pluck('location_id')->unique()->count();
-            $charges[] = $this->engine->charge($codes['WH-STORAGE-PICKFACE-WK'], $first->client_id, $first->job_id, $slots, [], "client:{$first->client_id}:job:{$first->job_id}:pickface:week:{$week}", 1, ['type' => 'snapshot', 'id' => null], $end);
+            $charges[] = $this->engine->charge($codes['WH-STORAGE-PICKFACE-WK'], $first->client_id, $first->job_id, $slots, ['warehouse_id' => (int) $first->warehouse_id], "client:{$first->client_id}:job:{$first->job_id}:pickface:week:{$week}", 1, ['type' => 'snapshot', 'id' => null], $end);
         }
 
         return array_values(array_filter($charges));

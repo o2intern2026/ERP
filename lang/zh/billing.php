@@ -70,7 +70,7 @@ return [
         'band_min' => '下限 (kg)', 'band_max' => '上限 (kg)', 'approval_note' => ':name v:version,:date 起生效',
         // CHANGE_REQUESTS #126
         'warehouse' => '仓库', 'all_warehouses' => '全部仓库',
-        'tier_hint' => '底层库位附加费 WH-STORAGE-TIER-PLT-WK:计价方式选「百分比附加」,加成 % 在阈值 min_percent – max_percent 之间(标准表 10 – 20);可按仓库(墨尔本 / 悉尼)各设一行,指定仓库的行优先于「全部仓库」的行。tier_value_threshold_cents = 单价达到该值(分)时导入清单预选底层。',
+        'tier_hint' => '底层库位附加费 WH-STORAGE-TIER-PLT-WK:计价方式选「百分比附加」,加成 % 在阈值 min_percent – max_percent 之间(标准表 10 – 20);可按仓库(墨尔本 / 悉尼)各设一行,指定仓库的行只用于该仓库的每周仓储计费并优先于「全部仓库」的行;阈值(托盘尺寸档、单价预选等)和其他费用始终读「全部仓库」的行。tier_value_threshold_cents = 单价达到该值(分)时导入清单预选底层。',
         'errors' => [
             'tier_percent_only' => '底层库位附加费 (WH-STORAGE-TIER-PLT-WK) 只能用「百分比附加」计价。',
             'tier_band' => '底层库位附加费的加成必须在 :min% – :max% 之间(价目表阈值 min_percent / max_percent)。',

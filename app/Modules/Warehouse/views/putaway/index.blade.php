@@ -27,9 +27,11 @@
                     <td>
                         <form method="post" action="{{ route('warehouse.putaway.store', $u) }}" class="inline">
                             @csrf
-                            <input type="text" name="location_code" class="scan" list="locations-{{ $u->warehouse_id }}" placeholder="{{ $u->warehouse->code }}-A-01-01" value="{{ $failedHere ? old('location_code') : '' }}" required style="width:12rem" @if ($failedHere && ! old('tier_refused')) autofocus @endif>
+                            {{-- #126 review: after a refusal the code field keeps focus with its text selected, so the next scan REPLACES the refused
+                                 code; the reason input is optional in the browser (PutawayService refuses a mismatch without one) and never takes focus. --}}
+                            <input type="text" name="location_code" class="scan" list="locations-{{ $u->warehouse_id }}" placeholder="{{ $u->warehouse->code }}-A-01-01" value="{{ $failedHere ? old('location_code') : '' }}" required style="width:12rem" @if ($failedHere) autofocus onfocus="this.select()" @endif>
                             @if ($failedHere && old('tier_refused'))
-                                <input type="text" name="tier_reason" maxlength="255" required placeholder="{{ __('warehouse.putaway.tier_reason') }}" style="width:14rem" autofocus>
+                                <input type="text" name="tier_reason" maxlength="255" placeholder="{{ __('warehouse.putaway.tier_reason') }}" style="width:14rem">
                             @endif
                             <button type="submit">{{ __('warehouse.putaway.do') }}</button>
                         </form>

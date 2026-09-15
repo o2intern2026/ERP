@@ -3,16 +3,22 @@
 namespace Tests\Feature\Warehouse;
 
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Warehouse\Models\AsnLine;
 use App\Modules\Warehouse\Models\Location;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Modules\Warehouse\Models\Warehouse;
+use App\Modules\Warehouse\Services\AsnImportService;
 use App\Modules\Warehouse\Services\AsnService;
 use App\Modules\Warehouse\Services\MoveService;
 use App\Modules\Warehouse\Services\PutawayService;
 use App\Modules\Warehouse\Services\ReceivingService;
+use App\Modules\Warehouse\Services\ReturnService;
 use App\Modules\Warehouse\Services\StockLedger;
 use App\Support\Exceptions\RuleViolation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Tests\Support\BuildsOutboundOrders;
 use Tests\Support\CreatesUsers;
 use Tests\Support\CreatesWarehouse;
 use Tests\TestCase;
@@ -24,7 +30,7 @@ use Tests\TestCase;
  */
 class PutawayTierTest extends TestCase
 {
-    use CreatesUsers, CreatesWarehouse, RefreshDatabase;
+    use BuildsOutboundOrders, CreatesUsers, CreatesWarehouse, RefreshDatabase;
 
     /** @return list<StockUnit> received units of one goods line with the given declared tier */
     private function received(Client $client, Warehouse $warehouse, string $tier, array $units, string $mark = 'MK'): array
@@ -61,8 +67,16 @@ class PutawayTierTest extends TestCase
             ->assertRedirect(route('warehouse.putaway.index'))->assertSessionHasErrors(['location_code' => $message]);
         $this->assertFalse($pallet->fresh()->putaway_completed);
         $this->assertMatchesRegularExpression('/\p{Han}/u', $message);
-        // The refused row re-opens with a reason input (scan-gun flow unchanged: the code stays in the same field).
-        $this->actingAs($supervisor)->get(route('warehouse.putaway.index'))->assertOk()->assertSee('name="tier_reason"', false)->assertSee('mel-a-01-01');
+        // The refused row re-opens with a reason input. Scan-gun flow (review 2026-09-15): the refused code stays in its field, which keeps
+        // the focus with the text selected so the next scan REPLACES it; the reason input is not browser-required (scanning a bottom
+        // location with no reason must submit) and never takes the focus (a scan must not land in it).
+        $html = $this->actingAs($supervisor)->get(route('warehouse.putaway.index'))->assertOk()->assertSee('name="tier_reason"', false)->getContent();
+        $this->assertSame(1, preg_match('/<input[^>]*name="location_code"[^>]*value="mel-a-01-01"[^>]*>/', $html, $codeInput));
+        $this->assertSame(1, preg_match('/<input[^>]*name="tier_reason"[^>]*>/', $html, $reasonInput));
+        $this->assertStringContainsString('autofocus', $codeInput[0]);
+        $this->assertStringContainsString('this.select()', $codeInput[0]);
+        $this->assertStringNotContainsString('required', $reasonInput[0]);
+        $this->assertStringNotContainsString('autofocus', $reasonInput[0]);
 
         $this->actingAs($supervisor)->post(route('warehouse.putaway.store', $pallet), ['location_code' => 'MEL-A-01-01', 'tier_reason' => '底层满了,明天并托'])->assertSessionHasNoErrors();
         $pallet->refresh();
@@ -77,10 +91,49 @@ class PutawayTierTest extends TestCase
         } catch (RuleViolation $e) {
             $this->assertSame('warehouse.putaway.errors.tier_mismatch', $e->langKey());
         }
-        app(PutawayService::class)->putaway($second->fresh(), $b2);
+        // The refusal's first remedy — scan a bottom location, reason left empty — puts the pallet away.
+        $this->actingAs($supervisor)->post(route('warehouse.putaway.store', $second), ['location_code' => $b2->full_code, 'tier_reason' => ''])->assertSessionHasNoErrors();
+        $this->assertSame($b2->full_code, $second->fresh()->location->full_code);
         $this->assertNull($second->fresh()->storage_tier_override_reason);
         app(MoveService::class)->move($second->fresh(), $this->location($warehouse, 'storage'), 'consolidate');
         $this->assertSame('MEL-A-01-01', $second->fresh()->location->full_code);
+    }
+
+    /** Review 2026-09-15 (TEST-4): the staff 预报单 manifest import maps 存储等级 onto the goods lines (declared by staff). */
+    public function test_the_staff_asn_manifest_import_carries_the_declared_tier_onto_the_goods_lines(): void
+    {
+        Storage::fake('local');
+        $client = $this->client();
+        $warehouse = $this->warehouse();
+        $asn = app(AsnService::class)->create(['client_id' => $client->id, 'warehouse_id' => $warehouse->id, 'inbound_type' => 'loose_truck']);
+        $headers = '唛头,中文品名,英文品名,包装类型,箱数,产品数量,实重(KG),长(CM),宽(CM),高(CM),收件人,电话,地址,城区,州,邮编,FBA参考号,要求送达日,存储等级';
+        $row = fn (string $mark, string $tier) => "{$mark},手表,Watch,纸箱,10,100,85,60,40,40,Shop,0400 000 001,1 Warehouse Rd,Moorebank,NSW,2170,,,{$tier}";
+
+        app(AsnImportService::class)->import($asn, UploadedFile::fake()->createWithContent('manifest.csv', "\xEF\xBB\xBF".implode("\n", [$headers, $row('MK-BOTTOM', '底层'), $row('MK-EMPTY', ''), $row('MK-STD', '标准')])."\n"), null);
+
+        $lines = AsnLine::query()->where('asn_id', $asn->id)->get()->keyBy('consignment_mark');
+        $this->assertSame(['bottom', 'staff'], [$lines['MK-BOTTOM']->storage_tier, $lines['MK-BOTTOM']->storage_tier_source]);
+        $this->assertSame(['standard', null], [$lines['MK-EMPTY']->storage_tier, $lines['MK-EMPTY']->storage_tier_source], 'an empty cell is no declaration');
+        $this->assertSame(['standard', 'staff'], [$lines['MK-STD']->storage_tier, $lines['MK-STD']->storage_tier_source]);
+    }
+
+    /** Review 2026-09-15 (TEST-4): a return of a bottom goods line comes back as a unit that still requires the bottom tier. */
+    public function test_a_returned_unit_of_a_bottom_goods_line_keeps_the_declared_tier(): void
+    {
+        $client = $this->client();
+        $warehouse = $this->warehouse();
+        ['asn' => $asn, 'lines' => $asnLines] = $this->stockedAsn($client, $warehouse, [['mark' => 'R1', 'cartons' => 10]]);
+        $asnLines[0]->update(['storage_tier' => 'bottom', 'storage_tier_source' => 'staff']);
+        $order = $this->confirmedOrder($client, $asn->job_id, [['asn_line_id' => $asnLines[0]->id, 'qty' => 4]]);
+
+        $returns = app(ReturnService::class);
+        $receipt = $returns->open(['original_order_id' => $order->id, 'warehouse_id' => $warehouse->id]);
+        [$line] = $receipt->lines;
+        $returns->receiveLine($line, 4, 'good');
+        $returns->completeReceiving($receipt->fresh());
+        $returns->inspectLine($line->fresh(), 'available', $this->staff('warehouse_supervisor')->id);
+
+        $this->assertSame('bottom', $line->fresh()->stockUnit->required_storage_tier);
     }
 
     public function test_a_standard_pallet_into_bottom_warns_and_cartons_pickface_and_quarantine_are_exempt_and_the_hint_skips_occupied_locations(): void

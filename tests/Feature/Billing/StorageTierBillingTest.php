@@ -117,12 +117,54 @@ class StorageTierBillingTest extends TestCase
         $rates = app(RateService::class);
         $this->assertSame($sydRow->id, $rates->price($client->id, 'WH-STORAGE-TIER-PLT-WK', 1, ['warehouse_id' => $syd->id, 'base_cents' => 1000])['rate_item_id']);
         $this->assertSame($all->id, $rates->price($client->id, 'WH-STORAGE-TIER-PLT-WK', 1, ['warehouse_id' => $mel->id, 'base_cents' => 1000])['rate_item_id']);
-        $this->assertSame(200, $rates->price($client->id, 'WH-STORAGE-TIER-PLT-WK', 1, ['base_cents' => 1000])['amount_cents'], 'no warehouse in the context: the more specific row still matches');
+        $noWarehouse = $rates->price($client->id, 'WH-STORAGE-TIER-PLT-WK', 1, ['base_cents' => 1000]);
+        $this->assertSame([$all->id, 100], [$noWarehouse['rate_item_id'], $noWarehouse['amount_cents']], 'no warehouse in the context: only the all-warehouse row matches (review 2026-09-15)');
         // A warehouse-only base price is possible too: a SYD storage row is used for SYD, MEL keeps the Edward row.
         $plt = RateItem::query()->where('rate_card_id', $all->rate_card_id)->whereHas('chargeCode', fn ($q) => $q->where('code', 'WH-STORAGE-PLT-WK'))->sole();
         $plt->replicate()->fill(['warehouse_id' => $syd->id, 'rate_cents' => 600])->save();
         $this->assertSame(600, $rates->price($client->id, 'WH-STORAGE-PLT-WK', 1, ['pallet_class' => 'standard', 'warehouse_id' => $syd->id])['amount_cents']);
         $this->assertSame(450, $rates->price($client->id, 'WH-STORAGE-PLT-WK', 1, ['pallet_class' => 'standard', 'warehouse_id' => $mel->id])['amount_cents']);
+    }
+
+    /**
+     * Review 2026-09-15 (BILL-1 / FLOW-1): a MEL / SYD row never reaches a lookup that does not name its warehouse. thresholds() has no
+     * warehouse, so a SYD storage row with its threshold JSON left blank must not hide the all-warehouse pallet bands (receiving would
+     * class a standard pallet oversize); and every weekly line — rental, pickface, carton — prices each warehouse with its own row.
+     */
+    public function test_warehouse_rows_never_shadow_thresholds_and_price_rental_pickface_and_cartons_per_warehouse(): void
+    {
+        $client = $this->client();
+        $mel = $this->warehouse();
+        $syd = $this->warehouse('SYD');
+        $cardId = $this->tierItem()->rate_card_id;
+        $codeId = fn (string $code) => ChargeCode::query()->where('code', $code)->value('id');
+        $row = fn (string $code) => RateItem::query()->where('rate_card_id', $cardId)->whereNull('warehouse_id')->where('charge_code_id', $codeId($code))->sole();
+
+        $row('WH-STORAGE-PLT-WK')->replicate()->fill(['warehouse_id' => $syd->id, 'rate_cents' => 600, 'threshold_json' => null])->save();
+        $row('WH-PALLET-RENT-PLAIN-WK')->replicate()->fill(['warehouse_id' => $syd->id, 'rate_cents' => 90])->save();
+        $row('WH-STORAGE-PICKFACE-WK')->replicate()->fill(['warehouse_id' => $syd->id, 'rate_cents' => 900, 'threshold_json' => null])->save();
+        $row('WH-PALLET-RENT-PLAIN-WK')->replicate()->fill(['charge_code_id' => $codeId('WH-STORAGE-CTN-WK'), 'warehouse_id' => $syd->id, 'rate_cents' => 30])->save(); // SYD bills cartons, MEL has no carton rate
+
+        $rates = app(RateService::class);
+        $this->assertEquals($row('WH-STORAGE-PLT-WK')->threshold_json, $rates->thresholds($client->id, 'WH-STORAGE-PLT-WK'));
+        $this->assertSame('standard', $rates->suggestPalletClass($client->id, 1200, 1000, 1200, 300));
+        $this->assertSame(450, $rates->price($client->id, 'WH-STORAGE-PLT-WK', 1, ['pallet_class' => 'standard'])['amount_cents']);
+
+        $melPallet = $this->stored($client, $mel, 'standard', $this->location($mel, 'storage'), ['pallet_source' => 'warehouse_plain']);
+        $sydPallet = $this->stored($client, $syd, 'standard', $this->location($syd, 'storage'), ['pallet_source' => 'warehouse_plain']);
+        $melPick = $this->stored($client, $mel, 'standard', $this->location($mel, 'pickface'));
+        $sydPick = $this->stored($client, $syd, 'standard', $this->location($syd, 'pickface'));
+        $melCarton = $this->stored($client, $mel, 'standard', $this->location($mel, 'storage'), ['unit_type' => 'carton', 'carton_qty' => 6]);
+        $sydCarton = $this->stored($client, $syd, 'standard', $this->location($syd, 'storage'), ['unit_type' => 'carton', 'carton_qty' => 6]);
+        $this->assertSame(['standard', 'standard'], [$melPallet->pallet_class, $sydPallet->pallet_class], 'receiving classes both pallets with the all-warehouse bands');
+        $this->bill();
+
+        $amount = fn (string $code, StockUnit $unit) => Charge::query()->withoutGlobalScopes()->whereHas('chargeCode', fn ($q) => $q->where('code', $code))->where('job_id', $unit->job_id)->value('amount_cents');
+        $this->assertSame([450, 600], [(int) $amount('WH-STORAGE-PLT-WK', $melPallet), (int) $amount('WH-STORAGE-PLT-WK', $sydPallet)]);
+        $this->assertSame([70, 90], [(int) $amount('WH-PALLET-RENT-PLAIN-WK', $melPallet), (int) $amount('WH-PALLET-RENT-PLAIN-WK', $sydPallet)]);
+        $this->assertSame([650, 900], [(int) $amount('WH-STORAGE-PICKFACE-WK', $melPick), (int) $amount('WH-STORAGE-PICKFACE-WK', $sydPick)]);
+        $this->assertSame(180, (int) $amount('WH-STORAGE-CTN-WK', $sydCarton));
+        $this->assertNull($amount('WH-STORAGE-CTN-WK', $melCarton), 'the SYD carton row never prices a MEL carton');
     }
 
     public function test_no_surcharge_without_both_tiers_for_cartons_or_for_snapshot_rows_written_before_the_tier_columns(): void
