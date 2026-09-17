@@ -98,13 +98,14 @@
     <h2>{{ __('portal.sections.goods') }}</h2>
     <div class="overflow-auto">
         <table class="dense">
-            <thead><tr><th>{{ __('portal.fields.description') }}</th><th>{{ __('portal.fields.package_type') }}</th><th>{{ __('portal.fields.carton_qty') }}</th><th>{{ __('portal.fields.shipped_qty') }}</th><th>{{ __('portal.fields.weight_kg') }}</th></tr></thead>
+            {{-- CHANGE_REQUESTS #129: the storage tier the client chose per line (badge only — never a location code or a price). --}}
+            <thead><tr><th>{{ __('portal.fields.description') }}</th><th>{{ __('portal.fields.package_type') }}</th><th>{{ __('portal.fields.storage_tier') }}</th><th>{{ __('portal.fields.carton_qty') }}</th><th>{{ __('portal.fields.shipped_qty') }}</th><th>{{ __('portal.fields.weight_kg') }}</th></tr></thead>
             <tbody>
                 @foreach ($order->lines as $line)
-                    <tr><td>{{ $line->description_cn ?: $line->description_en }}</td><td>{{ \App\Modules\Orders\OrderEnums::packageTypeLabel($line->package_type) }}</td><td>{{ $line->carton_qty }}</td><td>{{ $line->qty_shipped }}</td><td>{{ $line->actual_weight_kg ?? __('portal.not_provided') }}</td></tr>
+                    <tr><td>{{ $line->description_cn ?: $line->description_en }}</td><td>{{ \App\Modules\Orders\OrderEnums::packageTypeLabel($line->package_type) }}</td><td>@if ($line->storage_tier === 'bottom')<span class="badge" data-tone="warn">{{ __('portal.stock.storage_tiers.bottom') }}</span>@else{{ __('portal.stock.storage_tiers.standard') }}@endif</td><td>{{ $line->carton_qty }}</td><td>{{ $line->qty_shipped }}</td><td>{{ $line->actual_weight_kg ?? __('portal.not_provided') }}</td></tr>
                 @endforeach
                 @foreach ($order->declaredPackages as $package)
-                    <tr><td>{{ __('portal.fields.declared_package') }}</td><td>{{ \App\Modules\Orders\OrderEnums::packageTypeLabel($package->package_type) }}</td><td>{{ $package->qty }}</td><td>—</td><td>{{ $package->weight_kg ?? __('portal.not_provided') }}</td></tr>
+                    <tr><td>{{ __('portal.fields.declared_package') }}</td><td>{{ \App\Modules\Orders\OrderEnums::packageTypeLabel($package->package_type) }}</td><td>—</td><td>{{ $package->qty }}</td><td>—</td><td>{{ $package->weight_kg ?? __('portal.not_provided') }}</td></tr>
                 @endforeach
             </tbody>
         </table>

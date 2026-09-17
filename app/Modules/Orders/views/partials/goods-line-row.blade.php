@@ -12,6 +12,8 @@
     <td class="desc"><input name="{{ $name('description_en') }}" value="{{ $line['description_en'] ?? '' }}" placeholder="{{ __($prefix.'.fields.description_en') }}" aria-label="{{ __($prefix.'.fields.description_en') }}"></td>
     {{-- 2026-09-10 audit: 包装类型 / 箱数 are required on EVERY row (server rule is per row), not only the first; the form's toggleType() flips them off for pure transport. --}}
     <td class="type">@include('orders::partials.package-type-select', ['name' => $name('package_type'), 'value' => $line['package_type'] ?? 'carton', 'class' => 'goods-required', 'required' => true, 'ariaLabel' => __($prefix.'.fields.package_type')])</td>
+    {{-- CHANGE_REQUESTS #129: the storage TIER wanted for this line (标准 default / 底层) — never a bin; the supervisor still picks the location at putaway. A spare row with only this select is still pruned (OrderFormRows). --}}
+    <td class="tier">@include('orders::partials.storage-tier-select', ['name' => $name('storage_tier'), 'value' => $line['storage_tier'] ?? 'standard', 'ariaLabel' => __('orders.lines.storage_tier')])</td>
     <td class="num"><input type="number" min="1" name="{{ $name('carton_qty') }}" value="{{ $line['carton_qty'] ?? '' }}" class="goods-required" required placeholder="{{ __($prefix.'.fields.carton_qty') }}" aria-label="{{ __($prefix.'.fields.carton_qty') }}"></td>
     @if ($extended)
         <td class="num"><input type="number" min="0" name="{{ $name('unit_qty') }}" value="{{ $line['unit_qty'] ?? '' }}" placeholder="{{ __('orders.fields.unit_qty') }}" aria-label="{{ __('orders.fields.unit_qty') }}"></td>

@@ -9,6 +9,7 @@ use App\Modules\Orders\Models\OrderLine;
 use App\Modules\Orders\Services\OrderChangeService;
 use App\Modules\Orders\Services\OrderStatusService;
 use App\Support\Auth\RequiredRoles;
+use App\Support\Enums;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -53,16 +54,27 @@ final class OrderLineController extends Controller
     {
         $order = $request->route('order');
 
-        return $request->validate([
+        $data = $request->validate([
             'description_cn' => ['nullable', 'string', 'max:255', 'required_without:description_en'],
             'description_en' => ['nullable', 'string', 'max:255'], // either/or check on description_cn only (one message)
             'package_type' => ['nullable', 'string', 'max:30'],
             'carton_qty' => ['required', 'integer', 'min:1'],
             'unit_qty' => ['nullable', 'integer', 'min:0'],
             'actual_weight_kg' => ['nullable', 'numeric', 'min:0'],
+            'storage_tier' => ['nullable', Rule::in(Enums::STORAGE_TIERS)], // CHANGE_REQUESTS #129: the tier (标准 / 底层), never a bin
             // A7 needs a goods line (asn_line_id) before a from_stock order can be confirmed: the coordinator links the draft line to the client's ASN line (read-only lookup).
             'asn_line_id' => ['nullable', 'integer', Rule::exists('asn_lines', 'id')->where(fn ($q) => $q->whereIn('asn_id', DB::table('asns')->where('client_id', $order->client_id)->select('id')))],
         ], OrderValidation::messages(), OrderValidation::attributes());
+
+        // CHANGE_REQUESTS #129: a posted tier is a staff declaration (the line note in the timeline already records the edit); a request
+        // without the field leaves the line's tier and source exactly as they were.
+        if (filled($data['storage_tier'] ?? null)) {
+            $data['storage_tier_source'] = 'staff';
+        } else {
+            unset($data['storage_tier']);
+        }
+
+        return $data;
     }
 
     private function authorizeDraft(Order $order): void

@@ -15,6 +15,7 @@ use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Orders\Services\OrderEstimateService;
 use App\Modules\Orders\Services\TailgateRule;
 use App\Modules\Portal\Http\PortalValidation;
+use App\Modules\Portal\Services\PortalStorageTier;
 use App\Modules\Portal\Services\PortalTransportEstimate;
 use App\Modules\Portal\Services\PortalTransportQuotes;
 use App\Modules\Transport\Models\Shipment;
@@ -89,6 +90,7 @@ final class PortalOrderController extends Controller
             'addressTypes' => OrderEnums::ADDRESS_TYPES,
             'states' => Enums::STATES,
             'addresses' => ClientAddress::query()->orderByDesc('usage_count')->orderByDesc('last_used_at')->orderBy('label')->get(), // A17 address book, client-scoped
+            'tierSurcharge' => app(PortalStorageTier::class)->surchargeByWarehouse($clientId), // CHANGE_REQUESTS #129: the client's own 底层 percent per warehouse (customer price, never cost)
         ];
     }
 
@@ -99,6 +101,7 @@ final class PortalOrderController extends Controller
         OrderFormRows::prune($request); // spare form rows (package type select always has a value) are not lines
 
         $data = $request->validate($this->rules($clientId), PortalValidation::messages(), PortalValidation::attributes());
+        $data = OrderFormRows::withStorageTierSource($data, 'client'); // CHANGE_REQUESTS #129: the tier the client picked per line is the client's declaration
 
         $data['pickup_address'] = self::pickupAddress($data);
         $data['client_id'] = $clientId; // never from the request: the signed-in client is the only possible owner
@@ -130,6 +133,7 @@ final class PortalOrderController extends Controller
         $this->mergeSavedAddress($request, $clientId);
         OrderFormRows::prune($request);
         $data = $request->validate($this->rules($clientId), PortalValidation::messages(), PortalValidation::attributes());
+        $data = OrderFormRows::withStorageTierSource($data, 'client'); // CHANGE_REQUESTS #129
         $request->flash(); // old() keeps every field the client typed
         $data['pickup_address'] = self::pickupAddress($data); // CHANGE_REQUESTS #120: a 提货直送 preview prices freight from the pickup address too
 
@@ -201,6 +205,7 @@ final class PortalOrderController extends Controller
             'lines.*.length_mm' => ['nullable', 'integer', 'min:0'],
             'lines.*.width_mm' => ['nullable', 'integer', 'min:0'],
             'lines.*.height_mm' => ['nullable', 'integer', 'min:0'],
+            'lines.*.storage_tier' => ['nullable', Rule::in(Enums::STORAGE_TIERS)], // CHANGE_REQUESTS #129: the tier (标准 / 底层), never a bin
             'declared_packages' => ['nullable', 'required_if:order_type,pickup_deliver', 'array'],
             'declared_packages.*.package_type' => ['required_with:declared_packages.*.qty', 'nullable', Rule::in(OrderEnums::PACKAGE_TYPES)],
             'declared_packages.*.qty' => ['required_with:declared_packages.*.package_type', 'nullable', 'integer', 'min:1'],

@@ -251,6 +251,7 @@
             <thead><tr>
                 <th>{{ __('orders.fields.description') }}</th>
                 <th>{{ __('orders.fields.package_type') }}</th>
+                <th>{{ __('orders.lines.storage_tier') }}</th>
                 <th>{{ __('orders.fields.carton_qty') }}</th>
                 <th>{{ __('orders.fields.unit_qty') }}</th>
                 <th>{{ __('orders.fields.weight_kg') }}</th>
@@ -262,6 +263,11 @@
                     <tr>
                         <td>{{ $line->description_cn ?: $line->description_en }}</td>
                         <td>{{ \App\Modules\Orders\OrderEnums::packageTypeLabel($line->package_type) }}</td>
+                        {{-- CHANGE_REQUESTS #129: the tier chosen when the order was placed and who chose it (客户 / 员工 / 按单价预选); an unset tier is standard once on the ASN. --}}
+                        <td>
+                            @if ($line->storage_tier === 'bottom')<span class="badge" data-tone="warn">{{ __('orders.lines.storage_tiers.bottom') }}</span>@else<span class="badge" data-tone="muted">{{ __('orders.lines.storage_tiers.standard') }}</span>@endif
+                            @if ($line->storage_tier_source)<br><small class="text-muted">{{ __('orders.lines.storage_tier_sources.'.$line->storage_tier_source) }}</small>@endif
+                        </td>
                         <td>{{ $line->carton_qty }}</td>
                         <td>{{ $line->unit_qty ?? __('orders.not_provided') }}</td>
                         <td>{{ $line->actual_weight_kg ?? __('orders.not_provided') }}</td>
@@ -277,7 +283,7 @@
                     </tr>
                     @if ($canEditLines)
                         {{-- The line editor gets a full-width row of its own: inside the name cell the five inputs collapsed to slivers and 保存修改 wrapped vertically (tester feedback 2026-09-10). --}}
-                        <tr class="line-edit"><td colspan="7" style="padding-top:0;border-top:0">
+                        <tr class="line-edit"><td colspan="8" style="padding-top:0;border-top:0">
                             <details>
                                 <summary class="text-muted" style="font-size:.9rem">{{ __('orders.drafts.edit_line') }}</summary>
                                 <form method="post" action="{{ route('orders.lines.update', [$order, $line]) }}" style="padding:.5rem .25rem 0">
@@ -287,6 +293,7 @@
                                         <label>{{ __('orders.fields.description_cn') }}<input name="description_cn" value="{{ $line->description_cn }}"></label>
                                         <label>{{ __('orders.fields.description_en') }}<input name="description_en" value="{{ $line->description_en }}"></label>
                                         <label>{{ __('orders.fields.package_type') }}@include('orders::partials.package-type-select', ['name' => 'package_type', 'value' => $line->package_type])</label>
+                                        <label>{{ __('orders.lines.storage_tier') }}@include('orders::partials.storage-tier-select', ['name' => 'storage_tier', 'value' => $line->storage_tier])</label>
                                         <label>{{ __('orders.fields.carton_qty') }}<input type="number" min="1" name="carton_qty" value="{{ $line->carton_qty }}" required></label>
                                         <label>{{ __('orders.fields.weight_kg') }}<input type="number" min="0" step="0.001" name="actual_weight_kg" value="{{ $line->actual_weight_kg }}"></label>
                                     </div>
@@ -312,6 +319,7 @@
                     <label>{{ __('orders.fields.description_cn') }}<input name="description_cn" value="{{ old('description_cn') }}"></label>
                     <label>{{ __('orders.fields.description_en') }}<input name="description_en" value="{{ old('description_en') }}"></label>
                     <label>{{ __('orders.fields.package_type') }}@include('orders::partials.package-type-select', ['name' => 'package_type', 'value' => old('package_type', 'carton')])</label>
+                    <label>{{ __('orders.lines.storage_tier') }}@include('orders::partials.storage-tier-select', ['name' => 'storage_tier', 'value' => old('storage_tier', 'standard')])</label>
                     <label>{{ __('orders.fields.carton_qty') }}<input type="number" min="1" name="carton_qty" value="{{ old('carton_qty', 1) }}" required></label>
                     <label>{{ __('orders.fields.weight_kg') }}<input type="number" min="0" step="0.001" name="actual_weight_kg" value="{{ old('actual_weight_kg') }}"></label>
                 </div>

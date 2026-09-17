@@ -20,6 +20,7 @@ use App\Modules\Orders\Services\OrderHoldService;
 use App\Modules\Orders\Services\OrderStatusService;
 use App\Modules\Orders\Services\TailgateRule;
 use App\Modules\Platform\Models\Job;
+use App\Modules\Portal\Services\PortalStorageTier;
 use App\Support\Auth\RequiredRoles;
 use App\Support\Contracts\RateService;
 use App\Support\Contracts\StockService;
@@ -85,6 +86,9 @@ final class OrderController extends Controller
                 ->orderByDesc('last_used_at')
                 ->orderBy('label')
                 ->get(),
+            // CHANGE_REQUESTS #129: the 底层 surcharge hint is priced server side for the client the form came back with (a re-render after a
+            // validation error); a fresh form has no client yet and shows none — no JS pricing.
+            'tierSurcharge' => (int) old('client_id') > 0 ? app(PortalStorageTier::class)->surchargeByWarehouse((int) old('client_id')) : [],
         ]);
     }
 
@@ -93,7 +97,7 @@ final class OrderController extends Controller
         $this->authorizeOrderEntry();
         $this->mergeSavedAddress($request);
         OrderFormRows::prune($request); // spare form rows (package type select always has a value) are not lines
-        $data = $this->validated($request);
+        $data = OrderFormRows::withStorageTierSource($this->validated($request), 'staff'); // CHANGE_REQUESTS #129: a tier typed by staff is a staff declaration
         $order = $orders->createManual($data, $request->user()?->id);
 
         return redirect()->route('orders.show', $order)
@@ -256,6 +260,7 @@ final class OrderController extends Controller
             'lines.*.width_mm' => ['nullable', 'integer', 'min:0'],
             'lines.*.height_mm' => ['nullable', 'integer', 'min:0'],
             'lines.*.cbm' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.storage_tier' => ['nullable', Rule::in(Enums::STORAGE_TIERS)], // CHANGE_REQUESTS #129: the tier (标准 / 底层), never a bin
             'declared_packages' => ['nullable', 'required_if:order_type,pickup_deliver', 'array'],
             'declared_packages.*.package_type' => ['required_with:declared_packages.*.qty', 'nullable', Rule::in(OrderEnums::PACKAGE_TYPES)],
             'declared_packages.*.qty' => ['required_with:declared_packages.*.package_type', 'nullable', 'integer', 'min:1'],
