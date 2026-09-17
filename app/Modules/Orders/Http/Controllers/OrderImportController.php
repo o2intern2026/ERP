@@ -5,12 +5,14 @@ namespace App\Modules\Orders\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Orders\Http\OrderValidation;
+use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderImport;
 use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\OrderImportService;
 use App\Modules\Platform\Models\Job;
 use App\Support\Auth\RequiredRoles;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -72,8 +74,13 @@ final class OrderImportController extends Controller
     public function show(OrderImport $import): View
     {
         $this->authorizeImport();
+        // CHANGE_REQUESTS #128: a manual portal list may have attached the client's existing orders (以订单为准) — shown read-only from the ORDER.
+        $attachedIds = $import->status === 'imported' ? array_map('intval', array_column($import->errors['result']['attached'] ?? [], 'order_id')) : $import->manualAttachedIds();
 
-        return view('orders::imports.show', ['import' => $import->load(['client', 'creator'])]);
+        return view('orders::imports.show', [
+            'import' => $import->load(['client', 'creator']),
+            'attachedOrders' => $attachedIds === [] ? new Collection : Order::query()->with('lines')->whereKey($attachedIds)->orderBy('id')->get(),
+        ]);
     }
 
     public function confirm(Request $request, OrderImport $import, OrderImportService $imports): RedirectResponse

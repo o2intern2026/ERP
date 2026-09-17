@@ -169,7 +169,7 @@ Currency `AUD`, money as integer cents (`app/Support/Money`); timezone `Australi
 | `suppliers.status`, `carriers.status` | `active` \| `inactive` (`Enums::MASTER_STATUSES`) |
 | `order_events.actor_type` | `user` \| `system` |
 | `order_imports.source` | `excel` \| `pdf` \| `portal` (the client's own 入库清单 upload in the portal — CHANGE_REQUESTS #123; its orders are created with `orders.source = portal`) |
-| `order_imports.status`, `asn_imports.status` | `pending` \| `imported` \| `failed` |
+| `order_imports.status`, `asn_imports.status` | `pending` \| `imported` \| `failed`; `order_imports.status` also `draft` (a portal 手工建立入库清单 saved to continue later — rows / ticks / context kept in `errors.context`, no groups, no result; CHANGE_REQUESTS #128) |
 | `waves.status` | `planned` \| `released` \| `completed` \| `cancelled` |
 | `stocktakes.status` | `open` \| `counted` \| `adjusted` \| `cancelled` |
 | `tracking_events.source` | `api` \| `driver` \| `manual` |

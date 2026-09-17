@@ -30,4 +30,15 @@ final class FakeManifestParser implements ManifestParser
             'warnings' => [],
         ];
     }
+
+    /** CHANGE_REQUESTS #128: the posted rows come back untouched (numbered by position), no errors, no warnings. */
+    public function fromRows(array $rows): array
+    {
+        $numbered = [];
+        foreach (array_values($rows) as $position => $row) {
+            $numbered[] = ['row' => $position + 1] + (is_array($row) ? $row : []);
+        }
+
+        return ['rows' => $numbered, 'errors' => [], 'warnings' => []];
+    }
 }

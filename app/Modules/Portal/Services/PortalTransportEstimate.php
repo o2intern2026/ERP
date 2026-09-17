@@ -62,8 +62,8 @@ final class PortalTransportEstimate
      * nothing written.
      *
      * @param  array<string, mixed>  $collection  errors.context.inbound.collection {warehouse_id, address, ready_date, notes}
-     * @param  list<array<string, mixed>>  $rows  the parser rows of the ready groups (carton_qty, actual_weight_kg = line total, dims, row)
-     * @return array{options: list<array<string, mixed>>, reason: ?string, packages: list<array<string, mixed>>, unpriced_rows: list<int>} reason: no_address | no_items | none | null
+     * @param  list<array<string, mixed>>  $rows  the parser rows of the ready groups (carton_qty, actual_weight_kg = line total, dims, row) and, for a manual list (CHANGE_REQUESTS #128), the attached orders' lines in the same shape with `label` = the order no
+     * @return array{options: list<array<string, mixed>>, reason: ?string, packages: list<array<string, mixed>>, unpriced_rows: list<int|string>} reason: no_address | no_items | none | null; a package / unpriced entry of an attached order carries its `label` (order no) instead of a sheet row number
      */
     public function collectionOptions(int $clientId, array $collection, array $rows): array
     {
@@ -74,10 +74,14 @@ final class PortalTransportEstimate
             $qty = max(0, (int) ($row['carton_qty'] ?? 0));
             $total = is_numeric($row['actual_weight_kg'] ?? null) ? (float) $row['actual_weight_kg'] : null;
             $dims = ['length_mm' => $this->mm($row['length_mm'] ?? null), 'width_mm' => $this->mm($row['width_mm'] ?? null), 'height_mm' => $this->mm($row['height_mm'] ?? null)];
-            $packages[] = ['row' => (int) ($row['row'] ?? 0), 'package_type' => (string) (($row['package_type'] ?? null) ?: 'carton'), 'qty' => $qty,
+            $package = ['row' => (int) ($row['row'] ?? 0), 'package_type' => (string) (($row['package_type'] ?? null) ?: 'carton'), 'qty' => $qty,
                 'weight_kg' => $total === null || $qty < 1 ? null : round($total / $qty, 3)] + $dims;
+            if (filled($row['label'] ?? null)) {
+                $package['label'] = (string) $row['label']; // CHANGE_REQUESTS #128: a line of an attached ORDER (its order no), not a typed / sheet row
+            }
+            $packages[] = $package;
             if ($total === null || $total <= 0 || in_array(null, $dims, true) || min($dims) <= 0) {
-                $unpriced[] = (int) ($row['row'] ?? 0);
+                $unpriced[] = $package['label'] ?? (int) ($row['row'] ?? 0);
             }
             // The ASN goods line this row becomes (order line → OrderInboundService::linePayload → asn_lines) in the shape collectionItems() reads.
             $lines[] = ['carton_qty' => $qty, 'actual_weight_kg' => $total] + $dims + [

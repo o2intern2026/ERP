@@ -102,8 +102,8 @@ final class OrderInboundService
                 if (! is_array($import->errors['context']['inbound']['collection'] ?? null)) {
                     return;
                 }
-                foreach (array_column($import->errors['result']['created'] ?? [], 'order_id') as $orderId) {
-                    $map[(int) $orderId] ??= (int) $import->id;
+                foreach ($import->orderIds() as $orderId) { // created + attached (CHANGE_REQUESTS #128)
+                    $map[$orderId] ??= (int) $import->id;
                 }
             });
 
@@ -262,7 +262,7 @@ final class OrderInboundService
         if ($import === null || $import->source !== 'portal' || (int) $import->client_id !== $clientId || $import->status !== 'imported' || ! is_array($collection)) {
             throw new RuleViolation("Import {$importId} is not a portal collection request of this client.", 'orders.inbound.errors.collection_import_invalid', ['id' => $importId]);
         }
-        $importOrderIds = array_values(array_unique(array_map('intval', array_column($import->errors['result']['created'] ?? [], 'order_id'))));
+        $importOrderIds = $import->orderIds(); // created + attached (CHANGE_REQUESTS #128): the client priced the WHOLE list, attached orders included
         $foreign = array_diff($orderIds, $importOrderIds);
         if ($orderIds === [] || $foreign !== []) {
             throw new RuleViolation("Orders not created by import {$importId} cannot carry its collection request.", 'orders.inbound.errors.collection_import_orders', ['id' => $importId]);

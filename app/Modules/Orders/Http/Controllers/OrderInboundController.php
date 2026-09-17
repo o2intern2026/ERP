@@ -107,9 +107,11 @@ final class OrderInboundController extends Controller
      * that came out of those uploads — one entry per submission that still has an order waiting here, keyed by client.
      * CHANGE_REQUESTS #125: `collection` = the client's 需要我们上门提货 request on that list (warehouse_id, address, ready_date, notes,
      * preference — the plan it ticked with the client price; staff may see it), null when the client delivers itself.
+     * CHANGE_REQUESTS #128: a manual list (`manual`, no file) counts its created AND attached orders (OrderImport::orderIds) — one card,
+     * 选中并填入 ticks all of them; `attached_nos` names the attached ones (以订单为准: their data is the order's own).
      *
      * @param  Collection<int, Order>  $orders
-     * @return array<int, list<array{import:OrderImport, inbound:array<string, mixed>, collection:?array<string, mixed>, file:?string, order_ids:list<int>, order_nos:list<string>}>>
+     * @return array<int, list<array{import:OrderImport, inbound:array<string, mixed>, collection:?array<string, mixed>, file:?string, manual:bool, order_ids:list<int>, order_nos:list<string>, attached_nos:list<string>}>>
      */
     private function portalSubmissions(Collection $orders): array
     {
@@ -121,18 +123,21 @@ final class OrderInboundController extends Controller
         OrderImport::query()->where('source', 'portal')->where('status', 'imported')
             ->whereIn('client_id', $orders->pluck('client_id')->unique())->latest('id')->limit(300)->get()
             ->each(function (OrderImport $import) use ($byId, &$result): void {
-                $ids = array_values(array_filter(array_map('intval', array_column($import->errors['result']['created'] ?? [], 'order_id')), fn (int $id) => $byId->has($id)));
+                $ids = array_values(array_filter($import->orderIds(), fn (int $id) => $byId->has($id)));
                 if ($ids === []) {
                     return;
                 }
+                $attached = array_values(array_filter(array_map('intval', array_column($import->errors['result']['attached'] ?? [], 'order_id')), fn (int $id) => $byId->has($id)));
                 $inbound = is_array($import->errors['context']['inbound'] ?? null) ? $import->errors['context']['inbound'] : [];
                 $result[(int) $import->client_id][] = [
                     'import' => $import,
                     'inbound' => $inbound,
                     'collection' => is_array($inbound['collection'] ?? null) ? $inbound['collection'] : null,
                     'file' => $import->errors['context']['original_name'] ?? null,
+                    'manual' => $import->isManual(),
                     'order_ids' => $ids,
                     'order_nos' => array_map(fn (int $id) => (string) $byId[$id]->order_no, $ids),
+                    'attached_nos' => array_map(fn (int $id) => (string) $byId[$id]->order_no, $attached),
                 ];
             });
 

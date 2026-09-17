@@ -37,7 +37,7 @@
                         <div class="overflow-auto"><table class="dense">
                             <thead><tr>
                                 <th>#</th><th>{{ __('orders.imports.inbound.container_no') }}</th><th>{{ __('orders.imports.inbound.container_size') }}</th><th>{{ __('orders.imports.inbound.expected_date') }}</th>
-                                <th>{{ __('orders.imports.inbound.reference') }}</th><th>{{ __('orders.imports.inbound.notes') }}</th><th>{{ __('orders.imports.inbound.uploaded_at') }}</th><th>{{ __('orders.imports.inbound.file') }}</th>
+                                <th>{{ __('orders.imports.inbound.reference') }}</th><th>{{ __('orders.imports.inbound.notes') }}</th><th>{{ __('orders.imports.inbound.uploaded_at') }}</th><th>{{ __('orders.imports.inbound.source') }}</th>
                                 <th>{{ __('orders.imports.inbound.transport') }}</th><th>{{ __('orders.imports.inbound.orders') }}</th><th></th>
                             </tr></thead>
                             <tbody>
@@ -53,7 +53,7 @@
                                     <td>{{ ($s['inbound']['reference'] ?? null) ?: '—' }}</td>
                                     <td>{{ ($s['inbound']['notes'] ?? null) ?: '—' }}</td>
                                     <td>{{ ($s['inbound']['uploaded_at'] ?? null) ?: $s['import']->created_at?->format('Y-m-d H:i') }}</td>
-                                    <td>{{ $s['file'] ?: '—' }}</td>
+                                    <td>{{ $s['file'] ?: ($s['manual'] ? __('orders.imports.inbound.manual') : '—') }}</td>{{-- CHANGE_REQUESTS #128: a manual list has no file --}}
                                     <td>
                                         @if ($col)
                                             <span class="badge" data-tone="warn">{{ __('orders.imports.inbound.collection_badge') }}</span>
@@ -63,7 +63,7 @@
                                             <span class="text-muted">{{ __('orders.imports.inbound.client_delivers') }}</span>
                                         @endif
                                     </td>
-                                    <td>{{ implode(', ', $s['order_nos']) }}</td>
+                                    <td>{{ implode(', ', $s['order_nos']) }}@if ($s['attached_nos'] !== [])<br><small class="text-muted">{{ __('orders.imports.inbound.attached', ['orders' => implode(', ', $s['attached_nos'])]) }}</small>@endif</td>
                                     <td><button type="button" class="secondary outline" data-select-import data-import-id="{{ $s['import']->id }}" data-orders="{{ implode(',', $s['order_ids']) }}" data-container-no="{{ $s['inbound']['container_no'] ?? '' }}" data-container-size="{{ $s['inbound']['container_size'] ?? '' }}" data-expected-date="{{ $s['inbound']['expected_date'] ?? '' }}" data-notes="{{ $s['inbound']['notes'] ?? '' }}"
                                         @if ($col) data-collection="1" data-warehouse-id="{{ $col['warehouse_id'] ?? '' }}" data-collection-name="{{ $pickup['name'] ?? '' }}" data-collection-phone="{{ $pickup['phone'] ?? '' }}" data-collection-address="{{ $pickup['address'] ?? '' }}" data-collection-suburb="{{ $pickup['suburb'] ?? '' }}" data-collection-state="{{ $pickup['state'] ?? '' }}" data-collection-postcode="{{ $pickup['postcode'] ?? '' }}" data-collection-type="{{ $pickup['type'] ?? 'business' }}" data-collection-ready-date="{{ $col['ready_date'] ?? '' }}" data-collection-notes="{{ $col['notes'] ?? '' }}" @endif>{{ __('orders.imports.inbound.select') }}</button></td>
                                 </tr>

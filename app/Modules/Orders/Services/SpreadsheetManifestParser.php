@@ -134,6 +134,17 @@ final class SpreadsheetManifestParser implements ManifestParser
         'sameday' => 'same_day', '当日' => 'same_day', '当日送达' => 'same_day', '当天' => 'same_day', '当天送达' => 'same_day',
     ];
 
+    /**
+     * The canonical fields a manual form posts per row (CHANGE_REQUESTS #128 手工建立入库清单) — the same fields the CSV template carries,
+     * keyed by the parser's own names. Every one of them counts as a present column for fromRows(): the dimensions are mm (no cm
+     * header), the weight is the line total (no 单件重量 column) and an empty 存储等级 is 标准 without being a declaration.
+     */
+    public const FORM_FIELDS = [
+        'consignment_mark', 'description_cn', 'description_en', 'package_type', 'carton_qty', 'unit_qty', 'actual_weight_kg',
+        'length_mm', 'width_mm', 'height_mm', 'deliver_to_name', 'deliver_to_phone', 'deliver_to_address', 'deliver_to_suburb',
+        'deliver_to_state', 'deliver_to_postcode', 'fba_reference', 'external_ref', 'requested_date', 'service_level', 'storage_tier',
+    ];
+
     public function parse(string $path): array
     {
         if (! is_file($path)) {
@@ -152,6 +163,69 @@ final class SpreadsheetManifestParser implements ManifestParser
         }
 
         return $this->normalise($matrix, $warnings);
+    }
+
+    /**
+     * CHANGE_REQUESTS #128 手工建立入库清单: rows typed on a form instead of read from a sheet. Each posted row is keyed by FORM_FIELDS
+     * (unknown keys ignored, missing keys empty), numbered by its position 1..n, and goes through EXACTLY the normalisation and
+     * validation parse() applies to a sheet row — cleaning, carry-down of blank consignee cells under the same 唛头, duplicate-row
+     * warning, phone / postcode / state / package / date / 存储等级 rules — with the same Chinese `第 N 行「列名」…` messages, the column
+     * named by `orders.imports.columns.*`. Blank rows are skipped but keep their number, as on a sheet. contracts/services.md §8.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return array{rows:list<array<string, mixed>>, errors:list<array<string, mixed>>, warnings:list<array<string, mixed>>, raw_rows:list<array<string, mixed>>}
+     */
+    public function fromRows(array $rows): array
+    {
+        $columns = array_flip(self::FORM_FIELDS);
+        $headers = array_map(fn (string $field): string => __('orders.imports.columns.'.$field), self::FORM_FIELDS);
+        $label = fn (string $field): string => $headers[$columns[$field] ?? -1] ?? __('orders.imports.columns.'.$field);
+        $unitWeightUsed = false;
+
+        $out = [];
+        $errors = [];
+        $warnings = [];
+        $rawRows = [];
+        $carry = [];
+        $seen = [];
+
+        foreach (array_values($rows) as $position => $posted) {
+            $rowNumber = $position + 1;
+            $posted = is_array($posted) ? $posted : [];
+            $cells = array_map(fn (string $field): ?string => $this->clean($this->scalar($posted[$field] ?? null)), self::FORM_FIELDS);
+            if ($this->isEmpty($cells)) {
+                continue;
+            }
+
+            $raw = array_combine($headers, $cells);
+            $rawRows[] = ['row' => $rowNumber, 'raw_json' => $raw];
+
+            $signature = md5(implode("\x1F", array_map(fn ($value) => (string) $value, $cells)));
+            if (isset($seen[$signature])) {
+                $warnings[] = $this->entry($rowNumber, 'consignment_mark', $label('consignment_mark'), __('orders.imports.warnings.duplicate_row', ['row' => $rowNumber, 'first' => $seen[$signature]]));
+            } else {
+                $seen[$signature] = $rowNumber;
+            }
+
+            $mapped = array_combine(self::FORM_FIELDS, $cells);
+            $this->carryDown($mapped, $carry);
+
+            $converted = $this->convertRow($rowNumber, $mapped, $raw, $headers, $columns, $label, $unitWeightUsed);
+            array_push($warnings, ...$converted['warnings']);
+            if ($converted['errors'] !== []) {
+                array_push($errors, ...$converted['errors']);
+
+                continue;
+            }
+            $out[] = $converted['row'];
+        }
+
+        return [
+            'rows' => $out,
+            'errors' => $errors,
+            'warnings' => array_merge($warnings, $this->consistencyWarnings($out)),
+            'raw_rows' => $rawRows,
+        ];
     }
 
     /**
@@ -409,19 +483,7 @@ final class SpreadsheetManifestParser implements ManifestParser
             foreach ($columns as $field => $index) {
                 $mapped[$field] = $this->clean($cells[$index] ?? null);
             }
-
-            if (filled($mapped['consignment_mark'] ?? null)
-                && isset($carry['consignment_mark'])
-                && mb_strtolower((string) $mapped['consignment_mark']) !== mb_strtolower((string) $carry['consignment_mark'])) {
-                $carry = [];
-            }
-            foreach (self::CARRIED as $field) {
-                if (filled($mapped[$field] ?? null)) {
-                    $carry[$field] = $mapped[$field];
-                } elseif (array_key_exists($field, $carry)) {
-                    $mapped[$field] = $carry[$field];
-                }
-            }
+            $this->carryDown($mapped, $carry);
 
             $converted = $this->convertRow($rowNumber, $mapped, $raw, $headers, $columns, $label, $unitWeightUsed);
             array_push($warnings, ...$converted['warnings']);
@@ -604,6 +666,35 @@ final class SpreadsheetManifestParser implements ManifestParser
             'storage_tier_declared' => $tierDeclared,
             'raw_json' => $raw,
         ], 'errors' => [], 'warnings' => $warnings];
+    }
+
+    /**
+     * Merged cells in the client's sheet: a blank consignee cell under the same 唛头 repeats the previous row's value; a new mark
+     * starts afresh. Shared by the sheet reader and the form rows (CHANGE_REQUESTS #128) so both behave identically.
+     *
+     * @param  array<string, ?string>  $mapped
+     * @param  array<string, string>  $carry
+     */
+    private function carryDown(array &$mapped, array &$carry): void
+    {
+        if (filled($mapped['consignment_mark'] ?? null)
+            && isset($carry['consignment_mark'])
+            && mb_strtolower((string) $mapped['consignment_mark']) !== mb_strtolower((string) $carry['consignment_mark'])) {
+            $carry = [];
+        }
+        foreach (self::CARRIED as $field) {
+            if (filled($mapped[$field] ?? null)) {
+                $carry[$field] = $mapped[$field];
+            } elseif (array_key_exists($field, $carry)) {
+                $mapped[$field] = $carry[$field];
+            }
+        }
+    }
+
+    /** A posted form value as text: scalars only (an array or object cell is treated as empty). */
+    private function scalar(mixed $value): ?string
+    {
+        return is_scalar($value) ? (string) $value : null;
     }
 
     /** @param array<string, mixed>|null $raw */
