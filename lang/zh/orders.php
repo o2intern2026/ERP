@@ -193,6 +193,7 @@ return [
             'duplicate_row' => '第 :row 行与第 :first 行内容完全相同（重复行），请确认是否重复。',
         ],
         'statuses' => [
+            'draft' => '草稿', // CHANGE_REQUESTS #128: a portal 手工建立入库清单 saved to continue later
             'pending' => '等待确认',
             'imported' => '已导入',
             'failed' => '导入失败',
@@ -228,6 +229,9 @@ return [
             'duplicate_file' => '这份文件与导入 #:id 相同；系统仍会逐组检查重复，绝不会重复建单。',
             'already_processed' => '这次导入已经处理，不能再次确认。',
             'no_collection_request' => '清单 #:id 没有上门提货申请。', // CHANGE_REQUESTS #125
+            // CHANGE_REQUESTS #128: an existing order ticked on a manual list must still be the client's own, waiting for an ASN and in no other submission.
+            'order_unknown' => '订单 #:id 不存在或不属于贵公司，不能带入这份清单。',
+            'order_not_attachable' => '订单 :order_no 不能带入这份清单：它已在另一份入库清单里，或它的货物已有预报单。',
         ],
         'csv' => [
             'row' => '原表行号',
@@ -245,6 +249,9 @@ return [
             'notes' => '备注',
             'uploaded_at' => '上传时间',
             'file' => '文件名',
+            'source' => '来源 / 文件名', // CHANGE_REQUESTS #128: a manual list has no file
+            'manual' => '手工录入',
+            'attached' => '带入的已有订单：:orders', // CHANGE_REQUESTS #128
             'orders' => '订单',
             'import' => '门户清单 #:id',
             'select' => '选中并填入',
@@ -258,6 +265,18 @@ return [
         ],
         'portal_note' => '客户在门户上传的清单：由客户自己在门户核对并确认生成订单，这里只读；生成后的订单在“待建预报”里等客服建立预报单。',
         'job_note' => '客户门户清单 #:id（:file）',
+        // CHANGE_REQUESTS #128: the portal 手工建立入库清单 — typed rows and attached existing orders, read-only for staff.
+        'manual_entry' => '手工录入',
+        'draft_note' => '客户在门户保存的草稿（手工建立入库清单），尚未提交预览；提交后才会出现分组和订单。',
+        'manual' => [
+            'title' => '客户手工录入的货物行',
+            'hint' => '客户在门户页面逐行填写的货物（原样显示，未经整理）；生成的订单按上面的分组。',
+            'row' => '#',
+            'attached_title' => '带入的已有订单（以订单信息为准）',
+            'attached_hint' => '客户勾选带入这份清单的已有订单：收件人和货物以订单为准，清单只为它们补入库信息和上门提货申请；生成预报单时与新生成的订单一起勾选。',
+            'attached_columns' => ['order_no' => '订单号', 'mark' => '唛头', 'consignee' => '收件人', 'destination' => '目的地', 'lines' => '货物行', 'cartons' => '箱数', 'status' => '状态'],
+            'attached_note' => '带入 :count 张已有订单',
+        ],
     ],
     'types' => [
         'from_stock' => '库存出库配送',

@@ -6,22 +6,30 @@ use App\Http\Controllers\Controller;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderImport;
 use App\Modules\Orders\Models\OrderLine;
+use App\Modules\Orders\OrderEnums;
 use App\Modules\Orders\Services\OrderImportService;
+use App\Modules\Orders\Services\SpreadsheetManifestParser;
 use App\Modules\Platform\Models\Document;
 use App\Modules\Portal\Http\PortalValidation;
 use App\Modules\Portal\Services\PortalTransportEstimate;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\Warehouse;
+use App\Support\Contracts\ManifestParser;
 use App\Support\Contracts\RateService;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Response as ResponseFacade;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 /**
  * 客户门户 入库清单 CSV / Excel 提交 (CHANGE_REQUESTS #123). The client's list becomes the client's ORDERS (operational_status
@@ -34,6 +42,11 @@ use Illuminate\Validation\Rule;
  * CHANGE_REQUESTS #125: the upload may say 需要我们上门提货 (pickup address / contact / ready date / warehouse, kept at
  * `inbound.collection`); the preview then lists the collection plans with CLIENT prices for the list's rows and the client ticks one
  * at confirm. Nothing reaches Transport here — customer service generates the ASN (and with it the collection) in 待建预报.
+ *
+ * CHANGE_REQUESTS #128 手工建立入库清单: the same submission typed on the page (rows through ManifestParser::fromRows — row errors
+ * come back on the form in Chinese with the row and column) and / or the client's existing orders ticked to be attached. 以订单为准:
+ * an attached order keeps its own consignee and goods — the preview shows them from the ORDER, read-only, and confirm records the
+ * id only (`result.attached`); the list adds the inbound context and the collection request. 保存草稿 keeps everything for later.
  */
 final class PortalInboundImportController extends Controller
 {
@@ -44,7 +57,7 @@ final class PortalInboundImportController extends Controller
     {
         $clientId = $this->clientId($request);
         $imports = OrderImport::query()->where('client_id', $clientId)->where('source', 'portal')->latest('id')->paginate(20);
-        $orderIds = $imports->getCollection()->flatMap(fn (OrderImport $import) => $this->createdOrderIds($import))->unique()->values()->all();
+        $orderIds = $imports->getCollection()->flatMap(fn (OrderImport $import) => [...$import->orderIds(), ...$import->manualAttachedIds()])->unique()->values()->all();
 
         return view('portal::asns.imports.index', [
             'imports' => $imports,
@@ -57,13 +70,13 @@ final class PortalInboundImportController extends Controller
     {
         $clientId = $this->clientId($request);
         $warehouses = Warehouse::query()->where('active', true)->orderBy('code')->get(['id', 'code', 'name']);
-        $default = PortalTransportEstimate::defaultWarehouse($clientId);
 
         return view('portal::asns.imports.create', [
             'containerSizes' => Enums::CONTAINER_SIZES,
             'templateHeaders' => self::TEMPLATE_HEADERS,
             'warehouses' => $warehouses,
-            'defaultWarehouseId' => $default !== null && $warehouses->contains('id', (int) $default->id) ? (int) $default->id : $warehouses->first()?->id,
+            'defaultWarehouseId' => $this->defaultWarehouseId($clientId, $warehouses),
+            'defaults' => [],
         ]);
     }
 
@@ -89,8 +102,6 @@ final class PortalInboundImportController extends Controller
     public function store(Request $request, OrderImportService $imports): RedirectResponse
     {
         $clientId = $this->clientId($request);
-        // CHANGE_REQUESTS #125: the pickup fields exist only for 需要我们上门提货 — with 我们自己送到仓库 they are dropped before any rule runs.
-        $collect = fn (array $rules): array => ['exclude_unless:inbound_transport,we_collect', 'required_if:inbound_transport,we_collect', ...$rules];
         $data = $request->validate([
             // .xls is accepted here so a real BIFF file gets the parser's Chinese "另存为 XLSX" message on the preview (a renamed CSV / XLSX just works).
             'manifest' => ['required', 'file', 'max:10240', function ($attribute, $value, $fail) {
@@ -98,62 +109,111 @@ final class PortalInboundImportController extends Controller
                     $fail(__('portal.inbound.errors.unsupported_file'));
                 }
             }],
-            'container_no' => ['nullable', 'string', 'max:20'],
-            'container_size' => ['nullable', Rule::in(Enums::CONTAINER_SIZES)],
-            'expected_date' => ['nullable', 'date'],
-            'reference' => ['nullable', 'string', 'max:60'],
-            'notes' => ['nullable', 'string', 'max:2000'],
-            'inbound_transport' => ['nullable', Rule::in(Enums::ASN_INBOUND_TRANSPORTS)],
-            'warehouse_id' => $collect(['integer', Rule::exists('warehouses', 'id')->where('active', true)]),
-            'collection' => $collect(['array']),
-            'collection.name' => $collect(['string', 'max:255']),
-            'collection.phone' => $collect(['string', 'max:40']),
-            'collection.address' => $collect(['string', 'max:255']),
-            'collection.suburb' => $collect(['string', 'max:100']),
-            'collection.state' => $collect([Rule::in(Enums::STATES)]),
-            'collection.postcode' => $collect(['regex:/^\d{4}$/']),
-            'collection.type' => $collect([Rule::in(Enums::ADDRESS_TYPES)]),
-            'collection_ready_date' => $collect(['date', 'after_or_equal:today']),
-            'collection_notes' => ['exclude_unless:inbound_transport,we_collect', 'nullable', 'string', 'max:2000'],
+            ...$this->inboundRules(),
+            ...$this->collectionRules(false),
         ], PortalValidation::messages(), PortalValidation::attributes());
 
-        $expected = filled($data['expected_date'] ?? null) ? Carbon::parse($data['expected_date']) : today();
-        $inbound = [
-            'container_no' => filled($data['container_no'] ?? null) ? mb_strtoupper(trim((string) $data['container_no'])) : null,
-            'container_size' => filled($data['container_size'] ?? null) ? (string) $data['container_size'] : null,
-            'expected_date' => filled($data['expected_date'] ?? null) ? $expected->toDateString() : null,
-            'reference' => filled($data['reference'] ?? null) ? trim((string) $data['reference']) : null,
-            'notes' => filled($data['notes'] ?? null) ? trim((string) $data['notes']) : null,
-            'uploaded_at' => now()->toDateTimeString(),
-        ];
-        if (($data['inbound_transport'] ?? null) === 'we_collect') {
-            $inbound['collection'] = $this->collectionRequest($data);
-        }
-
-        $import = $imports->preview($data['manifest'], [
-            'client_id' => $clientId, // never from the request: the signed-in client is the only possible owner
-            'job_id' => null,
-            'requested_date' => $expected->copy()->addDays(7)->toDateString(), // default; a 要求送达日 column on the sheet wins per mark
-            'service_level' => 'standard',
-            'source' => 'portal',
-            'client_visible' => true,
-            'inbound' => $inbound,
-        ], $request->user()->id);
+        $import = $imports->preview($data['manifest'], $this->submissionContext($clientId, $data), $request->user()->id);
 
         return redirect()->route('portal.asns.imports.show', $import)->with('status', __('portal.inbound.messages.uploaded'));
     }
 
-    public function show(Request $request, OrderImport $import, PortalTransportEstimate $estimate): View
+    /** CHANGE_REQUESTS #128: the empty manual form, or `?draft={id}` to reopen the client's own draft (404 otherwise). */
+    public function manualCreate(Request $request, OrderImportService $imports): View
+    {
+        $clientId = $this->clientId($request);
+        $draft = $this->draft($clientId, $request->query('draft'));
+
+        return $this->manualForm($clientId, $draft, $imports);
+    }
+
+    /** CHANGE_REQUESTS #128: continue a draft — the client's own, status draft, else 404. */
+    public function manualEdit(Request $request, OrderImport $import, OrderImportService $imports): View
     {
         $import = $this->own($request, $import);
+        abort_unless($import->status === 'draft', 404);
+
+        return $this->manualForm((int) $import->client_id, $import, $imports);
+    }
+
+    /**
+     * CHANGE_REQUESTS #128: `action = draft` keeps the typed rows / ticks / context as a draft (format rules only, nothing required);
+     * `action = preview` needs at least one row or one ticked order, runs every row through ManifestParser::fromRows and sends the
+     * row errors (Chinese, `第 N 行「列」…`, keyed `rows.{i}.{column}` so the cell is marked) back to the form with the input kept,
+     * then hands the rows and the ticked ids to OrderImportService::previewRows → the same preview / confirm pages as the upload.
+     * A ticked id that is not attachable (another client's, already in a submission, already on an ASN) is refused by the service
+     * in Chinese and nothing is stored.
+     */
+    public function manualStore(Request $request, OrderImportService $imports, ManifestParser $parser): RedirectResponse
+    {
+        $clientId = $this->clientId($request);
+        $draft = $this->draft($clientId, $request->input('draft_id'));
+        $isDraft = $request->input('action') === 'draft';
+        $formUrl = $draft === null ? route('portal.asns.imports.manual.create') : route('portal.asns.imports.manual.edit', $draft);
+
+        $validator = Validator::make($request->all(), [
+            'action' => ['nullable', Rule::in(['draft', 'preview'])],
+            'draft_id' => ['nullable', 'integer'],
+            'rows' => ['nullable', 'array', 'max:500'],
+            'rows.*' => ['nullable', 'array'],
+            'rows.*.*' => ['nullable', 'string', 'max:255'],
+            'attached_order_ids' => ['nullable', 'array', 'max:200'],
+            'attached_order_ids.*' => ['integer'],
+            ...$this->inboundRules(),
+            ...$this->collectionRules($isDraft),
+        ], PortalValidation::messages(), PortalValidation::attributes());
+        if ($validator->fails()) {
+            throw (new ValidationException($validator))->redirectTo($formUrl);
+        }
+        $data = $validator->validated();
+
+        $rows = $this->manualRows($data['rows'] ?? []);
+        $attached = array_values(array_unique(array_map('intval', $data['attached_order_ids'] ?? [])));
+        $context = $this->submissionContext($clientId, $data);
+        $actorId = $request->user()->id;
+
+        try {
+            if ($isDraft) {
+                $import = $imports->saveDraft($rows, $attached, $context, $actorId, $draft);
+
+                return redirect()->route('portal.asns.imports.manual.edit', $import)->with('status', __('portal.inbound.manual.messages.draft_saved'));
+            }
+
+            $parsed = $parser->fromRows($rows);
+            if ($parsed['errors'] !== []) {
+                $messages = [];
+                foreach ($parsed['errors'] as $error) {
+                    $messages['rows.'.((int) $error['row'] - 1).'.'.$error['column']][] = $error['message'];
+                }
+                throw ValidationException::withMessages($messages)->redirectTo($formUrl);
+            }
+            if ($parsed['rows'] === [] && $attached === []) {
+                throw ValidationException::withMessages(['rows' => __('portal.inbound.manual.errors.nothing')])->redirectTo($formUrl);
+            }
+
+            $import = $imports->previewRows($rows, $attached, $context, $actorId, $draft);
+        } catch (InvalidArgumentException $e) {
+            throw ValidationException::withMessages(['attached_order_ids' => RuleViolation::display($e)])->redirectTo($formUrl);
+        }
+
+        return redirect()->route('portal.asns.imports.show', $import)->with('status', __('portal.inbound.messages.uploaded'));
+    }
+
+    public function show(Request $request, OrderImport $import, PortalTransportEstimate $estimate): View|RedirectResponse
+    {
+        $import = $this->own($request, $import);
+        if ($import->status === 'draft') {
+            return redirect()->route('portal.asns.imports.manual.edit', $import); // a draft is edited, not previewed (CHANGE_REQUESTS #128)
+        }
         $audit = $import->errors ?? [];
         $groups = collect($audit['groups'] ?? []);
-        $orderIds = $this->createdOrderIds($import);
+        $attachedOrders = $this->attachedOrders($import);
+        $orderIds = array_values(array_unique([...$import->orderIds(), ...$attachedOrders->pluck('id')->map(fn ($id) => (int) $id)->all()]));
         $inbound = is_array($audit['context']['inbound'] ?? null) ? $audit['context']['inbound'] : [];
         $collection = is_array($inbound['collection'] ?? null) ? $inbound['collection'] : null;
         // CHANGE_REQUESTS #125: live plans while the list is pending; after confirm the page shows what was stored.
         $collectionEstimate = $collection !== null && $import->status === 'pending'
-            ? $estimate->collectionOptions((int) $import->client_id, $collection, $this->readyRows($groups))
+            ? $estimate->collectionOptions((int) $import->client_id, $collection, $this->estimateRows($groups, $attachedOrders))
             : null;
         $packages = $collectionEstimate['packages'] ?? (is_array($collection['packages'] ?? null) ? $collection['packages'] : []);
 
@@ -161,6 +221,8 @@ final class PortalInboundImportController extends Controller
             'import' => $import,
             'audit' => $audit,
             'inbound' => $inbound,
+            'manual' => $import->isManual(),
+            'attachedOrders' => $attachedOrders,
             'requestedDate' => $audit['context']['requested_date'] ?? null,
             'groups' => $groups,
             'readyCount' => $groups->where('status', 'ready')->count(),
@@ -182,6 +244,8 @@ final class PortalInboundImportController extends Controller
      * All groups the preview marked ready; the client never saves addresses to the address book from a list. CHANGE_REQUESTS #125: a
      * collection request with priced plans needs `collection_choice` — the plans are recomputed here and only the key is trusted; the
      * chosen snapshot (customer fields) and the derived packages are recorded on the import before the orders are created.
+     * CHANGE_REQUESTS #128: a manual list may carry attached orders and no typed row at all; their lines are part of the collection
+     * packages, and the service re-checks them under a row lock — a refusal comes back in Chinese with nothing created.
      */
     public function confirm(Request $request, OrderImport $import, OrderImportService $imports, PortalTransportEstimate $estimate): RedirectResponse
     {
@@ -191,13 +255,14 @@ final class PortalInboundImportController extends Controller
         }
         $groups = collect($import->errors['groups'] ?? []);
         $keys = $groups->where('status', 'ready')->pluck('key')->all();
-        if ($keys === []) {
+        $attachedOrders = $this->attachedOrders($import);
+        if ($keys === [] && $attachedOrders->isEmpty()) {
             return redirect()->route('portal.asns.imports.show', $import)->with('status', __('portal.inbound.messages.nothing'));
         }
 
         $collection = $import->errors['context']['inbound']['collection'] ?? null;
         if (is_array($collection)) {
-            $plans = $estimate->collectionOptions((int) $import->client_id, $collection, $this->readyRows($groups));
+            $plans = $estimate->collectionOptions((int) $import->client_id, $collection, $this->estimateRows($groups, $attachedOrders));
             // Review UX-1: without one row carrying cartons + weight + all three dimensions there is nothing to collect by — Warehouse
             // refuses the collection when customer service generates the ASN (no_packages) and 待建预报 has no package fields. Refused here,
             // before any order exists: the client re-uploads with 重量 / 长宽高 (or chooses to deliver itself).
@@ -220,56 +285,254 @@ final class PortalInboundImportController extends Controller
             $import = $imports->recordInboundCollection($import, ['preference' => $preference, 'packages' => $plans['packages']]);
         }
 
-        $import = $imports->confirm($import, $keys, [], $request->user()->id);
+        try {
+            $import = $imports->confirm($import, $keys, [], $request->user()->id);
+        } catch (InvalidArgumentException $e) {
+            return redirect()->route('portal.asns.imports.show', $import)->withErrors(['attached_order_ids' => RuleViolation::display($e)]);
+        }
 
-        return redirect()->route('portal.asns.imports.show', $import)
-            ->with('status', __('portal.inbound.messages.confirmed', ['count' => count($import->errors['result']['created'] ?? [])]));
+        $created = count($import->errors['result']['created'] ?? []);
+        $attached = count($import->errors['result']['attached'] ?? []);
+
+        return redirect()->route('portal.asns.imports.show', $import)->with('status', $import->isManual()
+            ? __('portal.inbound.manual.messages.confirmed', ['count' => $created, 'attached' => $attached])
+            : __('portal.inbound.messages.confirmed', ['count' => $created]));
+    }
+
+    /**
+     * The manual form (CHANGE_REQUESTS #128): rows from old() else the draft, the attachable orders, ticks and the inbound / collection
+     * defaults from the draft. old() always wins so a refused submission comes back exactly as typed.
+     */
+    private function manualForm(int $clientId, ?OrderImport $draft, OrderImportService $imports): View
+    {
+        $manual = is_array($draft?->errors['context']['manual'] ?? null) ? $draft->errors['context']['manual'] : [];
+        $rows = array_values(array_filter((array) old('rows', $manual['rows'] ?? []), 'is_array')) ?: [[]];
+        $warehouses = Warehouse::query()->where('active', true)->orderBy('code')->get(['id', 'code', 'name']);
+
+        return view('portal::asns.imports.manual', [
+            'draft' => $draft,
+            'rows' => $rows,
+            'attachable' => $imports->attachableOrders($clientId, $draft?->id),
+            'attachedIds' => array_map('intval', (array) old('attached_order_ids', $manual['attached_order_ids'] ?? [])),
+            'defaults' => $this->manualDefaults($draft),
+            'containerSizes' => Enums::CONTAINER_SIZES,
+            'packageTypes' => OrderEnums::PACKAGE_TYPES,
+            'states' => Enums::STATES,
+            'storageTiers' => Enums::STORAGE_TIERS,
+            'warehouses' => $warehouses,
+            'defaultWarehouseId' => $this->defaultWarehouseId($clientId, $warehouses),
+        ]);
+    }
+
+    /**
+     * What a draft filled in, in the form's own field names (the collection partial reads `old(name, $defaults[name])`).
+     *
+     * @return array<string, mixed>
+     */
+    private function manualDefaults(?OrderImport $draft): array
+    {
+        $inbound = is_array($draft?->errors['context']['inbound'] ?? null) ? $draft->errors['context']['inbound'] : [];
+        $collection = is_array($inbound['collection'] ?? null) ? $inbound['collection'] : null;
+
+        return [
+            'container_no' => $inbound['container_no'] ?? null,
+            'container_size' => $inbound['container_size'] ?? null,
+            'expected_date' => $inbound['expected_date'] ?? null,
+            'reference' => $inbound['reference'] ?? null,
+            'notes' => $inbound['notes'] ?? null,
+            'inbound_transport' => $collection === null ? 'client_delivers' : 'we_collect',
+            'warehouse_id' => $collection['warehouse_id'] ?? null,
+            'collection' => is_array($collection['address'] ?? null) ? $collection['address'] : [],
+            'collection_ready_date' => $collection['ready_date'] ?? null,
+            'collection_notes' => $collection['notes'] ?? null,
+        ];
+    }
+
+    /** The client's own draft by id (query `?draft=` or the form's `draft_id`); null without an id, 404 for anything else. */
+    private function draft(int $clientId, mixed $id): ?OrderImport
+    {
+        if (! filled($id)) {
+            return null;
+        }
+        $draft = is_numeric($id) ? OrderImport::query()->where('client_id', $clientId)->where('source', 'portal')->find((int) $id) : null;
+        abort_unless($draft !== null && $draft->status === 'draft', 404);
+
+        return $draft;
+    }
+
+    /**
+     * The posted rows in the parser's canonical shape, in posted order (blank rows kept in place so the row numbers on the form and
+     * in the messages agree); unknown keys dropped, values trimmed strings.
+     *
+     * @param  array<int|string, mixed>  $rows
+     * @return list<array<string, string>>
+     */
+    private function manualRows(array $rows): array
+    {
+        $out = [];
+        foreach (array_values($rows) as $row) {
+            $clean = [];
+            foreach (SpreadsheetManifestParser::FORM_FIELDS as $field) {
+                $value = is_array($row) ? ($row[$field] ?? null) : null;
+                $clean[$field] = is_scalar($value) ? trim((string) $value) : '';
+            }
+            $out[] = $clean;
+        }
+
+        return $out;
+    }
+
+    /** The inbound context fields (柜号 / 柜型 / 预计到港日 / 参考号 / 备注) shared by the upload and the manual form. */
+    private function inboundRules(): array
+    {
+        return [
+            'container_no' => ['nullable', 'string', 'max:20'],
+            'container_size' => ['nullable', Rule::in(Enums::CONTAINER_SIZES)],
+            'expected_date' => ['nullable', 'date'],
+            'reference' => ['nullable', 'string', 'max:60'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ];
+    }
+
+    /**
+     * CHANGE_REQUESTS #125: the pickup fields exist only for 需要我们上门提货 — with 我们自己送到仓库 they are dropped before any rule runs.
+     * A draft (CHANGE_REQUESTS #128) keeps the format rules but requires nothing, so a half-filled request can be saved and finished later.
+     */
+    private function collectionRules(bool $draft): array
+    {
+        $collect = fn (array $rules): array => ['exclude_unless:inbound_transport,we_collect', $draft ? 'nullable' : 'required_if:inbound_transport,we_collect', ...$rules];
+
+        return [
+            'inbound_transport' => ['nullable', Rule::in(Enums::ASN_INBOUND_TRANSPORTS)],
+            'warehouse_id' => $collect(['integer', Rule::exists('warehouses', 'id')->where('active', true)]),
+            'collection' => $collect(['array']),
+            'collection.name' => $collect(['string', 'max:255']),
+            'collection.phone' => $collect(['string', 'max:40']),
+            'collection.address' => $collect(['string', 'max:255']),
+            'collection.suburb' => $collect(['string', 'max:100']),
+            'collection.state' => $collect([Rule::in(Enums::STATES)]),
+            'collection.postcode' => $collect(['regex:/^\d{4}$/']),
+            'collection.type' => $collect([Rule::in(Enums::ADDRESS_TYPES)]),
+            'collection_ready_date' => $collect($draft ? ['date'] : ['date', 'after_or_equal:today']),
+            'collection_notes' => ['exclude_unless:inbound_transport,we_collect', 'nullable', 'string', 'max:2000'],
+        ];
+    }
+
+    /**
+     * The OrderImportService context of a portal submission: the signed-in client (never from the request), no Job, 要求送达日 default
+     * = 预计到港日 + 7, service level standard, and the inbound context (+ the collection request when 需要我们上门提货).
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function submissionContext(int $clientId, array $data): array
+    {
+        $expected = filled($data['expected_date'] ?? null) ? Carbon::parse($data['expected_date']) : today();
+        $inbound = [
+            'container_no' => filled($data['container_no'] ?? null) ? mb_strtoupper(trim((string) $data['container_no'])) : null,
+            'container_size' => filled($data['container_size'] ?? null) ? (string) $data['container_size'] : null,
+            'expected_date' => filled($data['expected_date'] ?? null) ? $expected->toDateString() : null,
+            'reference' => filled($data['reference'] ?? null) ? trim((string) $data['reference']) : null,
+            'notes' => filled($data['notes'] ?? null) ? trim((string) $data['notes']) : null,
+            'uploaded_at' => now()->toDateTimeString(),
+        ];
+        if (($data['inbound_transport'] ?? null) === 'we_collect') {
+            $inbound['collection'] = $this->collectionContext($data);
+        }
+
+        return [
+            'client_id' => $clientId, // never from the request: the signed-in client is the only possible owner
+            'job_id' => null,
+            'requested_date' => $expected->copy()->addDays(7)->toDateString(), // default; a 要求送达日 column / cell wins per mark
+            'service_level' => 'standard',
+            'source' => 'portal',
+            'client_visible' => true,
+            'inbound' => $inbound,
+        ];
     }
 
     /**
      * The stored 需要我们上门提货 request (#125): warehouse, the pickup party in the same shape Warehouse stores on the ASN, ready date, notes.
+     * Null-safe so a draft (#128) may hold a half-filled request.
      *
      * @param  array<string, mixed>  $data
-     * @return array{warehouse_id:int, address:array<string, string>, ready_date:string, notes:?string}
+     * @return array{warehouse_id:?int, address:array<string, string>, ready_date:?string, notes:?string}
      */
-    private function collectionRequest(array $data): array
+    private function collectionContext(array $data): array
     {
-        $address = (array) $data['collection'];
+        $address = is_array($data['collection'] ?? null) ? $data['collection'] : [];
+        $field = fn (string $key): string => trim((string) ($address[$key] ?? ''));
 
         return [
-            'warehouse_id' => (int) $data['warehouse_id'],
+            'warehouse_id' => filled($data['warehouse_id'] ?? null) ? (int) $data['warehouse_id'] : null,
             'address' => [
-                'name' => trim((string) $address['name']),
-                'phone' => trim((string) $address['phone']),
-                'address' => trim((string) $address['address']),
-                'suburb' => trim((string) $address['suburb']),
-                'state' => mb_strtoupper(trim((string) $address['state'])),
-                'postcode' => trim((string) $address['postcode']),
-                'type' => (string) $address['type'],
+                'name' => $field('name'),
+                'phone' => $field('phone'),
+                'address' => $field('address'),
+                'suburb' => $field('suburb'),
+                'state' => mb_strtoupper($field('state')),
+                'postcode' => $field('postcode'),
+                'type' => $field('type') ?: 'business',
             ],
-            'ready_date' => Carbon::parse($data['collection_ready_date'])->toDateString(),
+            'ready_date' => filled($data['collection_ready_date'] ?? null) ? Carbon::parse($data['collection_ready_date'])->toDateString() : null,
             'notes' => filled($data['collection_notes'] ?? null) ? trim((string) $data['collection_notes']) : null,
         ];
     }
 
     /**
-     * Every row of the groups the preview marked ready — the goods lines the orders (and later the ASN) will carry.
+     * The client's orders a manual list attached (CHANGE_REQUESTS #128), read from the ORDER with their goods lines: the posted ticks
+     * while pending, `result.attached` once confirmed. Client-scoped, so another client's id can never surface here.
+     *
+     * @return EloquentCollection<int, Order>
+     */
+    private function attachedOrders(OrderImport $import): EloquentCollection
+    {
+        $ids = in_array($import->status, ['pending', 'draft'], true)
+            ? $import->manualAttachedIds()
+            : array_values(array_unique(array_map('intval', array_column($import->errors['result']['attached'] ?? [], 'order_id'))));
+
+        return $ids === [] ? new EloquentCollection : Order::query()->with('lines')->whereKey($ids)->orderBy('id')->get();
+    }
+
+    /**
+     * What the collection estimate prices (#125): the ready groups' rows plus, for a manual list (#128), the attached orders' goods lines
+     * that still wait for an ASN, shaped like import rows (cartons, line weight, dims, package, description; `label` = the order no) —
+     * exactly the ASN goods lines customer service will generate, so the estimate equals what Transport prices later.
      *
      * @param  Collection<int, array<string, mixed>>  $groups
+     * @param  EloquentCollection<int, Order>  $attachedOrders
      * @return list<array<string, mixed>>
      */
-    private function readyRows(Collection $groups): array
+    private function estimateRows(Collection $groups, EloquentCollection $attachedOrders): array
     {
-        return $groups->where('status', 'ready')->flatMap(fn (array $group) => $group['rows'] ?? [])->values()->all();
+        $rows = $groups->where('status', 'ready')->flatMap(fn (array $group) => $group['rows'] ?? [])->values()->all();
+        foreach ($attachedOrders as $order) {
+            foreach ($order->lines->whereNull('asn_line_id') as $line) {
+                $rows[] = [
+                    'row' => 0,
+                    'label' => (string) $order->order_no,
+                    'carton_qty' => (int) $line->carton_qty,
+                    'actual_weight_kg' => $line->actual_weight_kg,
+                    'length_mm' => $line->length_mm,
+                    'width_mm' => $line->width_mm,
+                    'height_mm' => $line->height_mm,
+                    'package_type' => $line->package_type,
+                    'description_cn' => $line->description_cn,
+                    'description_en' => $line->description_en,
+                ];
+            }
+        }
+
+        return $rows;
     }
 
     /**
      * @param  list<array<string, mixed>>  $packages
-     * @return list<int>
+     * @return list<int|string>
      */
     private function unpricedRows(array $packages): array
     {
-        return array_values(array_map(fn (array $p) => (int) ($p['row'] ?? 0), array_filter($packages, fn (array $p) => ($p['weight_kg'] ?? null) === null
+        return array_values(array_map(fn (array $p) => $p['label'] ?? (int) ($p['row'] ?? 0), array_filter($packages, fn (array $p) => ($p['weight_kg'] ?? null) === null
             || (int) ($p['length_mm'] ?? 0) <= 0 || (int) ($p['width_mm'] ?? 0) <= 0 || (int) ($p['height_mm'] ?? 0) <= 0)));
     }
 
@@ -282,10 +545,12 @@ final class PortalInboundImportController extends Controller
         return $import;
     }
 
-    /** @return list<int> */
-    private function createdOrderIds(OrderImport $import): array
+    /** @param EloquentCollection<int, Warehouse> $warehouses */
+    private function defaultWarehouseId(int $clientId, EloquentCollection $warehouses): ?int
     {
-        return array_values(array_map('intval', array_column($import->errors['result']['created'] ?? [], 'order_id')));
+        $default = PortalTransportEstimate::defaultWarehouse($clientId);
+
+        return $default !== null && $warehouses->contains('id', (int) $default->id) ? (int) $default->id : $warehouses->first()?->id;
     }
 
     /**

@@ -41,6 +41,10 @@ Route::prefix('portal')->name('portal.')->group(function () {
     Route::get('/asns/imports/create', [PortalInboundImportController::class, 'create'])->name('asns.imports.create');
     Route::get('/asns/imports/template', [PortalInboundImportController::class, 'template'])->name('asns.imports.template');
     Route::post('/asns/imports', [PortalInboundImportController::class, 'store'])->name('asns.imports.store');
+    // CHANGE_REQUESTS #128 手工建立入库清单: rows typed on the page and / or existing orders attached (以订单为准), drafts, then the same preview → confirm.
+    Route::get('/asns/imports/manual', [PortalInboundImportController::class, 'manualCreate'])->name('asns.imports.manual.create');
+    Route::post('/asns/imports/manual', [PortalInboundImportController::class, 'manualStore'])->name('asns.imports.manual.store');
+    Route::get('/asns/imports/{import}/edit', [PortalInboundImportController::class, 'manualEdit'])->whereNumber('import')->name('asns.imports.manual.edit');
     Route::get('/asns/imports/{import}', [PortalInboundImportController::class, 'show'])->whereNumber('import')->name('asns.imports.show');
     Route::post('/asns/imports/{import}/confirm', [PortalInboundImportController::class, 'confirm'])->whereNumber('import')->name('asns.imports.confirm');
     // CHANGE_REQUESTS #117 预报入库, read-only: the ASNs staff opened for the client's goods (progress, lines, 入库单 PDFs). Clients do not create ASNs.

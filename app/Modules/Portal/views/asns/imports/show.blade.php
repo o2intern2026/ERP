@@ -8,7 +8,7 @@
         <h1>{{ __('portal.inbound.show_title', ['id' => $import->id]) }}</h1>
         <p>
             {!! \App\Support\Ui\StatusBadge::render('portal.inbound.statuses.', $import->status) !!}
-            · {{ $audit['context']['original_name'] ?? '' }} · {{ $import->created_at?->format('Y-m-d H:i') }}
+            · {{ $manual ? __('portal.inbound.manual.source') : ($audit['context']['original_name'] ?? '') }} · {{ $import->created_at?->format('Y-m-d H:i') }}
             @if ($document)· <a href="{{ route('portal.documents.download', $document) }}">{{ __('portal.inbound.actions.download_file') }}</a>@endif
         </p>
     </header>
@@ -56,16 +56,67 @@
                 <div class="overflow-auto"><table class="dense">
                     <thead><tr><th>{{ __('portal.inbound.collection.package_fields.row') }}</th><th>{{ __('portal.inbound.collection.package_fields.package_type') }}</th><th class="num">{{ __('portal.inbound.collection.package_fields.qty') }}</th><th class="num">{{ __('portal.inbound.collection.package_fields.weight') }}</th><th>{{ __('portal.inbound.collection.package_fields.dims') }}</th></tr></thead>
                     <tbody>@foreach ($collectionPackages as $pkg)
-                        <tr><td>{{ $pkg['row'] ?? '—' }}</td><td>{{ \App\Modules\Orders\OrderEnums::packageTypeLabel($pkg['package_type'] ?? null) }}</td><td class="num">{{ $pkg['qty'] }}</td><td class="num">{{ $pkg['weight_kg'] ?? '—' }}</td><td>@if (($pkg['length_mm'] ?? null) || ($pkg['width_mm'] ?? null) || ($pkg['height_mm'] ?? null)){{ $pkg['length_mm'] ?? '—' }}×{{ $pkg['width_mm'] ?? '—' }}×{{ $pkg['height_mm'] ?? '—' }}@else — @endif</td></tr>
+                        <tr><td>{{ $pkg['label'] ?? ($pkg['row'] ?? '—') }}</td><td>{{ \App\Modules\Orders\OrderEnums::packageTypeLabel($pkg['package_type'] ?? null) }}</td><td class="num">{{ $pkg['qty'] }}</td><td class="num">{{ $pkg['weight_kg'] ?? '—' }}</td><td>@if (($pkg['length_mm'] ?? null) || ($pkg['width_mm'] ?? null) || ($pkg['height_mm'] ?? null)){{ $pkg['length_mm'] ?? '—' }}×{{ $pkg['width_mm'] ?? '—' }}×{{ $pkg['height_mm'] ?? '—' }}@else — @endif</td></tr>
                     @endforeach</tbody>
                 </table></div>
             @endif
-            @if ($collectionUnpriced !== [])<p class="text-muted" style="margin:.3rem 0"><small>{{ __('portal.inbound.collection.unpriced', ['rows' => implode(', ', $collectionUnpriced)]) }}</small></p>@endif
+            @if ($collectionUnpriced !== [])
+                {{-- CHANGE_REQUESTS #128: an entry may be an attached order's number instead of a typed row number. --}}
+                @php($mixed = collect($collectionUnpriced)->contains(fn ($ref) => ! is_int($ref)))
+                @php($refs = collect($collectionUnpriced)->map(fn ($ref) => is_int($ref) ? __('portal.inbound.collection.row_ref', ['row' => $ref]) : __('portal.inbound.collection.order_ref', ['order_no' => $ref]))->implode(', '))
+                <p class="text-muted" style="margin:.3rem 0"><small>{{ $mixed ? __('portal.inbound.collection.unpriced_mixed', ['rows' => $refs]) : __('portal.inbound.collection.unpriced', ['rows' => implode(', ', $collectionUnpriced)]) }}</small></p>
+            @endif
+        </article>
+    @endif
+
+    @if ($attachedOrders->isNotEmpty())
+        {{-- CHANGE_REQUESTS #128 以订单为准: the existing orders this manual list attached, read from the ORDER — no form fields, nothing of them changes. --}}
+        <article class="kv-card" id="attached-orders">
+            <strong>{{ __('portal.inbound.manual.attached_title') }}</strong>
+            <p class="text-muted"><small>{{ __('portal.inbound.manual.attached_hint') }}</small></p>
+            <div class="overflow-auto"><table class="dense">
+                <thead><tr>
+                    <th>{{ __('portal.inbound.manual.attached_columns.order_no') }}</th><th>{{ __('portal.inbound.manual.attached_columns.mark') }}</th><th>{{ __('portal.inbound.manual.attached_columns.consignee') }}</th>
+                    <th>{{ __('portal.inbound.manual.attached_columns.address') }}</th><th>{{ __('portal.inbound.manual.attached_columns.fba') }}</th>
+                    <th>{{ __('portal.inbound.manual.attached_columns.goods') }}</th><th>{{ __('portal.inbound.manual.attached_columns.package_type') }}</th><th class="num">{{ __('portal.inbound.manual.attached_columns.cartons') }}</th>
+                    <th class="num">{{ __('portal.inbound.manual.attached_columns.weight') }}</th><th>{{ __('portal.inbound.manual.attached_columns.dims') }}</th>
+                    <th>{{ __('portal.inbound.manual.attached_columns.requested_date') }}</th><th>{{ __('portal.inbound.manual.attached_columns.status') }}</th>
+                </tr></thead>
+                <tbody>
+                @foreach ($attachedOrders as $order)
+                    @php($orderLines = $order->lines->whereNull('asn_line_id')->values())
+                    @php($orderSpan = max(1, $orderLines->count()))
+                    @foreach ($orderLines->isEmpty() ? [null] : $orderLines as $line)
+                        <tr>
+                            @if ($loop->first)
+                                <td rowspan="{{ $orderSpan }}"><a href="{{ route('portal.orders.show', $order) }}">{{ $order->order_no }}</a></td>
+                                <td rowspan="{{ $orderSpan }}"><strong>{{ $order->consignment_mark ?: '—' }}</strong></td>
+                                <td rowspan="{{ $orderSpan }}">{{ $order->deliver_to_name }}<br><small>{{ $order->deliver_to_phone ?: '—' }}</small></td>
+                                <td rowspan="{{ $orderSpan }}">{{ $order->deliver_to_address }}, {{ $order->deliver_to_suburb }} {{ $order->deliver_to_state }} {{ $order->deliver_to_postcode }}</td>
+                                <td rowspan="{{ $orderSpan }}">{{ $order->fba_reference ?: '—' }}</td>
+                            @endif
+                            <td>{{ $line ? (trim(implode(' / ', array_filter([$line->description_cn, $line->description_en]))) ?: '—') : '—' }}</td>
+                            <td>{{ $line ? \App\Modules\Orders\OrderEnums::packageTypeLabel($line->package_type) : '—' }}</td>
+                            <td class="num">{{ $line ? (int) $line->carton_qty : '—' }}</td>
+                            <td class="num">{{ $line?->actual_weight_kg ?? '—' }}</td>
+                            <td>@if ($line && ($line->length_mm || $line->width_mm || $line->height_mm)){{ $line->length_mm ?? '—' }}×{{ $line->width_mm ?? '—' }}×{{ $line->height_mm ?? '—' }}@else — @endif</td>
+                            @if ($loop->first)
+                                <td rowspan="{{ $orderSpan }}">{{ $order->requested_date?->format('Y-m-d') ?? '—' }}</td>
+                                <td rowspan="{{ $orderSpan }}">
+                                    {!! \App\Support\Ui\StatusBadge::render('orders.statuses.operational.', $order->operational_status) !!}
+                                    @if (isset($asns[(int) $order->id]))<br><small>{{ __('portal.inbound.fields.asn') }} {{ implode(', ', $asns[(int) $order->id]) }}</small>@endif
+                                </td>
+                            @endif
+                        </tr>
+                    @endforeach
+                @endforeach
+                </tbody>
+            </table></div>
         </article>
     @endif
 
     @if ($import->status === 'pending')
-        <p>{{ __('portal.inbound.ready_count', ['ready' => $readyCount, 'blocked' => $blockedCount, 'errors' => $errorRows]) }}</p>
+        <p>{{ __('portal.inbound.ready_count', ['ready' => $readyCount, 'blocked' => $blockedCount, 'errors' => $errorRows]) }}@if ($attachedOrders->isNotEmpty()) {{ __('portal.inbound.manual.attached_count', ['count' => $attachedOrders->count()]) }}@endif</p>
     @endif
     @if ($tierSurcharge !== [])
         <p class="text-muted"><small>{{ __('portal.inbound.tier_surcharge', ['percent' => count(array_unique($tierSurcharge)) === 1 ? collect($tierSurcharge)->first() : collect($tierSurcharge)->map(fn ($p, $code) => $code.' '.$p)->implode(' · ')]) }}</small></p>
@@ -130,8 +181,10 @@
         </table></div>
     @endif
 
+    @php($againRoute = $manual ? route('portal.asns.imports.manual.create') : route('portal.asns.imports.create'))
+    @php($againLabel = $manual ? __('portal.inbound.manual.button') : __('portal.inbound.actions.reupload'))
     @if ($import->status === 'pending')
-        @if ($readyCount > 0)
+        @if ($readyCount > 0 || $attachedOrders->isNotEmpty())
             <form method="post" action="{{ route('portal.asns.imports.confirm', $import) }}">
                 @csrf
                 @if ($collection && $collectionEstimate !== null)
@@ -170,15 +223,15 @@
                 @unless ($collection && ($collectionEstimate['reason'] ?? null) === 'no_items')
                     <button type="submit">{{ __('portal.inbound.actions.confirm') }}</button>
                 @endunless
-                <a class="secondary" role="button" href="{{ route('portal.asns.imports.create') }}">{{ __('portal.inbound.actions.reupload') }}</a>
+                <a class="secondary" role="button" href="{{ $againRoute }}">{{ $againLabel }}</a>
             </form>
         @else
             <p>{{ __('portal.inbound.no_ready') }}</p>
-            <a role="button" href="{{ route('portal.asns.imports.create') }}">{{ __('portal.inbound.actions.reupload') }}</a>
+            <a role="button" href="{{ $againRoute }}">{{ $againLabel }}</a>
         @endif
     @else
         <h2>{{ __('portal.inbound.sections.result') }}</h2>
-        @if (($audit['result']['created'] ?? []) !== [])
+        @if (($audit['result']['created'] ?? []) !== [] || ($audit['result']['attached'] ?? []) !== [])
             <ul>
                 @foreach ($audit['result']['created'] as $created)
                     <li>
@@ -187,11 +240,19 @@
                         @if (isset($asns[(int) $created['order_id']]))· {{ __('portal.inbound.fields.asn') }} {{ implode(', ', $asns[(int) $created['order_id']]) }}@endif
                     </li>
                 @endforeach
+                {{-- CHANGE_REQUESTS #128: the attached orders, unchanged, listed with the ASN staff built for them. --}}
+                @foreach ($audit['result']['attached'] ?? [] as $attached)
+                    <li>
+                        <a href="{{ route('portal.orders.show', $attached['order_id']) }}">{{ $attached['order_no'] }}</a>
+                        · {{ __('portal.inbound.manual.attached_title') }}
+                        @if (isset($asns[(int) $attached['order_id']]))· {{ __('portal.inbound.fields.asn') }} {{ implode(', ', $asns[(int) $attached['order_id']]) }}@endif
+                    </li>
+                @endforeach
             </ul>
             <p>{{ __('portal.inbound.after_confirm') }}</p>
         @else
             <p>{{ __('portal.inbound.no_ready') }}</p>
         @endif
-        <a role="button" class="secondary" href="{{ route('portal.asns.imports.create') }}">{{ __('portal.inbound.actions.reupload') }}</a>
+        <a role="button" class="secondary" href="{{ $againRoute }}">{{ $againLabel }}</a>
     @endif
 @endsection

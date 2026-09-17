@@ -6,11 +6,12 @@
     @php($audit = $import->errors ?? [])
     @php($portal = $import->source === 'portal')
     @php($inbound = is_array($audit['context']['inbound'] ?? null) ? $audit['context']['inbound'] : [])
+    @php($manual = $import->isManual())
     <h1>{{ __('orders.imports.show_title', ['id' => $import->id]) }}</h1>
     <p>
         {{ __('orders.fields.client') }}: <strong>{{ $import->client->name }}</strong>
         · {{ __('orders.imports.fields.source') }}: <span class="badge" data-tone="{{ $portal ? 'info' : 'muted' }}">{{ __('orders.sources.'.$import->source) }}</span>
-        · {{ __('orders.imports.fields.file_name') }}: {{ $audit['context']['original_name'] ?? '—' }}
+        · {{ __('orders.imports.fields.file_name') }}: {{ $audit['context']['original_name'] ?? ($manual ? __('orders.imports.manual_entry') : '—') }}
         · {{ __('orders.imports.fields.status') }}: <strong>{!! \App\Support\Ui\StatusBadge::render('orders.imports.statuses.', $import->status) !!}</strong>
     </p>
 
@@ -29,6 +30,39 @@
             </dl>
             <p class="text-muted"><small>{{ __('orders.imports.portal_note') }}</small></p>
         </article>
+    @endif
+    @if ($manual)
+        {{-- CHANGE_REQUESTS #128 手工建立入库清单: the rows the client typed (raw) and the existing orders it attached (以订单为准), both read-only. --}}
+        @php($typed = array_values(array_filter((array) ($audit['context']['manual']['rows'] ?? []), fn ($row) => is_array($row) && array_filter($row, fn ($value) => filled($value)) !== [])))
+        @php($typedFields = \App\Modules\Orders\Services\SpreadsheetManifestParser::FORM_FIELDS)
+        @if ($typed !== [])
+            <article class="kv-card">
+                <strong>{{ __('orders.imports.manual.title') }}</strong>
+                <p class="text-muted"><small>{{ __('orders.imports.manual.hint') }}</small></p>
+                <div class="overflow-auto"><table class="dense">
+                    <thead><tr><th>{{ __('orders.imports.manual.row') }}</th>@foreach ($typedFields as $field)<th>{{ __('orders.imports.columns.'.$field) }}</th>@endforeach</tr></thead>
+                    <tbody>@foreach ($typed as $i => $row)<tr><td>{{ $i + 1 }}</td>@foreach ($typedFields as $field)<td>{{ filled($row[$field] ?? null) ? $row[$field] : '—' }}</td>@endforeach</tr>@endforeach</tbody>
+                </table></div>
+            </article>
+        @endif
+        @if ($attachedOrders->isNotEmpty())
+            <article class="kv-card">
+                <strong>{{ __('orders.imports.manual.attached_title') }}</strong>
+                <p class="text-muted"><small>{{ __('orders.imports.manual.attached_hint') }}</small></p>
+                <div class="overflow-auto"><table class="dense">
+                    <thead><tr><th>{{ __('orders.imports.manual.attached_columns.order_no') }}</th><th>{{ __('orders.imports.manual.attached_columns.mark') }}</th><th>{{ __('orders.imports.manual.attached_columns.consignee') }}</th><th>{{ __('orders.imports.manual.attached_columns.destination') }}</th><th>{{ __('orders.imports.manual.attached_columns.lines') }}</th><th class="num">{{ __('orders.imports.manual.attached_columns.cartons') }}</th><th>{{ __('orders.imports.manual.attached_columns.status') }}</th></tr></thead>
+                    <tbody>@foreach ($attachedOrders as $order)<tr>
+                        <td><a href="{{ route('orders.show', $order) }}">{{ $order->order_no }}</a></td>
+                        <td>{{ $order->consignment_mark ?: __('orders.not_provided') }}</td>
+                        <td>{{ $order->deliver_to_name }}<br><small>{{ $order->deliver_to_phone ?: '—' }}</small></td>
+                        <td>{{ $order->deliver_to_address }}, {{ $order->deliver_to_suburb }} {{ $order->deliver_to_state }} {{ $order->deliver_to_postcode }}</td>
+                        <td>{{ $order->lines->map(fn ($l) => trim(implode(' / ', array_filter([$l->description_cn, $l->description_en]))) ?: '—')->implode('; ') }}</td>
+                        <td class="num">{{ (int) $order->lines->sum('carton_qty') }}</td>
+                        <td>{!! \App\Support\Ui\StatusBadge::render('orders.statuses.operational.', $order->operational_status) !!}</td>
+                    </tr>@endforeach</tbody>
+                </table></div>
+            </article>
+        @endif
     @endif
     @if (($audit['warnings'] ?? []) !== [])
         <article><strong>{{ __('orders.imports.warning_title') }}</strong><ul>@foreach ($audit['warnings'] as $warning)<li>{{ $warning['message'] }}</li>@endforeach</ul></article>
@@ -61,9 +95,12 @@
             </table></div>
             @unless ($portal)<button type="submit">{{ __('orders.imports.actions.confirm') }}</button>@endunless
         </form>
+    @elseif ($import->status === 'draft')
+        <p class="text-muted">{{ __('orders.imports.draft_note') }}</p>{{-- CHANGE_REQUESTS #128 --}}
     @else
         <p>{{ __('orders.imports.messages.completed', ['success' => count($audit['result']['created'] ?? []), 'failed' => $audit['result']['failed_rows'] ?? 0]) }}</p>
         @if (($audit['result']['created'] ?? []) !== [])<ul>@foreach ($audit['result']['created'] as $created)<li><a href="{{ route('orders.show', $created['order_id']) }}">{{ $created['order_no'] }}</a></li>@endforeach</ul>@endif
+        @if (($audit['result']['attached'] ?? []) !== [])<p>{{ __('orders.imports.manual.attached_note', ['count' => count($audit['result']['attached'])]) }}</p><ul>@foreach ($audit['result']['attached'] as $attached)<li><a href="{{ route('orders.show', $attached['order_id']) }}">{{ $attached['order_no'] }}</a></li>@endforeach</ul>@endif
     @endif
 
     <a class="secondary" role="button" href="{{ route('orders.imports.index') }}">{{ __('orders.imports.actions.back') }}</a>

@@ -30,4 +30,37 @@ class OrderImport extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    /**
+     * Every order this submission stands for once confirmed (CHANGE_REQUESTS #128): the orders it created (`result.created`) and,
+     * for a manual portal list, the client's existing orders it attached (`result.attached`) — 待建预报, the collection subset rule and
+     * the portal pages all read this, never `result.created` alone.
+     *
+     * @return list<int>
+     */
+    public function orderIds(): array
+    {
+        $result = is_array($this->errors['result'] ?? null) ? $this->errors['result'] : [];
+
+        return array_values(array_unique(array_map('intval', [
+            ...array_column($result['created'] ?? [], 'order_id'),
+            ...array_column($result['attached'] ?? [], 'order_id'),
+        ])));
+    }
+
+    /** A portal 手工建立入库清单 (rows typed on the page and / or existing orders ticked), draft, pending or confirmed. */
+    public function isManual(): bool
+    {
+        return is_array($this->errors['context']['manual'] ?? null);
+    }
+
+    /**
+     * The existing orders a manual list ticked, as posted (draft / pending); after confirm `result.attached` is the record.
+     *
+     * @return list<int>
+     */
+    public function manualAttachedIds(): array
+    {
+        return array_values(array_unique(array_map('intval', (array) ($this->errors['context']['manual']['attached_order_ids'] ?? []))));
+    }
 }
