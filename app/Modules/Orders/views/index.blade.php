@@ -38,7 +38,7 @@
         </div>
         <div class="grid">
             <input name="consignment_mark" value="{{ $filters['consignment_mark'] ?? '' }}" placeholder="{{ __('orders.fields.consignment_mark') }}">
-            <input type="date" name="requested_date" value="{{ $filters['requested_date'] ?? '' }}" aria-label="{{ __('orders.fields.requested_date') }}">
+            <input type="date" lang="en-AU" name="requested_date" value="{{ $filters['requested_date'] ?? '' }}" aria-label="{{ __('orders.fields.requested_date') }}">
             <button type="submit" class="secondary">{{ __('orders.actions.filter') }}</button>
         </div>
     </form>

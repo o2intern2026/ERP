@@ -43,8 +43,8 @@
                         <p class="text-muted"><small>{{ __('billing.unbilled_period.period_hint', ['period' => __('masterdata.invoice_periods.'.($entry['client']->invoice_period ?? 'monthly')), 'grouping' => __('masterdata.invoice_groupings.'.($entry['client']->invoice_grouping ?? 'job'))]) }}</small></p>
                         <div class="grid">
                             {{-- Audit 2026-09-10: defaults follow the pool (its date span and whether it holds storage / service / both) so the header figure and the button agree. --}}
-                            <label>{{ __('billing.unbilled_period.period_from') }}<input type="date" name="from" value="{{ $entry['period_from'] ?? now()->startOfMonth()->toDateString() }}" required></label>
-                            <label>{{ __('billing.unbilled_period.period_to') }}<input type="date" name="to" value="{{ $entry['period_to'] ?? now()->endOfMonth()->toDateString() }}" required></label>
+                            <label>{{ __('billing.unbilled_period.period_from') }}<input type="date" lang="en-AU" name="from" value="{{ $entry['period_from'] ?? now()->startOfMonth()->toDateString() }}" required></label>
+                            <label>{{ __('billing.unbilled_period.period_to') }}<input type="date" lang="en-AU" name="to" value="{{ $entry['period_to'] ?? now()->endOfMonth()->toDateString() }}" required></label>
                             <label>{{ __('billing.unbilled_period.scope') }}<select name="scope">@foreach (\App\Support\Enums::INVOICE_SCOPES as $scope)<option value="{{ $scope }}" @selected(($entry['default_scope'] ?? 'service') === $scope)>{{ __('billing.unbilled_period.scopes.'.$scope) }}</option>@endforeach</select></label>
                             <label>{{ __('billing.unbilled_period.group_by') }}<select name="group_by">@foreach (\App\Support\Enums::INVOICE_GROUPINGS as $g)<option value="{{ $g }}" @selected(($entry['client']->invoice_grouping ?? 'job') === $g)>{{ __('billing.invoices.group_by.'.$g) }}</option>@endforeach</select></label>
                         </div>
@@ -59,13 +59,13 @@
                     </form>
                     <form method="post" action="{{ route('billing.invoices.draft_monthly') }}" class="grid" hidden>
                         @csrf<input type="hidden" name="client_id" value="{{ $entry['client']->id }}">
-                        <input type="date" name="from" value="{{ now()->startOfMonth()->toDateString() }}" aria-label="{{ __('billing.unbilled_period.period_from') }}"><input type="date" name="to" value="{{ now()->endOfMonth()->toDateString() }}" aria-label="{{ __('billing.unbilled_period.period_to') }}">
+                        <input type="date" lang="en-AU" name="from" value="{{ now()->startOfMonth()->toDateString() }}" aria-label="{{ __('billing.unbilled_period.period_from') }}"><input type="date" lang="en-AU" name="to" value="{{ now()->endOfMonth()->toDateString() }}" aria-label="{{ __('billing.unbilled_period.period_to') }}">
                         <button type="submit" class="secondary">{{ __('billing.unbilled.draft_monthly') }}</button>
                     </form>
                     @if ($entry['has_storage'])
                         <form method="post" action="{{ route('billing.invoices.draft_storage') }}" class="grid">
                             @csrf<input type="hidden" name="client_id" value="{{ $entry['client']->id }}">
-                            <input type="date" name="week" value="{{ now()->subWeek()->toDateString() }}" aria-label="{{ __('billing.unbilled.week') }}">
+                            <input type="date" lang="en-AU" name="week" value="{{ now()->subWeek()->toDateString() }}" aria-label="{{ __('billing.unbilled.week') }}">
                             <button type="submit" class="secondary">{{ __('billing.unbilled.draft_storage') }}</button>
                         </form>
                     @endif

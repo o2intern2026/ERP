@@ -27,7 +27,7 @@
                         <option value="">{{ __('warehouse.outbound.client') }}: {{ __('platform.jobs.all') }}</option>
                         @foreach ($ready->unique('client_id') as $c)<option value="{{ $c->client_id }}">{{ $c->client_name }}</option>@endforeach
                     </select>
-                    <input type="date" name="requested_date" aria-label="{{ __('warehouse.outbound.requested_date') }}" title="{{ __('warehouse.outbound.requested_date') }}">
+                    <input type="date" lang="en-AU" name="requested_date" aria-label="{{ __('warehouse.outbound.requested_date') }}" title="{{ __('warehouse.outbound.requested_date') }}">
                     <select name="warehouse_id" required>@foreach ($warehouses as $w)<option value="{{ $w->id }}" @selected($w->id === ($currentWarehouseId ?? $ready->first()->warehouse_id))>{{ $w->code }}</option>@endforeach</select>
                     <button type="submit">{{ __('warehouse.outbound.release') }}</button>
                 </div>

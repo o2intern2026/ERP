@@ -13,7 +13,7 @@
         <input type="text" name="job_no" placeholder="{{ __('billing.charges.job') }}" value="{{ $filters['job_no'] ?? '' }}">
         <input type="text" name="code" placeholder="{{ __('billing.charges.code') }}" value="{{ $filters['code'] ?? '' }}">
         <select name="status"><option value="">{{ __('billing.charges.status') }}: {{ __('platform.jobs.all') }}</option>@foreach ($statuses as $s)<option value="{{ $s }}" @selected(($filters['status'] ?? '') === $s)>{{ __('billing.charge_statuses.'.$s) }}</option>@endforeach</select>
-        <input type="date" name="from" value="{{ $filters['from'] ?? '' }}"><input type="date" name="to" value="{{ $filters['to'] ?? '' }}">
+        <input type="date" lang="en-AU" name="from" value="{{ $filters['from'] ?? '' }}"><input type="date" lang="en-AU" name="to" value="{{ $filters['to'] ?? '' }}">
         <button type="submit" class="secondary">{{ __('platform.common.filter') }}</button>
     </form>
     @if ($charges->isEmpty())

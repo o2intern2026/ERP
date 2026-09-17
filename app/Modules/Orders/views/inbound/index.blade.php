@@ -106,7 +106,7 @@
                     <label>{{ __('orders.inbound.inbound_type') }}
                         <select name="inbound_type" id="inbound_type" required>@foreach ($inboundTypes as $t)<option value="{{ $t }}" @selected(old('inbound_type', 'container') === $t)>{{ __('warehouse.inbound_types.'.$t) }}</option>@endforeach</select>
                     </label>
-                    <label>{{ __('orders.inbound.expected_date') }}<input type="date" name="expected_date" value="{{ old('expected_date') }}"></label>
+                    <label>{{ __('orders.inbound.expected_date') }}<input type="date" lang="en-AU" name="expected_date" value="{{ old('expected_date') }}"></label>
                     <label>{{ __('orders.inbound.notes') }}<input type="text" name="notes" maxlength="2000" value="{{ old('notes') }}"></label>
                 </div>
                 <div class="grid" id="container-fields">
@@ -141,7 +141,7 @@
                         <label>{{ __('orders.inbound.collection.fields.postcode') }}<input type="text" name="collection[postcode]" maxlength="4" inputmode="numeric" value="{{ old('collection.postcode') }}"></label>
                     </div>
                     <div class="grid">
-                        <label>{{ __('orders.inbound.collection.fields.ready_date') }}<input type="date" name="collection_ready_date" value="{{ old('collection_ready_date') }}"></label>
+                        <label>{{ __('orders.inbound.collection.fields.ready_date') }}<input type="date" lang="en-AU" name="collection_ready_date" value="{{ old('collection_ready_date') }}"></label>
                         <label>{{ __('orders.inbound.collection.fields.notes') }}<input type="text" name="collection_notes" maxlength="2000" value="{{ old('collection_notes') }}"></label>
                     </div>
                 </fieldset>

@@ -6,7 +6,7 @@
     <h1>{{ __('warehouse.snapshots.title') }} · {{ $date->toDateString() }}</h1>
     <p class="text-muted"><small>{{ __('warehouse.snapshots.hint') }}</small></p>
     <form method="get" class="grid">
-        <input type="date" name="date" value="{{ $date->toDateString() }}">
+        <input type="date" lang="en-AU" name="date" value="{{ $date->toDateString() }}">
         <button type="submit" class="secondary">{{ __('platform.common.filter') }}</button>
     </form>
     @if ($rows->isEmpty())

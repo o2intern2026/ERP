@@ -8,8 +8,8 @@
     <form method="get" class="grid">
         <select name="client_id"><option value="">{{ __('warehouse.receipts.client') }}: {{ __('platform.jobs.all') }}</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected((int) ($filters['client_id'] ?? 0) === $c->id)>{{ $c->name }}</option>@endforeach</select>
         <select name="status"><option value="">{{ __('warehouse.receipts.status') }}: {{ __('platform.jobs.all') }}</option>@foreach (['open', 'completed'] as $s)<option value="{{ $s }}" @selected(($filters['status'] ?? '') === $s)>{{ __('warehouse.receipt_statuses.'.$s) }}</option>@endforeach</select>
-        <input type="date" name="date_from" value="{{ $filters['date_from'] ?? '' }}" aria-label="{{ __('warehouse.receipts.date_from') }}">
-        <input type="date" name="date_to" value="{{ $filters['date_to'] ?? '' }}" aria-label="{{ __('warehouse.receipts.date_to') }}">
+        <input type="date" lang="en-AU" name="date_from" value="{{ $filters['date_from'] ?? '' }}" aria-label="{{ __('warehouse.receipts.date_from') }}">
+        <input type="date" lang="en-AU" name="date_to" value="{{ $filters['date_to'] ?? '' }}" aria-label="{{ __('warehouse.receipts.date_to') }}">
         <button type="submit" class="secondary">{{ __('platform.common.filter') }}</button>
     </form>
     @if ($receipts->isEmpty())
