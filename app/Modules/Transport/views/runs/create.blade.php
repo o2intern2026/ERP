@@ -10,7 +10,7 @@
         @csrf
         <label>
             {{ __('transport.runs.date') }}
-            <input type="date" lang="en-AU" name="run_date" value="{{ old('run_date', now()->toDateString()) }}" required>
+            <x-date-field name="run_date" value="{{ old('run_date', now()->toDateString()) }}" required />
         </label>
         <label>
             {{ __('transport.runs.driver') }}

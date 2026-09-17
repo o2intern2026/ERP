@@ -37,7 +37,7 @@
                 </label>
                 <label>
                     {{ __('transport.runs.eta') }}
-                    <input type="datetime-local" lang="en-AU" name="eta" value="{{ old('eta') }}">
+                    <x-date-field name="eta" value="{{ old('eta') }}" time />
                 </label>
                 <button type="submit">{{ __('transport.runs.add') }}</button>
             </form>

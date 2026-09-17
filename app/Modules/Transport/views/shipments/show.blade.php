@@ -63,7 +63,7 @@
                     <label>{{ __('transport.booking.reference') }}<input name="booking_reference" value="{{ old('booking_reference') }}" required></label>
                     <label>{{ __('transport.booking.tracking_number') }}<input name="tracking_number" value="{{ old('tracking_number') }}"></label>
                 @elseif ($shipment->selectedQuote->source === 'transdirect')
-                    <label>{{ __('transport.booking.pickup_date') }}<input type="date" lang="en-AU" name="pickup_date" value="{{ old('pickup_date') }}"></label>
+                    <label>{{ __('transport.booking.pickup_date') }}<x-date-field name="pickup_date" value="{{ old('pickup_date') }}" /></label>
                 @endif
                 <button type="submit">{{ __('transport.booking.submit') }}</button>
             </form>

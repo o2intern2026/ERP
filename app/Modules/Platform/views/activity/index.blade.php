@@ -7,8 +7,8 @@
     <form method="get" class="grid">
         <select name="subject_type"><option value="">{{ __('platform.activity.subject') }}: {{ __('platform.jobs.all') }}</option>@foreach ($subjectTypes as $t)<option value="{{ $t }}" @selected(($filters['subject_type'] ?? '') === $t)>{{ class_basename($t) }}</option>@endforeach</select>
         <select name="causer_id"><option value="">{{ __('platform.activity.who') }}: {{ __('platform.jobs.all') }}</option>@foreach ($users as $u)<option value="{{ $u->id }}" @selected((int) ($filters['causer_id'] ?? 0) === $u->id)>{{ $u->name }}</option>@endforeach</select>
-        <input type="date" lang="en-AU" name="from" value="{{ $filters['from'] ?? '' }}" aria-label="{{ __('platform.activity.from') }}">
-        <input type="date" lang="en-AU" name="to" value="{{ $filters['to'] ?? '' }}" aria-label="{{ __('platform.activity.to') }}">
+        <x-date-field name="from" value="{{ $filters['from'] ?? '' }}" aria-label="{{ __('platform.activity.from') }}" />
+        <x-date-field name="to" value="{{ $filters['to'] ?? '' }}" aria-label="{{ __('platform.activity.to') }}" />
         <button type="submit" class="secondary">{{ __('platform.common.filter') }}</button>
     </form>
     @if ($activities->isEmpty())

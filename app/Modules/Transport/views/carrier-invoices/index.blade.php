@@ -20,8 +20,8 @@
                 </select>
             </label>
             <label>{{ __('transport.reconciliation.invoice_no') }}<input name="invoice_no" value="{{ old('invoice_no') }}" required></label>
-            <label>{{ __('transport.reconciliation.period_from') }}<input type="date" lang="en-AU" name="period_from" value="{{ old('period_from') }}" required></label>
-            <label>{{ __('transport.reconciliation.period_to') }}<input type="date" lang="en-AU" name="period_to" value="{{ old('period_to') }}" required></label>
+            <label>{{ __('transport.reconciliation.period_from') }}<x-date-field name="period_from" value="{{ old('period_from') }}" required /></label>
+            <label>{{ __('transport.reconciliation.period_to') }}<x-date-field name="period_to" value="{{ old('period_to') }}" required /></label>
             <label>{{ __('transport.reconciliation.total_cents') }}<input type="number" name="total_cents" min="0" step="1" value="{{ old('total_cents') }}" required></label>
             <label>{{ __('transport.reconciliation.statement') }}<input type="file" name="statement" accept=".csv,text/csv" required></label>
             <button type="submit">{{ __('transport.reconciliation.import') }}</button>

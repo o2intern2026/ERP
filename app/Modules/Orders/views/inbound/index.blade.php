@@ -106,7 +106,7 @@
                     <label>{{ __('orders.inbound.inbound_type') }}
                         <select name="inbound_type" id="inbound_type" required>@foreach ($inboundTypes as $t)<option value="{{ $t }}" @selected(old('inbound_type', 'container') === $t)>{{ __('warehouse.inbound_types.'.$t) }}</option>@endforeach</select>
                     </label>
-                    <label>{{ __('orders.inbound.expected_date') }}<input type="date" lang="en-AU" name="expected_date" value="{{ old('expected_date') }}"></label>
+                    <label>{{ __('orders.inbound.expected_date') }}<x-date-field name="expected_date" value="{{ old('expected_date') }}" /></label>
                     <label>{{ __('orders.inbound.notes') }}<input type="text" name="notes" maxlength="2000" value="{{ old('notes') }}"></label>
                 </div>
                 <div class="grid" id="container-fields">
@@ -141,7 +141,7 @@
                         <label>{{ __('orders.inbound.collection.fields.postcode') }}<input type="text" name="collection[postcode]" maxlength="4" inputmode="numeric" value="{{ old('collection.postcode') }}"></label>
                     </div>
                     <div class="grid">
-                        <label>{{ __('orders.inbound.collection.fields.ready_date') }}<input type="date" lang="en-AU" name="collection_ready_date" value="{{ old('collection_ready_date') }}"></label>
+                        <label>{{ __('orders.inbound.collection.fields.ready_date') }}<x-date-field name="collection_ready_date" value="{{ old('collection_ready_date') }}" /></label>
                         <label>{{ __('orders.inbound.collection.fields.notes') }}<input type="text" name="collection_notes" maxlength="2000" value="{{ old('collection_notes') }}"></label>
                     </div>
                 </fieldset>
@@ -153,6 +153,8 @@
             (function () {
                 var form = document.getElementById('inbound-form');
                 var type = document.getElementById('inbound_type'), box = document.getElementById('container-fields');
+                // 预计到港 / 提货就绪日 are x-date-field components: the named input is the hidden ISO one, change refreshes its dd/mm/yyyy text.
+                function setDate(input, iso) { input.value = iso || ''; input.dispatchEvent(new Event('change', { bubbles: true })); }
                 function toggle() { box.hidden = type.value !== 'container'; }
                 type.addEventListener('change', toggle);
                 toggle();
@@ -204,14 +206,14 @@
                         limit();
                         if (btn.dataset.containerNo) { form.querySelector('[name="container_no"]').value = btn.dataset.containerNo; type.value = 'container'; }
                         if (btn.dataset.containerSize) { form.querySelector('[name="container_size"]').value = btn.dataset.containerSize; }
-                        if (btn.dataset.expectedDate) { form.querySelector('[name="expected_date"]').value = btn.dataset.expectedDate; }
+                        if (btn.dataset.expectedDate) { setDate(form.querySelector('[name="expected_date"]'), btn.dataset.expectedDate); }
                         if (btn.dataset.notes) { form.querySelector('[name="notes"]').value = btn.dataset.notes; }
                         if (btn.dataset.collection === '1') {
                             form.querySelector('input[name="inbound_transport"][value="we_collect"]').checked = true;
                             ['name', 'phone', 'address', 'suburb', 'state', 'postcode', 'type'].forEach(function (key) {
                                 form.querySelector('[name="collection[' + key + ']"]').value = btn.dataset['collection' + key.charAt(0).toUpperCase() + key.slice(1)] || (key === 'type' ? 'business' : '');
                             });
-                            form.querySelector('[name="collection_ready_date"]').value = btn.dataset.collectionReadyDate || '';
+                            setDate(form.querySelector('[name="collection_ready_date"]'), btn.dataset.collectionReadyDate || '');
                             form.querySelector('[name="collection_notes"]').value = btn.dataset.collectionNotes || '';
                             if (btn.dataset.warehouseId) { form.querySelector('[name="warehouse_id"]').value = btn.dataset.warehouseId; }
                             if (!btn.dataset.containerNo && type.value === 'container') { type.value = 'loose_truck'; }

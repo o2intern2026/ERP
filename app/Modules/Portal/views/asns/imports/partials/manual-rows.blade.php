@@ -41,7 +41,7 @@
                 // 收件信息同上一行: the consignee block is copied from the card above (the same mark spread over several lines).
                 var here = copy.closest('.manual-row'), all = rows(), prev = all[all.indexOf(here) - 1];
                 if (!prev) { return; }
-                consignee.forEach(function (name) { var from = field(prev, name), to = field(here, name); if (from && to) { to.value = from.value; } });
+                consignee.forEach(function (name) { var from = field(prev, name), to = field(here, name); if (from && to) { to.value = from.value; to.dispatchEvent(new Event('change', { bubbles: true })); } }); // requested_date is an x-date-field: change refreshes its dd/mm/yyyy text
                 var mark = field(prev, 'consignment_mark'), mine = field(here, 'consignment_mark');
                 if (mark && mine && mine.value === '') { mine.value = mark.value; }
             }

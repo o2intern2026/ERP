@@ -25,7 +25,7 @@
                 @if (in_array($invoice->status, ['issued', 'part_paid']))
                     <form method="post" action="{{ route('billing.invoices.payments.store', $invoice) }}">
                         @csrf
-                        <div class="grid"><input type="number" step="0.01" min="0.01" name="amount" placeholder="{{ __('billing.invoices.payment_amount') }}" required><input type="date" lang="en-AU" name="paid_at" value="{{ today()->toDateString() }}" required></div>
+                        <div class="grid"><input type="number" step="0.01" min="0.01" name="amount" placeholder="{{ __('billing.invoices.payment_amount') }}" required><x-date-field name="paid_at" value="{{ today()->toDateString() }}" required /></div>
                         <div class="grid"><select name="method">@foreach (['bank', 'card', 'cash', 'other'] as $m)<option value="{{ $m }}">{{ __('billing.invoices.methods.'.$m) }}</option>@endforeach</select><input type="text" name="reference" placeholder="{{ __('billing.invoices.reference') }}"></div>
                         <button type="submit" class="secondary">{{ __('billing.invoices.record_payment') }}</button>
                     </form>

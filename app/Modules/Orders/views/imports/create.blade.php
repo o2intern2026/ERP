@@ -16,7 +16,7 @@
             <label>{{ __('orders.fields.job') }}<select name="job_id" id="import-job" required><option value="">{{ __('orders.actions.select') }}</option>@foreach ($jobs as $job)<option value="{{ $job->id }}" data-client-id="{{ $job->client_id }}" @selected((int) old('job_id') === $job->id)>{{ $job->job_no }} — {{ $job->client?->name }}</option>@endforeach</select></label>
         </div>
         <div class="grid">
-            <label>{{ __('orders.fields.requested_date') }}<input type="date" lang="en-AU" name="requested_date" value="{{ old('requested_date') }}" required></label>
+            <label>{{ __('orders.fields.requested_date') }}<x-date-field name="requested_date" value="{{ old('requested_date') }}" required /></label>
             <label>{{ __('orders.fields.service_level') }}<select name="service_level" required>@foreach ($serviceLevels as $level)<option value="{{ $level }}" @selected(old('service_level', 'standard') === $level)>{{ __('orders.service_levels.'.$level) }}</option>@endforeach</select></label>
         </div>
         <label>{{ __('orders.imports.fields.file') }}<input type="file" name="manifest" accept=".xlsx,.csv" required></label>

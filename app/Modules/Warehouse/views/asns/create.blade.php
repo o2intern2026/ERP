@@ -10,7 +10,7 @@
             <label>{{ __('warehouse.asns.client') }}<select name="client_id" required><option value="">—</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected(old('client_id') == $c->id)>{{ $c->code }} · {{ $c->name }}</option>@endforeach</select></label>
             <label>{{ __('warehouse.asns.warehouse') }}<select name="warehouse_id" required>@foreach ($warehouses as $w)<option value="{{ $w->id }}" @selected(old('warehouse_id') == $w->id)>{{ $w->code }} · {{ $w->name }}</option>@endforeach</select></label>
             <label>{{ __('warehouse.asns.inbound_type') }}<select name="inbound_type" id="inbound_type" required>@foreach (\App\Support\Enums::INBOUND_TYPES as $t)<option value="{{ $t }}" @selected(old('inbound_type', 'container') === $t)>{{ __('warehouse.inbound_types.'.$t) }}</option>@endforeach</select></label>
-            <label>{{ __('warehouse.asns.expected_date') }}<input type="date" lang="en-AU" name="expected_date" value="{{ old('expected_date') }}"></label>
+            <label>{{ __('warehouse.asns.expected_date') }}<x-date-field name="expected_date" value="{{ old('expected_date') }}" /></label>
         </div>
         <div class="grid">
             <label>{{ __('warehouse.asns.existing_job') }}<select name="job_id"><option value="">{{ __('warehouse.asns.new_job') }}</option>@foreach ($jobs as $j)<option value="{{ $j->id }}" @selected(old('job_id') == $j->id)>{{ $j->job_no }}</option>@endforeach</select></label>
