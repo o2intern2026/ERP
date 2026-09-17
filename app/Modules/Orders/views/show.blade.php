@@ -138,7 +138,7 @@
                     <label>{{ __('orders.fields.suburb') }}<input name="deliver_to_suburb" value="{{ $order->deliver_to_suburb }}" required></label>
                     <label>{{ __('orders.fields.state') }}<input name="deliver_to_state" value="{{ $order->deliver_to_state }}" required></label>
                     <label>{{ __('orders.fields.postcode') }}<input name="deliver_to_postcode" value="{{ $order->deliver_to_postcode }}" required></label>
-                    <label>{{ __('orders.fields.requested_date') }}<input type="date" lang="en-AU" name="requested_date" value="{{ $order->requested_date->format('Y-m-d') }}" required></label>
+                    <label>{{ __('orders.fields.requested_date') }}<x-date-field name="requested_date" value="{{ $order->requested_date->format('Y-m-d') }}" required /></label>
                 </div>
                 <label>{{ __('orders.fields.delivery_instructions') }}
                     <textarea name="delivery_instructions" rows="3">{{ $order->delivery_instructions }}</textarea>

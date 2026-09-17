@@ -11,6 +11,9 @@ return [
 
     'common' => ['actions' => '操作', 'edit' => '编辑', 'back' => '返回', 'save' => '保存', 'cancel' => '取消', 'filter' => '筛选', 'yes' => '是', 'no' => '否'],
 
+    // Shared <x-date-field> (resources/views/components/date-field.blade.php): the calendar button, the time box beside an ETA date, the typed-date refusal.
+    'date_field' => ['pick' => '打开日历', 'time' => '时间', 'invalid' => '日期请按 dd/mm/yyyy 填写,例如 17/09/2026'],
+
     'auth' => [
         'welcome' => '登录 Logistics ERP',
         'login' => '登录',

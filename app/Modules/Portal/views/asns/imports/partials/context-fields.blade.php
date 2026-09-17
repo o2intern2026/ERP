@@ -12,7 +12,7 @@
                 @foreach ($containerSizes as $size)<option value="{{ $size }}" @selected((string) old('container_size', $defaults['container_size'] ?? '') === $size)>{{ __('warehouse.container_sizes.'.$size) }}</option>@endforeach
             </select>
         </label>
-        <label>{{ __('portal.inbound.fields.expected_date') }}<input type="date" lang="en-AU" name="expected_date" value="{{ old('expected_date', $defaults['expected_date'] ?? '') }}"></label>
+        <label>{{ __('portal.inbound.fields.expected_date') }}<x-date-field name="expected_date" value="{{ old('expected_date', $defaults['expected_date'] ?? '') }}" /></label>
         <label>{{ __('portal.inbound.fields.reference') }}<input type="text" name="reference" maxlength="60" value="{{ old('reference', $defaults['reference'] ?? '') }}"></label>
     </div>
     <label>{{ __('portal.inbound.fields.notes') }}<textarea name="notes" rows="2" maxlength="2000">{{ old('notes', $defaults['notes'] ?? '') }}</textarea></label>

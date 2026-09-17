@@ -132,8 +132,9 @@ class PortalAuditFixesTest extends TestCase
             ->assertSee('name="lines[__INDEX__][carton_qty]" value="" class="goods-required" required', false)
             ->assertSee('name="lines[__INDEX__][package_type]" class="goods-required" aria-label="'.__('portal.fields.package_type').'" required', false)
             ->assertSee("getElementById('add-goods-line')", false); // re-applies the order-type rule to rows added later
-        // 要求送达日 cannot be picked in the past client side either.
-        $page->assertSee('name="requested_date" value="" min="'.today()->toDateString().'"', false);
+        // 要求送达日 cannot be picked in the past client side either: the <x-date-field> posts ISO from its hidden input and its calendar picker carries min = today.
+        $page->assertSee('<input type="hidden" name="requested_date" value="">', false)
+            ->assertSee('<input type="date" class="date-native" tabindex="-1" aria-hidden="true" min="'.today()->toDateString().'">', false);
 
         // Server side the second row is named in Chinese with a 1-based row number.
         $this->actingAs($user)->post(route('portal.orders.preview'), $this->fromStockPayload(['lines' => [

@@ -11,7 +11,7 @@
         <div class="grid">
             <label>{{ __('warehouse.physical_containers.container_no') }}<input type="text" name="container_no" class="scan" value="{{ old('container_no', $prefill['container_no'] ?? '') }}" maxlength="20" required></label>
             <label>{{ __('warehouse.physical_containers.warehouse') }}<select name="warehouse_id" required>@foreach ($warehouses as $w)<option value="{{ $w->id }}" @selected((int) old('warehouse_id', $prefill['warehouse_id'] ?? 0) === $w->id)>{{ $w->code }} · {{ $w->name }}</option>@endforeach</select></label>
-            <label>{{ __('warehouse.physical_containers.eta_date') }}<input type="date" lang="en-AU" name="eta_date" value="{{ old('eta_date', $prefill['eta_date'] ?? '') }}"></label>
+            <label>{{ __('warehouse.physical_containers.eta_date') }}<x-date-field name="eta_date" value="{{ old('eta_date', $prefill['eta_date'] ?? '') }}" /></label>
         </div>
         <div class="grid">
             <label>{{ __('warehouse.physical_containers.size') }}<select name="size" required>@foreach ($sizes as $s)<option value="{{ $s }}" @selected(old('size', $prefill['size'] ?? '40') === $s)>{{ __('warehouse.container_sizes.'.$s) }}</option>@endforeach</select></label>

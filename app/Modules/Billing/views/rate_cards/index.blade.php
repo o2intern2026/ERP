@@ -14,7 +14,7 @@
             @csrf
             <select name="client_id" required><option value="">{{ __('billing.rate_cards.client') }}</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected((int) old('client_id') === $c->id)>{{ $c->name }}</option>@endforeach</select>
             <input type="text" name="name" placeholder="{{ __('billing.rate_cards.name') }}" value="{{ old('name') }}" required>
-            <input type="date" lang="en-AU" name="effective_from" value="{{ old('effective_from', today()->toDateString()) }}" required>
+            <x-date-field name="effective_from" value="{{ old('effective_from', today()->toDateString()) }}" required />
             <button type="submit" class="secondary">{{ __('billing.rate_cards.create') }}</button>
         </form>
     </details>

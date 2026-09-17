@@ -76,7 +76,7 @@
                     <small>{{ __('masterdata.clients.markup_hint') }}</small>
                 </label>
                 <label>{{ __('masterdata.fields.dispatch_cutoff_time') }}
-                    <input type="time" lang="en-AU" name="dispatch_cutoff_time" value="{{ old('dispatch_cutoff_time', $client->dispatch_cutoff_time ? substr($client->dispatch_cutoff_time, 0, 5) : '') }}">
+                    <input type="time" name="dispatch_cutoff_time" value="{{ old('dispatch_cutoff_time', $client->dispatch_cutoff_time ? substr($client->dispatch_cutoff_time, 0, 5) : '') }}">
                     <small>{{ __('masterdata.clients.cutoff_hint') }}</small>
                 </label>
             </div>

@@ -113,7 +113,7 @@
             <textarea id="delivery-instructions" name="delivery_instructions" rows="3">{{ old('delivery_instructions') }}</textarea>
         </label>
         <div class="grid">
-            <label>{{ __('orders.fields.requested_date') }}<input type="date" lang="en-AU" name="requested_date" value="{{ old('requested_date') }}" required></label>
+            <label>{{ __('orders.fields.requested_date') }}<x-date-field name="requested_date" value="{{ old('requested_date') }}" required /></label>
             <label>{{ __('orders.fields.service_level') }}
                 <select name="service_level" required>
                     @foreach ($serviceLevels as $level)

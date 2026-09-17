@@ -18,7 +18,7 @@
     <label>{{ __('warehouse.asns.collection.fields.postcode') }}<input type="text" name="collection[postcode]" value="{{ $address['postcode'] ?? '' }}" maxlength="10"></label>
 </div>
 <div class="grid">
-    <label>{{ __('warehouse.asns.collection.fields.ready_date') }}<input type="date" lang="en-AU" name="collection_ready_date" value="{{ old('collection_ready_date', $asn?->collection_ready_date?->format('Y-m-d')) }}" min="{{ today()->toDateString() }}"></label>
+    <label>{{ __('warehouse.asns.collection.fields.ready_date') }}<x-date-field name="collection_ready_date" value="{{ old('collection_ready_date', $asn?->collection_ready_date?->format('Y-m-d')) }}" min="{{ today()->toDateString() }}" /></label>
     <label>{{ __('warehouse.asns.collection.fields.notes') }}<input type="text" name="collection_notes" value="{{ old('collection_notes', $asn?->collection_notes) }}" maxlength="2000" placeholder="{{ __('warehouse.asns.collection.notes_placeholder') }}"></label>
 </div>
 <p class="text-muted" style="margin:.2rem 0"><small>{{ __('warehouse.asns.collection.packages_hint') }}</small></p>

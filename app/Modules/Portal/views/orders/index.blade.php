@@ -20,8 +20,8 @@
                     <option value="{{ $status }}" @selected(($filters['status'] ?? '') === $status)>{{ __('orders.customer_statuses.'.$status) }}</option>
                 @endforeach
             </select>
-            <input type="date" lang="en-AU" name="from" value="{{ $filters['from'] ?? '' }}" aria-label="{{ __('portal.filters.from') }}">
-            <input type="date" lang="en-AU" name="to" value="{{ $filters['to'] ?? '' }}" aria-label="{{ __('portal.filters.to') }}">
+            <x-date-field name="from" value="{{ $filters['from'] ?? '' }}" aria-label="{{ __('portal.filters.from') }}" />
+            <x-date-field name="to" value="{{ $filters['to'] ?? '' }}" aria-label="{{ __('portal.filters.to') }}" />
             <button type="submit" class="secondary">{{ __('portal.actions.filter') }}</button>
         </div>
     </form>

@@ -62,7 +62,7 @@
         </div>
         <label>{{ __('portal.fields.delivery_instructions') }}<textarea id="delivery-instructions" name="delivery_instructions" rows="2">{{ old('delivery_instructions') }}</textarea></label>
         <div class="grid">
-            <label>{{ __('portal.fields.requested_date') }}<input type="date" lang="en-AU" name="requested_date" value="{{ old('requested_date') }}" min="{{ today()->toDateString() }}" required></label>
+            <label>{{ __('portal.fields.requested_date') }}<x-date-field name="requested_date" value="{{ old('requested_date') }}" min="{{ today()->toDateString() }}" required /></label>
             <label>{{ __('portal.fields.service_level') }}
                 <select name="service_level" required>
                     @foreach ($serviceLevels as $level)<option value="{{ $level }}" @selected(old('service_level', 'standard') === $level)>{{ __('orders.service_levels.'.$level) }}</option>@endforeach
