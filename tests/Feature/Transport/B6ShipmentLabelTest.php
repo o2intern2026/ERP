@@ -25,7 +25,7 @@ class B6ShipmentLabelTest extends TestCase
     public function test_own_fleet_prints_one_barcode_label_per_package_and_archives_the_pdf(): void
     {
         Storage::fake('local');
-        $operator = $this->staff('transport_operator');
+        $operator = $this->staff('dispatcher');
         $this->actingAs($operator);
         $shipment = $this->shipment('own_fleet');
         $packages = $this->packages();
@@ -67,7 +67,7 @@ class B6ShipmentLabelTest extends TestCase
     public function test_own_fleet_label_requires_measured_packages_and_complete_receiver(): void
     {
         Storage::fake('local');
-        $operator = $this->staff('transport_operator');
+        $operator = $this->staff('dispatcher');
         $this->actingAs($operator);
         $shipment = $this->shipment('own_fleet');
         $this->mock(PackageManifest::class, function (MockInterface $mock): void {
@@ -94,7 +94,7 @@ class B6ShipmentLabelTest extends TestCase
     public function test_third_party_prints_and_reuses_the_platform_waybill_verbatim(): void
     {
         Storage::fake('local');
-        $operator = $this->staff('transport_operator');
+        $operator = $this->staff('dispatcher');
         $this->actingAs($operator);
         $shipment = $this->shipment('transdirect', ['booking_ref' => 'TD-B6-100']);
         $waybill = "%PDF-1.4\n% platform waybill\n%%EOF";
@@ -172,7 +172,7 @@ class B6ShipmentLabelTest extends TestCase
     public function test_label_printing_is_limited_to_transport_coordinators(): void
     {
         Storage::fake('local');
-        $this->actingAs($this->staff('transport_operator'));
+        $this->actingAs($this->staff('dispatcher'));
         $shipment = $this->shipment('own_fleet');
 
         $this->actingAs($this->staff('finance'))

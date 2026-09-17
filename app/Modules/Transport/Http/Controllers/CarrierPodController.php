@@ -15,7 +15,7 @@ class CarrierPodController extends Controller
 {
     public function __invoke(Request $request, Shipment $shipment, CarrierPodService $service): RedirectResponse
     {
-        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'transport_operator']);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher']); // CHANGE_REQUESTS #130: the dispatcher plans, the driver executes
         $validated = $request->validate([
             'recipient_name' => ['required', 'string', 'max:150'],
             'pod_file' => ['required', 'file', 'mimes:pdf', 'max:10240'],

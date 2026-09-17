@@ -12,7 +12,7 @@ class TransportPlaceholderTest extends TestCase
 
     public function test_placeholder_page_renders_with_zh_strings(): void
     {
-        $this->actingAs($this->staff('transport_operator'))->get('/transport')->assertOk()->assertSee(__('transport.title'));
+        $this->actingAs($this->staff('dispatcher'))->get('/transport')->assertOk()->assertSee(__('transport.title'));
     }
 
     public function test_driver_page_renders_under_driver_prefix(): void

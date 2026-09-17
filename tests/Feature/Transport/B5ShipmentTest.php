@@ -105,7 +105,7 @@ class B5ShipmentTest extends TestCase
             'service_level' => 'standard',
         ]);
 
-        $response = $this->actingAs($this->staff('transport_operator'))
+        $response = $this->actingAs($this->staff('dispatcher'))
             ->get(route('transport.shipments.show', $shipment));
 
         $response->assertOk()
@@ -150,7 +150,7 @@ class B5ShipmentTest extends TestCase
         $this->assertStringContainsString('CTN-B5-001', $html);
         $this->assertStringContainsString('PLT-B5-001', $html);
 
-        $response = $this->actingAs($this->staff('transport_operator'))
+        $response = $this->actingAs($this->staff('dispatcher'))
             ->get(route('transport.shipments.consignment-note', $shipment));
 
         $response->assertOk()->assertHeader('content-type', 'application/pdf');
@@ -160,7 +160,7 @@ class B5ShipmentTest extends TestCase
     /** @return array{Shipment, Client, array{job_id:int, job_no:string}} */
     private function shipment(array $attributes = []): array
     {
-        $user = $this->staff('transport_operator');
+        $user = $this->staff('dispatcher');
         $this->actingAs($user);
         $client = $this->client();
         $job = app(JobService::class)->create($client->id, 'transport_only');

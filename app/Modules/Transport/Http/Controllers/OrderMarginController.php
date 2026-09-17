@@ -14,7 +14,7 @@ class OrderMarginController extends Controller
 {
     public function __invoke(Request $request, int $orderId, ShipmentMarginService $margins): View
     {
-        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'transport_operator', 'finance']);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'finance']); // CHANGE_REQUESTS #130: cost / margin never for the driver
         $orderNo = Schema::hasTable('orders')
             ? DB::table('orders')->where('id', $orderId)->value('order_no')
             : null;

@@ -95,6 +95,6 @@ class RunStopController extends Controller
 
     private function authorizeCoordinator(): void
     {
-        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'transport_operator']);
+        RequiredRoles::requireAny(DeliveryRunController::PLANNER_ROLES); // CHANGE_REQUESTS #130: drivers no longer add or reorder stops
     }
 }

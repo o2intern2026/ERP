@@ -81,8 +81,8 @@ class B5bDeliveryRunTest extends TestCase
 
     public function test_only_confirmed_own_fleet_shipments_are_added_as_ordered_stops(): void
     {
-        $coordinator = $this->staff('transport_operator');
-        $run = $this->deliveryRun($coordinator->id);
+        $coordinator = $this->staff('dispatcher'); // CHANGE_REQUESTS #130: the dispatcher plans, the driver executes
+        $run = $this->deliveryRun($this->staff('transport_operator')->id);
         $first = $this->shipment('own_fleet');
         $second = $this->shipment('own_fleet', ['status' => 'booked']);
         $thirdParty = $this->shipment('transdirect');
@@ -120,8 +120,8 @@ class B5bDeliveryRunTest extends TestCase
 
     public function test_coordinator_can_reorder_every_stop_before_dispatch(): void
     {
-        $coordinator = $this->staff('transport_operator');
-        $run = $this->deliveryRun($coordinator->id);
+        $coordinator = $this->staff('dispatcher'); // CHANGE_REQUESTS #130: the dispatcher plans, the driver executes
+        $run = $this->deliveryRun($this->staff('transport_operator')->id);
         $first = $this->shipment('own_fleet');
         $second = $this->shipment('own_fleet');
         $third = $this->shipment('own_fleet');

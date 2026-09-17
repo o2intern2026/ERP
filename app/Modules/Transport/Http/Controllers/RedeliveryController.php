@@ -14,7 +14,7 @@ class RedeliveryController extends Controller
 {
     public function __invoke(Request $request, Shipment $shipment, RedeliveryService $service): RedirectResponse
     {
-        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'transport_operator']);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher']); // CHANGE_REQUESTS #130: the dispatcher plans, the driver executes
 
         try {
             $redelivery = $service->create($shipment, $request->user());

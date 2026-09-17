@@ -17,7 +17,7 @@ class ManualQuoteController extends Controller
 {
     public function __invoke(Request $request, Shipment $shipment, ManualQuoteService $quotes): RedirectResponse
     {
-        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'transport_operator']);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher']); // CHANGE_REQUESTS #130: the dispatcher plans, the driver executes
         $data = $request->validate([
             'carrier_service_id' => ['required', 'integer', 'exists:carrier_services,id'],
             'quote_stage' => ['required', Rule::in(['preliminary', 'final'])],

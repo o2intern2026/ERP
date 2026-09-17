@@ -72,10 +72,10 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 |---|---|---|
 | admin@erp.local | 管理员 | 全部;用户管理、审批中心、审计日志 |
 | customer-service@erp.local | 客服 / 协调员 | 订单、预报单 (ASN)、待收货列表(只看)、调度队列 |
-| dispatcher@erp.local | 调度 | 运输报价、订舱、班次 |
+| dispatcher@erp.local | 调度 | 运输报价、订舱、班次（建班次、加站、排顺序——司机只执行，CR #130） |
 | warehouse-supervisor@erp.local | 仓库主管 | 收货 / 无预报收货、入库单、上架、出库、盘点、退货验收 |
 | warehouse-operator@erp.local | 仓库操作员 | 同上(无配置权限) |
-| transport-operator@erp.local | 司机 | 司机手机页 /driver |
+| transport-operator@erp.local | 司机 | 司机手机页 /driver；班次 /transport/runs 只看分配给自己的（只读）。不能建班次、加站、看运单 / 报价 / 成本或承运商对账——那是调度的事（CR #130） |
 | finance@erp.local | 财务 | 计费、发票、收款、财务锁、价目表审批 |
 | client@erp.local | 客户(Edward) | 客户门户 /portal,只看自己的数据 |
 
@@ -92,7 +92,7 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 | 主数据 | /admin/clients | 客户、承运商 /admin/carriers、供应商 |
 | 订单 | /orders | 客户请求 /orders/requests(客户的取消 / 退货申请,菜单带待处理数)、新建 /orders/create、Excel 导入 /orders/imports、PDF 读单 /orders/drafts/create、调度队列 /orders/queue、入库批次 /orders/batches、地址簿 /orders/addresses、API 钥匙 /orders/api-tokens |
 | 仓库 | /warehouse | 预报单 (ASN) /warehouse/asns（新建 / 预报单页可选"到仓方式"：客户自送，或我方上门提货 → 运输报价、订舱、司机提货、到仓即到货；管理员 / 客服 / 仓库主管）、收货(待收列表)/warehouse/receiving、无预报收货 /warehouse/receiving/unplanned、入库单 /warehouse/receipts、物理柜 / 拼柜 /warehouse/physical-containers(几个客户共用一只柜:关联各预报单的柜号行、登记拆柜一次、登记到港、重算分摊;管理员 / 客服 / 仓库主管)、上架 /warehouse/putaway(声明底层的托盘显示"建议:第一个空闲底层库位",放非底层要填原因)、库存查询 /warehouse(勾"底层库位剩货托盘"看部分拣走后仍占底层的托盘)、出库 /warehouse/outbound(含「已确认但缺货未分配」)、作业登记(VAS) /warehouse/tasks、退货 /warehouse/returns、任务 /warehouse/tasks、盘点 /warehouse/stocktakes、扫码 /warehouse/scan、快照 /warehouse/snapshots(含底层库位托盘数)、库位配置 /warehouse/config/locations(层位 / 存储等级;主管可批量设置底层库位) |
-| 运输 | /transport | 运单列表(报价 / 订舱 / 面单 / 签收)、班次 /transport/runs、承运商账单对账 /transport/carrier-invoices、司机页 /driver |
+| 运输 | /transport | 运单列表(报价 / 订舱 / 面单 / 签收)、班次 /transport/runs（管理员 / 客服 / 调度建班次、加站、排顺序；司机只看自己的）、承运商账单对账 /transport/carrier-invoices（管理员 / 财务）、司机页 /driver（司机） |
 | 计费 | /billing | 待开票 /billing/unbilled、待审核 /billing/charges/review、发票 /billing/invoices、应收 /billing/receivables、价目表 /billing/rate-cards、收费项 /billing/charge-codes、客户报价单 /billing/quotes |
 | 报表 | /reports | 老板视角;/reports/client 按客户看 |
 | 客户门户 | /portal | 我的订单、下单、估价、确认运输方案、预报入库 /portal/asns（只读；客户申请的上门提货运费超出容差时在这里重新确认方案）、上传入库清单 /portal/asns/imports/create（CSV / Excel → 预览 → 确认生成订单；可勾选"需要你们上门提货"并在预览页自选提货方案（客户价），模板 /portal/asns/imports/template，已提交清单 /portal/asns/imports）、我的库存 /portal/stock（含声明的存储等级，不显示库位）、我的账单 /portal/invoices、我的报表 /portal/reports |
@@ -149,3 +149,4 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 | 贵重货放底层怎么收费 | 两个等级:标准(默认)和底层(货架最底层,不易碰撞)。**谁声明:** 客户在入库清单的「存储等级」列填"底层"(模板已带这一列),或客服 / 仓库主管在预报单页每行的「存储等级」下拉修改(已收货的托盘同步更新;客户要改请联系客服,门户只读)。价目表可设 `tier_value_threshold_cents`(单价门槛,单位分),清单里单价达到门槛且没填等级的行自动预选底层并提醒,货值本身不参与计价。**谁放:** 仓库主管仍自己选库位——主管先在 库位配置 → 批量设置 把底层库位标为"底层"(按区 / 巷道 / 货位范围);上架页对声明底层的托盘提示第一个空闲底层库位,放到非底层存储库位必须填原因,把标准托盘放进底层会提醒。散箱、Pickface、隔离区不检查;移库不检查。**怎么收:** 每周按最后一次快照判断,托盘声明底层且当时在底层存储库位,才加收 WH-STORAGE-TIER-PLT-WK = 该托盘当周基础仓储费 × 百分比(标准表 10%,允许 10%–20%,可在价目表按墨尔本 / 悉尼仓各设一行,指定仓库的行优先);基础仓储费缺费率或 POA 时,附加费进待审核,不会出 $0。部分拣走的托盘只要还在底层照样整托收——库存查询勾"底层库位剩货托盘"可找出来并托。客户门户上传清单预览会显示"底层库位:比标准仓储高 X%"。服务器上需执行一次 `php artisan db:seed --class="App\Modules\Billing\Seeders\BillingSeeder"`,再由主管把 MEL / SYD 的底层库位批量标好 |
 | 客户下单时怎么选底层 | 客户在门户「新建订单」的货物明细里，每行「包装类型」旁有「存储等级」下拉：标准（默认）或底层；表下方一行提示等级的含义，价目表（客户自己的表或绑定的标准表）给本客户的 WH-STORAGE-TIER-PLT-WK 定了百分比时还会显示"底层库位：比标准仓储高 X%"（按仓库分别列出，只显示客户价）。选的是等级不是库位：主管上架时仍自选库位（声明底层的托盘提示第一个空闲底层库位，放到非底层要填原因，见上一条）。客服手工建单（选好客户后表单被退回重填时按该客户显示百分比）、订单 API（`lines[].storage_tier` = standard / bottom，不传就不带等级）和草稿单的「新增 / 修改货物行」都有同一字段；订单页货物明细显示等级和来源（客户选择 / 员工设置 / 按单价预选），客户门户订单页只显示等级。等级随「待建预报 → 生成预报单」进预报单货物行，收货时写到托盘。下单估价里没有仓储行，附加费仍按周快照计（见上一条）。不需要迁移或额外服务器步骤。 |
 | 日期框显示 yyyy/mm/日 怎么办 | 已修复：页面仍是中文，但系统里所有日期 / 时间输入框都标了 `lang="en-AU"`，Chrome / Edge 的日期选择器现在显示 dd/mm/yyyy（澳洲习惯）。Firefox / Safari 不看这个属性，而是跟浏览器或系统语言走：想看 dd/mm/yyyy 就把浏览器语言设为 English (Australia)。提交的值不变（后台仍按 2026-09-17 这种格式保存） |
+| 司机为什么建不了班次 / 看不到运单 | 2026-09-17 起司机（transport-operator）只执行不排班：能开 /driver 签收 / 报失败，能在"配送班次"里看分配给自己的班次（只读，别人的班次打不开）；建班次、加站、排顺序、看运单 / 报价 / 成本、承运商对账都在调度（dispatcher）/ 客服 / 管理员账号下做。要让某个司机也排班，给他加 dispatcher 角色即可（CR #130）。 |

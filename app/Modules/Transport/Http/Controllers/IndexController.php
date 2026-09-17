@@ -5,6 +5,7 @@ namespace App\Modules\Transport\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Services\ShipmentMarginService;
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
 
@@ -12,6 +13,7 @@ class IndexController extends Controller
 {
     public function __invoke(ShipmentMarginService $margins): View
     {
+        RequiredRoles::requireAny(ShipmentController::VIEWER_ROLES); // CHANGE_REQUESTS #130: the board shows cost / margin — not for the driver
         $shipments = Shipment::query()
             ->with(['job', 'carrier', 'selectedQuote', 'carrierCost'])
             ->withCount('quotes')

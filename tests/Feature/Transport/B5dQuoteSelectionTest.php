@@ -96,7 +96,7 @@ class B5dQuoteSelectionTest extends TestCase
                 ],
             ],
         ]);
-        $coordinator = $this->staff('transport_operator');
+        $coordinator = $this->staff('dispatcher');
 
         $this->actingAs($coordinator)
             ->post(route('transport.shipments.quotes.select', [$shipment, $quote]))
@@ -176,7 +176,7 @@ class B5dQuoteSelectionTest extends TestCase
             'customer_price_cents' => 10000,
             'cost_cents' => 10000,
         ]);
-        $coordinator = $this->staff('transport_operator');
+        $coordinator = $this->staff('dispatcher');
         app(QuoteSelectionService::class)->select($shipment, $preliminary, 'coordinator', $coordinator->id);
         $this->carrierService($carrier, 'own_fleet', 'standard');
 
@@ -199,7 +199,7 @@ class B5dQuoteSelectionTest extends TestCase
             'customer_price_cents' => 10000,
             'cost_cents' => 10000,
         ]);
-        $coordinator = $this->staff('transport_operator');
+        $coordinator = $this->staff('dispatcher');
         app(QuoteSelectionService::class)->select($shipment, $preliminary, 'coordinator', $coordinator->id);
         $this->carrierService($carrier, 'own_fleet', 'standard');
 
@@ -230,7 +230,7 @@ class B5dQuoteSelectionTest extends TestCase
                 '_quote_request' => ['zone' => 'metro', 'items' => [['qty' => 2, 'weight_kg' => 300, 'length_mm' => 1200, 'width_mm' => 1200, 'height_mm' => 1400]]],
             ],
         ]);
-        $coordinator = $this->staff('transport_operator');
+        $coordinator = $this->staff('dispatcher');
 
         app(QuoteSelectionService::class)->select($shipment, $quote, 'coordinator', $coordinator->id);
 
@@ -259,7 +259,7 @@ class B5dQuoteSelectionTest extends TestCase
         $order = $this->pickupOrder($client, '2026-09-07', [['package_type' => 'carton', 'qty' => 2, 'weight_kg' => 30]]);
         $shipment = $this->shipment(['status' => 'quoted', 'order_id' => $order->id, 'client_id' => $order->client_id, 'job_id' => $order->job_id]);
         $quote = $this->quote($shipment, $this->carrier('OWN-PD1-B5D'));
-        $coordinator = $this->staff('transport_operator');
+        $coordinator = $this->staff('dispatcher');
 
         app(QuoteSelectionService::class)->select($shipment, $quote, 'coordinator', $coordinator->id);
 
@@ -378,7 +378,7 @@ class B5dQuoteSelectionTest extends TestCase
 
     private function shipment(array $attributes = []): Shipment
     {
-        $this->actingAs($this->staff('transport_operator'));
+        $this->actingAs($this->staff('dispatcher'));
         $client = $this->client();
         $job = app(JobService::class)->create($client->id, 'transport_only');
 

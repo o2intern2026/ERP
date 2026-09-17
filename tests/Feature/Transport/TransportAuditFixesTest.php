@@ -33,33 +33,39 @@ class TransportAuditFixesTest extends TestCase
 
     public function test_transport_nav_offers_only_the_links_the_role_may_open(): void
     {
+        $board = 'href="'.route('transport.index').'"'; // the exact anchor: every /transport/... link carries the board URL as a prefix
         $runs = route('transport.runs.index');
         $reconciliation = route('transport.carrier-invoices.index');
         $driver = route('transport.driver');
 
         $this->actingAs($this->staff('finance'))->get(route('transport.index'))
             ->assertOk()
+            ->assertSee($board, false)
             ->assertSee($reconciliation)
             ->assertDontSee($runs)
             ->assertDontSee($driver);
 
         $this->actingAs($this->staff('dispatcher'))->get(route('transport.index'))
             ->assertOk()
+            ->assertSee($board, false)
             ->assertSee($runs)
             ->assertDontSee($reconciliation)
             ->assertDontSee($driver);
 
         $this->actingAs($this->staff('warehouse_operator'))->get(route('transport.index'))
             ->assertOk()
-            ->assertSee(route('transport.index'))
+            ->assertSee($board, false)
             ->assertDontSee($runs)
             ->assertDontSee($reconciliation)
             ->assertDontSee($driver);
 
-        $this->actingAs($this->staff('transport_operator'))->get(route('transport.index'))
+        // CHANGE_REQUESTS #130: the driver executes — no 运输 board, no 承运商对账; 班次 (own runs only) and 司机任务 stay.
+        $this->actingAs($this->staff('transport_operator'))->get(route('transport.index'))->assertForbidden();
+        $this->actingAs($this->staff('transport_operator'))->get(route('transport.runs.index'))
             ->assertOk()
+            ->assertDontSee($board, false)
             ->assertSee($runs)
-            ->assertSee($reconciliation)
+            ->assertDontSee($reconciliation)
             ->assertSee($driver);
     }
 
@@ -78,7 +84,7 @@ class TransportAuditFixesTest extends TestCase
             ->post(route('transport.shipments.extra-charges.store', $shipment), ['charge_type' => 'waiting', 'qty' => 1, 'uom' => 'delivery', 'note' => 'x'])
             ->assertForbidden();
 
-        $this->actingAs($this->staff('transport_operator'))->get(route('transport.shipments.show', $shipment))
+        $this->actingAs($this->staff('dispatcher'))->get(route('transport.shipments.show', $shipment))
             ->assertOk()
             ->assertSee(route('transport.shipments.extra-charges.store', $shipment))
             ->assertSee(route('transport.shipments.book', $shipment))
@@ -96,7 +102,7 @@ class TransportAuditFixesTest extends TestCase
     public function test_print_button_is_only_offered_when_a_label_can_be_produced_and_failures_stay_on_the_page(): void
     {
         Storage::fake('local');
-        $operator = $this->staff('transport_operator');
+        $operator = $this->staff('dispatcher');
 
         $manual = $this->shipment('manual', ['status' => 'booked', 'booking_ref' => 'MANUAL-SHP-0001']);
         $this->actingAs($operator)->get(route('transport.shipments.show', $manual))
@@ -161,7 +167,7 @@ class TransportAuditFixesTest extends TestCase
     {
         $shipment = $this->shipment('manual', ['status' => 'quoting'], selected: false);
         $this->carrierService($shipment->carrier, 'manual', 'standard');
-        $operator = $this->staff('transport_operator');
+        $operator = $this->staff('dispatcher');
 
         $this->mock(ShipmentQuoteRequestFactory::class, function (MockInterface $mock): void {
             $mock->shouldReceive('build')->andReturnNull();

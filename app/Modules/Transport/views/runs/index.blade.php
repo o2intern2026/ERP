@@ -4,7 +4,9 @@
 
 @section('content')
     <h1>{{ __('transport.runs.title') }}</h1>
+    @role('admin|customer_service|dispatcher') {{-- CHANGE_REQUESTS #130: drivers read their own runs, they do not create them --}}
     <p><a role="button" href="{{ route('transport.runs.create') }}">{{ __('transport.runs.create') }}</a></p>
+    @endrole
 
     @if ($runs->isEmpty())
         <p>{{ __('transport.runs.empty') }}</p>

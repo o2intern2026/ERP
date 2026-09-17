@@ -27,7 +27,7 @@
             <header>{{ __('orders.fields.billing_status') }}</header>
             <strong>{!! \App\Support\Ui\StatusBadge::render('orders.statuses.billing.', $order->billing_status) !!}</strong>
             {{-- X2 handoff: Transport's "收 − 付 = 毛利" page. Staff only — this page is unreachable for client users (ClientScope) and the link is role-gated as well; cost / margin never render here. --}}
-            @if (! auth()->user()->isClientUser() && auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'transport_operator', 'finance']))
+            @if (! auth()->user()->isClientUser() && auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'finance']))
                 <br><small><a href="{{ route('transport.orders.margin', $order->id) }}">{{ __('orders.transport.margin_link') }}</a></small>
             @endif
         </article>

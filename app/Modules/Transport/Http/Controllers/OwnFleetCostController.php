@@ -15,7 +15,7 @@ class OwnFleetCostController extends Controller
 {
     public function __invoke(Request $request, Shipment $shipment, CarrierCostService $costs): RedirectResponse
     {
-        RequiredRoles::requireAny(['admin', 'dispatcher', 'transport_operator', 'finance']);
+        RequiredRoles::requireAny(['admin', 'dispatcher', 'finance']); // CHANGE_REQUESTS #130
         $data = $request->validate([
             'cost_cents' => ['required', 'integer', 'min:0'],
             'note' => ['required', 'string', 'max:1000'],

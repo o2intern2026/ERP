@@ -17,6 +17,7 @@
         <dd>{!! \App\Support\Ui\StatusBadge::render('transport.run_statuses.', $run->status) !!}</dd>
     </dl></article>
 
+    @role('admin|customer_service|dispatcher') {{-- CHANGE_REQUESTS #130: only planners add and reorder stops; the driver sees a read-only list --}}
     @if ($run->status === 'planned')
         <h2>{{ __('transport.runs.add_shipment') }}</h2>
         @if ($eligibleShipments->isEmpty())
@@ -43,17 +44,20 @@
             </form>
         @endif
     @endif
+    @endrole
 
     <h2>{{ __('transport.runs.stops') }}</h2>
     @if ($run->stops->isEmpty())
         <p>{{ __('transport.runs.no_stops') }}</p>
     @else
+        @role('admin|customer_service|dispatcher')
         <form method="post" action="{{ route('transport.runs.stops.reorder', $run) }}">
             @csrf
             @method('patch')
             @if ($run->status === 'planned')
                 <p><small>{{ __('transport.runs.reorder_hint') }}</small></p>
             @endif
+        @endrole
             <table class="dense">
                 <thead>
                     <tr>
@@ -69,12 +73,16 @@
                         <tr>
                             <td>
                                 @if ($run->status === 'planned')
+                                    @role('admin|customer_service|dispatcher')
                                     <input type="number" name="positions[{{ $stop->id }}]" value="{{ old('positions.'.$stop->id, $stop->seq) }}" min="1" required aria-label="{{ __('transport.runs.sequence') }}">
+                                    @else
+                                    {{ $stop->seq }}
+                                    @endrole
                                 @else
                                     {{ $stop->seq }}
                                 @endif
                             </td>
-                            <td><a href="{{ route('transport.shipments.show', $stop->shipment) }}">{{ $stop->shipment->shipment_no }}</a></td>
+                            <td>@role('admin|customer_service|dispatcher')<a href="{{ route('transport.shipments.show', $stop->shipment) }}">{{ $stop->shipment->shipment_no }}</a>@else{{ $stop->shipment->shipment_no }}@endrole</td>
                             <td>{{ $stop->shipment->client->name }}</td>
                             <td>{{ $stop->eta?->format('Y-m-d H:i') ?? '—' }}</td>
                             <td>{!! \App\Support\Ui\StatusBadge::render('transport.stop_statuses.', $stop->status) !!}</td>
@@ -82,9 +90,11 @@
                     @endforeach
                 </tbody>
             </table>
+            @role('admin|customer_service|dispatcher')
             @if ($run->status === 'planned')
                 <button type="submit">{{ __('transport.runs.save_order') }}</button>
             @endif
         </form>
+            @endrole
     @endif
 @endsection

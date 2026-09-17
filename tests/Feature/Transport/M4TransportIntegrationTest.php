@@ -27,7 +27,7 @@ class M4TransportIntegrationTest extends TestCase
 
     public function test_real_packed_packages_drive_final_manual_quote_booking_cost_and_dispatch(): void
     {
-        $transportOperator = $this->staff('transport_operator');
+        $dispatcher = $this->staff('dispatcher'); // CHANGE_REQUESTS #130: planning is the dispatcher's
         $warehouseOperator = $this->staff('warehouse_operator');
         $client = $this->client();
         $warehouse = $this->warehouse();
@@ -93,7 +93,7 @@ class M4TransportIntegrationTest extends TestCase
         $this->assertSame(600, data_get($automatic->raw_response, '_quote_request.items.0.length_mm'));
         $this->assertSame('PKG-'.$fulfilment->id.'-01', data_get($automatic->raw_response, '_quote_request.items.0.description'));
 
-        $this->actingAs($transportOperator)->post(route('transport.shipments.quotes.manual', $shipment), [
+        $this->actingAs($dispatcher)->post(route('transport.shipments.quotes.manual', $shipment), [
             'carrier_service_id' => $manualService->id,
             'quote_stage' => 'final',
             'cost_cents' => 7000,
@@ -105,8 +105,8 @@ class M4TransportIntegrationTest extends TestCase
         $this->assertTrue($manual->is_cheapest);
         $this->assertSame(20.0, (float) data_get($manual->raw_response, '_quote_request.items.0.weight_kg'));
 
-        app(QuoteSelectionService::class)->select($shipment->refresh(), $manual, 'coordinator', $transportOperator->id);
-        $this->actingAs($transportOperator)->post(route('transport.shipments.book', $shipment), [
+        app(QuoteSelectionService::class)->select($shipment->refresh(), $manual, 'coordinator', $dispatcher->id);
+        $this->actingAs($dispatcher)->post(route('transport.shipments.book', $shipment), [
             'booking_reference' => 'MANUAL-M4-100',
             'tracking_number' => 'TRACK-M4-100',
         ])->assertSessionHasNoErrors();

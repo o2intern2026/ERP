@@ -20,7 +20,7 @@ class QuoteSelectionController extends Controller
         QuoteSelectionService $selection,
     ): RedirectResponse {
         $user = $request->user();
-        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'transport_operator']);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher']); // CHANGE_REQUESTS #130: the dispatcher plans, the driver executes
 
         try {
             $selection->select($shipment, $quote, 'coordinator', $user->id);

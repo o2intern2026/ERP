@@ -54,7 +54,7 @@
 
     {{-- 2026-09-10 audit: every action form below is gated by the same roles its controller accepts, so no role is offered a form the server refuses. --}}
     @if ($shipment->status === 'quote_confirmed' && $shipment->selectedQuote !== null)
-        @role('admin|customer_service|dispatcher|transport_operator')
+        @role('admin|customer_service|dispatcher')
         <details open>
             <summary>{{ __('transport.booking.title') }}</summary>
             <form method="post" action="{{ route('transport.shipments.book', $shipment) }}">
@@ -88,7 +88,7 @@
     @endif
 
     @if (in_array($shipment->status, ['quoting', 'quoted'], true) && $manualServices->isNotEmpty())
-        @role('admin|customer_service|dispatcher|transport_operator')
+        @role('admin|customer_service|dispatcher')
         <details open>
             <summary>{{ __('transport.manual_quote.title') }}</summary>
             {{-- 2026-09-10 audit: only the stages whose booking request can be built are offered; otherwise the page says why. --}}
@@ -127,7 +127,7 @@
     @endif
 
     @if ($shipment->selectedQuote?->source === 'own_fleet' && in_array($shipment->status, ['booked', 'dispatched', 'in_transit', 'delivered', 'failed'], true))
-        @role('admin|dispatcher|transport_operator|finance')
+        @role('admin|dispatcher|finance')
         <details>
             <summary>{{ __('transport.costs.enter_own_fleet') }}</summary>
             <form method="post" action="{{ route('transport.shipments.own-fleet-cost.store', $shipment) }}">
@@ -151,7 +151,7 @@
             {{ __('transport.consignment_note.download') }}
         </a>
         {{-- 2026-09-10 audit: the print button appears only when ShipmentLabelService can produce the document (final selected quote + own fleet, an archived waybill, or a booked gateway that issues labels). --}}
-        @role('admin|customer_service|dispatcher|transport_operator')
+        @role('admin|customer_service|dispatcher')
             @if ($canPrintLabel)
                 <a role="button" href="{{ route('transport.shipments.label', $shipment) }}">
                     {{ $shipment->selectedQuote->source === 'own_fleet'
@@ -167,7 +167,7 @@
     </p>
 
     @if ($shipment->status === 'failed')
-        @role('admin|customer_service|dispatcher|transport_operator')
+        @role('admin|customer_service|dispatcher')
         <form method="post" action="{{ route('transport.shipments.redelivery.store', $shipment) }}">
             @csrf
             <button type="submit">{{ __('transport.redelivery.create') }}</button>
@@ -182,7 +182,7 @@
             'time' => $deliveredPod->delivered_at->format('Y-m-d H:i'),
         ]) }}</p>
     @elseif ($shipment->selectedQuote !== null && $shipment->selectedQuote->source !== 'own_fleet')
-        @role('admin|customer_service|dispatcher|transport_operator')
+        @role('admin|customer_service|dispatcher')
         <details>
             <summary>{{ __('transport.carrier_pod.upload') }}</summary>
             <form method="post" enctype="multipart/form-data" action="{{ route('transport.shipments.pod.store', $shipment) }}">
@@ -225,7 +225,7 @@
         </table>
     @endif
 
-    @role('admin|customer_service|dispatcher|transport_operator')
+    @role('admin|customer_service|dispatcher')
     <details>
         <summary>{{ __('transport.extra_charges.title') }}</summary>
         <form method="post" action="{{ route('transport.shipments.extra-charges.store', $shipment) }}">
@@ -304,7 +304,7 @@
                             @endif
                         </td>
                         <td>
-                            @if ($shipment->status === 'quoted' && $quote->status === 'quoted' && $quote->expires_at->isFuture() && auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'transport_operator']))
+                            @if ($shipment->status === 'quoted' && $quote->status === 'quoted' && $quote->expires_at->isFuture() && auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher']))
                                 <form method="post" action="{{ route('transport.shipments.quotes.select', [$shipment, $quote]) }}">
                                     @csrf
                                     <button type="submit">
