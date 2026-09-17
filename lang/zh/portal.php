@@ -479,6 +479,10 @@ return [
                 'storage_tier' => '存储等级',
                 'requested_date' => '要求送达日（可选）',
             ],
+            // Lead feedback 2026-09-17: one card per goods line, grouped fields.
+            'row_title' => '第 :n 行',
+            'row_hint' => '唛头、收件人、电话、地址、城区、州、邮编必填',
+            'groups' => ['goods' => '货物', 'weight' => '重量与尺寸', 'consignee' => '收件信息'],
             'storage_tiers' => ['standard' => '标准', 'bottom' => '底层'],
             'attach_hint' => '以订单信息为准：带入的订单保留原有的收件人、货物和箱数，这份清单只为它们补入库信息（柜号 / 柜型 / 预计到港日 / 参考号 / 备注）和上门提货申请。只有还没有预报单、也没在其他清单里的订单可以带入。',
             'attach_empty' => '目前没有可带入的订单：只有还没有预报单、也没在其他清单里的订单可以带入。',
@@ -487,7 +491,7 @@ return [
             'attached_hint' => '以下订单的收件人和货物按订单原样保留，不会被这份清单改动；确认提交后与上面新生成的订单一起交给客服建立预报单。',
             'attached_columns' => ['order_no' => '订单号', 'mark' => '唛头', 'consignee' => '收件人 / 电话', 'address' => '地址', 'fba' => 'FBA 货件编号', 'goods' => '品名', 'package_type' => '包装', 'cartons' => '箱数', 'weight' => '重量 (kg)', 'dims' => '尺寸 长×宽×高 (mm)', 'requested_date' => '要求送达日', 'status' => '状态'],
             'attached_count' => '带入 :count 张',
-            'actions' => ['add_row' => '添加一行', 'remove_row' => '删除此行', 'save_draft' => '保存草稿', 'preview' => '提交预览', 'continue' => '继续编辑', 'back' => '返回已提交清单'],
+            'actions' => ['copy_prev' => '收件信息同上一行', 'add_row' => '添加一行', 'remove_row' => '删除此行', 'save_draft' => '保存草稿', 'preview' => '提交预览', 'continue' => '继续编辑', 'back' => '返回已提交清单'],
             'messages' => [
                 'draft_saved' => '草稿已保存，可以随时回来继续编辑，再提交预览。',
                 'confirmed' => '已生成 :count 张订单，带入 :attached 张已有订单；客服将据此建立预报单。',
