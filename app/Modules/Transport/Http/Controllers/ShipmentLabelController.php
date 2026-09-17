@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ShipmentLabelController extends Controller
 {
-    public const ROLES = ['admin', 'customer_service', 'dispatcher', 'transport_operator'];
+    public const ROLES = ['admin', 'customer_service', 'dispatcher']; // CHANGE_REQUESTS #130: labels are printed by the planners, not the driver
 
     public function __invoke(Shipment $shipment, ShipmentLabelService $labels): Response
     {

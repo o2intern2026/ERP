@@ -59,7 +59,7 @@ class B9aCarrierCostMarginTest extends TestCase
 
     public function test_third_party_booking_records_quote_cost_and_exact_booked_event_once(): void
     {
-        $operator = $this->staff('transport_operator');
+        $operator = $this->staff('dispatcher');
         $shipment = $this->shipment('transdirect');
         $adapter = new B9aCarrierAdapter('transdirect', [
             'booking_ref' => 'TD-B9A-100',
@@ -158,7 +158,7 @@ class B9aCarrierCostMarginTest extends TestCase
 
     public function test_booking_refusals_from_the_adapter_and_the_gateway_render_in_chinese(): void
     {
-        $operator = $this->staff('transport_operator');
+        $operator = $this->staff('dispatcher');
 
         // Manual carrier without a human-entered reference: the adapter's InvalidArgumentException is caught by the
         // booking service and shown on the shipment page as 承运商预订失败：<Chinese reason>.
@@ -235,9 +235,9 @@ class B9aCarrierCostMarginTest extends TestCase
 
     public function test_own_fleet_is_booked_when_assigned_and_its_cost_is_entered_manually(): void
     {
-        $operator = $this->staff('transport_operator');
+        $operator = $this->staff('dispatcher');
         $shipment = $this->shipment('own_fleet');
-        $run = app(DeliveryRunService::class)->create('2026-09-10', $operator->id, 'VAN-B9A');
+        $run = app(DeliveryRunService::class)->create('2026-09-10', $this->staff('transport_operator')->id, 'VAN-B9A');
 
         $this->actingAs($operator)->post(route('transport.runs.stops.store', $run), [
             'shipment_id' => $shipment->id,

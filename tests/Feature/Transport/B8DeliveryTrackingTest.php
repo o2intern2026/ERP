@@ -178,7 +178,7 @@ class B8DeliveryTrackingTest extends TestCase
     {
         Mail::fake();
         Storage::fake('local');
-        $operator = $this->staff('transport_operator');
+        $operator = $this->staff('dispatcher');
         $shipment = $this->shipment(
             'transdirect',
             ['status' => 'booked', 'booking_ref' => 'TD-B8-POD'],
@@ -204,7 +204,7 @@ class B8DeliveryTrackingTest extends TestCase
 
     public function test_extra_charge_form_emits_the_contract_payload_for_billing(): void
     {
-        $operator = $this->staff('transport_operator');
+        $operator = $this->staff('dispatcher');
         $shipment = $this->shipment('own_fleet');
 
         $this->actingAs($operator)->post(route('transport.shipments.extra-charges.store', $shipment), [

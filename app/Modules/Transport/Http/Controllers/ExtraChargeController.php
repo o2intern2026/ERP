@@ -16,7 +16,7 @@ class ExtraChargeController extends Controller
 {
     public function __invoke(Request $request, Shipment $shipment, ExtraChargeService $service): RedirectResponse
     {
-        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher', 'transport_operator']);
+        RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher']); // CHANGE_REQUESTS #130: the dispatcher plans, the driver executes
         $validated = $request->validate([
             'charge_type' => ['required', 'string', Rule::in(ExtraChargeService::CHARGE_TYPES)],
             'qty' => ['required', 'numeric', 'gt:0'],

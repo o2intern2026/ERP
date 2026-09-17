@@ -129,6 +129,6 @@ class CarrierInvoiceController extends Controller
 
     private function authorizeInternal(Request $request): void
     {
-        RequiredRoles::requireAny(['admin', 'transport_operator', 'finance']);
+        RequiredRoles::requireAny(['admin', 'finance']); // CHANGE_REQUESTS #130: drivers no longer see carrier invoices
     }
 }

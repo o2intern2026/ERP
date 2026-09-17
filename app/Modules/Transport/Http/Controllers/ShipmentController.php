@@ -8,17 +8,25 @@ use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Services\ShipmentLabelService;
 use App\Modules\Transport\Services\ShipmentMarginService;
 use App\Modules\Transport\Services\ShipmentQuoteRequestFactory;
+use App\Support\Auth\RequiredRoles;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
 
 class ShipmentController extends Controller
 {
+    /**
+     * CHANGE_REQUESTS #130 (lead 2026-09-17): the shipment board, the shipment page and its 托运清单 show carrier cost, quotes and
+     * margin — every staff role except the driver (transport_operator) keeps its read access; client users never reach /transport.
+     */
+    public const VIEWER_ROLES = ['admin', 'customer_service', 'dispatcher', 'warehouse_supervisor', 'warehouse_operator', 'finance'];
+
     public function show(
         Shipment $shipment,
         ShipmentMarginService $margins,
         ShipmentLabelService $labels,
         ShipmentQuoteRequestFactory $requests,
     ): View {
+        RequiredRoles::requireAny(self::VIEWER_ROLES);
         $shipment->load([
             'client', 'job', 'carrier', 'selectedQuote', 'carrierCost', 'pods.podDocument', 'trackingEvents',
             'quotes' => fn ($query) => $query->with('carrier')->latest('id'),

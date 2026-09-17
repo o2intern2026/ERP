@@ -32,6 +32,7 @@
     <h2>{{ __('platform.jobs.panels') }}</h2>
     {{-- Audit 2026-09-10: cross-module links only for roles the target route group admits (Warehouse read group: routes.php); others see plain text. --}}
     @php($canOpenWarehouse = auth()->user()->hasAnyRole(['admin', 'warehouse_supervisor', 'warehouse_operator', 'dispatcher', 'customer_service', 'finance']))
+    @php($canOpenTransport = auth()->user()->hasAnyRole(['admin', 'customer_service', 'dispatcher', 'warehouse_supervisor', 'warehouse_operator', 'finance'])) {{-- CHANGE_REQUESTS #130: the shipment page shows cost / quotes — number as text for the driver --}}
     <div class="grid">
         <article>
             <header>{{ __('platform.jobs.panel_asns') }} <small class="text-muted">{{ $panels['asns']->count() }}</small></header>
@@ -57,7 +58,7 @@
         <article>
             <header>{{ __('platform.jobs.panel_shipments') }} <small class="text-muted">{{ $panels['shipments']->count() }}</small></header>
             @forelse ($panels['shipments'] as $s)
-                <p>@if (Route::has('transport.shipments.show'))<a href="{{ route('transport.shipments.show', $s->id) }}">{{ $s->shipment_no }}</a>@else{{ $s->shipment_no }}@endif · {!! \App\Support\Ui\StatusBadge::render('transport.statuses.', $s->status) !!} @if ($s->tracking_number)· {{ __('platform.jobs.tracking') }} {{ $s->tracking_number }}@endif</p>
+                <p>@if (Route::has('transport.shipments.show') && $canOpenTransport)<a href="{{ route('transport.shipments.show', $s->id) }}">{{ $s->shipment_no }}</a>@else{{ $s->shipment_no }}@endif · {!! \App\Support\Ui\StatusBadge::render('transport.statuses.', $s->status) !!} @if ($s->tracking_number)· {{ __('platform.jobs.tracking') }} {{ $s->tracking_number }}@endif</p>
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse
