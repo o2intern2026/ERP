@@ -83,6 +83,12 @@ return [
         'unit_weight' => '单件重量（kg）',
         'weight_total' => '重量（kg，整行合计）',
         'totals' => '合计 :qty 箱 · :kg kg',
+        // CHANGE_REQUESTS #129: the storage tier chosen per line when the order is placed — a tier, never a bin (the supervisor picks the location at putaway).
+        'storage_tier' => '存储等级',
+        'storage_tiers' => ['standard' => '标准', 'bottom' => '底层'],
+        'storage_tier_sources' => ['client' => '客户选择', 'staff' => '员工设置', 'value_rule' => '按单价预选'],
+        'storage_tier_hint' => '存储等级：贵重货可选“底层”（放货架最底层，不易碰撞，按周另收底层附加费），其余选“标准”；具体库位仍由仓库安排，提交后如需修改请联系客服。',
+        'storage_tier_surcharge' => '底层库位：比标准仓储高 :percent。',
     ],
     'addresses' => [
         'title' => '客户收件地址簿',
@@ -516,6 +522,9 @@ return [
             'collection_ready_date' => '可提货日期',
             'collection_notes' => '提货备注',
             'collection_import_id' => '门户清单',
+            // CHANGE_REQUESTS #129: 存储等级 on the order forms (row-aware) and the draft line add / edit forms.
+            'lines.*.storage_tier' => '第 :position 行货物的存储等级',
+            'storage_tier' => '存储等级',
         ],
         'messages' => [
             'collection.required_if' => '我方上门提货：请填写提货地址。',
@@ -555,6 +564,9 @@ return [
             'external_ref.unique' => '该客户已有相同的客户参考号。',
             'client_address_id.exists' => '所选常用地址不属于所选客户。',
             'asn_line_id.exists' => '所选 ASN 货物行不属于该客户。',
+            // CHANGE_REQUESTS #129
+            'lines.*.storage_tier.in' => '第 :position 行货物的存储等级只能选“标准”或“底层”。',
+            'storage_tier.in' => '存储等级只能选“标准”或“底层”。',
         ],
     ],
     'pickup' => [
@@ -678,6 +690,8 @@ return [
         'idempotency_hint' => '客户端生成的唯一键，重复提交返回同一订单',
         'errors' => ['unauthenticated' => 'Token 缺失、无效或已吊销。'],
         'messages' => ['issued' => 'Token “:name” 已签发。', 'revoked' => 'Token 已吊销。'],
+        // CHANGE_REQUESTS #129
+        'storage_tier_hint' => 'lines[].storage_tier 可选：standard（标准，默认）或 bottom（底层库位，按周另收底层附加费）；只选等级，具体库位由仓库安排。',
     ],
     'drafts' => [
         'nav' => 'PDF / 邮件读单',

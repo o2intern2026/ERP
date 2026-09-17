@@ -56,6 +56,7 @@ return [
         'declared_package' => '申报包裹',
         'tracking_number' => '追踪号',
         'tailgate' => '尾板车',
+        'storage_tier' => '存储等级', // CHANGE_REQUESTS #129: the tier chosen per line on the order page
     ],
     'sections' => [
         'instruction' => '订单信息',

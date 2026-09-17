@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
  */
 final class OrderFormRows
 {
+    /** Deliberately without `storage_tier` (CHANGE_REQUESTS #129): like the package type it is a <select> that always submits, so a tier alone is not content. */
     private const LINE_CONTENT = ['description_cn', 'description_en', 'carton_qty', 'unit_qty', 'actual_weight_kg', 'length_mm', 'width_mm', 'height_mm', 'cbm'];
 
     private const PACKAGE_CONTENT = ['qty', 'weight_kg', 'length_mm', 'width_mm', 'height_mm'];
@@ -33,5 +34,30 @@ final class OrderFormRows
             $kept = array_values(array_filter($rows, fn ($row) => is_array($row) && collect($fields)->contains(fn (string $field) => filled($row[$field] ?? null))));
             $request->merge([$key => $kept === [] ? null : $kept]);
         }
+    }
+
+    /**
+     * CHANGE_REQUESTS #129: who declared each line's storage tier. A validated line that carries a tier gets `$source` (`client` from the
+     * portal form / API, `staff` from the manual form); a line without one carries neither key, so the ASN default (standard, no source)
+     * applies when the goods are handed to Warehouse. The tier is a preference for the putaway check — never a location.
+     *
+     * @param  array<string, mixed>  $data  the validated form / API body
+     * @return array<string, mixed>
+     */
+    public static function withStorageTierSource(array $data, string $source): array
+    {
+        if (! is_array($data['lines'] ?? null)) {
+            return $data;
+        }
+
+        foreach ($data['lines'] as $index => $line) {
+            if (filled($line['storage_tier'] ?? null)) {
+                $data['lines'][$index]['storage_tier_source'] = $source;
+            } else {
+                unset($data['lines'][$index]['storage_tier'], $data['lines'][$index]['storage_tier_source']);
+            }
+        }
+
+        return $data;
     }
 }

@@ -5,6 +5,9 @@
     $prefix = $prefix ?? 'orders';
     $extended = $extended ?? false;
     $rows = array_values(array_filter((array) old('lines', []), 'is_array')) ?: [['package_type' => 'carton']]; // no pre-filled 箱数: a typed quantity is content (OrderFormRows)
+    // CHANGE_REQUESTS #129: the client's OWN bottom-level surcharge percent per warehouse (PortalStorageTier, customer price only) — the
+    // caller passes it; empty (no hint line) when the client's card does not price the tier or the staff form has no client selected yet.
+    $tierPercent = \App\Modules\Portal\Services\PortalStorageTier::summary(array_filter((array) ($tierSurcharge ?? [])));
 @endphp
 <p class="text-muted"><small>{{ __('orders.lines.hint') }}</small></p>
 <div class="overflow-auto">
@@ -13,6 +16,7 @@
             <th>{{ __($prefix.'.fields.description_cn') }}</th>
             <th>{{ __($prefix.'.fields.description_en') }}</th>
             <th>{{ __($prefix.'.fields.package_type') }}</th>
+            <th>{{ __('orders.lines.storage_tier') }}</th>
             <th>{{ __($prefix.'.fields.carton_qty') }}</th>
             @if ($extended)<th>{{ __('orders.fields.unit_qty') }}</th>@endif
             <th>{{ __('orders.lines.unit_weight') }}</th>
@@ -28,9 +32,10 @@
                 @include('orders::partials.goods-line-row', ['index' => $index, 'line' => $line, 'first' => $index === 0, 'extended' => $extended, 'prefix' => $prefix])
             @endforeach
         </tbody>
-        <tfoot><tr><td colspan="{{ $extended ? 12 : 10 }}"><small class="text-muted" id="goods-lines-total" data-template="{{ __('orders.lines.totals', ['qty' => ':qty', 'kg' => ':kg']) }}">{{ __('orders.lines.totals', ['qty' => 0, 'kg' => 0]) }}</small></td></tr></tfoot>
+        <tfoot><tr><td colspan="{{ $extended ? 13 : 11 }}"><small class="text-muted" id="goods-lines-total" data-template="{{ __('orders.lines.totals', ['qty' => ':qty', 'kg' => ':kg']) }}">{{ __('orders.lines.totals', ['qty' => 0, 'kg' => 0]) }}</small></td></tr></tfoot>
     </table>
 </div>
+<p class="text-muted" id="storage-tier-hint"><small>{{ __('orders.lines.storage_tier_hint') }}@if ($tierPercent !== null) {{ __('orders.lines.storage_tier_surcharge', ['percent' => $tierPercent]) }}@endif</small></p>
 <button type="button" class="secondary outline form-rows-add" id="add-goods-line">{{ __('orders.actions.add_line') }}</button>
 <template id="goods-line-template">@include('orders::partials.goods-line-row', ['index' => '__INDEX__', 'line' => [], 'first' => false, 'extended' => $extended, 'prefix' => $prefix])</template>
 <script>

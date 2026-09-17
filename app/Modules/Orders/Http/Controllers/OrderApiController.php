@@ -3,6 +3,7 @@
 namespace App\Modules\Orders\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Orders\Http\OrderFormRows;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderApiIdempotencyKey;
 use App\Modules\Orders\OrderEnums;
@@ -44,7 +45,7 @@ final class OrderApiController extends Controller
         if ($validator->fails()) {
             return response()->json(['error' => 'validation_failed', 'errors' => $validator->errors()->toArray()], 422);
         }
-        $data = $validator->validated();
+        $data = OrderFormRows::withStorageTierSource($validator->validated(), 'client'); // CHANGE_REQUESTS #129: a tier in the body is the client's declaration
         $data['client_id'] = $clientId; // the token decides the client, never the body
 
         try {
@@ -116,6 +117,7 @@ final class OrderApiController extends Controller
             'lines.*.width_mm' => ['nullable', 'integer', 'min:0'],
             'lines.*.height_mm' => ['nullable', 'integer', 'min:0'],
             'lines.*.cbm' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.storage_tier' => ['nullable', Rule::in(Enums::STORAGE_TIERS)], // CHANGE_REQUESTS #129: standard | bottom — the tier, never a bin
             'lines.*.asn_line_id' => ['nullable', 'integer', Rule::exists('asn_lines', 'id')->where(fn ($q) => $q->whereIn('asn_id', DB::table('asns')->where('client_id', $clientId)->select('id')))],
             'declared_packages' => ['nullable', 'required_if:order_type,pickup_deliver', 'array'],
             'declared_packages.*.package_type' => ['required', 'string', 'max:30'],
