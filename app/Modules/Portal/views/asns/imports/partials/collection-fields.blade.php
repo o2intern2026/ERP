@@ -31,7 +31,7 @@
             <label>{{ __('portal.inbound.collection.fields.postcode') }}<input type="text" name="collection[postcode]" maxlength="4" inputmode="numeric" value="{{ old('collection.postcode', $pickup['postcode'] ?? '') }}"></label>
         </div>
         <div class="grid">
-            <label>{{ __('portal.inbound.collection.fields.ready_date') }}<input type="date" name="collection_ready_date" min="{{ today()->toDateString() }}" value="{{ old('collection_ready_date', $defaults['collection_ready_date'] ?? '') }}"></label>
+            <label>{{ __('portal.inbound.collection.fields.ready_date') }}<input type="date" lang="en-AU" name="collection_ready_date" min="{{ today()->toDateString() }}" value="{{ old('collection_ready_date', $defaults['collection_ready_date'] ?? '') }}"></label>
             <label>{{ __('portal.inbound.collection.fields.notes') }}<input type="text" name="collection_notes" maxlength="2000" value="{{ old('collection_notes', $defaults['collection_notes'] ?? '') }}"></label>
         </div>
     </fieldset>

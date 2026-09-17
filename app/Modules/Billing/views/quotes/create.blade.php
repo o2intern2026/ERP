@@ -9,7 +9,7 @@
         <div class="grid">
             <label>{{ __('billing.quotes.client') }}<select name="client_id" required><option value="">—</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected(old('client_id') == $c->id)>{{ $c->name }}</option>@endforeach</select></label>
             <label>{{ __('billing.quotes.stage') }}<select name="stage">@foreach (\App\Support\Enums::QUOTE_STAGES as $s)<option value="{{ $s }}" @selected(old('stage', 'preliminary') === $s)>{{ __('billing.quotes.stages.'.$s) }}</option>@endforeach</select></label>
-            <label>{{ __('billing.quotes.valid_until') }}<input type="date" name="valid_until" value="{{ old('valid_until', today()->addDays(14)->toDateString()) }}"></label>
+            <label>{{ __('billing.quotes.valid_until') }}<input type="date" lang="en-AU" name="valid_until" value="{{ old('valid_until', today()->addDays(14)->toDateString()) }}"></label>
         </div>
         <fieldset>
             <legend>{{ __('billing.quotes.lines') }}</legend>

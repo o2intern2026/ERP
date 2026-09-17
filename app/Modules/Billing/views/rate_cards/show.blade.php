@@ -9,7 +9,7 @@
         <p>{{ $card->is_standard ? __('billing.rate_cards.standard') : $card->client?->name }} · {{ __('billing.rate_cards.effective_from') }} {{ $card->effective_from->format('Y-m-d') }} @if ($card->effective_to) → {{ $card->effective_to->format('Y-m-d') }} @endif · {{ $card->notes }}</p>
     </header>
     <div class="grid">
-        <form method="post" action="{{ route('billing.rate_cards.new_version', $card) }}" class="grid">@csrf<input type="date" name="effective_from" value="{{ today()->toDateString() }}" required><input type="text" name="notes" placeholder="{{ __('billing.rate_cards.notes') }}"><button type="submit" class="secondary">{{ __('billing.rate_cards.new_version') }}</button></form>
+        <form method="post" action="{{ route('billing.rate_cards.new_version', $card) }}" class="grid">@csrf<input type="date" lang="en-AU" name="effective_from" value="{{ today()->toDateString() }}" required><input type="text" name="notes" placeholder="{{ __('billing.rate_cards.notes') }}"><button type="submit" class="secondary">{{ __('billing.rate_cards.new_version') }}</button></form>
         @if ($card->status === 'draft')
             <div>
                 @if (! $approved)<form method="post" action="{{ route('billing.rate_cards.request_activation', $card) }}" class="inline">@csrf<button type="submit" class="secondary">{{ __('billing.rate_cards.request_activation') }}</button></form>@endif

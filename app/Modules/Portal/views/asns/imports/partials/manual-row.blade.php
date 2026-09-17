@@ -56,7 +56,7 @@
             </select></label>
             <label>{{ $label('deliver_to_postcode') }}<input name="{{ $name('deliver_to_postcode') }}" value="{{ $value('deliver_to_postcode') }}" maxlength="4" inputmode="numeric" placeholder="{{ $label('deliver_to_postcode') }}" aria-label="{{ $label('deliver_to_postcode') }}" {!! $invalid('deliver_to_postcode') !!}></label>
             <label>{{ $label('fba_reference') }}<input name="{{ $name('fba_reference') }}" value="{{ $value('fba_reference') }}" maxlength="100" placeholder="{{ $label('fba_reference') }}" aria-label="{{ $label('fba_reference') }}" {!! $invalid('fba_reference') !!}></label>
-            <label>{{ $label('requested_date') }}<input type="date" name="{{ $name('requested_date') }}" value="{{ $value('requested_date') }}" aria-label="{{ $label('requested_date') }}" {!! $invalid('requested_date') !!}></label>
+            <label>{{ $label('requested_date') }}<input type="date" lang="en-AU" name="{{ $name('requested_date') }}" value="{{ $value('requested_date') }}" aria-label="{{ $label('requested_date') }}" {!! $invalid('requested_date') !!}></label>
         </div>
     </div>
 </article>
