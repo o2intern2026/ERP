@@ -30,6 +30,7 @@ class ShipmentController extends Controller
         $shipment->load([
             'client', 'job', 'carrier', 'selectedQuote', 'carrierCost', 'pods.podDocument', 'trackingEvents',
             'quotes' => fn ($query) => $query->with('carrier')->latest('id'),
+            'extraCharges.reportedBy', 'redeliveryOf', 'redelivery', // CHANGE_REQUESTS #135 (audit TMS-11 / TMS-10)
         ]);
 
         // 2026-09-10 audit: the 人工报价 form is only offered for the stages whose booking request can be built (sender,
@@ -58,6 +59,8 @@ class ShipmentController extends Controller
                 ->get(),
             'manualQuoteStages' => $manualQuoteStages,
             'canPrintLabel' => $labels->available($shipment),
+            // CHANGE_REQUESTS #135 (audit TMS-10): after 创建重派运输单 the new page reminds the planner of the TR-REDELIVERY step on the original.
+            'redeliveryHintShipment' => session('redelivery_hint') !== null ? Shipment::query()->find((int) session('redelivery_hint')) : null,
         ]);
     }
 }

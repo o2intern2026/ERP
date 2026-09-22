@@ -84,13 +84,18 @@ class TransportAuditFixesTest extends TestCase
             ->post(route('transport.shipments.extra-charges.store', $shipment), ['charge_type' => 'waiting', 'qty' => 1, 'uom' => 'delivery', 'note' => 'x'])
             ->assertForbidden();
 
+        // CHANGE_REQUESTS #135 (audit TMS-11): the extra-charge form is offered from booking onward — not on a quote_confirmed shipment.
         $this->actingAs($this->staff('dispatcher'))->get(route('transport.shipments.show', $shipment))
             ->assertOk()
-            ->assertSee(route('transport.shipments.extra-charges.store', $shipment))
+            ->assertDontSee(route('transport.shipments.extra-charges.store', $shipment))
+            ->assertSee(__('transport.extra_charges.not_booked_hint'))
             ->assertSee(route('transport.shipments.book', $shipment))
             ->assertSee(route('transport.shipments.pod.store', $shipment));
 
         $ownFleet = $this->shipment('own_fleet', ['status' => 'booked']);
+        $this->actingAs($this->staff('dispatcher'))->get(route('transport.shipments.show', $ownFleet))
+            ->assertOk()
+            ->assertSee(route('transport.shipments.extra-charges.store', $ownFleet));
         $this->actingAs($this->staff('customer_service'))->get(route('transport.shipments.show', $ownFleet))
             ->assertOk()
             ->assertDontSee(route('transport.shipments.own-fleet-cost.store', $ownFleet));
@@ -138,25 +143,25 @@ class TransportAuditFixesTest extends TestCase
 
         $this->actingAs($this->staff('dispatcher'))
             ->from(route('transport.shipments.show', $shipment))
-            ->post(route('transport.shipments.quotes.manual', $shipment), [
+            ->post(route('transport.shipments.quotes.manual', $shipment), [ // CHANGE_REQUESTS #135 (audit TMS-03): dollars in the form
                 'carrier_service_id' => $service->id,
                 'quote_stage' => 'final',
-                'cost_cents' => 5000,
-                'customer_price_cents' => 60000,
+                'cost' => '50.00',
+                'customer_price' => '600.00',
                 'eta_days' => 3,
             ])
             ->assertRedirect(route('transport.shipments.show', $shipment))
             ->assertSessionHasErrors(['manual_quote' => __('transport.manual_quote.markup_too_high')])
-            ->assertSessionHasInput('cost_cents', '5000')
-            ->assertSessionHasInput('customer_price_cents', '60000');
+            ->assertSessionHasInput('cost', '50.00')
+            ->assertSessionHasInput('customer_price', '600.00');
         $this->assertDatabaseCount('transport_quotes', 0);
 
         $this->actingAs($this->staff('dispatcher'))
             ->post(route('transport.shipments.quotes.manual', $shipment), [
                 'carrier_service_id' => $service->id,
                 'quote_stage' => 'final',
-                'cost_cents' => 5000,
-                'customer_price_cents' => 54999,
+                'cost' => '50.00',
+                'customer_price' => '549.99',
                 'eta_days' => 3,
             ])
             ->assertSessionHasNoErrors();

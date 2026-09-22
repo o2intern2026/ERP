@@ -11,7 +11,7 @@ class Pod extends Model
 {
     protected $fillable = [
         'shipment_id', 'delivered_at', 'recipient_name', 'signature_document_id',
-        'photo_document_ids', 'pod_document_id', 'failure_reason', 'captured_by',
+        'photo_document_ids', 'pod_document_id', 'failure_reason', 'failure_note', 'captured_by',
     ];
 
     protected function casts(): array

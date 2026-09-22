@@ -59,6 +59,87 @@ class ShipmentQuoteRequestFactory
     }
 
     /**
+     * CHANGE_REQUESTS #135 (audit GAP-05): the From / Deliver-to parties of ANY delivery shipment for the consignment note, assembled
+     * the way build() assembles the carrier request but without requiring parcels or a complete address — a note with a partial
+     * address is still better than one with none. Collections: pickup party → the ASN's warehouse; orders: the order's warehouse
+     * (or pickup address for 提货直送) → the consignee, plus the order number and its delivery instructions.
+     *
+     * @return array{sender: array<string, mixed>, receiver: array<string, mixed>, order_no: ?string, instructions: ?string}
+     */
+    public function parties(Shipment $shipment): array
+    {
+        $empty = ['sender' => [], 'receiver' => [], 'order_no' => null, 'instructions' => null];
+        if ($shipment->asn_id !== null || $shipment->isCollection()) {
+            if (! Schema::hasTable('asns') || ! Schema::hasTable('warehouses')) {
+                return $empty;
+            }
+            $asn = DB::table('asns')->where('id', $shipment->asn_id)->first();
+            if ($asn === null) {
+                return $empty;
+            }
+            $warehouse = DB::table('warehouses')->where('id', $asn->warehouse_id)->first();
+            $address = is_string($asn->collection_address ?? null) ? json_decode($asn->collection_address, true) : (array) ($asn->collection_address ?? []);
+
+            return [
+                'sender' => self::collectionSender(is_array($address) ? $address : []),
+                'receiver' => $warehouse === null ? [] : (self::partyForWarehouse($warehouse) ?? self::warehouseParty($warehouse)),
+                'order_no' => null,
+                'instructions' => isset($asn->collection_notes) ? (string) $asn->collection_notes : null,
+            ];
+        }
+        if (! Schema::hasTable('orders')) {
+            return $empty;
+        }
+        $order = DB::table('orders')->where('id', $shipment->order_id)->first();
+        if ($order === null) {
+            return $empty;
+        }
+
+        $sender = $this->sender($order, $shipment);
+        if ($sender === null && ($order->order_type ?? null) !== 'pickup_deliver' && Schema::hasTable('warehouses')) {
+            $warehouseId = ($shipment->fulfilment_id === null || ! Schema::hasTable('fulfilments')
+                ? null
+                : DB::table('fulfilments')->where('id', $shipment->fulfilment_id)->value('warehouse_id'))
+                ?? $this->defaultWarehouseId((int) $shipment->order_id);
+            $warehouse = $warehouseId === null ? null : DB::table('warehouses')->where('id', $warehouseId)->first();
+            $sender = $warehouse === null ? null : self::warehouseParty($warehouse);
+        }
+
+        return [
+            'sender' => $sender ?? [],
+            'receiver' => [
+                'name' => $order->deliver_to_name,
+                'company_name' => $order->deliver_to_name,
+                'phone' => $order->deliver_to_phone,
+                'email' => null,
+                'address' => $order->deliver_to_address,
+                'suburb' => $order->deliver_to_suburb,
+                'state' => $order->deliver_to_state,
+                'postcode' => $order->deliver_to_postcode,
+                'type' => $order->deliver_to_address_type ?? 'business',
+            ],
+            'order_no' => isset($order->order_no) ? (string) $order->order_no : null,
+            'instructions' => isset($order->delivery_instructions) ? (string) $order->delivery_instructions : null,
+        ];
+    }
+
+    /** partyForWarehouse() without its completeness gate — for printing, an incomplete warehouse address still names the warehouse. */
+    private static function warehouseParty(object $warehouse): array
+    {
+        return [
+            'name' => $warehouse->name,
+            'company_name' => $warehouse->name,
+            'phone' => $warehouse->phone ?? null,
+            'email' => null,
+            'address' => $warehouse->address,
+            'suburb' => $warehouse->suburb ?? '',
+            'state' => $warehouse->state,
+            'postcode' => $warehouse->postcode ?? '',
+            'type' => 'business',
+        ];
+    }
+
+    /**
      * 我方上门提货 (CHANGE_REQUESTS #124): the request for an inbound collection is read from the 预报单 (Warehouse's `asns`, query
      * builder — the same read-only projection as orders): sender = the pickup address, receiver = the ASN's warehouse, items = the
      * declared packages or, when none, the goods lines with cartons × weight / dims; the zone is the PICKUP postcode and the

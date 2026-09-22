@@ -64,12 +64,23 @@ class DriverController extends Controller
     {
         $this->authorizeDriver();
         $this->authorizeStop($request, $runStop);
+        // CHANGE_REQUESTS #135 (audit TMS-09): an optional note (the service requires it for 其他) and optional photos — the same
+        // rules as the POD photos, so the phone page compresses them the same way.
         $validated = $request->validate([
             'failure_reason' => ['required', 'string', Rule::in(DriverPodService::FAILURE_REASONS)],
+            'failure_note' => ['nullable', 'string', 'max:1000'],
+            'photos' => ['nullable', 'array', 'max:5'],
+            'photos.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ], TransportValidation::messages(), TransportValidation::attributes());
 
         try {
-            $service->fail($runStop, $request->user(), $validated['failure_reason']);
+            $service->fail(
+                $runStop,
+                $request->user(),
+                $validated['failure_reason'],
+                $validated['failure_note'] ?? null,
+                array_values($validated['photos'] ?? []),
+            );
         } catch (DomainException $exception) {
             return back()->withInput()->withErrors(['failure_reason' => $exception->getMessage()]);
         }

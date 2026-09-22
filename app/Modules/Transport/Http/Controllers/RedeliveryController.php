@@ -22,8 +22,10 @@ class RedeliveryController extends Controller
             return back()->withErrors(['redelivery' => $exception->getMessage()]);
         }
 
+        // CHANGE_REQUESTS #135 (audit TMS-10): the fee is a separate manual step — the new page says so and links the original's form.
         return redirect()
             ->route('transport.shipments.show', $redelivery)
-            ->with('status', __('transport.redelivery.created'));
+            ->with('status', __('transport.redelivery.created'))
+            ->with('redelivery_hint', $shipment->id);
     }
 }

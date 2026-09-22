@@ -8,6 +8,7 @@ use App\Modules\Transport\Http\TransportValidation;
 use App\Modules\Transport\Models\CarrierInvoice;
 use App\Modules\Transport\Services\CarrierInvoiceService;
 use App\Support\Auth\RequiredRoles;
+use App\Support\Money;
 use DomainException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -44,9 +45,10 @@ class CarrierInvoiceController extends Controller
             'invoice_no' => ['required', 'string', 'max:255'],
             'period_from' => ['required', 'date_format:Y-m-d'],
             'period_to' => ['required', 'date_format:Y-m-d', 'after_or_equal:period_from'],
-            'total_cents' => ['required', 'integer', 'min:0'],
+            'total' => ['required', 'numeric', 'decimal:0,2', 'min:0'], // CHANGE_REQUESTS #135 (audit TMS-03): dollars in, cents stored
             'statement' => ['required', 'file', 'mimes:csv,txt', 'max:10240'],
         ], TransportValidation::messages(), TransportValidation::attributes());
+        $total = Money::fromDecimal($data['total']);
 
         try {
             $invoice = $invoices->import(
@@ -54,7 +56,7 @@ class CarrierInvoiceController extends Controller
                 $data['invoice_no'],
                 $data['period_from'],
                 $data['period_to'],
-                (int) $data['total_cents'],
+                $total->cents,
                 $data['statement'],
                 $request->user()?->id,
             );
@@ -63,7 +65,7 @@ class CarrierInvoiceController extends Controller
         }
 
         return redirect()->route('transport.carrier-invoices.show', $invoice)
-            ->with('status', __('transport.reconciliation.imported'));
+            ->with('status', __('transport.reconciliation.imported_total', ['amount' => $total->format()]));
     }
 
     public function show(Request $request, CarrierInvoice $carrierInvoice): View
