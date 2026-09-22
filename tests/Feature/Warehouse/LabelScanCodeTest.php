@@ -37,7 +37,10 @@ class LabelScanCodeTest extends TestCase
         foreach (['ASN-20260921-0003-L17-01', 'ASN-20260921-0003-L17-DMG', 'MEL-RCV-01-01'] as $full) {
             $this->assertGreaterThan(LabelService::PRINTABLE_WIDTH_PX, LabelService::barcodeWidthPx($full), "$full is why the barcode carries the short token");
         }
-        $this->assertMatchesRegularExpression('/width:'.(int) LabelService::barcodeWidthPx('U12').'px/', app(LabelService::class)->barcode('U12'));
+        // CRAWL-01 (CR #141): the barcode is one PNG <img> at the same rendered width, not ~100 positioned divs.
+        $barcode = app(LabelService::class)->barcode('U12');
+        $this->assertMatchesRegularExpression('/^<img class="barcode-img" src="data:image\/png;base64,[A-Za-z0-9+\/=]+" width="'.(int) LabelService::barcodeWidthPx('U12').'"/', $barcode);
+        $this->assertSame(1, substr_count($barcode, '<'), 'a single element per barcode');
 
         $this->actingAs($this->staff('warehouse_supervisor'));
         $client = $this->client();

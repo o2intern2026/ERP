@@ -9,6 +9,7 @@ use App\Modules\Warehouse\Models\Container;
 use App\Modules\Warehouse\Models\PhysicalContainer;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Modules\Warehouse\Models\WarehouseTask;
+use App\Support\Contracts\RateService;
 use App\Support\Enums;
 use App\Support\Exceptions\RuleViolation;
 use App\Support\Outbox\OutboxPublisher;
@@ -67,6 +68,107 @@ final class PhysicalContainerService
                 'created_by' => $data['created_by'] ?? auth()->id(),
             ]);
         });
+    }
+
+    /**
+     * 修改物理柜 (audit 2026-09-22 INBOUND-16, CR #141): every header field is editable while the box has not arrived — 我方拖车 / 侧卸车 drive the
+     * cartage / sideloader charges that 登记到港 raises, so a wrong flag must be correctable before the event. The warehouse changes only while no
+     * member is linked (members must sit in the box's warehouse). Same duplicate rules as create(). The model's activity log records the change.
+     *
+     * @param  array{container_no?:string, warehouse_id?:int, size?:string, unpack_mode?:string, gross_weight_kg?:?float, allocation_basis?:?string, cartage_by_us?:bool, sideloader_required?:bool, eta_date?:?string, notes?:?string}  $data
+     */
+    public function update(PhysicalContainer $box, array $data): PhysicalContainer
+    {
+        return DB::transaction(function () use ($box, $data): PhysicalContainer {
+            $box = PhysicalContainer::query()->lockForUpdate()->findOrFail($box->id);
+            if ($box->arrived_at !== null || $box->hasEmitted()) {
+                throw new RuleViolation("Physical container {$box->container_no} has arrived / been billed; the header is locked.", 'warehouse.physical_containers.errors.locked_after_arrival', ['no' => $box->container_no]);
+            }
+            $no = strtoupper(trim($data['container_no'] ?? $box->container_no));
+            $warehouseId = (int) ($data['warehouse_id'] ?? $box->warehouse_id);
+            if ($warehouseId !== (int) $box->warehouse_id && $box->members()->exists()) {
+                throw new RuleViolation("Physical container {$box->container_no} has members; the warehouse cannot change.", 'warehouse.physical_containers.errors.warehouse_change_with_members', ['no' => $box->container_no]);
+            }
+            $eta = array_key_exists('eta_date', $data) ? (filled($data['eta_date']) ? $data['eta_date'] : null) : $box->eta_date?->toDateString();
+            $basis = $data['allocation_basis'] ?? $box->allocation_basis;
+            if (! in_array($basis, Enums::ALLOCATION_BASES, true)) {
+                throw new RuleViolation("Unknown allocation basis {$basis}.", 'warehouse.physical_containers.errors.invalid_basis');
+            }
+            $open = PhysicalContainer::query()->whereKeyNot($box->id)->where('container_no', $no)->where('warehouse_id', $warehouseId)->whereIn('status', ['expected', 'arrived'])->exists();
+            if ($open) {
+                throw new RuleViolation("Physical container {$no} is already registered and not yet devanned.", 'warehouse.physical_containers.errors.already_open', ['no' => $no]);
+            }
+            if (PhysicalContainer::query()->whereKeyNot($box->id)->where('container_no', $no)->where('eta_date', $eta)->exists()) {
+                throw new RuleViolation("Physical container {$no} with ETA {$eta} already exists.", 'warehouse.physical_containers.errors.duplicate_voyage', ['no' => $no, 'eta' => $eta ?? '—']);
+            }
+
+            $box->fill([
+                'container_no' => $no,
+                'warehouse_id' => $warehouseId,
+                'size' => $data['size'] ?? $box->size,
+                'unpack_mode' => $data['unpack_mode'] ?? $box->unpack_mode,
+                'gross_weight_kg' => array_key_exists('gross_weight_kg', $data) ? (filled($data['gross_weight_kg']) ? (float) $data['gross_weight_kg'] : null) : $box->gross_weight_kg,
+                'allocation_basis' => $basis,
+                'cartage_by_us' => array_key_exists('cartage_by_us', $data) ? (bool) $data['cartage_by_us'] : $box->cartage_by_us,
+                'sideloader_required' => array_key_exists('sideloader_required', $data) ? (bool) $data['sideloader_required'] : $box->sideloader_required,
+                'eta_date' => $eta,
+                'notes' => array_key_exists('notes', $data) ? $data['notes'] : $box->notes,
+            ]);
+            $box->save();
+
+            return $box;
+        });
+    }
+
+    /** 删除物理柜 (CR #141): only an empty shell — no member rows, nothing emitted, no devanning task registered. */
+    public function delete(PhysicalContainer $box): void
+    {
+        DB::transaction(function () use ($box): void {
+            $box = PhysicalContainer::query()->lockForUpdate()->findOrFail($box->id);
+            $hasTask = WarehouseTask::query()->withoutGlobalScopes()->where('physical_container_id', $box->id)->where('status', '!=', 'cancelled')->exists();
+            if ($box->members()->exists() || $box->hasEmitted() || $box->arrived_at !== null || $hasTask) {
+                throw new RuleViolation("Physical container {$box->container_no} has members, a task or emitted events; it cannot be deleted.", 'warehouse.physical_containers.errors.cannot_delete', ['no' => $box->container_no]);
+            }
+            $box->delete();
+        });
+    }
+
+    /**
+     * What 登记到港 will raise, for the confirmation page (CR #141): per member Job the cartage code of the box's size (when 我方拖车) and
+     * TR-SIDELOADER (when 需要侧卸车), each at the member's share, priced through the public RateService so the coordinator sees the amount
+     * or 缺费率 before the event goes out. Nothing is written.
+     *
+     * @return array{shares:?array<string, mixed>, codes:list<string>, lines:list<array{job_id:int, client_id:int, asn_no:string, code:string, share:float, amount_cents:?int, missing_rate:bool, is_poa:bool}>, over_weight:bool}
+     */
+    public function arrivalPreview(PhysicalContainer $box, RateService $rates): array
+    {
+        $codes = [];
+        if ($box->cartage_by_us) {
+            $codes[] = 'TR-CARTAGE-'.$box->size;
+        }
+        if ($box->sideloader_required) {
+            $codes[] = 'TR-SIDELOADER';
+        }
+        try {
+            $shares = $box->members()->exists() ? $this->shares($box) : null;
+        } catch (RuleViolation) {
+            $shares = null;
+        }
+        $lines = [];
+        foreach ($shares['members'] ?? [] as $m) {
+            foreach ($codes as $code) {
+                $context = ['container_size' => $box->size, 'unpack_mode' => $m['unpack_mode'], 'gross_weight_kg' => $box->gross_weight_kg !== null ? (float) $box->gross_weight_kg : null, 'allocated' => true, 'share' => $m['share']];
+                try {
+                    $priced = $rates->price((int) $m['client_id'], $code, (float) $m['share'], array_filter($context, fn ($v) => $v !== null));
+                } catch (\Throwable) {
+                    $priced = ['amount_cents' => null, 'missing_rate' => true, 'is_poa' => false];
+                }
+                $lines[] = ['job_id' => (int) $m['job_id'], 'client_id' => (int) $m['client_id'], 'asn_no' => $m['asn_no'], 'code' => $code, 'share' => (float) $m['share'],
+                    'amount_cents' => $priced['amount_cents'] ?? null, 'missing_rate' => (bool) ($priced['missing_rate'] ?? false), 'is_poa' => (bool) ($priced['is_poa'] ?? false)];
+            }
+        }
+
+        return ['shares' => $shares, 'codes' => $codes, 'lines' => $lines, 'over_weight' => $box->gross_weight_kg !== null && (float) $box->gross_weight_kg > 22500];
     }
 
     /**

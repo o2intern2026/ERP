@@ -52,7 +52,7 @@ class StockShortageTest extends TestCase
             ->assertSee(__('orders.fulfilments.shortage_banner'))->assertSee('缺 6 箱');
 
         // B: refusals are Chinese — releasing with a client filter that matches nothing.
-        $this->actingAs($operator)->post(route('warehouse.outbound.waves.release'), ['warehouse_id' => $warehouse->id, 'client_id' => 999999])
+        $this->actingAs($operator)->post(route('warehouse.outbound.waves.release'), ['warehouse_id' => $warehouse->id, 'client_id' => 999999, 'order_ids' => [999999]])
             ->assertSessionHasErrors(['warehouse_id' => __('warehouse.outbound.errors.no_candidates')]);
 
         // More stock for the same ASN line arrives and is put away → the backorder is allocated and the exception closes itself.

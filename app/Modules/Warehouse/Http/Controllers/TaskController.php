@@ -17,12 +17,61 @@ use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
 /** B12 core: VAS / devanning / labour tasks — create against an ASN, an order or a shared physical container (#122), complete with billable quantity → task.completed. */
 class TaskController extends Controller
 {
+    /** The completion fields of a VAS record — shared by 完成 on the list and 现在完成 on the create page (audit 2026-09-22 INBOUND-07, CR #141). */
+    private const COMPLETION_RULES = [
+        'billable_qty' => ['nullable', 'numeric', 'min:0'],
+        'billable_uom' => ['nullable', 'in:container,pallet,carton,scan,man_hour,cbm,label'],
+        'hours_business' => ['nullable', 'numeric', 'min:0'],
+        'hours_after_hours' => ['nullable', 'numeric', 'min:0'],
+        'scan_count' => ['nullable', 'integer', 'min:0'],
+        'serials' => ['nullable', 'string', 'max:20000'],
+    ];
+
+    /**
+     * The Chinese refusal when the billable figure a task type needs is missing: wrap / waste → billable_qty > 0; labour / vas_other →
+     * hours_business + hours_after_hours > 0; scanning → scan_count > 0 or serials. Devanning defaults to one container (null = fine).
+     *
+     * @param  array<string, mixed>  $input
+     */
+    public static function completionError(string $taskType, array $input): ?string
+    {
+        $hours = (float) ($input['hours_business'] ?? 0) + (float) ($input['hours_after_hours'] ?? 0);
+
+        return match ($taskType) {
+            'wrap', 'waste' => (float) ($input['billable_qty'] ?? 0) > 0 ? null : __('warehouse.tasks.quantity_required.qty', ['type' => __('warehouse.task_types.'.$taskType)]),
+            'labour', 'vas_other' => $hours > 0 ? null : __('warehouse.tasks.quantity_required.hours', ['type' => __('warehouse.task_types.'.$taskType)]),
+            'scanning' => (int) ($input['scan_count'] ?? 0) > 0 || filled($input['serials'] ?? null) ? null : __('warehouse.tasks.quantity_required.scans'),
+            default => null,
+        };
+    }
+
+    /**
+     * The validated completion fields as TaskService::complete wants them: empty values dropped, serials split, devanning defaulted to one container.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function completionData(array $data, string $taskType): array
+    {
+        $completion = array_intersect_key($data, array_flip([...array_keys(self::COMPLETION_RULES), 'notes']));
+        if ($taskType === 'devanning') {
+            $completion += ['billable_qty' => 1, 'billable_uom' => 'container'];
+        }
+        if (! empty($completion['serials'])) {
+            $completion['serials'] = preg_split('/[\r\n,;]+/', $completion['serials']) ?: [];
+        }
+
+        return array_filter($completion, fn ($v) => $v !== null && $v !== '');
+    }
+
     public function index(Request $request): View
     {
         $filters = $request->validate(['status' => ['nullable', Rule::in(Enums::TASK_STATUSES)], 'task_type' => ['nullable', Rule::in(Enums::TASK_TYPES)]]);
@@ -58,6 +107,7 @@ class TaskController extends Controller
             'orders' => Order::query()->with('client')->whereNotIn('operational_status', ['cancelled'])->orderByDesc('id')->limit(200)->get(['id', 'order_no', 'client_id', 'job_id', 'operational_status']),
             'physicalContainers' => PhysicalContainer::query()->with('warehouse')->whereNull('devanning_task_id')->where('status', '!=', 'devanned')->orderByDesc('id')->limit(100)->get(),
             'types' => Enums::VAS_TASK_TYPES,
+            'uoms' => Enums::BILLABLE_UOMS,
             'selectedAsn' => $request->integer('asn_id') ?: null,
             'selectedOrder' => $request->integer('order_id') ?: null,
             'selectedPhysicalContainer' => $request->integer('physical_container_id') ?: null,
@@ -67,17 +117,26 @@ class TaskController extends Controller
 
     public function store(Request $request, TaskService $tasks, PhysicalContainerService $boxes): RedirectResponse
     {
-        $data = $request->validate([
+        $validator = Validator::make($request->all(), [
             'asn_id' => ['nullable', 'integer', 'required_without_all:order_id,physical_container_id', Rule::exists('asns', 'id')],
             'order_id' => ['nullable', 'integer', 'required_without_all:asn_id,physical_container_id', Rule::exists('orders', 'id')],
             'physical_container_id' => ['nullable', 'integer', Rule::exists('physical_containers', 'id')],
             'container_id' => ['nullable', 'integer', Rule::exists('containers', 'id')],
             'task_type' => ['required', Rule::in(Enums::VAS_TASK_TYPES)],
             'notes' => ['nullable', 'string', 'max:1000'],
-        ], [
+            'complete_now' => ['nullable', 'boolean'], // 现在完成 (audit 2026-09-22 INBOUND-07, CR #141): create + complete in one step
+        ] + self::COMPLETION_RULES, [
             'asn_id.required_without_all' => __('warehouse.tasks.source_required'), 'order_id.required_without_all' => __('warehouse.tasks.source_required'),
             'task_type.in' => __('warehouse.tasks.type_not_manual'),
         ]);
+        $validator->after(function ($v) use ($request) {
+            if ($request->boolean('complete_now') && ($error = self::completionError((string) $request->input('task_type'), $request->all())) !== null) {
+                $v->errors()->add('billable_qty', $error);
+            }
+        });
+        $data = $validator->validate();
+        $completeNow = (bool) ($data['complete_now'] ?? false);
+        $completion = $completeNow ? $this->completionData($data, (string) $data['task_type']) : null;
 
         if (! empty($data['physical_container_id'])) {
             // 拼柜 / 物理柜 (CHANGE_REQUESTS #122): the ONE devanning task of the box; job / client NULL, members carry the split.
@@ -86,12 +145,16 @@ class TaskController extends Controller
             }
             $box = PhysicalContainer::query()->findOrFail($data['physical_container_id']);
             try {
-                $task = $boxes->registerDevanning($box, $data['notes'] ?? null);
+                $task = DB::transaction(function () use ($boxes, $tasks, $box, $data, $completion): WarehouseTask {
+                    $task = $boxes->registerDevanning($box, $data['notes'] ?? null);
+
+                    return $completion === null ? $task : $tasks->complete($task, $completion, $box->container_no);
+                });
             } catch (InvalidArgumentException $e) {
                 return back()->withInput()->withErrors(['physical_container_id' => RuleViolation::display($e)]);
             }
 
-            return redirect()->route('warehouse.physical_containers.show', $box)->with('status', __('warehouse.tasks.created', ['task_no' => $task->task_no]));
+            return redirect()->route('warehouse.physical_containers.show', $box)->with('status', __($completion === null ? 'warehouse.tasks.created' : 'warehouse.tasks.created_completed', ['task_no' => $task->task_no]));
         }
 
         if (! empty($data['asn_id'])) {
@@ -123,9 +186,13 @@ class TaskController extends Controller
             ];
         }
 
-        $task = $tasks->create($data['task_type'], $attributes + ['notes' => $data['notes'] ?? null]);
+        $task = DB::transaction(function () use ($tasks, $data, $attributes, $completion): WarehouseTask {
+            $task = $tasks->create($data['task_type'], $attributes + ['notes' => $data['notes'] ?? null]);
 
-        return redirect()->route('warehouse.tasks.index')->with('status', __('warehouse.tasks.created', ['task_no' => $task->task_no]));
+            return $completion === null ? $task : $tasks->complete($task, $completion, $task->asn?->asn_no);
+        });
+
+        return redirect()->route('warehouse.tasks.index')->with('status', __($completion === null ? 'warehouse.tasks.created' : 'warehouse.tasks.created_completed', ['task_no' => $task->task_no]));
     }
 
     public function complete(Request $request, WarehouseTask $task, TaskService $tasks): RedirectResponse
@@ -139,27 +206,17 @@ class TaskController extends Controller
             return back()->withErrors(['task' => __('warehouse.tasks.not_pending', ['task_no' => $task->task_no])]);
         }
 
-        $data = $request->validate([
-            'billable_qty' => ['nullable', 'numeric', 'min:0'],
-            'billable_uom' => ['nullable', Rule::in(Enums::BILLABLE_UOMS)],
-            'hours_business' => ['nullable', 'numeric', 'min:0'],
-            'hours_after_hours' => ['nullable', 'numeric', 'min:0'],
-            'scan_count' => ['nullable', 'integer', 'min:0'],
-            'serials' => ['nullable', 'string', 'max:20000'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        // Devanning is always one container; default the billing quantity so the operator cannot forget it.
-        if ($task->task_type === 'devanning') {
-            $data += ['billable_qty' => 1, 'billable_uom' => 'container'];
-        }
-
-        if (! empty($data['serials'])) {
-            $data['serials'] = preg_split('/[\r\n,;]+/', $data['serials']) ?: [];
-        }
+        $validator = Validator::make($request->all(), self::COMPLETION_RULES + ['notes' => ['nullable', 'string', 'max:1000']]);
+        // Audit 2026-09-22 INBOUND-07 (CR #141): a VAS record completed with an empty quantity billed nothing and warned nobody — the billable figure is required per type.
+        $validator->after(function ($v) use ($request, $task) {
+            if (($error = self::completionError($task->task_type, $request->all())) !== null) {
+                $v->errors()->add('billable_qty', $error);
+            }
+        });
+        $data = $validator->validate();
 
         try {
-            $tasks->complete($task, array_filter($data, fn ($v) => $v !== null && $v !== ''), $task->asn?->asn_no);
+            $tasks->complete($task, $this->completionData($data, $task->task_type), $task->asn?->asn_no);
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['task' => RuleViolation::display($e)]);
         }

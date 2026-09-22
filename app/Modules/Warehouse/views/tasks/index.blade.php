@@ -40,13 +40,14 @@
                             @if ($open && $isVas)
                                 <form method="post" action="{{ route('warehouse.tasks.complete', $t) }}" class="inline">
                                     @csrf
+                                    {{-- Audit 2026-09-22 INBOUND-07 (CR #141): the billable figure is required (the server refuses an empty one in Chinese). --}}
                                     @if ($t->task_type === 'labour' || $t->task_type === 'vas_other')
-                                        <input type="number" step="0.25" min="0" name="hours_business" placeholder="{{ __('warehouse.tasks.hours_business') }}" style="width:7rem">
-                                        <input type="number" step="0.25" min="0" name="hours_after_hours" placeholder="{{ __('warehouse.tasks.hours_after_hours') }}" style="width:7rem">
+                                        <input type="number" step="0.25" min="0" name="hours_business" placeholder="{{ __('warehouse.tasks.hours_business') }}" style="width:7rem" aria-label="{{ __('warehouse.tasks.hours_business') }}">
+                                        <input type="number" step="0.25" min="0" name="hours_after_hours" placeholder="{{ __('warehouse.tasks.hours_after_hours') }}" style="width:7rem" aria-label="{{ __('warehouse.tasks.hours_after_hours') }}">
                                     @elseif ($t->task_type === 'scanning')
-                                        <input type="number" min="0" name="scan_count" placeholder="{{ __('warehouse.tasks.scan_count') }}" style="width:7rem">
+                                        <input type="number" min="1" name="scan_count" placeholder="{{ __('warehouse.tasks.scan_count') }}" style="width:7rem" aria-label="{{ __('warehouse.tasks.scan_count') }}" required>
                                     @elseif ($t->task_type !== 'devanning')
-                                        <input type="number" step="0.001" min="0" name="billable_qty" placeholder="{{ __('warehouse.tasks.billable_qty') }}" style="width:7rem">
+                                        <input type="number" step="0.001" min="0.001" name="billable_qty" placeholder="{{ __('warehouse.tasks.billable_qty') }}" style="width:7rem" aria-label="{{ __('warehouse.tasks.billable_qty') }}" required>
                                         <select name="billable_uom" style="width:8rem">@foreach ($uoms as $u)<option value="{{ $u }}" @selected($u === ($t->task_type === 'waste' ? 'cbm' : 'pallet'))>{{ __('warehouse.uoms.'.$u) }}</option>@endforeach</select>
                                     @endif
                                     <button type="submit">{{ __('warehouse.tasks.complete') }}</button>

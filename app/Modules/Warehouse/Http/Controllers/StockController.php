@@ -10,6 +10,7 @@ use App\Modules\Warehouse\Models\StockUnit;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Services\MoveService;
 use App\Modules\Warehouse\Services\QuarantineService;
+use App\Modules\Warehouse\Services\UnitCorrectionService;
 use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Enums;
 use App\Support\Exceptions\RuleViolation;
@@ -78,7 +79,32 @@ class StockController extends Controller
             'unit' => $unit->load(['asnLine.asn.job', 'asnLine.asn.client', 'location', 'warehouse']),
             'ledger' => $unit->ledger()->orderBy('id')->get(),
             'reservations' => $unit->reservations()->orderByDesc('id')->get(),
+            'palletSources' => Enums::PALLET_SOURCES,
+            'palletClasses' => Enums::PALLET_CLASSES,
         ]);
+    }
+
+    /** 修改单元信息 (admin | warehouse_supervisor, route middleware): pallet source / dims / weight after receiving — UnitCorrectionService (audit 2026-09-22 INBOUND-05, CR #141). */
+    public function update(Request $request, StockUnit $unit, UnitCorrectionService $corrections): RedirectResponse
+    {
+        $data = $request->validate([
+            'pallet_source' => ['nullable', Rule::in(Enums::PALLET_SOURCES)],
+            'length_mm' => ['nullable', 'integer', 'min:1'], 'width_mm' => ['nullable', 'integer', 'min:1'], 'height_mm' => ['nullable', 'integer', 'min:1'],
+            'weight_kg' => ['nullable', 'numeric', 'min:0'],
+            'pallet_class' => ['nullable', Rule::in(Enums::PALLET_CLASSES)],
+            'reason' => ['required', 'string', 'max:255'],
+        ]);
+
+        try {
+            $changes = $corrections->correct($unit, $data, $data['reason'], auth()->id());
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['correct' => RuleViolation::display($e)])->withInput();
+        }
+
+        $labels = ['pallet_source' => 'warehouse.stock.pallet_source', 'length_mm' => 'warehouse.receiving.length', 'width_mm' => 'warehouse.receiving.width', 'height_mm' => 'warehouse.receiving.height', 'weight_kg' => 'warehouse.stock.weight', 'pallet_class' => 'warehouse.stock.pallet_class'];
+        $summary = collect($changes)->except('pallet_class_overridden_reason')->map(fn ($c, $field) => __($labels[$field]).' '.($c[0] ?? '—').' → '.($c[1] ?? '—'))->implode('; ');
+
+        return back()->with('status', __('warehouse.stock.correct.done', ['label' => $unit->label_code, 'changes' => $summary]));
     }
 
     public function move(Request $request, StockUnit $unit, MoveService $moves): RedirectResponse

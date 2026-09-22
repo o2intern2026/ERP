@@ -42,6 +42,14 @@ class Location extends Model
         return ScanCodes::whereLocation($query, $code);
     }
 
+    /** Is $value inside the inclusive from–to range of zone / aisle / bin codes? Numeric codes compare as numbers, others case-insensitively; an empty bound is open. */
+    public static function codeBetween(string $value, ?string $from, ?string $to): bool
+    {
+        $cmp = fn (string $a, string $b): int => ctype_digit($a) && ctype_digit($b) ? ((int) $a <=> (int) $b) : strcasecmp($a, $b);
+
+        return (! filled($from) || $cmp($value, trim($from)) >= 0) && (! filled($to) || $cmp($value, trim($to)) <= 0);
+    }
+
     public static function buildFullCode(string $warehouseCode, string $zone, string $aisle, string $bin): string
     {
         return strtoupper(implode('-', [$warehouseCode, $zone, $aisle, $bin]));

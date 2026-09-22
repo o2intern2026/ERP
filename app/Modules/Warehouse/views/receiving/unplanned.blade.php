@@ -42,21 +42,28 @@
         <fieldset>
             <legend>{{ __('warehouse.receiving.unplanned.rows') }}</legend>
             @error('rows')<p><mark>{{ $message }}</mark></p>@enderror
+            {{-- Audit 2026-09-22 INBOUND-05 (CR #141): 全部设为 unit type / 托盘来源 for every row. --}}
+            <div class="grid" id="set-all">
+                <label>{{ __('warehouse.receiving.set_all') }}
+                    <select id="set-all-type" aria-label="{{ __('warehouse.receiving.unit_type') }}"><option value="">{{ __('warehouse.receiving.unit_type') }}: —</option>@foreach ($unitTypes as $t)<option value="{{ $t }}">{{ __('warehouse.unit_types.'.$t) }}</option>@endforeach</select>
+                </label>
+                <label>&nbsp;<select id="set-all-source" aria-label="{{ __('warehouse.receiving.pallet_source') }}"><option value="">{{ __('warehouse.receiving.pallet_source') }}: —</option>@foreach ($palletSources as $ps)<option value="{{ $ps }}">{{ __('warehouse.pallet_sources.'.$ps) }}</option>@endforeach</select></label>
+            </div>
             <div class="overflow-auto">
                 <table class="form-rows" id="receipt-rows">
                     <thead><tr>
                         <th>{{ __('warehouse.stock.mark') }}</th><th>{{ __('warehouse.stock.description') }}</th><th>{{ __('warehouse.receiving.received_cartons') }}</th><th>{{ __('warehouse.receiving.damaged_cartons') }}</th>
-                        <th>{{ __('warehouse.receiving.unit_type') }}</th><th>{{ __('warehouse.receiving.unplanned.unit_count') }}</th><th>{{ __('warehouse.receiving.unplanned.weight_total') }}</th><th>{{ __('warehouse.receiving.unplanned.variance_reason') }}</th><th></th>
+                        <th>{{ __('warehouse.receiving.unit_type') }}</th><th>{{ __('warehouse.receiving.unplanned.unit_count') }}</th><th>{{ __('warehouse.receiving.pallet_source') }}</th><th>{{ __('warehouse.receiving.unplanned.weight_total') }}</th><th>{{ __('warehouse.receiving.unplanned.variance_reason') }}</th><th></th>
                     </tr></thead>
                     <tbody>
                         @foreach ($rows as $index => $row)
-                            @include('warehouse::receiving._unplanned-row', ['index' => $index, 'row' => $row, 'unitTypes' => $unitTypes])
+                            @include('warehouse::receiving._unplanned-row', ['index' => $index, 'row' => $row, 'unitTypes' => $unitTypes, 'palletSources' => $palletSources])
                         @endforeach
                     </tbody>
                 </table>
             </div>
             <button type="button" class="secondary outline form-rows-add" id="add-receipt-row">{{ __('warehouse.receiving.unplanned.add_row') }}</button>
-            <template id="receipt-row-template">@include('warehouse::receiving._unplanned-row', ['index' => '__INDEX__', 'row' => ['unit_type' => 'pallet', 'unit_count' => 1], 'unitTypes' => $unitTypes])</template>
+            <template id="receipt-row-template">@include('warehouse::receiving._unplanned-row', ['index' => '__INDEX__', 'row' => ['unit_type' => 'pallet', 'unit_count' => 1], 'unitTypes' => $unitTypes, 'palletSources' => $palletSources])</template>
         </fieldset>
         <label>{{ __('warehouse.receipts.notes') }}<textarea name="notes" rows="2">{{ old('notes') }}</textarea></label>
         <button type="submit" id="unplanned-submit">{{ __('warehouse.receiving.unplanned.submit') }}</button>
@@ -98,6 +105,14 @@
             body.insertAdjacentHTML('beforeend', template.innerHTML.replaceAll('__INDEX__', String(next())));
             body.lastElementChild.querySelector('input')?.focus();
         });
+        // 全部设为: one choice for every row's unit type / 托盘来源 (rows added later start from the template default).
+        const setAll = (pickerId, selector) => document.getElementById(pickerId)?.addEventListener('change', event => {
+            if (!event.target.value) return;
+            body.querySelectorAll(selector).forEach(select => { select.value = event.target.value; });
+            event.target.value = '';
+        });
+        setAll('set-all-type', 'select[name$="[unit_type]"]');
+        setAll('set-all-source', 'select.pallet-source');
         body.addEventListener('click', event => {
             const button = event.target.closest('button.remove-row');
             if (!button) return;

@@ -324,7 +324,7 @@ class Audit20260910MinorsTest extends TestCase
         $operator = $this->staff('warehouse_operator');
         $warehouse = $this->warehouse();
         $this->actingAs($operator)->from(route('warehouse.outbound.index'))
-            ->post(route('warehouse.outbound.waves.release'), ['warehouse_id' => $warehouse->id, 'client_id' => 999999])
+            ->post(route('warehouse.outbound.waves.release'), ['warehouse_id' => $warehouse->id, 'client_id' => 999999, 'order_ids' => [999999]])
             ->assertRedirect(route('warehouse.outbound.index'))
             ->assertSessionHasErrors(['warehouse_id' => __('warehouse.outbound.errors.no_candidates')]);
         $this->actingAs($operator)->get(route('warehouse.outbound.index'))->assertOk()

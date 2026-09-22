@@ -19,7 +19,7 @@
         @if ($unit->unit_type === 'pallet')
             <article>
                 <p>{{ __('warehouse.stock.dims') }}: {{ $unit->length_mm }} × {{ $unit->width_mm }} × {{ $unit->height_mm }} · {{ __('warehouse.stock.weight') }}: {{ $unit->weight_kg }}<br>
-                   {{ __('warehouse.stock.pallet_class') }}: {{ $unit->pallet_class ? __('warehouse.pallet_classes.'.$unit->pallet_class) : __('billing.rate_cards.poa') }} · {{ __('warehouse.stock.pallet_source') }}: {{ $unit->pallet_source ? __('warehouse.pallet_sources.'.$unit->pallet_source) : '—' }}</p>
+                   {{ __('warehouse.stock.pallet_class') }}: {{ $unit->pallet_class ? __('warehouse.pallet_classes.'.$unit->pallet_class) : __('warehouse.stock.pallet_class_unclassified') }} · {{ __('warehouse.stock.pallet_source') }}: {{ $unit->pallet_source ? __('warehouse.pallet_sources.'.$unit->pallet_source) : '—' }}</p>
             </article>
         @endif
     </div>
@@ -66,6 +66,36 @@
                 </article>
             @endif
         </div>
+    @endrole
+
+    @role('admin|warehouse_supervisor')
+        {{-- Audit 2026-09-22 INBOUND-05 (CR #141): the fast receiving forms record no dims / source — the supervisor corrects them here; the next daily snapshot carries the change into weekly storage / pallet rental. --}}
+        <article id="correct">
+            <header>{{ __('warehouse.stock.correct.title') }}</header>
+            <p class="text-muted"><small>{{ __('warehouse.stock.correct.hint') }}</small></p>
+            @error('correct')<p><mark>{{ $message }}</mark></p>@enderror
+            <form method="post" action="{{ route('warehouse.stock.update', $unit) }}">
+                @csrf
+                @method('PATCH')
+                <input type="hidden" name="_form" value="correct">
+                <div class="grid">
+                    @if ($unit->unit_type === 'pallet')
+                        <label>{{ __('warehouse.stock.pallet_source') }}<select name="pallet_source"><option value="">—</option>@foreach ($palletSources as $ps)<option value="{{ $ps }}" @selected(old('_form') === 'correct' ? old('pallet_source') === $ps : $unit->pallet_source === $ps)>{{ __('warehouse.pallet_sources.'.$ps) }}</option>@endforeach</select></label>
+                    @endif
+                    <label>{{ __('warehouse.receiving.length') }}<input type="number" name="length_mm" min="1" value="{{ old('_form') === 'correct' ? old('length_mm') : $unit->length_mm }}"></label>
+                    <label>{{ __('warehouse.receiving.width') }}<input type="number" name="width_mm" min="1" value="{{ old('_form') === 'correct' ? old('width_mm') : $unit->width_mm }}"></label>
+                    <label>{{ __('warehouse.receiving.height') }}<input type="number" name="height_mm" min="1" value="{{ old('_form') === 'correct' ? old('height_mm') : $unit->height_mm }}"></label>
+                    <label>{{ __('warehouse.stock.weight') }}<input type="number" name="weight_kg" step="0.001" min="0" value="{{ old('_form') === 'correct' ? old('weight_kg') : $unit->weight_kg }}"></label>
+                    @if ($unit->unit_type === 'pallet')
+                        <label>{{ __('warehouse.stock.pallet_class') }}<select name="pallet_class"><option value="">{{ __('warehouse.stock.correct.pallet_class_auto') }}</option>@foreach ($palletClasses as $pc)<option value="{{ $pc }}" @selected(old('_form') === 'correct' && old('pallet_class') === $pc)>{{ __('warehouse.pallet_classes.'.$pc) }}</option>@endforeach</select></label>
+                    @endif
+                </div>
+                <div class="grid">
+                    <input type="text" name="reason" placeholder="{{ __('warehouse.stock.correct.reason') }}" value="{{ old('_form') === 'correct' ? old('reason') : '' }}" required maxlength="255">
+                    <button type="submit" class="secondary">{{ __('warehouse.stock.correct.submit') }}</button>
+                </div>
+            </form>
+        </article>
     @endrole
 
     <h2>{{ __('warehouse.stock.ledger') }}</h2>

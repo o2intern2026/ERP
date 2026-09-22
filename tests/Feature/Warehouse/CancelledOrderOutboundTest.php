@@ -92,7 +92,7 @@ class CancelledOrderOutboundTest extends TestCase
             $outbound->confirmPick($l, $l->required_qty, $operator->id);
         }
         $this->cancel($packing);
-        $this->actingAs($operator)->post(route('warehouse.outbound.pack', $fulfilmentOf($packing)), ['packages' => [['package_type' => 'carton', 'weight_kg' => '5']]])
+        $this->actingAs($operator)->post(route('warehouse.outbound.pack', $fulfilmentOf($packing)), ['packages' => [['package_type' => 'carton', 'weight_kg' => '5', 'length_mm' => 400, 'width_mm' => 300, 'height_mm' => 300]]])
             ->assertSessionHasErrors(['packages' => __('warehouse.outbound.errors.order_cancelled', ['order' => $packing->order_no])]);
         $this->assertDatabaseMissing('packages', ['fulfilment_id' => $fulfilmentOf($packing)]);
         $this->actingAs($operator)->get(route('warehouse.outbound.index'))->assertOk()->assertSee(__('warehouse.outbound.order_cancelled_badge'))

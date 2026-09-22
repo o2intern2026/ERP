@@ -85,6 +85,6 @@ class StockUnit extends Model
 
     public function getActivitylogOptions(): LogOptions
     {
-        return LogOptions::defaults()->logOnly(['condition', 'condition_reason', 'location_id', 'pallet_class', 'pallet_source', 'warehouse_id', 'required_storage_tier', 'storage_tier_override_reason'])->logOnlyDirty()->dontSubmitEmptyLogs();
+        return LogOptions::defaults()->logOnly(['condition', 'condition_reason', 'location_id', 'pallet_class', 'pallet_class_overridden_reason', 'pallet_source', 'length_mm', 'width_mm', 'height_mm', 'weight_kg', 'warehouse_id', 'required_storage_tier', 'storage_tier_override_reason'])->logOnlyDirty()->dontSubmitEmptyLogs();
     }
 }

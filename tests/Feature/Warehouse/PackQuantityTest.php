@@ -50,7 +50,7 @@ class PackQuantityTest extends TestCase
         $this->actingAs($operator)->post(route('warehouse.outbound.pack', $fulfilment), ['packages' => [
             ['package_type' => 'carton', 'qty' => 10, 'weight_kg' => '12.5', 'length_mm' => 600, 'width_mm' => 400, 'height_mm' => 400],
             ['package_type' => 'carton', 'qty' => 4, 'weight_kg' => '8', 'length_mm' => 500, 'width_mm' => 400, 'height_mm' => 300],
-            ['package_type' => 'satchel', 'weight_kg' => '1.2'], // no qty = 1
+            ['package_type' => 'satchel', 'weight_kg' => '1.2', 'length_mm' => 300, 'width_mm' => 200, 'height_mm' => 50], // no qty = 1
         ]])->assertRedirect(route('warehouse.outbound.index'))->assertSessionHasNoErrors()->assertSessionHas('status', __('warehouse.outbound.packed', ['count' => 15]));
 
         $packages = Package::query()->withoutGlobalScopes()->where('fulfilment_id', $fulfilment)->orderBy('id')->get();

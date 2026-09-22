@@ -7,13 +7,14 @@
     <form method="post" action="{{ route('warehouse.asns.store') }}">
         @csrf
         <div class="grid">
-            <label>{{ __('warehouse.asns.client') }}<select name="client_id" required><option value="">—</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected(old('client_id') == $c->id)>{{ $c->code }} · {{ $c->name }}</option>@endforeach</select></label>
-            <label>{{ __('warehouse.asns.warehouse') }}<select name="warehouse_id" required>@foreach ($warehouses as $w)<option value="{{ $w->id }}" @selected(old('warehouse_id') == $w->id)>{{ $w->code }} · {{ $w->name }}</option>@endforeach</select></label>
+            <label>{{ __('warehouse.asns.client') }}<select name="client_id" id="client_id" required><option value="">—</option>@foreach ($clients as $c)<option value="{{ $c->id }}" @selected(old('client_id') == $c->id)>{{ $c->code }} · {{ $c->name }}</option>@endforeach</select></label>
+            <label>{{ __('warehouse.asns.warehouse') }}<select name="warehouse_id" required>@foreach ($warehouses as $w)<option value="{{ $w->id }}" @selected((int) old('warehouse_id', $currentWarehouseId ?? $warehouses->first()?->id) === $w->id)>{{ $w->code }} · {{ $w->name }}</option>@endforeach</select></label>
             <label>{{ __('warehouse.asns.inbound_type') }}<select name="inbound_type" id="inbound_type" required>@foreach (\App\Support\Enums::INBOUND_TYPES as $t)<option value="{{ $t }}" @selected(old('inbound_type', 'container') === $t)>{{ __('warehouse.inbound_types.'.$t) }}</option>@endforeach</select></label>
             <label>{{ __('warehouse.asns.expected_date') }}<x-date-field name="expected_date" value="{{ old('expected_date') }}" /></label>
         </div>
         <div class="grid">
-            <label>{{ __('warehouse.asns.existing_job') }}<select name="job_id"><option value="">{{ __('warehouse.asns.new_job') }}</option>@foreach ($jobs as $j)<option value="{{ $j->id }}" @selected(old('job_id') == $j->id)>{{ $j->job_no }}</option>@endforeach</select></label>
+            {{-- Audit 2026-09-22 INBOUND-13 (CR #141): only the chosen client's Jobs are offered (data-client + the script below); the server checks the pair again. --}}
+            <label>{{ __('warehouse.asns.existing_job') }}<select name="job_id" id="job_id"><option value="">{{ __('warehouse.asns.new_job') }}</option>@foreach ($jobs as $j)<option value="{{ $j->id }}" data-client="{{ $j->client_id }}" @selected(old('job_id') == $j->id)>{{ $j->job_no }}</option>@endforeach</select></label>
             <label>{{ __('warehouse.asns.reference') }}<input type="text" name="reference" value="{{ old('reference') }}"></label>
         </div>
         <label><input type="hidden" name="unplanned" value="0"><input type="checkbox" name="unplanned" value="1" @checked(old('unplanned'))> {{ __('warehouse.asns.unplanned') }}</label>
@@ -52,6 +53,18 @@
     const typeSelect = document.getElementById('inbound_type'), containers = document.getElementById('containers');
     const toggle = () => { containers.hidden = typeSelect.value !== 'container'; };
     typeSelect.addEventListener('change', toggle); toggle();
+    // 挂到已有 Job: the list follows the client (same pattern as the walk-in form's syncLocations); a Job of another client is never selectable.
+    const clientSelect = document.getElementById('client_id'), jobSelect = document.getElementById('job_id');
+    const syncJobs = () => {
+        Array.from(jobSelect.options).forEach(option => {
+            if (!option.value) return;
+            const visible = clientSelect.value !== '' && option.dataset.client === clientSelect.value;
+            option.hidden = !visible;
+            option.disabled = !visible;
+        });
+        if (jobSelect.selectedOptions.length && jobSelect.selectedOptions[0].disabled) jobSelect.value = '';
+    };
+    clientSelect.addEventListener('change', syncJobs); syncJobs();
     // 到仓方式: the pickup fields appear only for 我方上门提货.
     const transportRadios = document.querySelectorAll('input[name="inbound_transport"]'), collectionFields = document.getElementById('collection-fields');
     const toggleCollection = () => { collectionFields.hidden = !document.querySelector('input[name="inbound_transport"][value="we_collect"]').checked; };

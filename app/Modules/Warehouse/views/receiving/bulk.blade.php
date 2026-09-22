@@ -32,11 +32,18 @@
                 <label>{{ __('warehouse.receiving.bulk.delivery_reference') }}<input type="text" name="delivery_reference" value="{{ old('delivery_reference') }}" maxlength="100"></label>
             </div>
             <p><button type="button" class="secondary outline" id="select-all" style="padding:.15rem .6rem">{{ __('warehouse.receiving.bulk.select_all') }}</button> <button type="button" class="secondary outline" id="select-none" style="padding:.15rem .6rem">{{ __('warehouse.receiving.bulk.select_none') }}</button></p>
+            {{-- Audit 2026-09-22 INBOUND-05 (CR #141): 全部设为 — one click sets every row's unit type / 托盘来源 (pallet rental / purchase bill from the source). --}}
+            <div class="grid" id="set-all">
+                <label>{{ __('warehouse.receiving.set_all') }}
+                    <select id="set-all-type" aria-label="{{ __('warehouse.receiving.unit_type') }}"><option value="">{{ __('warehouse.receiving.unit_type') }}: —</option>@foreach ($unitTypes as $t)<option value="{{ $t }}">{{ __('warehouse.unit_types.'.$t) }}</option>@endforeach</select>
+                </label>
+                <label>&nbsp;<select id="set-all-source" aria-label="{{ __('warehouse.receiving.pallet_source') }}"><option value="">{{ __('warehouse.receiving.pallet_source') }}: —</option>@foreach ($palletSources as $ps)<option value="{{ $ps }}">{{ __('warehouse.pallet_sources.'.$ps) }}</option>@endforeach</select></label>
+            </div>
             <div class="overflow-auto"><table class="dense form-rows">
                 <thead><tr>
                     <th>{{ __('warehouse.receiving.bulk.include') }}</th><th>#</th><th>{{ __('warehouse.stock.mark') }}</th><th>{{ __('warehouse.stock.description') }}</th><th>{{ __('warehouse.asns.container_no') }}</th>
                     <th class="num">{{ __('warehouse.asns.expected') }}</th><th class="num">{{ __('warehouse.receiving.received_cartons') }}</th><th class="num">{{ __('warehouse.receiving.damaged_cartons') }}</th>
-                    <th>{{ __('warehouse.receiving.unit_type') }}</th><th class="num">{{ __('warehouse.receiving.bulk.unit_count') }}</th><th class="num">{{ __('warehouse.receiving.bulk.weight_total') }}</th><th>{{ __('warehouse.receiving.bulk.variance_reason') }}</th>
+                    <th>{{ __('warehouse.receiving.unit_type') }}</th><th class="num">{{ __('warehouse.receiving.bulk.unit_count') }}</th><th>{{ __('warehouse.receiving.pallet_source') }}</th><th class="num">{{ __('warehouse.receiving.bulk.weight_total') }}</th><th>{{ __('warehouse.receiving.bulk.variance_reason') }}</th>
                 </tr></thead>
                 <tbody>
                 @foreach ($lines as $i => $l)
@@ -49,6 +56,7 @@
                         <td class="num"><input type="number" name="rows[{{ $i }}][damaged_cartons]" min="0" value="{{ $old['damaged_cartons'] ?? 0 }}" style="width:5rem"></td>
                         <td><select name="rows[{{ $i }}][unit_type]" style="width:auto">@foreach ($unitTypes as $t)<option value="{{ $t }}" @selected(($old['unit_type'] ?? $defaultUnitType) === $t)>{{ __('warehouse.unit_types.'.$t) }}</option>@endforeach</select></td>
                         <td class="num"><input type="number" name="rows[{{ $i }}][unit_count]" min="1" max="500" value="{{ $old['unit_count'] ?? 1 }}" style="width:5rem"></td>
+                        <td><select name="rows[{{ $i }}][pallet_source]" class="pallet-source" style="width:auto" aria-label="{{ __('warehouse.receiving.pallet_source') }}">@foreach ($palletSources as $ps)<option value="{{ $ps }}" @selected(($old['pallet_source'] ?? 'client_own') === $ps)>{{ __('warehouse.pallet_sources.'.$ps) }}</option>@endforeach</select></td>
                         <td class="num"><input type="number" name="rows[{{ $i }}][weight_kg]" min="0" step="0.001" value="{{ $old['weight_kg'] ?? '' }}" placeholder="kg" style="width:6rem"></td>
                         <td><input type="text" name="rows[{{ $i }}][variance_reason]" value="{{ $old['variance_reason'] ?? '' }}" maxlength="255" style="min-width:12rem"></td>
                     </tr>
@@ -67,6 +75,14 @@
         const boxes = () => document.querySelectorAll('#bulk-receive input[type=checkbox][name$="[include]"]');
         document.getElementById('select-all')?.addEventListener('click', () => boxes().forEach(b => { b.checked = true; }));
         document.getElementById('select-none')?.addEventListener('click', () => boxes().forEach(b => { b.checked = false; }));
+        // 全部设为: the chosen unit type / 托盘来源 goes onto every row; the row selects stay editable afterwards.
+        const setAll = (pickerId, selector) => document.getElementById(pickerId)?.addEventListener('change', event => {
+            if (!event.target.value) return;
+            document.querySelectorAll(selector).forEach(select => { select.value = event.target.value; });
+            event.target.value = '';
+        });
+        setAll('set-all-type', '#bulk-receive select[name$="[unit_type]"]');
+        setAll('set-all-source', '#bulk-receive select.pallet-source');
     })();
 </script>
 @endpush

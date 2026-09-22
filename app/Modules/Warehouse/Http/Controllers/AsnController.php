@@ -62,6 +62,7 @@ class AsnController extends Controller
             'warehouses' => Warehouse::query()->where('active', true)->orderBy('code')->get(['id', 'code', 'name']),
             'jobs' => Job::query()->whereIn('operational_status', ['open', 'receiving'])->orderByDesc('id')->limit(200)->get(['id', 'job_no', 'client_id']),
             'canRequestCollection' => (bool) auth()->user()?->hasAnyRole(self::COLLECTION_ROLES),
+            'currentWarehouseId' => WarehouseContext::currentId(), // the session warehouse is the default, as on the walk-in form (audit 2026-09-22 INBOUND-13)
         ]);
     }
 
@@ -78,7 +79,8 @@ class AsnController extends Controller
             'inbound_type' => ['required', Rule::in(Enums::INBOUND_TYPES)],
             'inbound_transport' => ['nullable', Rule::in(Enums::ASN_INBOUND_TRANSPORTS)],
             'expected_date' => ['nullable', 'date'],
-            'job_id' => ['nullable', 'integer', Rule::exists('jobs', 'id')],
+            // Audit 2026-09-22 INBOUND-13 (CR #141): the Job must belong to the chosen client — an ASN of client A could land on client B's Job.
+            'job_id' => ['nullable', 'integer', Rule::exists('jobs', 'id')->where('client_id', $request->integer('client_id'))],
             'reference' => ['nullable', 'string', 'max:255'],
             'unplanned' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:2000'],
@@ -87,7 +89,7 @@ class AsnController extends Controller
             'containers.*.size' => ['required', Rule::in(Enums::CONTAINER_SIZES)],
             'containers.*.unpack_mode' => ['required', Rule::in(Enums::UNPACK_MODES)],
             'containers.*.gross_weight_kg' => ['nullable', 'numeric', 'min:0'],
-        ] + $this->collectionRules($weCollect, packagesRequired: true), $this->collectionMessages());
+        ] + $this->collectionRules($weCollect, packagesRequired: true), ['job_id.exists' => __('warehouse.asns.job_not_of_client')] + $this->collectionMessages());
 
         $data['containers'] = $data['inbound_type'] === 'container'
             ? array_values(array_filter($data['containers'] ?? [], fn ($c) => ! empty($c['container_no'])))

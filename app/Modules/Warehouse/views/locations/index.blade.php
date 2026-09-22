@@ -57,6 +57,19 @@
     @endrole
     @foreach ($warehouses as $w)
         <h2>{{ $w->code }} · {{ $w->name }} <small><a href="{{ route('warehouse.labels.locations', ['warehouse_id' => $w->id]) }}" target="_blank">{{ __('warehouse.labels.locations') }}</a></small></h2>
+        {{-- Audit 2026-09-22 CRAWL-01 (CR #141): print a zone / aisle range / type instead of every location; 40+ labels come as numbered batches. --}}
+        <details class="label-filter">
+            <summary>{{ __('warehouse.labels.print_filter') }}</summary>
+            <form method="get" action="{{ route('warehouse.labels.locations') }}" target="_blank" class="grid">
+                <input type="hidden" name="warehouse_id" value="{{ $w->id }}">
+                <label>{{ __('warehouse.labels.zone') }}<select name="zone"><option value="">{{ __('platform.jobs.all') }}</option>@foreach ($w->locations->pluck('zone')->unique()->sort()->values() as $zone)<option value="{{ $zone }}">{{ $zone }}</option>@endforeach</select></label>
+                <label>{{ __('warehouse.labels.aisle_from') }}<input type="text" name="aisle_from" maxlength="10" placeholder="01"></label>
+                <label>{{ __('warehouse.labels.aisle_to') }}<input type="text" name="aisle_to" maxlength="10" placeholder="05"></label>
+                <label>{{ __('warehouse.locations.type') }}<select name="type"><option value="">{{ __('platform.jobs.all') }}</option>@foreach (\App\Support\Enums::LOCATION_TYPES as $type)<option value="{{ $type }}">{{ __('warehouse.location_types.'.$type) }}</option>@endforeach</select></label>
+                <label>&nbsp;<button type="submit" class="secondary">{{ __('warehouse.labels.print') }}</button></label>
+            </form>
+            <p class="text-muted"><small>{{ __('warehouse.labels.print_filter_hint', ['size' => \App\Modules\Warehouse\Services\LabelService::BATCH_SIZE]) }}</small></p>
+        </details>
         @if ($w->locations->where('type', 'receiving')->where('active', true)->isEmpty())
             <p><mark>{{ __('warehouse.locations.no_receiving', ['code' => $w->code]) }}</mark></p>
         @endif
