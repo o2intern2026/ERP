@@ -19,6 +19,7 @@
             {!! \App\Support\Ui\StatusBadge::render('platform.jobs.revenue_statuses.', $summary['revenue_status']) !!}
             <p>{{ __('platform.jobs.estimated_revenue') }}: {{ \App\Support\Money::cents($summary['estimated_revenue_cents']) }} · {{ __('platform.jobs.actual_revenue') }}: {{ \App\Support\Money::cents($summary['actual_revenue_cents']) }}</p>
         </article>
+        {{-- CR #137 (audit CRAWL-05 / TMS-15): JobService::summarize drops cost / margin for client users and for staff outside JobService::COST_ROLES — the card follows the data. --}}
         @if (array_key_exists('margin_cents', $summary))
             <article>
                 <header>{{ __('platform.jobs.cost_status') }}</header>
@@ -70,8 +71,10 @@
             @empty
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse
-            <p><a href="{{ route('platform.documents.index') }}">{{ __('platform.jobs.open_documents') }}</a></p>
+            <p><a href="{{ route('platform.documents.index', ['job_no' => $job->job_no]) }}">{{ __('platform.jobs.open_documents') }}</a></p>
         </article>
+        {{-- CR #137 (audit ADMIN-08): invoice totals are money the driver / the floor have no business with — same roles as the charges panel below. --}}
+        @role('admin|finance|customer_service|dispatcher')
         <article>
             <header>{{ __('platform.jobs.panel_invoices') }} <small class="text-muted">{{ $panels['invoices']->count() }}</small></header>
             @forelse ($panels['invoices'] as $inv)
@@ -80,7 +83,11 @@
                 <p class="text-muted">{{ __('platform.jobs.none') }}</p>
             @endforelse
         </article>
+        @endrole
     </div>
+
+    {{-- CR #137 (audit ADMIN-10): attach a document to this Job without leaving the page (editor roles only; the partial decides). --}}
+    @include('platform::documents.upload-details', ['documentNo' => $job->job_no])
 
     @if ($job->notes)
         <h3>{{ __('platform.jobs.notes') }}</h3>

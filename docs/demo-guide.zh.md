@@ -75,11 +75,13 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 | dispatcher@erp.local | 调度 | 运输报价、订舱、班次（建班次、加站、排顺序——司机只执行，CR #130） |
 | warehouse-supervisor@erp.local | 仓库主管 | 收货 / 无预报收货、入库单、上架、出库、盘点、退货验收 |
 | warehouse-operator@erp.local | 仓库操作员 | 同上(无配置权限) |
-| transport-operator@erp.local | 司机 | 司机手机页 /driver；班次 /transport/runs 只看分配给自己的（只读）。不能建班次、加站、看运单 / 报价 / 成本或承运商对账——那是调度的事（CR #130） |
+| transport-operator@erp.local | 司机 | 登录后直接进司机手机页 /driver（首页 / 也到这里，CR #137）；班次 /transport/runs 只看分配给自己的（只读）。不能建班次、加站、建 Job、上传单据、看运单 / 报价 / 成本 / 毛利 / 发票或承运商对账——那是调度 / 客服的事（CR #130 / #137） |
 | finance@erp.local | 财务 | 计费、发票、收款、财务锁、价目表审批 |
 | client@erp.local | 客户(Edward) | 客户门户 /portal,只看自己的数据 |
 
 **客户自助注册(反馈 #8;2026-09-22 起这是新增客户的唯一入口,CR #134):** 登录页有"注册新客户"链接(/register)。填公司名、ABN、联系人、地址、邮箱、密码后提交,状态为"待审核",并自动绑定标准价目表;管理员 / 客服 / 财务在 /admin/clients 看到待审核客户排在最前,点"审核通过"后该公司即可登录客户门户,只看到自己的订单、库存和发票,发票 Bill-to 用注册时的公司名 / ABN / 地址。审核后在"编辑"里改账期、开票模式、加成、截单时间(编辑页顶部只读显示该客户的标准价目表和有无专属价目表)。员工端没有"新建客户"按钮——要接一个新客户,让对方在注册页自己注册(或员工代填注册表),再审核。不想开放注册时在 `.env` 设 `ALLOW_SIGNUP=false`(默认开放);关闭期间无法新增客户,/admin/clients 顶部会提示。
+
+**改自己的密码(CR #137):** 任何账号登录后点顶栏右侧的用户名 → 修改密码(/account/password):填当前密码、新密码两遍(至少 8 位)。登录页连续输错 5 次(同一邮箱 + IP)会被锁 1 分钟,提示"登录尝试次数过多"。管理员在 /admin/users 不能停用自己、不能改自己的角色,也不能停用或降级最后一位启用的管理员。
 
 **客户下单两步走(反馈 #10):** 客户门户"新建订单"先点"获取估价",页面显示各项仓库费用(客户价、含 GST 合计;运费在提交后另行报价),确认无误再点"确认提交订单";改动任何内容后需重新获取估价。
 
@@ -87,9 +89,9 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 
 | 模块 | 入口 | 主要页面 |
 |---|---|---|
-| Job 工作台 | /jobs | 每个 Job 一页:订单、入库、库存、发运、单据、发票、费用与毛利 |
-| 平台 | /admin/… | 用户 /admin/users、异常中心 /admin/exceptions、审批 /admin/approvals、审计日志 /admin/activity、单据中心 /admin/documents、集成监控 /admin/integration、全局搜索 /admin/search |
-| 主数据 | /admin/clients | 客户(只能自助注册 /register → 员工审核 → 编辑;无"新建客户",CR #134)、承运商 /admin/carriers、供应商 |
+| Job 工作台 | /jobs | 每个 Job 一页:订单、入库、库存、发运、单据(页面上直接上传)、发票、费用与毛利(成本 / 毛利 / 发票 / 费用只给管理员 / 财务 / 客服 / 调度看;新建 Job 只给管理员 / 客服 / 调度 / 仓库主管,CR #137) |
+| 平台 | /admin/… | 用户 /admin/users、异常中心 /admin/exceptions、审批 /admin/approvals、审计日志 /admin/activity、单据中心 /admin/documents(上传只填一个"单号":JOB- / ASN- / ORD- / SHP- 或发票号,系统自动关联;上传和"客户可见"给管理员 / 客服 / 财务 / 仓库主管,其他角色只看和下载)、集成监控 /admin/integration、全局搜索 /admin/search、修改密码 /account/password(所有账号) |
+| 主数据 | /admin/clients | 客户(只能自助注册 /register → 员工审核 → 编辑;无"新建客户",CR #134;编辑页把状态改成"停用"即关闭该客户的门户登录,CR #137)、承运商 /admin/carriers、供应商 |
 | 订单 | /orders | 客户请求 /orders/requests(客户的取消 / 退货申请,菜单带待处理数)、新建 /orders/create、Excel 导入 /orders/imports、PDF 读单 /orders/drafts/create、调度队列 /orders/queue、入库批次 /orders/batches、地址簿 /orders/addresses、API 钥匙 /orders/api-tokens |
 | 仓库 | /warehouse | 预报单 (ASN) /warehouse/asns（新建 / 预报单页可选"到仓方式"：客户自送，或我方上门提货 → 运输报价、订舱、司机提货、到仓即到货；管理员 / 客服 / 仓库主管）、收货(待收列表)/warehouse/receiving、无预报收货 /warehouse/receiving/unplanned、入库单 /warehouse/receipts、物理柜 / 拼柜 /warehouse/physical-containers(几个客户共用一只柜:关联各预报单的柜号行、登记拆柜一次、登记到港、重算分摊;管理员 / 客服 / 仓库主管)、上架 /warehouse/putaway(声明底层的托盘显示"建议:第一个空闲底层库位",放非底层要填原因)、库存查询 /warehouse(勾"底层库位剩货托盘"看部分拣走后仍占底层的托盘)、出库 /warehouse/outbound(含「已确认但缺货未分配」)、作业登记(VAS) /warehouse/tasks、退货 /warehouse/returns、任务 /warehouse/tasks、盘点 /warehouse/stocktakes、扫码 /warehouse/scan、快照 /warehouse/snapshots(含底层库位托盘数)、库位配置 /warehouse/config/locations(层位 / 存储等级;主管可批量设置底层库位) |
 | 运输 | /transport | 运单列表(报价 / 订舱 / 面单 / 签收)、班次 /transport/runs（管理员 / 客服 / 调度建班次、加站、排顺序；司机只看自己的）、承运商账单对账 /transport/carrier-invoices（管理员 / 财务）、司机页 /driver（司机） |
@@ -99,7 +101,7 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 
 ## 6. 给别人试用前
 
-1. **改默认密码**:本机上在 `.env` 里加一行 `SEED_DEMO_PASSWORD=你的密码`,再执行第 3 节的重置命令(所有演示账号都会用新密码)。服务器上不要重置数据,用 admin 登录 /admin/users 逐个编辑用户改密码即可。
+1. **改默认密码**:本机上在 `.env` 里加一行 `SEED_DEMO_PASSWORD=你的密码`,再执行第 3 节的重置命令(所有演示账号都会用新密码)。服务器上不要重置数据,用 admin 登录 /admin/users 逐个编辑用户改密码,或让每个人自己登录后点顶栏用户名 → 修改密码(CR #137)。
 2. Karrio 后台(3002 端口)只给自己用,不要开放给别人。
 3. 演示数据里的清单是去标识版本,可以给人看。
 4. 手机扫码页(/warehouse/scan)用摄像头需要 HTTPS 或 localhost;方式 B 的局域网地址和方式 C 的服务器目前都是 http,只能用扫码枪 / 手动输入,服务器配上域名和 HTTPS 后即可用摄像头。
@@ -127,7 +129,7 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 
 | 现象 | 处理 |
 |---|---|
-| 页面能开,但确认订单后没有预留 / 报价 | 事件分发没跑:开 `php artisan schedule:work`,或手动 `php artisan outbox:dispatch` |
+| 页面能开,但确认订单后没有预留 / 报价 | 事件分发没跑:开 `php artisan schedule:work`,或手动 `php artisan outbox:dispatch`。2026-09-22 起(CR #137)最早的待投递事件超过 10 分钟(`.env` `OUTBOX_STALE_MINUTES` 可调)时,管理员每个页面顶部会出现红色横幅"后台任务可能已停止",点"打开集成监控"看待投递列表;服务器上也可以跑 `php artisan erp:health`(打印待投递数、最早等待分钟数、失败 / 死信数、最近一次库存快照日期、队列长度;超时或有死信时退出码 1,方便外部监控或 cron 记日志) |
 | ASN 和入库单有什么区别 | **预报单 (ASN)** 是货到之前的预报(客户 / 客服告诉仓库将有什么货来);**入库单**是仓库实际收到货以后的凭证,一次到货一张(编号 = 预报单号-R1、-R2…),写实收 / 破损 / 差异并可打印签字。一张预报单可以对应多张入库单,页面上会汇总 |
 | 客服账号为什么看不到收货按钮 | 收货、无预报收货、入库完成是仓库操作(admin / warehouse-supervisor / warehouse-operator);客服 (customer-service) 能看预报单、待收货列表和入库单,但不能录实收。用 warehouse-operator 账号操作 |
 | 点"入库完成"报"未配置中文 PDF 字体" / 预览 PDF 里中文是空白 | dompdf 自带字体没有中文,系统在没有中文字体时拒绝完成入库单(否则存档 PDF 会是空白中文)。**每个代码目录 / 每台部署机器**都要放一次:把一个中文 TrueType 字体复制到该目录的 `storage/fonts/cjk.ttf`(这台 Mac:`cp "/System/Library/Fonts/Supplemental/Arial Unicode.ttf" storage/fonts/cjk.ttf`;Linux 服务器可用 Noto Sans CJK),或在 `.env` 里用 `PDF_CJK_FONT` 指向项目内的字体文件,然后重试 |
@@ -154,3 +156,6 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 | 运输方案"已过期" / 周一没有可选的方案怎么办 | 方案 24 小时内有效，列表现在有"有效至"列，过期的行标"已过期"（不能选）。在运单页方案列表上方点"重新报价"：按当前阶段（初步 / 最终）重新向自有车队 / Karrio 取价，旧方案标"已过期"或"已重新报价"。客户下单 / 门户提货时选过方案的，新价在容差内会自动再确认（仍以客户名义），超出则等人确认；已确认但还没订舱的运单也可以重新报价（重新确认后费用不会重复计）；已预订的不能。没有任何自动方案时会提示改用"人工录价"（调度 / 客服 / 管理员，CR #133） |
 | 司机为什么建不了班次 / 看不到运单 | 2026-09-17 起司机（transport-operator）只执行不排班：能开 /driver 签收 / 报失败，能在"配送班次"里看分配给自己的班次（只读，别人的班次打不开）；建班次、加站、排顺序、看运单 / 报价 / 成本、承运商对账都在调度（dispatcher）/ 客服 / 管理员账号下做。要让某个司机也排班，给他加 dispatcher 角色即可（CR #130）。 |
 | 管理员怎么新建客户 / "新建客户"按钮去哪了 | 2026-09-22 起(审计 A13 / GAP-01,CR #134)员工不再手工建客户:让客户在登录页"注册新客户"(/register)自己填公司资料和登录邮箱、密码(员工也可以代填),提交后在 /admin/clients 排在最前显示"待审核",点"审核通过"即可登录;再点"编辑"改账期 / 开票模式 / 加成 / 截单时间。原因:员工手工建的客户没有绑定标准价目表,所有费用都变成"缺少费率"异常;注册流程自动绑定,系统层面也对每条新建客户路径补绑。若某个旧客户仍显示"未绑定标准价目表",管理员在列表或编辑页点"修复:绑定当前标准价目表"。`.env` 里 `ALLOW_SIGNUP=false` 时不能新增客户(列表顶部会提示),需要时改回 true |
+| 怎么停用一个不再合作(或欠款)的客户 | 主数据 → 客户 → 编辑,状态改成"停用"保存(CR #137):该客户所有门户账号立即停用,正在登录的下一次点击就会被退出,再登录提示"账号已停用,请联系客服";员工端的客户下拉里也不再出现。改回"启用"账号自动恢复。欠款并不会自动停用客户——按规则只有人工财务锁才拦发运,停用是关门,财务锁是暂停,别混用 |
+| 单据中心怎么把文件挂到订单 / Job 上 | 两条路(CR #137):(1) 打开该订单页或 Job 页,底部"上传单据(ORD-… / JOB-…)"折叠框里选文件、类型、是否客户可见,提交后留在当前页,已挂的文件列在框里;(2) 平台 → 单据中心 → 上传单据,只填一个"单号"——JOB- / ASN- / ORD- / SHP- 开头的单号或发票号,系统自动关联对象、Job 和客户,填错的单号会被拒绝(不会再像以前那样把文件挂到不存在的 ID 上)。上传和"客户可见"只给管理员 / 客服 / 财务 / 仓库主管;司机、仓库操作员、调度只能看和下载 |
+| 司机登录为什么直接到手机页 / Job 页看不到毛利了 | 2026-09-22 起(CR #137,延续 CR #130)只有司机角色的账号登录后直接到 /driver,首页 / 也一样;Job 页对司机和仓库操作员 / 主管不再显示成本 / 毛利 / 发票 / 费用(服务端就不返回这些字段),也不能新建 Job 或上传单据。要让某个司机看这些,给他加调度或客服角色 |

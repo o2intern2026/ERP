@@ -56,12 +56,20 @@ class ClientController extends Controller
 
     public function update(Request $request, Client $client): RedirectResponse
     {
-        $client->update($this->validated($request, $client));
-        if ($client->wasChanged('status') && $client->status === 'active') {
-            User::query()->withoutGlobalScopes()->where('client_id', $client->id)->update(['is_active' => true]); // approving via the edit form behaves like approve() (tester feedback #8)
-        }
+        $data = $this->validated($request, $client);
+        DB::transaction(function () use ($client, $data) {
+            $client->update($data);
+            if ($client->wasChanged('status') && $client->status === 'active') {
+                User::query()->withoutGlobalScopes()->where('client_id', $client->id)->update(['is_active' => true]); // approving via the edit form behaves like approve() (tester feedback #8)
+            }
+            // CR #137 (audit GAP-03): 停用 closes the portal — the client's logins go inactive in the same write (symmetrical to approve);
+            // ClientScope also signs out anyone of that client already inside. Re-activating turns them back on above.
+            if ($client->wasChanged('status') && $client->status === 'inactive') {
+                User::query()->withoutGlobalScopes()->where('client_id', $client->id)->update(['is_active' => false]);
+            }
+        });
 
-        return redirect()->route('masterdata.index')->with('status', __('masterdata.saved'));
+        return redirect()->route('masterdata.index')->with('status', __($client->status === 'inactive' && $client->wasChanged('status') ? 'masterdata.clients.deactivated' : 'masterdata.saved', ['name' => $client->name]));
     }
 
     /** Tester feedback #8: a self-registered (`pending`) client is approved here — the client and every user under it become active and can sign in. */

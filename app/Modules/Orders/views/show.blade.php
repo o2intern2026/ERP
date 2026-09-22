@@ -460,6 +460,8 @@
     <p><a href="{{ route('orders.fulfilments.index', $order) }}">{{ __('orders.fulfilments.actions.open') }}</a></p>
     @include('orders::fulfilments.partials.batches')
 
+    @include('platform::documents.upload-details', ['documentNo' => $order->order_no]) {{-- CR #137 (audit ADMIN-10): Platform partial, one line (HANDOFF 2026-09-22) --}}
+
     <h2>{{ __('orders.timeline.title') }}</h2>
     <ol>
         @foreach ($order->events as $event)

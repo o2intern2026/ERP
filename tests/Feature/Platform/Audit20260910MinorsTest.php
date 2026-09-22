@@ -81,22 +81,23 @@ class Audit20260910MinorsTest extends TestCase
     {
         Storage::fake('local');
         $client = $this->client();
-        $jobId = app(JobService::class)->create($client->id, 'loose')['job_id'];
+        $job = app(JobService::class)->create($client->id, 'loose');
         $cs = $this->staff('customer_service');
-        $upload = fn (array $extra) => $this->actingAs($cs)->from('/admin/documents')->post('/admin/documents', $extra + ['file' => UploadedFile::fake()->create('pod.pdf', 10, 'application/pdf'), 'type' => 'pod', 'related_type' => 'order', 'related_id' => 3]);
+        // CR #137 (audit ADMIN-10): the form takes a 单号; the client comes from the number's object, never from a typed id.
+        $upload = fn (array $extra) => $this->actingAs($cs)->from('/admin/documents')->post('/admin/documents', $extra + ['file' => UploadedFile::fake()->create('pod.pdf', 10, 'application/pdf'), 'type' => 'pod', 'document_no' => $job['job_no']]);
 
-        // 客户可见 without a client (and no Job to take it from) is refused with a Chinese message and the form keeps its values.
-        $upload(['client_visible' => 1, 'related_id' => 44])->assertRedirect('/admin/documents')->assertSessionHasErrors(['client_id' => __('platform.documents.client_required')])->assertSessionHasInput('related_id', '44');
+        // An unknown number is refused with a Chinese message and the form keeps its values.
+        $upload(['client_visible' => 1, 'document_no' => 'ORD-20260101-0044'])->assertRedirect('/admin/documents')->assertSessionHasErrors(['document_no' => __('platform.documents.number_not_found', ['no' => 'ORD-20260101-0044'])])->assertSessionHasInput('document_no', 'ORD-20260101-0044');
         $this->assertSame(0, Document::query()->count());
-        $this->actingAs($cs)->get('/admin/documents')->assertOk()->assertSee('<details open>', false)->assertSee('value="44"', false);
+        $this->actingAs($cs)->get('/admin/documents')->assertOk()->assertSee('<details open>', false)->assertSee('value="ORD-20260101-0044"', false);
 
-        // A Job supplies the client; an internal document may still have no client.
-        $upload(['client_visible' => 1, 'job_id' => $jobId])->assertRedirect('/admin/documents')->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('documents', ['job_id' => $jobId, 'client_id' => $client->id, 'client_visible' => true]);
-        $upload(['client_visible' => 0])->assertSessionHasNoErrors();
-        $internal = Document::query()->whereNull('client_id')->firstOrFail();
+        // The Job supplies the client, so 客户可见 is possible from the form.
+        $upload(['client_visible' => 1])->assertRedirect('/admin/documents')->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('documents', ['job_id' => $job['job_id'], 'client_id' => $client->id, 'client_visible' => true]);
 
-        // …and cannot be flipped to visible from the list: the button is replaced by the reason, the POST is refused.
+        // An internal document without a client (written by a module through DocumentService) cannot be flipped to visible from the list:
+        // the button is replaced by the reason, the POST is refused.
+        $internal = Document::query()->create(['type' => 'photo', 'related_type' => 'other', 'related_id' => 1, 'client_id' => null, 'client_visible' => false, 'storage_path' => 'documents/internal.jpg']);
         $this->actingAs($cs)->get('/admin/documents')->assertOk()->assertSee(__('platform.documents.no_client'))->assertDontSee('action="'.route('platform.documents.visibility', $internal).'"', false);
         $this->actingAs($cs)->post(route('platform.documents.visibility', $internal), ['client_visible' => 1])->assertSessionHasErrors(['client_visible' => __('platform.documents.client_required')]);
         $this->assertFalse($internal->fresh()->client_visible);

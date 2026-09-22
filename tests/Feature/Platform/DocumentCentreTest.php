@@ -3,6 +3,7 @@
 namespace Tests\Feature\Platform;
 
 use App\Modules\Platform\Models\Document;
+use App\Support\Contracts\JobService;
 use App\Support\Documents\DocumentDownloader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -21,13 +22,14 @@ class DocumentCentreTest extends TestCase
         Storage::fake('local');
         $client = $this->client();
         $cs = $this->staff('customer_service');
+        $job = app(JobService::class)->create($client->id, 'loose'); // CR #137: the form takes the Job number, not ids
 
         $this->actingAs($cs)->post('/admin/documents', [
-            'file' => UploadedFile::fake()->create('pod-42.pdf', 30, 'application/pdf'), 'type' => 'pod', 'related_type' => 'shipment', 'related_id' => 42, 'client_id' => $client->id, 'client_visible' => 0,
+            'file' => UploadedFile::fake()->create('pod-42.pdf', 30, 'application/pdf'), 'type' => 'pod', 'document_no' => $job['job_no'], 'client_visible' => 0,
         ])->assertRedirect('/admin/documents');
 
         $document = Document::query()->firstOrFail();
-        $this->assertSame(['pod', 'shipment', 42, false], [$document->type, $document->related_type, (int) $document->related_id, $document->client_visible]);
+        $this->assertSame(['pod', 'job', $job['job_id'], $job['job_id'], $client->id, false], [$document->type, $document->related_type, (int) $document->related_id, (int) $document->job_id, (int) $document->client_id, $document->client_visible]);
         Storage::disk('local')->assertExists($document->storage_path);
 
         $this->actingAs($cs)->get('/admin/documents?type=pod')->assertOk()->assertSee('pod-42.pdf');

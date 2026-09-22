@@ -29,4 +29,8 @@ return [
     // Storage is billed per pallet·week; the billing week starts on this day (ERP_PLAN §4.2 stock_snapshots).
     'storage_week_starts_on' => 'monday',
 
+    // Audit ADMIN-12 (CR #137): production is cron only, so a stopped `schedule:run` is silent. When the oldest outbox event still
+    // pending is older than this many minutes, admins see a red banner on every page (HealthCheck, cached 60 s) and `erp:health` exits 1.
+    'outbox_stale_minutes' => (int) env('OUTBOX_STALE_MINUTES', 10),
+
 ];

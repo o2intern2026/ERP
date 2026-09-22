@@ -2,6 +2,7 @@
 
 namespace App\Modules\Platform\Services;
 
+use App\Models\User;
 use App\Modules\MasterData\Models\Client;
 use App\Modules\Platform\Models\Job;
 use App\Support\Contracts\JobService as JobServiceContract;
@@ -62,12 +63,22 @@ final class JobService implements JobServiceContract
             'margin_is_estimate' => $estimate,
         ];
 
-        // AGENTS.md: cost and margin must never be serialised for client-role users — enforced here, not in views.
-        if (ClientScope::isClientRequest()) {
+        // AGENTS.md: cost and margin must never be serialised for client-role users — enforced here, not in views. CR #137 (audit
+        // CRAWL-05 / TMS-15): nor for staff outside COST_ROLES (the driver, the warehouse floor) — the same list as OrderMarginController.
+        if (ClientScope::isClientRequest() || ! self::canSeeCost(auth()->user())) {
             unset($summary['estimated_cost_cents'], $summary['actual_cost_cents'], $summary['margin_cents'], $summary['margin_is_estimate']);
         }
 
         return $summary;
+    }
+
+    /** Roles that may read a Job's cost and margin (CR #130 / #137 — the driver executes, the floor moves goods). */
+    public const COST_ROLES = ['admin', 'finance', 'customer_service', 'dispatcher'];
+
+    /** A system caller (console, consumer, test without a signed-in user) sees everything; a signed-in user needs one of COST_ROLES. */
+    public static function canSeeCost(?User $user): bool
+    {
+        return $user === null || $user->hasAnyRole(self::COST_ROLES);
     }
 
     /** JOB-YYYYMMDD-NNNN, sequence per day, safe under concurrent creation (row lock on today's last number). */
