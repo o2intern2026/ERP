@@ -23,17 +23,34 @@ use ZipArchive;
  * after carry-down) so the caller can block the whole mark instead of generating an order short of a goods line; rows carry
  * `deliver_to_address_type` from an optional 地址类型 / Address type column (住宅 → residential, 商业 → business, FBA → fba, empty →
  * null = the caller's default) so a residential consignee on a list reaches the tailgate rule like one typed on the order form.
+ *
+ * CHANGE_REQUESTS #143 (the client's English consolidation list, 拼箱清单, uploaded as is): waybill / Recipient / Postal Code /
+ * Detailed Address / Commodity / 商品数量 / 每箱产品总价 / Cube(m3) aliases; a sheet WITHOUT a 箱数-type column reads every row as ONE
+ * carton (file-level warning); when two columns map to the same field the FIRST (leftmost) wins — so "City" beats a misused "Suburb"
+ * column; "Commodity" / "Description" / "Goods" land in description_cn when the text has Chinese and description_en otherwise;
+ * "TTL VALUE(AUD)" is the per-unit price when 每箱产品总价 × 商品数量 agrees with it, the line total when it stands alone. Grouping
+ * (by mark / by recipient) and the address-type default are IMPORT OPTIONS of OrderImportService, never Row fields.
  */
 final class SpreadsheetManifestParser implements ManifestParser
 {
     private const MAX_ROWS = 5000;
 
-    /** Normalised header text (normaliseHeader) → row field. First match per field wins, left to right. */
+    /**
+     * Normalised header text (normaliseHeader) → row field. First match per field wins, left to right (CHANGE_REQUESTS #143: so when a
+     * sheet carries both "City" and a misused "Suburb" column, the leftmost — City — is the suburb and the other is ignored).
+     * `description_auto` and `value_aud` are resolver fields (never Row keys): a 品名 column whose language decides cn / en, and a
+     * value column that is the unit price or the line total depending on what else the sheet carries (convertRow).
+     */
     private const HEADERS = [
         'mark' => 'consignment_mark', 'marks' => 'consignment_mark', 'shippingmark' => 'consignment_mark', 'consignmentmark' => 'consignment_mark',
         '唛头' => 'consignment_mark', '麦头' => 'consignment_mark', '嘜頭' => 'consignment_mark',
+        // CHANGE_REQUESTS #143: a consolidation list has a waybill per carton instead of a 唛头.
+        'channelwaybillnumber' => 'consignment_mark', 'waybill' => 'consignment_mark', 'waybillno' => 'consignment_mark', 'waybillnumber' => 'consignment_mark',
+        '运单号' => 'consignment_mark', '转单号' => 'consignment_mark', '运单编号' => 'consignment_mark',
         'chinesename' => 'description_cn', '中文品名' => 'description_cn', '品名' => 'description_cn', '货物名称' => 'description_cn', '货名' => 'description_cn', '货物' => 'description_cn',
-        'englishname' => 'description_en', '英文品名' => 'description_en', 'description' => 'description_en', 'goodsdescription' => 'description_en', 'item' => 'description_en', 'product' => 'description_en',
+        'englishname' => 'description_en', '英文品名' => 'description_en', 'goodsdescription' => 'description_en', 'item' => 'description_en', 'product' => 'description_en',
+        // CHANGE_REQUESTS #143: language decides the slot — Chinese text → description_cn, anything else → description_en.
+        'description' => 'description_auto', 'commodity' => 'description_auto', 'goods' => 'description_auto', 'commodityname' => 'description_auto', 'goodsname' => 'description_auto',
         'hscode' => 'hs_code', '海关编码' => 'hs_code', 'hs编码' => 'hs_code',
         'material' => 'material', '材质' => 'material',
         'use' => 'usage', 'usage' => 'usage', '用途' => 'usage',
@@ -43,9 +60,12 @@ final class SpreadsheetManifestParser implements ManifestParser
         'cartonqty' => 'carton_qty', 'cartons' => 'carton_qty', 'carton' => 'carton_qty', 'ctns' => 'carton_qty', 'ctn' => 'carton_qty',
         'boxes' => 'carton_qty', 'noofcartons' => 'carton_qty', 'cartonquantity' => 'carton_qty', '箱数' => 'carton_qty', '总箱数' => 'carton_qty', '箱' => 'carton_qty',
         'productquantity' => 'unit_qty', 'pcs' => 'unit_qty', 'pieces' => 'unit_qty', 'units' => 'unit_qty', 'unitqty' => 'unit_qty', 'qty' => 'unit_qty', 'quantity' => 'unit_qty',
-        '产品数量' => 'unit_qty', '件数' => 'unit_qty', '总件数' => 'unit_qty', '每箱数量' => 'unit_qty', '数量' => 'unit_qty',
+        '产品数量' => 'unit_qty', '件数' => 'unit_qty', '总件数' => 'unit_qty', '每箱数量' => 'unit_qty', '数量' => 'unit_qty', '商品数量' => 'unit_qty', // #143
         'unitpriceaud' => 'unit_price_cents', 'unitprice' => 'unit_price_cents', '单价澳元' => 'unit_price_cents', '单价' => 'unit_price_cents',
         'totalpriceaud' => 'total_price_cents', 'totalprice' => 'total_price_cents', '总价澳元' => 'total_price_cents', '总价' => 'total_price_cents',
+        // CHANGE_REQUESTS #143: the carton total of the consolidation list; "TTL VALUE(AUD)" is resolved against it (unit price when consistent, else ignored).
+        '每箱产品总价aud' => 'total_price_cents', '每箱产品总价' => 'total_price_cents', 'totalvalue' => 'total_price_cents', 'totalvalueaud' => 'total_price_cents', 'cartonvalue' => 'total_price_cents', 'cartonvalueaud' => 'total_price_cents',
+        'ttlvalueaud' => 'value_aud', 'ttlvalue' => 'value_aud', 'valueaud' => 'value_aud', 'declaredvalue' => 'value_aud', 'declaredvalueaud' => 'value_aud', '货值' => 'value_aud', '申报价值' => 'value_aud',
         // Weight of the whole line (the order-line semantics, orders.lines.hint).
         'weightkg' => 'actual_weight_kg', 'weight' => 'actual_weight_kg', 'weightkgs' => 'actual_weight_kg', 'totalweight' => 'actual_weight_kg', 'totalweightkg' => 'actual_weight_kg',
         'grossweight' => 'actual_weight_kg', 'grossweightkg' => 'actual_weight_kg', 'gw' => 'actual_weight_kg', 'gwkg' => 'actual_weight_kg', 'kg' => 'actual_weight_kg', 'kgs' => 'actual_weight_kg',
@@ -63,17 +83,21 @@ final class SpreadsheetManifestParser implements ManifestParser
         'heightcm' => 'height_mm', 'heightmm' => 'height_mm', 'height' => 'height_mm', 'hcm' => 'height_mm', 'hmm' => 'height_mm',
         '高cm' => 'height_mm', '高mm' => 'height_mm', '高' => 'height_mm', '高度' => 'height_mm', '高度cm' => 'height_mm', '高度mm' => 'height_mm',
         'totalm³' => 'cbm', 'totalm3' => 'cbm', 'cbm' => 'cbm', 'volume' => 'cbm', 'totalcbm' => 'cbm', 'volumecbm' => 'cbm', 'm³' => 'cbm', 'm3' => 'cbm',
+        'cubem3' => 'cbm', 'cubem³' => 'cbm', 'cube' => 'cbm', 'cubicmetres' => 'cbm', 'cubicmeters' => 'cbm', // #143
         '总方数' => 'cbm', '方数' => 'cbm', '体积' => 'cbm', '总体积' => 'cbm', '立方' => 'cbm',
         'consigneename' => 'deliver_to_name', 'consignee' => 'deliver_to_name', 'receiver' => 'deliver_to_name', 'receivername' => 'deliver_to_name', 'recipient' => 'deliver_to_name',
+        'recipientname' => 'deliver_to_name', 'recipientsname' => 'deliver_to_name', // #143
         'deliverto' => 'deliver_to_name', 'shipto' => 'deliver_to_name', 'shiptoname' => 'deliver_to_name', 'attention' => 'deliver_to_name', 'attn' => 'deliver_to_name', 'contactname' => 'deliver_to_name',
         '收件人公司名人名' => 'deliver_to_name', '收件人' => 'deliver_to_name', '收货人' => 'deliver_to_name', '收件企业' => 'deliver_to_name', '收件公司' => 'deliver_to_name', '收货公司' => 'deliver_to_name',
         '收件人公司' => 'deliver_to_name', '收件企业联系人' => 'deliver_to_name', '收件人名称' => 'deliver_to_name', '收货人名称' => 'deliver_to_name', '收货方' => 'deliver_to_name', '收件方' => 'deliver_to_name', '联系人' => 'deliver_to_name',
         'contact' => 'deliver_to_phone', 'phone' => 'deliver_to_phone', 'tel' => 'deliver_to_phone', 'telephone' => 'deliver_to_phone', 'mobile' => 'deliver_to_phone', 'phoneno' => 'deliver_to_phone',
         'phonenumber' => 'deliver_to_phone', 'contactnumber' => 'deliver_to_phone', 'contactphone' => 'deliver_to_phone', 'contactno' => 'deliver_to_phone', 'telno' => 'deliver_to_phone',
+        'recipientsphonenumber' => 'deliver_to_phone', 'recipientphonenumber' => 'deliver_to_phone', 'recipientphone' => 'deliver_to_phone', 'recipientsphone' => 'deliver_to_phone', 'receiverphone' => 'deliver_to_phone', 'consigneephone' => 'deliver_to_phone', // #143
         '联系方式' => 'deliver_to_phone', '电话' => 'deliver_to_phone', '联系电话' => 'deliver_to_phone', '手机' => 'deliver_to_phone', '手机号' => 'deliver_to_phone', '手机号码' => 'deliver_to_phone',
         '收件人电话' => 'deliver_to_phone', '收货人电话' => 'deliver_to_phone', '电话号码' => 'deliver_to_phone', '收件电话' => 'deliver_to_phone',
         'address' => 'deliver_to_address', 'deliveryaddress' => 'deliver_to_address', 'consigneeaddress' => 'deliver_to_address', 'shippingaddress' => 'deliver_to_address', 'shiptoaddress' => 'deliver_to_address',
         'street' => 'deliver_to_address', 'streetaddress' => 'deliver_to_address', 'addressline' => 'deliver_to_address', 'address1' => 'deliver_to_address',
+        'detailedaddress' => 'deliver_to_address', 'fulladdress' => 'deliver_to_address', 'recipientaddress' => 'deliver_to_address', 'recipientsaddress' => 'deliver_to_address', // #143
         '收件人地址' => 'deliver_to_address', '地址' => 'deliver_to_address', '收件地址' => 'deliver_to_address', '收货地址' => 'deliver_to_address', '送货地址' => 'deliver_to_address', '派送地址' => 'deliver_to_address',
         '详细地址' => 'deliver_to_address', '收货人地址' => 'deliver_to_address', '街道地址' => 'deliver_to_address',
         'suburb' => 'deliver_to_suburb', 'city' => 'deliver_to_suburb', 'town' => 'deliver_to_suburb', 'suburbcity' => 'deliver_to_suburb', 'citysuburb' => 'deliver_to_suburb',
@@ -458,7 +482,8 @@ final class SpreadsheetManifestParser implements ManifestParser
     private function normalise(array $matrix, array $warnings): array
     {
         [$headerIndex, $columns] = $this->locateHeaders($matrix);
-        if ($headerIndex === null || ! isset($columns['consignment_mark'], $columns['carton_qty'])) {
+        // CHANGE_REQUESTS #143: only the mark (唛头 / waybill) column is required; a sheet without a 箱数-type column is one carton per row.
+        if ($headerIndex === null || ! isset($columns['consignment_mark'])) {
             return $this->failure('headers_missing', $warnings);
         }
 
@@ -470,6 +495,9 @@ final class SpreadsheetManifestParser implements ManifestParser
         $label = fn (string $field): string => $labels[$field] ?? __('orders.imports.columns.'.$field);
         $unitWeightHeader = isset($columns['unit_weight_kg']) ? $label('unit_weight_kg') : null;
         $unitWeightUsed = false;
+        if (! isset($columns['carton_qty'])) {
+            $warnings[] = $this->entry(0, 'carton_qty', __('orders.imports.columns.carton_qty'), __('orders.imports.warnings.one_carton_per_row'));
+        }
 
         $rows = [];
         $errors = [];
@@ -478,7 +506,7 @@ final class SpreadsheetManifestParser implements ManifestParser
         $seen = [];
 
         foreach (array_slice($matrix, $headerIndex + 1, self::MAX_ROWS, true) as $matrixIndex => $cells) {
-            if ($this->isEmpty($cells) || $this->looksLikeHeader($cells)) {
+            if ($this->isEmpty($cells) || $this->looksLikeHeader($cells, $columns)) {
                 continue;
             }
 
@@ -591,15 +619,20 @@ final class SpreadsheetManifestParser implements ManifestParser
             $warn('deliver_to_phone', 'phone_padded', ['from' => $phonePadded, 'to' => $phone]);
         }
 
-        // Cartons: an integer count, unit words allowed ("10箱"), decimals refused.
-        $cartonValue = $this->number($mapped['carton_qty'] ?? null);
+        // Cartons: an integer count, unit words allowed ("10箱"), decimals refused. CHANGE_REQUESTS #143: a sheet without any 箱数-type
+        // column (the consolidation list, one line per carton) reads every row as ONE carton — flagged once per file by normalise().
         $cartons = null;
-        if ($cartonValue === null || $cartonValue <= 0) {
-            $error('carton_qty', 'positive_number', ['value' => (string) ($mapped['carton_qty'] ?? '')]);
-        } elseif (abs($cartonValue - round($cartonValue)) > 0.000001) {
-            $error('carton_qty', 'integer', ['value' => (string) $mapped['carton_qty']]);
+        if (! isset($columns['carton_qty'])) {
+            $cartons = 1;
         } else {
-            $cartons = (int) round($cartonValue);
+            $cartonValue = $this->number($mapped['carton_qty'] ?? null);
+            if ($cartonValue === null || $cartonValue <= 0) {
+                $error('carton_qty', 'positive_number', ['value' => (string) ($mapped['carton_qty'] ?? '')]);
+            } elseif (abs($cartonValue - round($cartonValue)) > 0.000001) {
+                $error('carton_qty', 'integer', ['value' => (string) $mapped['carton_qty']]);
+            } else {
+                $cartons = (int) round($cartonValue);
+            }
         }
 
         // Weight: the line total; a 单件重量 column is multiplied by 箱数 (flagged once per file).
@@ -660,21 +693,24 @@ final class SpreadsheetManifestParser implements ManifestParser
         if ($cbm === null && $lengthMm && $widthMm && $heightMm) {
             $cbm = round(($lengthMm * $widthMm * $heightMm * $cartons) / 1_000_000_000, 4);
         }
+        [$descriptionCn, $descriptionEn] = $this->descriptions($mapped['description_cn'] ?? null, $mapped['description_en'] ?? null, $mapped['description_auto'] ?? null);
+        $unitQty = $this->integer($mapped['unit_qty'] ?? null);
+        [$unitPriceCents, $totalPriceCents] = $this->prices($this->money($mapped['unit_price_cents'] ?? null), $this->money($mapped['total_price_cents'] ?? null), $this->money($mapped['value_aud'] ?? null), $unitQty);
 
         return ['row' => [
             'row' => $rowNumber,
             'consignment_mark' => (string) $mapped['consignment_mark'],
-            'description_cn' => $mapped['description_cn'] ?? null,
-            'description_en' => $mapped['description_en'] ?? null,
+            'description_cn' => $descriptionCn,
+            'description_en' => $descriptionEn,
             'hs_code' => $mapped['hs_code'] ?? null,
             'material' => $mapped['material'] ?? null,
             'usage' => $mapped['usage'] ?? null,
             'brand' => $mapped['brand'] ?? null,
             'package_type' => $this->packageType($mapped['package_type'] ?? null),
             'carton_qty' => $cartons,
-            'unit_qty' => $this->integer($mapped['unit_qty'] ?? null),
-            'unit_price_cents' => $this->money($mapped['unit_price_cents'] ?? null),
-            'total_price_cents' => $this->money($mapped['total_price_cents'] ?? null),
+            'unit_qty' => $unitQty,
+            'unit_price_cents' => $unitPriceCents,
+            'total_price_cents' => $totalPriceCents,
             'actual_weight_kg' => $weight,
             'length_mm' => $lengthMm,
             'width_mm' => $widthMm,
@@ -695,6 +731,58 @@ final class SpreadsheetManifestParser implements ManifestParser
             'storage_tier_declared' => $tierDeclared,
             'raw_json' => $raw,
         ], 'errors' => [], 'warnings' => $warnings];
+    }
+
+    /**
+     * CHANGE_REQUESTS #143: a "Commodity" / "Description" / "Goods" column (`description_auto`) lands in description_cn when the text
+     * has Chinese characters and in description_en otherwise; an explicit 中文品名 / 英文品名 column is never overwritten — the auto
+     * text then takes the other slot if that one is empty, else it is dropped.
+     *
+     * @return array{?string, ?string}
+     */
+    private function descriptions(?string $cn, ?string $en, ?string $auto): array
+    {
+        if (! filled($auto)) {
+            return [$cn, $en];
+        }
+        $chinese = preg_match('/\p{Han}/u', (string) $auto) === 1;
+        if ($chinese && ! filled($cn)) {
+            return [$auto, $en];
+        }
+        if (! $chinese && ! filled($en)) {
+            return [$cn, $auto];
+        }
+        if (! filled($cn)) {
+            return [$auto, $en];
+        }
+        if (! filled($en)) {
+            return [$cn, $auto];
+        }
+
+        return [$cn, $en];
+    }
+
+    /**
+     * CHANGE_REQUESTS #143: the consolidation list's "TTL VALUE(AUD)" (`value_aud`) is the per-unit average next to a 每箱产品总价 carton
+     * total — it becomes the unit price only when value × 商品数量 agrees with the total (within 1 AUD or 1 %); standing alone it is the
+     * line total; inconsistent → the unit price stays unknown rather than guessed. Explicit 单价 / 总价 columns always win. Prices never
+     * price anything (lead answer 4 on CR #126) — they are kept for the order line and the storage-tier pre-fill only.
+     *
+     * @return array{?int, ?int}
+     */
+    private function prices(?int $unit, ?int $total, ?int $value, ?int $unitQty): array
+    {
+        if ($value === null) {
+            return [$unit, $total];
+        }
+        if ($total === null) {
+            return [$unit, $value];
+        }
+        if ($unit === null && $unitQty !== null && $unitQty > 0 && abs($value * $unitQty - $total) <= max(100, (int) round($total * 0.01))) {
+            return [$value, $total];
+        }
+
+        return [$unit, $total];
     }
 
     /**
@@ -786,16 +874,24 @@ final class SpreadsheetManifestParser implements ManifestParser
     }
 
     /**
-     * A repeated header row inside the data (the client pasted two sheets together): three distinct known columns, one of them
-     * structural — a data row whose cells happen to read "carton" / "material" never qualifies.
+     * A repeated header row inside the data (the client pasted two sheets together): three cells that read as header words UNDER the
+     * columns mapping to those very fields (one of them structural), or — for a second sheet in another column order — five distinct
+     * header words. A data row whose cells happen to read "Receiver" / "carton" / "Goods" never qualifies (CHANGE_REQUESTS #143: the
+     * broader alias table made the old "any three known words" rule swallow such a row).
      *
      * @param  list<string|null>  $cells
+     * @param  array<string, int>  $columns  the detected header's field → column index
      */
-    private function looksLikeHeader(array $cells): bool
+    private function looksLikeHeader(array $cells, array $columns): bool
     {
+        $structural = ['consignment_mark', 'carton_qty', 'deliver_to_name', 'deliver_to_address'];
+        $positional = collect($columns)->filter(fn (int $index, string $field) => $this->field($this->normaliseHeader($cells[$index] ?? null)) === $field)->keys();
+        if ($positional->count() >= 3 && $positional->intersect($structural)->isNotEmpty()) {
+            return true;
+        }
         $fields = collect($cells)->map(fn ($value) => $this->field($this->normaliseHeader($value)))->filter()->unique();
 
-        return $fields->count() >= 3 && $fields->intersect(['consignment_mark', 'carton_qty', 'deliver_to_name', 'deliver_to_address'])->isNotEmpty();
+        return $fields->count() >= 5 && $fields->intersect($structural)->isNotEmpty();
     }
 
     /** @param list<array<string, mixed>> $rows */

@@ -39,6 +39,8 @@ final class OrderImportController extends Controller
             'clients' => Client::query()->where('status', 'active')->orderBy('name')->get(['id', 'name']),
             'jobs' => Job::query()->with('client:id,name')->where('operational_status', '!=', 'cancelled')->latest('id')->get(['id', 'job_no', 'client_id']),
             'serviceLevels' => OrderEnums::SERVICE_LEVELS,
+            'groupBys' => OrderImportService::GROUP_BY, // CHANGE_REQUESTS #143
+            'addressTypeDefaults' => OrderImportService::ADDRESS_TYPE_DEFAULTS,
         ]);
     }
 
@@ -55,6 +57,9 @@ final class OrderImportController extends Controller
                     $fail(__('orders.imports.errors.unsupported_file'));
                 }
             }],
+            // CHANGE_REQUESTS #143: import options (按唛头 | 按收件人; 地址类型默认) — omitted = today's rule.
+            'group_by' => ['nullable', Rule::in(OrderImportService::GROUP_BY)],
+            'address_type_default' => ['nullable', Rule::in(OrderImportService::ADDRESS_TYPE_DEFAULTS)],
         ], OrderValidation::messages(), OrderValidation::attributes());
 
         if (! Job::query()->whereKey($data['job_id'])->where('client_id', $data['client_id'])->exists()) {
@@ -66,6 +71,8 @@ final class OrderImportController extends Controller
             'job_id' => (int) $data['job_id'],
             'requested_date' => $data['requested_date'],
             'service_level' => $data['service_level'],
+            'group_by' => (string) ($data['group_by'] ?? 'mark'),
+            'address_type_default' => (string) ($data['address_type_default'] ?? 'auto'),
         ], $request->user()?->id);
 
         return redirect()->route('orders.imports.show', $import);

@@ -172,6 +172,9 @@ return [
             'collection_ready_date' => '可提货日期',
             'collection_notes' => '提货备注',
             'collection_choice' => '提货方案',
+            // CHANGE_REQUESTS #143: import options on the upload and the manual form.
+            'group_by' => '分组规则',
+            'address_type_default' => '地址类型默认',
             // CHANGE_REQUESTS #128: 手工建立入库清单.
             'action' => '操作',
             'draft_id' => '草稿',
@@ -377,7 +380,10 @@ return [
         'context_hint' => '柜号、柜型、预计到港日、参考号和备注会随清单交给客服，建预报单时自动带入；都可以留空。',
         'defaults_hint' => '要求送达日默认为预计到港日 + 7 天（未填到港日则为今天 + 7 天），服务等级默认为“标准”；清单里有“要求送达日”或“服务等级”列时以该列为准。',
         'template' => '下载 CSV 模板',
-        'template_hint' => '模板为 UTF-8（带 BOM），中文 Windows 的 Excel 可直接打开；表头可用中文或英文（收件人 / Consignee、邮编 / Postcode……），多余的列会被忽略。',
+        'template_hint' => '模板为 UTF-8（带 BOM），中文 Windows 的 Excel 可直接打开；表头可用中文或英文（收件人 / Consignee、邮编 / Postcode……），多余的列会被忽略。英文拼箱清单（ChannelWaybillNumber / Recipient / Postal Code……）也可以原样上传，见下一条。',
+        // CHANGE_REQUESTS #143: the client's English consolidation list is accepted as is — the recognised headers, one row = one carton, ignored columns.
+        'consolidation_hint' => '英文拼箱清单不用改成模板，直接上传即可。系统认得这些表头：ChannelWaybillNumber / Waybill（运单号，作唛头）、Recipient（收件人）、Recipient\'s Phone Number（电话，缺前导 0 会补回）、Postal Code、State/Province（NSW 或 Queensland、Vic 等写法都可以）、City（城区；Suburb 列若填的是街道会被忽略）、Detailed Address（完整地址）、Commodity（品名，中文进中文品名、英文进英文品名）、商品数量、TTL VALUE(AUD)（单件价）、每箱产品总价 (AUD)、Length(cm) / Width(cm) / Height(cm)、Weight(kg)、Cube(m3)；Sender、Country、Battery、Email 等列忽略。清单没有「箱数」列时按“一行 = 一箱”读入；同一收件人有多个运单要合成一张订单时，把「分组规则」选“按收件人”。',
+        'warnings_folded' => '共 :count 条，点开查看',
         'pitfalls' => '系统会自动处理常见的表格问题：GBK / UTF-16 编码、分号或制表符分隔、全角数字、被 Excel 去掉前导 0 的邮编（800 → 0800）和手机号、州的中英文全称、cm / mm 单位、单件重量 × 箱数。电话若已显示成 4.12E+08，请先把电话列设为文本再上传。',
         // CHANGE_REQUESTS #136 (audit PORTAL-07): the optional 地址类型 column — a residential consignee on a list reaches the tailgate rule.
         'address_type_hint' => '「地址类型」列可选：住宅 / 商业 / FBA。填“住宅”的收件人按尾板车规则处理（确认订单时自动标记需要尾板车，尾板费在最终报价确认时产生）；留空则按地址簿或 FBA 货件编号判断，其余视为商业地址。',
@@ -419,6 +425,24 @@ return [
             'unselected' => '未选择',
             'storage_tier' => '存储等级',
             'source' => '来源 / 文件名', // CHANGE_REQUESTS #128: a manual list has no file
+        ],
+        // CHANGE_REQUESTS #143 导入选项 — how rows become orders, and the address type of rows without an explicit 地址类型.
+        'options' => [
+            'section' => '导入选项',
+            'group_by' => '分组规则（怎样合成订单）',
+            'group_by_options' => [
+                'mark' => '按唛头 / 运单号：同一唛头的行合成一张订单（默认）',
+                'recipient' => '按收件人：收件人 + 邮编 + 地址相同的行合成一张订单（拼箱清单）',
+            ],
+            'group_by_hint' => '“按收件人”时，订单的唛头取该收件人第一行的运单号去掉末尾的“-序号”（如 CW1001-2 → CW1001），每行货物的品名前带上自己的运单号（“CW1001-2 · 商品名”），拣货单和箱标上都能看到是哪一箱。',
+            'address_type_default' => '地址类型默认',
+            'address_type_defaults' => [
+                'auto' => '自动判断：地址簿 → 有 FBA 号为 FBA 仓库 → 其余商业（默认）',
+                'residential' => '没填地址类型的行全部按住宅',
+                'business' => '没填地址类型的行全部按商业',
+            ],
+            'address_type_default_hint' => '只影响清单里没有「地址类型」列或该格留空的行；住宅收件人按尾板车规则处理（确认订单时自动标记需要尾板车，尾板费在最终报价确认时产生）。',
+            'preview_orders' => '将生成 :count 张订单',
         ],
         // CHANGE_REQUESTS #126
         'storage_tier_hint' => '「存储等级」列可选：贵重货填“底层”（放货架最底层，不易碰撞，按周另收底层附加费），其余填“标准”或留空；提交后如需修改请联系客服。',

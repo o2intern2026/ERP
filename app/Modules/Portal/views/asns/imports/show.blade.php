@@ -27,6 +27,9 @@
             <dt>{{ __('portal.inbound.fields.reference') }}</dt><dd>{{ ($inbound['reference'] ?? null) ?: '—' }}</dd>
             <dt>{{ __('portal.inbound.fields.notes') }}</dt><dd>{{ ($inbound['notes'] ?? null) ?: '—' }}</dd>
             <dt>{{ __('portal.inbound.fields.requested_date') }}</dt><dd>{{ $requestedDate ?: '—' }} · {{ __('orders.service_levels.standard') }}</dd>
+            {{-- CHANGE_REQUESTS #143: the import options this list was read with, and how many orders the grouping rule produces. --}}
+            <dt>{{ __('portal.inbound.options.group_by') }}</dt><dd>{{ __('portal.inbound.options.group_by_options.'.$groupBy) }}@if ($groups->isNotEmpty()) · {{ __('portal.inbound.options.preview_orders', ['count' => $import->status === 'pending' ? $readyCount : count($audit['result']['created'] ?? [])]) }}@endif</dd>
+            <dt>{{ __('portal.inbound.options.address_type_default') }}</dt><dd>{{ __('portal.inbound.options.address_type_defaults.'.$addressTypeDefault) }}</dd>
         </dl>
     </article>
 
@@ -133,7 +136,14 @@
     @endif
 
     @if (($audit['warnings'] ?? []) !== [])
-        <article><strong>{{ __('portal.inbound.sections.warnings') }}</strong><ul>@foreach ($audit['warnings'] as $warning)<li>{{ $warning['message'] }}</li>@endforeach</ul></article>
+        {{-- CHANGE_REQUESTS #143: a 300-row consolidation list can carry hundreds of identical notes (phones padded) — folded behind a count past 20. --}}
+        <article>
+            @if (count($audit['warnings']) > 20)
+                <details><summary><strong>{{ __('portal.inbound.sections.warnings') }}</strong> · {{ __('portal.inbound.warnings_folded', ['count' => count($audit['warnings'])]) }}</summary><ul>@foreach ($audit['warnings'] as $warning)<li>{{ $warning['message'] }}</li>@endforeach</ul></details>
+            @else
+                <strong>{{ __('portal.inbound.sections.warnings') }}</strong><ul>@foreach ($audit['warnings'] as $warning)<li>{{ $warning['message'] }}</li>@endforeach</ul>
+            @endif
+        </article>
     @endif
 
     @if ($groups->isNotEmpty())

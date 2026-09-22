@@ -47,6 +47,10 @@ use InvalidArgumentException;
  * come back on the form in Chinese with the row and column) and / or the client's existing orders ticked to be attached. 以订单为准:
  * an attached order keeps its own consignee and goods — the preview shows them from the ORDER, read-only, and confirm records the
  * id only (`result.attached`); the list adds the inbound context and the collection request. 保存草稿 keeps everything for later.
+ *
+ * CHANGE_REQUESTS #143 拼箱清单格式直接导入: the client's English consolidation list uploads as is (the parser knows its headers, one
+ * row = one carton); the upload and the manual form carry two import options — `group_by` (按唛头 | 按收件人) and
+ * `address_type_default` (自动判断 | 住宅 | 商业) — recorded in the import context and shown on the preview with the order count.
  */
 final class PortalInboundImportController extends Controller
 {
@@ -77,6 +81,8 @@ final class PortalInboundImportController extends Controller
             'warehouses' => $warehouses,
             'defaultWarehouseId' => $this->defaultWarehouseId($clientId, $warehouses),
             'defaults' => [],
+            'groupBys' => OrderImportService::GROUP_BY, // CHANGE_REQUESTS #143
+            'addressTypeDefaults' => OrderImportService::ADDRESS_TYPE_DEFAULTS,
         ]);
     }
 
@@ -111,6 +117,7 @@ final class PortalInboundImportController extends Controller
                 }
             }],
             ...$this->inboundRules(),
+            ...$this->optionRules(),
             ...$this->collectionRules(false),
         ], PortalValidation::messages(), PortalValidation::attributes());
 
@@ -161,6 +168,7 @@ final class PortalInboundImportController extends Controller
             'attached_order_ids' => ['nullable', 'array', 'max:200'],
             'attached_order_ids.*' => ['integer'],
             ...$this->inboundRules(),
+            ...$this->optionRules(),
             ...$this->collectionRules($isDraft),
         ], PortalValidation::messages(), PortalValidation::attributes());
         if ($validator->fails()) {
@@ -225,6 +233,8 @@ final class PortalInboundImportController extends Controller
             'manual' => $import->isManual(),
             'attachedOrders' => $attachedOrders,
             'requestedDate' => $audit['context']['requested_date'] ?? null,
+            'groupBy' => $audit['context']['group_by'] ?? 'mark', // CHANGE_REQUESTS #143: the rule this list was grouped by
+            'addressTypeDefault' => $audit['context']['address_type_default'] ?? 'auto',
             'groups' => $groups,
             'readyCount' => $groups->where('status', 'ready')->count(),
             'blockedCount' => $groups->whereIn('status', ['blocked', 'duplicate', 'asn_match'])->count(),
@@ -329,6 +339,8 @@ final class PortalInboundImportController extends Controller
             'storageTiers' => Enums::STORAGE_TIERS,
             'warehouses' => $warehouses,
             'defaultWarehouseId' => $this->defaultWarehouseId($clientId, $warehouses),
+            'groupBys' => OrderImportService::GROUP_BY, // CHANGE_REQUESTS #143
+            'addressTypeDefaults' => OrderImportService::ADDRESS_TYPE_DEFAULTS,
         ]);
     }
 
@@ -343,6 +355,8 @@ final class PortalInboundImportController extends Controller
         $collection = is_array($inbound['collection'] ?? null) ? $inbound['collection'] : null;
 
         return [
+            'group_by' => $draft?->errors['context']['group_by'] ?? 'mark', // CHANGE_REQUESTS #143
+            'address_type_default' => $draft?->errors['context']['address_type_default'] ?? 'auto',
             'container_no' => $inbound['container_no'] ?? null,
             'container_size' => $inbound['container_size'] ?? null,
             'expected_date' => $inbound['expected_date'] ?? null,
@@ -402,6 +416,15 @@ final class PortalInboundImportController extends Controller
         ];
     }
 
+    /** CHANGE_REQUESTS #143: the import options shared by the upload and the manual form (an omitted field keeps today's rule). */
+    private function optionRules(): array
+    {
+        return [
+            'group_by' => ['nullable', Rule::in(OrderImportService::GROUP_BY)],
+            'address_type_default' => ['nullable', Rule::in(OrderImportService::ADDRESS_TYPE_DEFAULTS)],
+        ];
+    }
+
     /**
      * CHANGE_REQUESTS #125: the pickup fields exist only for 需要我们上门提货 — with 我们自己送到仓库 they are dropped before any rule runs.
      * A draft (CHANGE_REQUESTS #128) keeps the format rules but requires nothing, so a half-filled request can be saved and finished later.
@@ -456,6 +479,9 @@ final class PortalInboundImportController extends Controller
             'source' => 'portal',
             'client_visible' => true,
             'inbound' => $inbound,
+            // CHANGE_REQUESTS #143: import options — the service falls back to today's rule for anything unknown.
+            'group_by' => (string) ($data['group_by'] ?? 'mark'),
+            'address_type_default' => (string) ($data['address_type_default'] ?? 'auto'),
         ];
     }
 

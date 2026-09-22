@@ -30,9 +30,22 @@ use InvalidArgumentException;
  * CHANGE_REQUESTS #136 (audit PORTAL-05 / PORTAL-07): a 唛头 with a row the parser refused is `blocked` (`error_rows`, message
  * naming the rows) — an order is never generated short of a goods line; the group's `deliver_to_address_type` comes from the
  * list's 地址类型 column when the row carries one, else the address-book match, else the FBA-reference / business inference.
+ *
+ * CHANGE_REQUESTS #143 (the client's consolidation list): two IMPORT OPTIONS live in `context` (never on a parser Row) —
+ * `group_by` = `mark` (today's rule) | `recipient` (rows with the same recipient name + postcode + address become ONE order whose
+ * 唛头 is the first row's waybill root, i.e. the waybill without a trailing "-<n>", every row keeping its own waybill in front of
+ * its description as "<waybill> · <commodity>" so unit labels and the pick list show it) and `address_type_default` = `auto`
+ * (today's rule) | `residential` | `business` for rows without an explicit 地址类型 value. Both are recorded with the import and
+ * shown on the preview together with the resulting order count.
  */
 final class OrderImportService
 {
+    /** CHANGE_REQUESTS #143: how rows become orders — by 唛头 / waybill (default) or by recipient (name + postcode + address). */
+    public const GROUP_BY = ['mark', 'recipient'];
+
+    /** CHANGE_REQUESTS #143: the address type of rows without an explicit 地址类型 — `auto` = address book → FBA reference → business. */
+    public const ADDRESS_TYPE_DEFAULTS = ['auto', 'residential', 'business'];
+
     public function __construct(
         private readonly SpreadsheetManifestParser $parser,
         private readonly OrderCreationService $orders,
@@ -43,11 +56,12 @@ final class OrderImportService
     ) {}
 
     /**
-     * @param  array{client_id:int, job_id?:?int, requested_date:string, service_level:string, source?:string, client_visible?:bool, inbound?:?array<string, mixed>}  $context
+     * @param  array{client_id:int, job_id?:?int, requested_date:string, service_level:string, source?:string, client_visible?:bool, inbound?:?array<string, mixed>, group_by?:string, address_type_default?:string}  $context
      */
     public function preview(UploadedFile $file, array $context, ?int $actorId): OrderImport
     {
         $context += ['job_id' => null, 'source' => 'excel', 'client_visible' => false, 'inbound' => null];
+        $context = $this->withOptions($context);
         $path = $file->store('imports/orders', 'local');
         $sha256 = hash_file('sha256', Storage::disk('local')->path($path));
 
@@ -92,11 +106,12 @@ final class OrderImportService
      *
      * @param  list<array<string, mixed>>  $rows  the posted rows, keyed by SpreadsheetManifestParser::FORM_FIELDS
      * @param  list<int>  $attachedOrderIds
-     * @param  array{client_id:int, requested_date:string, service_level:string, inbound?:?array<string, mixed>}  $context
+     * @param  array{client_id:int, requested_date:string, service_level:string, inbound?:?array<string, mixed>, group_by?:string, address_type_default?:string}  $context
      */
     public function previewRows(array $rows, array $attachedOrderIds, array $context, ?int $actorId, ?OrderImport $draft = null): OrderImport
     {
         $context += ['job_id' => null, 'source' => 'portal', 'client_visible' => false, 'inbound' => null];
+        $context = $this->withOptions($context);
         $clientId = (int) $context['client_id'];
         $rows = array_values($rows);
         $attached = $this->checkAttachable($clientId, $attachedOrderIds, $draft?->id);
@@ -121,11 +136,12 @@ final class OrderImportService
      *
      * @param  list<array<string, mixed>>  $rows
      * @param  list<int>  $attachedOrderIds
-     * @param  array{client_id:int, requested_date:string, service_level:string, inbound?:?array<string, mixed>}  $context
+     * @param  array{client_id:int, requested_date:string, service_level:string, inbound?:?array<string, mixed>, group_by?:string, address_type_default?:string}  $context
      */
     public function saveDraft(array $rows, array $attachedOrderIds, array $context, ?int $actorId, ?OrderImport $draft = null): OrderImport
     {
         $context += ['job_id' => null, 'source' => 'portal', 'client_visible' => false, 'inbound' => null];
+        $context = $this->withOptions($context);
         $clientId = (int) $context['client_id'];
         $attached = $this->checkAttachable($clientId, $attachedOrderIds, $draft?->id);
 
@@ -309,6 +325,21 @@ final class OrderImportService
         return $import->fresh();
     }
 
+    /**
+     * CHANGE_REQUESTS #143: the two import options with their defaults — an unknown value falls back to today's rule so an old
+     * context (or a hand-edited request) never changes how a list is grouped.
+     *
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     */
+    private function withOptions(array $context): array
+    {
+        $context['group_by'] = in_array($context['group_by'] ?? null, self::GROUP_BY, true) ? $context['group_by'] : 'mark';
+        $context['address_type_default'] = in_array($context['address_type_default'] ?? null, self::ADDRESS_TYPE_DEFAULTS, true) ? $context['address_type_default'] : 'auto';
+
+        return $context;
+    }
+
     /** The row a manual submission lives on: the client's own draft (reused), else a new portal import. */
     private function manualImport(int $clientId, ?int $actorId, ?OrderImport $draft): OrderImport
     {
@@ -433,6 +464,12 @@ final class OrderImportService
      * REFUSED (`$errors`, each carrying its `consignment_mark`) is blocked with the row numbers — the confirmed order would otherwise
      * silently lack those goods lines, and the short ASN built from it surfaces as a receiving discrepancy weeks later.
      *
+     * CHANGE_REQUESTS #143 `group_by = recipient`: one group per recipient (name + postcode + address, case / whitespace insensitive);
+     * the group's 唛头 is the first row's waybill root and every row's description is prefixed with its own waybill. A refused row then
+     * blocks the group whose rows share its waybill ROOT (the refused carton belongs to the same consignment even though the
+     * recipient cells that would have placed it are the very cells that may be broken). `address_type_default` replaces the
+     * address-book / FBA / business inference for rows without an explicit 地址类型 value.
+     *
      * @param  list<array<string,mixed>>  $rows
      * @param  list<array<string,mixed>>  $errors
      * @param  array<string,mixed>  $context
@@ -442,24 +479,38 @@ final class OrderImportService
     {
         $groups = [];
         $jobId = filled($context['job_id'] ?? null) ? (int) $context['job_id'] : null;
+        $byRecipient = ($context['group_by'] ?? 'mark') === 'recipient';
+        $addressDefault = $context['address_type_default'] ?? 'auto';
         $refused = [];
         foreach ($errors as $error) {
             if (filled($error['consignment_mark'] ?? null) && (int) ($error['row'] ?? 0) > 0) {
-                $refused[mb_strtolower(trim((string) $error['consignment_mark']))][(int) $error['row']] = true;
+                $mark = trim((string) $error['consignment_mark']);
+                $refused[mb_strtolower($byRecipient ? $this->waybillRoot($mark) : $mark)][(int) $error['row']] = true;
             }
         }
-        foreach (collect($rows)->groupBy(fn ($row) => mb_strtolower(trim((string) $row['consignment_mark']))) as $markKey => $markRows) {
+        $grouped = $byRecipient
+            ? collect($rows)->groupBy(fn ($row) => $this->recipientKey($row))
+            : collect($rows)->groupBy(fn ($row) => mb_strtolower(trim((string) $row['consignment_mark'])));
+        foreach ($grouped as $groupKey => $markRows) {
             $first = $markRows->first();
-            $errorRows = array_keys($refused[$markKey] ?? []);
+            if ($byRecipient) {
+                $mark = $this->waybillRoot((string) $first['consignment_mark']);
+                $roots = $markRows->map(fn ($row) => mb_strtolower($this->waybillRoot((string) $row['consignment_mark'])))->unique();
+                $errorRows = $roots->flatMap(fn ($root) => array_keys($refused[$root] ?? []))->unique()->values()->all();
+                $markRows = $markRows->map(fn ($row) => $this->withWaybillInDescription($row));
+            } else {
+                $mark = (string) $first['consignment_mark'];
+                $errorRows = array_keys($refused[$groupKey] ?? []);
+            }
             sort($errorRows);
             $signatures = $markRows->map(fn ($row) => $this->signature($row))->unique();
-            $key = hash('sha256', $sha256.'|'.$first['consignment_mark'].'|'.$this->signature($first));
+            $key = hash('sha256', $sha256.'|'.$mark.'|'.$this->signature($first).($byRecipient ? '|'.$groupKey : ''));
             $address = $this->matchingAddress((int) $context['client_id'], $first);
             $group = [
                 'key' => $key,
                 'status' => 'ready',
                 'message' => null,
-                'consignment_mark' => $first['consignment_mark'],
+                'consignment_mark' => $mark,
                 'external_ref' => collect($markRows)->pluck('external_ref')->filter()->first(),
                 'fba_reference' => $first['fba_reference'],
                 'deliver_to_name' => $first['deliver_to_name'],
@@ -468,8 +519,10 @@ final class OrderImportService
                 'deliver_to_suburb' => $first['deliver_to_suburb'],
                 'deliver_to_state' => $first['deliver_to_state'],
                 'deliver_to_postcode' => $first['deliver_to_postcode'],
-                // CHANGE_REQUESTS #136: the list's 地址类型 column wins; without it the address book, then the FBA reference, then business.
-                'deliver_to_address_type' => $first['deliver_to_address_type'] ?? $address?->address_type ?? ($first['fba_reference'] ? 'fba' : 'business'),
+                // CHANGE_REQUESTS #136: the list's 地址类型 column wins; without it the address book, then the FBA reference, then business —
+                // unless the import chose a default for such rows (CHANGE_REQUESTS #143).
+                'deliver_to_address_type' => $first['deliver_to_address_type']
+                    ?? ($addressDefault !== 'auto' ? $addressDefault : ($address?->address_type ?? ($first['fba_reference'] ? 'fba' : 'business'))),
                 'delivery_instructions' => $address?->default_instructions,
                 'client_address_id' => $address?->id,
                 'save_address_suggested' => $address === null,
@@ -484,22 +537,67 @@ final class OrderImportService
 
             if ($errorRows !== []) {
                 $group['status'] = 'blocked';
-                $group['message'] = __('orders.imports.errors.rows_not_read', ['mark' => $first['consignment_mark'], 'rows' => implode('、', $errorRows)]);
+                $group['message'] = __('orders.imports.errors.rows_not_read', ['mark' => $mark, 'rows' => implode('、', $errorRows)]);
             } elseif ($signatures->count() > 1) {
                 $group['status'] = 'blocked';
-                $group['message'] = __('orders.imports.errors.inconsistent_group', ['mark' => $first['consignment_mark']]);
-            } elseif ($jobId !== null && $this->matchingAsnExists((int) $context['client_id'], $jobId, (string) $first['consignment_mark'])) {
+                $group['message'] = __('orders.imports.errors.inconsistent_group', ['mark' => $mark]);
+            } elseif ($jobId !== null && $this->matchingAsnExists((int) $context['client_id'], $jobId, $mark)) {
                 $group['status'] = 'asn_match';
-                $group['message'] = __('orders.imports.errors.matching_asn', ['mark' => $first['consignment_mark']]);
+                $group['message'] = __('orders.imports.errors.matching_asn', ['mark' => $mark]);
             } elseif ($this->duplicateOrder((int) $context['client_id'], $group, $requestedDate)) {
                 $group['status'] = 'duplicate';
-                $group['message'] = __('orders.imports.errors.duplicate_order', ['mark' => $first['consignment_mark']]);
+                $group['message'] = __('orders.imports.errors.duplicate_order', ['mark' => $mark]);
             }
 
             $groups[] = $group;
         }
 
         return $groups;
+    }
+
+    /**
+     * CHANGE_REQUESTS #143: the recipient a row belongs to when grouping by recipient — name + postcode + address, lower-cased with
+     * whitespace removed from the address, so "1 Sample St" and "1 sample st " are the same consignee.
+     *
+     * @param  array<string,mixed>  $row
+     */
+    private function recipientKey(array $row): string
+    {
+        return mb_strtolower(trim((string) ($row['deliver_to_name'] ?? '')).'|'.trim((string) ($row['deliver_to_postcode'] ?? '')).'|'.preg_replace('/\s+/u', '', (string) ($row['deliver_to_address'] ?? '')));
+    }
+
+    /** CHANGE_REQUESTS #143: "CW1001-2" → "CW1001" — the consolidation list numbers the cartons of one consignment with a trailing "-<n>". */
+    private function waybillRoot(string $mark): string
+    {
+        $mark = trim($mark);
+        $root = preg_replace('/-\d+$/', '', $mark);
+
+        return filled($root) ? $root : $mark;
+    }
+
+    /**
+     * CHANGE_REQUESTS #143: under recipient grouping every goods line keeps its own waybill in front of its description
+     * ("<waybill> · <commodity>", the first filled description, 中文 first) so unit labels, the pick list and the order page show
+     * which carton is which; a row without any description gets the waybill alone.
+     *
+     * @param  array<string,mixed>  $row
+     * @return array<string,mixed>
+     */
+    private function withWaybillInDescription(array $row): array
+    {
+        $waybill = trim((string) $row['consignment_mark']);
+        foreach (['description_cn', 'description_en'] as $field) {
+            if (filled($row[$field] ?? null)) {
+                if (! str_starts_with((string) $row[$field], $waybill.' · ')) {
+                    $row[$field] = mb_substr($waybill.' · '.$row[$field], 0, 255);
+                }
+
+                return $row;
+            }
+        }
+        $row['description_cn'] = mb_substr($waybill, 0, 255);
+
+        return $row;
     }
 
     /**

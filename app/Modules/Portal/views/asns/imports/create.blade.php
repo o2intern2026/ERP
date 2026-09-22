@@ -16,6 +16,8 @@
     <form method="post" action="{{ route('portal.asns.imports.store') }}" enctype="multipart/form-data">
         @csrf
         @include('portal::asns.imports.partials.context-fields')
+        {{-- CHANGE_REQUESTS #143 导入选项 (分组规则 / 地址类型默认) — shared with 手工建立入库清单. --}}
+        @include('portal::asns.imports.partials.import-options')
         {{-- CHANGE_REQUESTS #125 到仓方式 — the fieldset and its toggle live in the partial shared with 手工建立入库清单 (#128). --}}
         @include('portal::asns.imports.partials.collection-fields')
 
@@ -24,6 +26,7 @@
             <label>{{ __('portal.inbound.fields.file') }}<input type="file" name="manifest" accept=".csv,.xlsx,.xls" required></label>
             <p><small><a href="{{ route('portal.asns.imports.template') }}">{{ __('portal.inbound.template') }}</a> · {{ __('portal.inbound.template_hint') }}</small></p>
             <p class="text-muted"><small>{{ implode(' · ', $templateHeaders) }}</small></p>
+            <p class="text-muted"><small>{{ __('portal.inbound.consolidation_hint') }}</small></p>{{-- CHANGE_REQUESTS #143: the English consolidation list uploads as is --}}
             <p class="text-muted"><small>{{ __('portal.inbound.defaults_hint') }}</small></p>
             <p class="text-muted"><small>{{ __('portal.inbound.storage_tier_hint') }}</small></p>
             <p class="text-muted"><small>{{ __('portal.inbound.address_type_hint') }}</small></p>{{-- CHANGE_REQUESTS #136 --}}
