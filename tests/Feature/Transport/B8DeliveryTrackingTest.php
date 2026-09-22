@@ -187,6 +187,7 @@ class B8DeliveryTrackingTest extends TestCase
 
         $this->actingAs($operator)->post(route('transport.shipments.pod.store', $shipment), [
             'recipient_name' => 'Carrier Recipient',
+            'delivered_at' => '2026-09-07T14:00', // CHANGE_REQUESTS #135 (audit TMS-12): the carrier's signing time is a field now (never before the shipment existed — created at test-now)
             'pod_file' => UploadedFile::fake()->createWithContent('carrier-pod.pdf', "%PDF-1.4\ncarrier pod\n%%EOF"),
         ])->assertSessionHasNoErrors()
             ->assertSessionHas('status', __('transport.carrier_pod.saved'));
@@ -205,16 +206,21 @@ class B8DeliveryTrackingTest extends TestCase
     public function test_extra_charge_form_emits_the_contract_payload_for_billing(): void
     {
         $operator = $this->staff('dispatcher');
-        $shipment = $this->shipment('own_fleet');
+        $shipment = $this->shipment('own_fleet', ['status' => 'booked']); // CHANGE_REQUESTS #135 (audit TMS-11): reportable from booking onward
 
         $this->actingAs($operator)->post(route('transport.shipments.extra-charges.store', $shipment), [
             'charge_type' => 'waiting',
             'qty' => 1.5,
             'uom' => 'man_hour',
-            'cost_cents' => 4500,
+            'carrier_cost' => '45.00', // CHANGE_REQUESTS #135 (audit TMS-03): dollars in the form, cents in the payload
             'note' => 'Driver waited for the receiving dock.',
         ])->assertSessionHasNoErrors()
-            ->assertSessionHas('status', __('transport.extra_charges.reported'));
+            ->assertSessionHas('status', __('transport.extra_charges.reported_detail', [
+                'type' => __('transport.extra_charges.types.waiting'),
+                'qty' => '1.5',
+                'uom' => __('transport.extra_charges.uoms.man_hour'),
+                'cost' => __('transport.extra_charges.cost_suffix', ['amount' => '$45.00']),
+            ]));
 
         $event = OutboxEvent::query()->where('event_name', 'delivery.extra_charge')->sole();
         $this->assertEquals([

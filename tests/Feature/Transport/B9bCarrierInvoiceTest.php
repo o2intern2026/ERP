@@ -57,7 +57,7 @@ class B9bCarrierInvoiceTest extends TestCase
             'invoice_no' => 'INV-B9B-001',
             'period_from' => '2026-08-01',
             'period_to' => '2026-08-31',
-            'total_cents' => 28000,
+            'total' => '280.00', // CHANGE_REQUESTS #135 (audit TMS-03): dollars in the form, cents stored
             'statement' => UploadedFile::fake()->createWithContent('carrier-statement.csv', $csv),
         ]);
 
@@ -126,7 +126,7 @@ class B9bCarrierInvoiceTest extends TestCase
             'invoice_no' => 'INV-B9B-002',
             'period_from' => '2026-09-01',
             'period_to' => '2026-09-07',
-            'total_cents' => 7500,
+            'total' => '75.00',
             'statement' => UploadedFile::fake()->createWithContent('exact.csv', "tracking_number,billed_cents\nTRACK-ONLY,7500"),
         ])->assertSessionHasNoErrors();
 
@@ -156,7 +156,7 @@ class B9bCarrierInvoiceTest extends TestCase
             'invoice_no' => 'INV-B9B-BAD',
             'period_from' => '2026-09-01',
             'period_to' => '2026-09-07',
-            'total_cents' => 100,
+            'total' => '1.00',
             'statement' => UploadedFile::fake()->createWithContent('bad.csv', "tracking_number,amount\nTRACK-BAD,100"),
         ])->assertSessionHasErrors('statement');
 

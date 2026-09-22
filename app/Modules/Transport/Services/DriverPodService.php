@@ -54,10 +54,7 @@ final class DriverPodService
         try {
             $pod = DB::transaction(function () use ($stop, $driver, $recipientName, $signature, $photos, &$storedPaths): Pod {
                 [$lockedStop, $shipment, $run] = $this->lockDriverStop($stop, $driver);
-
-                if (Pod::query()->where('shipment_id', $shipment->id)->whereNotNull('delivered_at')->exists()) {
-                    throw new DomainException(__('transport.driver.already_delivered'));
-                }
+                $this->assertStopOpen($lockedStop, $shipment);
 
                 $deliveredAt = now();
                 $signaturePath = "transport/shipments/{$shipment->id}/pod/".Str::uuid().'-signature.png';
@@ -72,29 +69,8 @@ final class DriverPodService
                     'uploaded_by' => $driver->id,
                 ]);
 
-                $photoDocumentIds = [];
                 $photoDataUris = [];
-                foreach ($photos as $index => $photo) {
-                    $content = $photo->get();
-                    $mime = $this->photoMime($photo);
-                    $extension = match ($mime) {
-                        'image/png' => 'png',
-                        'image/webp' => 'webp',
-                        default => 'jpg',
-                    };
-                    $photoPath = "transport/shipments/{$shipment->id}/pod/".Str::uuid()."-photo.{$extension}";
-                    $this->store($photoPath, $content, $storedPaths);
-                    $photoDocumentIds[] = $this->documents->attach('photo', 'shipment', $shipment->id, $photoPath, [
-                        'job_id' => $shipment->job_id,
-                        'client_id' => $shipment->client_id,
-                        'client_visible' => true,
-                        'original_name' => $shipment->shipment_no.'-delivery-photo-'.($index + 1).".{$extension}",
-                        'mime' => $mime,
-                        'size_bytes' => strlen($content),
-                        'uploaded_by' => $driver->id,
-                    ]);
-                    $photoDataUris[] = 'data:'.$mime.';base64,'.base64_encode($content);
-                }
+                $photoDocumentIds = $this->storePhotos($shipment, $driver, $photos, 'delivery-photo', $storedPaths, $photoDataUris);
 
                 $pdfContent = $this->pdf->render(
                     $shipment,
@@ -166,52 +142,130 @@ final class DriverPodService
         return $pod;
     }
 
-    public function fail(RunStop $stop, User $driver, string $reason): Pod
+    /**
+     * CHANGE_REQUESTS #135 (audit TMS-09): a failed attempt carries an optional note (required for 其他 — "other" with nothing
+     * said means a phone call) and optional photos (the closed gate) stored exactly as POD photos; the note goes into the
+     * `delivery_failed` exception message, the `delivery.failed` payload stays as contracted.
+     *
+     * @param  list<UploadedFile>  $photos
+     */
+    public function fail(RunStop $stop, User $driver, string $reason, ?string $note = null, array $photos = []): Pod
     {
         if (! in_array($reason, self::FAILURE_REASONS, true)) {
             throw new DomainException(__('transport.driver.invalid_failure_reason'));
         }
+        $note = trim((string) $note);
+        $storedPaths = [];
 
-        return DB::transaction(function () use ($stop, $driver, $reason): Pod {
-            [$lockedStop, $shipment, $run] = $this->lockDriverStop($stop, $driver);
+        try {
+            return DB::transaction(function () use ($stop, $driver, $reason, $note, $photos, &$storedPaths): Pod {
+                [$lockedStop, $shipment, $run] = $this->lockDriverStop($stop, $driver);
+                $this->assertStopOpen($lockedStop, $shipment);
+                if ($reason === 'other' && $note === '') {
+                    throw new DomainException(__('transport.driver.failure_note_required'));
+                }
 
-            if (Pod::query()->where('shipment_id', $shipment->id)->whereNotNull('delivered_at')->exists()) {
-                throw new DomainException(__('transport.driver.already_delivered'));
+                $attemptNo = Pod::query()
+                    ->where('shipment_id', $shipment->id)
+                    ->whereNotNull('failure_reason')
+                    ->lockForUpdate()
+                    ->count() + 1;
+                $failedAt = now();
+                $pod = Pod::query()->create([
+                    'shipment_id' => $shipment->id,
+                    'failure_reason' => $reason,
+                    'failure_note' => $note === '' ? null : $note,
+                    'photo_document_ids' => $this->storePhotos($shipment, $driver, $photos, 'failure-photo', $storedPaths),
+                    'captured_by' => $driver->id,
+                ]);
+
+                $lockedStop->update(['status' => 'failed']);
+                $this->progress->advance($shipment, 'failed', $failedAt);
+                $this->finishRun($run);
+                $this->raiseDeliveryFailure($shipment, $reason, $note, $driver->id);
+
+                $this->outbox->publish(new DeliveryFailed([
+                    'shipment_id' => $shipment->id,
+                    'shipment_no' => $shipment->shipment_no,
+                    'job_id' => $shipment->job_id,
+                    'client_id' => $shipment->client_id,
+                    'order_id' => $shipment->order_id,
+                    'asn_id' => $shipment->asn_id,
+                    'shipment_type' => $shipment->shipment_type,
+                    'failed_at' => $failedAt->toIso8601String(),
+                    'failure_reason' => $reason,
+                    'attempt_no' => $attemptNo,
+                    'reported_by_type' => 'driver',
+                ], jobId: $shipment->job_id, clientId: $shipment->client_id, correlationId: $shipment->shipment_no));
+
+                return $pod->refresh();
+            });
+        } catch (Throwable $exception) {
+            foreach ($storedPaths as $storedPath) {
+                Storage::disk('local')->delete($storedPath);
             }
 
-            $attemptNo = Pod::query()
-                ->where('shipment_id', $shipment->id)
-                ->whereNotNull('failure_reason')
-                ->lockForUpdate()
-                ->count() + 1;
-            $failedAt = now();
-            $pod = Pod::query()->create([
-                'shipment_id' => $shipment->id,
-                'failure_reason' => $reason,
-                'captured_by' => $driver->id,
-            ]);
+            throw $exception;
+        }
+    }
 
-            $lockedStop->update(['status' => 'failed']);
-            $this->progress->advance($shipment, 'failed', $failedAt);
-            $this->finishRun($run);
-            $this->raiseDeliveryFailure($shipment, $reason, $driver->id);
+    /**
+     * CHANGE_REQUESTS #135 (audit TMS-09): only a pending / arrived stop takes a delivery or a failure. A failed stop is closed —
+     * a second failure would publish attempt 2 for the same attempt, a delivery after it would leave the shipment 配送失败 with a
+     * delivered POD; the office re-attempts through 重新派送 (a new shipment, a new stop).
+     */
+    private function assertStopOpen(RunStop $stop, Shipment $shipment): void
+    {
+        if (Pod::query()->where('shipment_id', $shipment->id)->whereNotNull('delivered_at')->exists() || $stop->status === 'delivered') {
+            throw new DomainException(__('transport.driver.already_delivered'));
+        }
+        if ($stop->status === 'failed') {
+            $failure = Pod::query()->where('shipment_id', $shipment->id)->whereNotNull('failure_reason')->latest('id')->first();
+            throw new DomainException(__('transport.driver.already_failed', [
+                'reason' => $failure === null ? '—' : __('transport.driver.failure_reasons.'.$failure->failure_reason),
+                'time' => $failure?->created_at?->format('Y-m-d H:i') ?? '—',
+            ]));
+        }
+        if (! in_array($stop->status, ['pending', 'arrived'], true)) {
+            throw new DomainException(__('transport.driver.stop_unavailable'));
+        }
+    }
 
-            $this->outbox->publish(new DeliveryFailed([
-                'shipment_id' => $shipment->id,
-                'shipment_no' => $shipment->shipment_no,
+    /**
+     * Stores photos under the shipment's POD folder and attaches each as a client-visible `photo` document — the one path for
+     * delivery photos and failure photos (#135). $photoDataUris receives the data URIs the POD PDF embeds.
+     *
+     * @param  list<UploadedFile>  $photos
+     * @param  list<string>  $storedPaths
+     * @param  list<string>  $photoDataUris
+     * @return list<int>
+     */
+    private function storePhotos(Shipment $shipment, User $driver, array $photos, string $kind, array &$storedPaths, array &$photoDataUris = []): array
+    {
+        $photoDocumentIds = [];
+        foreach (array_values($photos) as $index => $photo) {
+            $content = $photo->get();
+            $mime = $this->photoMime($photo);
+            $extension = match ($mime) {
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+                default => 'jpg',
+            };
+            $photoPath = "transport/shipments/{$shipment->id}/pod/".Str::uuid()."-photo.{$extension}";
+            $this->store($photoPath, $content, $storedPaths);
+            $photoDocumentIds[] = $this->documents->attach('photo', 'shipment', $shipment->id, $photoPath, [
                 'job_id' => $shipment->job_id,
                 'client_id' => $shipment->client_id,
-                'order_id' => $shipment->order_id,
-                'asn_id' => $shipment->asn_id,
-                'shipment_type' => $shipment->shipment_type,
-                'failed_at' => $failedAt->toIso8601String(),
-                'failure_reason' => $reason,
-                'attempt_no' => $attemptNo,
-                'reported_by_type' => 'driver',
-            ], jobId: $shipment->job_id, clientId: $shipment->client_id, correlationId: $shipment->shipment_no));
+                'client_visible' => true,
+                'original_name' => $shipment->shipment_no.'-'.$kind.'-'.($index + 1).".{$extension}",
+                'mime' => $mime,
+                'size_bytes' => strlen($content),
+                'uploaded_by' => $driver->id,
+            ]);
+            $photoDataUris[] = 'data:'.$mime.';base64,'.base64_encode($content);
+        }
 
-            return $pod->refresh();
-        });
+        return $photoDocumentIds;
     }
 
     /** @return array{RunStop, Shipment, DeliveryRun} */
@@ -242,7 +296,7 @@ final class DriverPodService
         $run->save();
     }
 
-    private function raiseDeliveryFailure(Shipment $shipment, string $reason, int $driverId): void
+    private function raiseDeliveryFailure(Shipment $shipment, string $reason, string $note, int $driverId): void
     {
         $exists = ExceptionRecord::query()->withoutGlobalScopes()
             ->where('type', 'delivery_failed')
@@ -262,7 +316,8 @@ final class DriverPodService
                 'message' => __('transport.exceptions.driver_failed', [
                     'shipment' => $shipment->shipment_no,
                     'reason' => __('transport.driver.failure_reasons.'.$reason),
-                ]),
+                ]).($note === '' ? '' : __('transport.exceptions.driver_failed_note', ['note' => $note])), // #135: the driver's note settles the dispute
+
                 'created_by' => $driverId,
             ]);
         }

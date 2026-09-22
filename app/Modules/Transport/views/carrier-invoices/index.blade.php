@@ -22,7 +22,8 @@
             <label>{{ __('transport.reconciliation.invoice_no') }}<input name="invoice_no" value="{{ old('invoice_no') }}" required></label>
             <label>{{ __('transport.reconciliation.period_from') }}<x-date-field name="period_from" value="{{ old('period_from') }}" required /></label>
             <label>{{ __('transport.reconciliation.period_to') }}<x-date-field name="period_to" value="{{ old('period_to') }}" required /></label>
-            <label>{{ __('transport.reconciliation.total_cents') }}<input type="number" name="total_cents" min="0" step="1" value="{{ old('total_cents') }}" required></label>
+            {{-- CHANGE_REQUESTS #135 (audit TMS-03): dollars in, cents stored. --}}
+            <label>{{ __('transport.reconciliation.total_input') }}<input type="number" name="total" min="0" step="0.01" inputmode="decimal" placeholder="280.00" value="{{ old('total') }}" required><small>{{ __('transport.money_hint') }}</small></label>
             <label>{{ __('transport.reconciliation.statement') }}<input type="file" name="statement" accept=".csv,text/csv" required></label>
             <button type="submit">{{ __('transport.reconciliation.import') }}</button>
         </form>

@@ -249,10 +249,10 @@ class B9aCarrierCostMarginTest extends TestCase
         $this->assertSame($run->id, OutboxEvent::query()->where('event_name', 'shipment.booked')->sole()->payload['delivery_run_id']);
 
         $this->actingAs($operator)->post(route('transport.shipments.own-fleet-cost.store', $shipment), [
-            'cost_cents' => 8300,
+            'actual_cost' => '83.00', // CHANGE_REQUESTS #135 (audit TMS-03): dollars in the form, cents stored
             'note' => 'Fuel and driver time',
         ])->assertSessionHasNoErrors()
-            ->assertSessionHas('status', __('transport.costs.saved'));
+            ->assertSessionHas('status', __('transport.costs.saved_amount', ['amount' => '$83.00']));
         $this->assertDatabaseHas('carrier_costs', [
             'shipment_id' => $shipment->id,
             'expected_cost_cents' => 8300,

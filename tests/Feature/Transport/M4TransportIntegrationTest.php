@@ -96,8 +96,8 @@ class M4TransportIntegrationTest extends TestCase
         $this->actingAs($dispatcher)->post(route('transport.shipments.quotes.manual', $shipment), [
             'carrier_service_id' => $manualService->id,
             'quote_stage' => 'final',
-            'cost_cents' => 7000,
-            'customer_price_cents' => 9000,
+            'cost' => '70.00', // CHANGE_REQUESTS #135 (audit TMS-03): dollars in the form, cents stored
+            'customer_price' => '90.00',
             'eta_days' => 1,
         ])->assertSessionHasNoErrors();
         $manual = TransportQuote::query()->where('shipment_id', $shipment->id)->where('source', 'manual')->sole();

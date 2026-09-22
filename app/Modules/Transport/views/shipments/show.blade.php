@@ -37,6 +37,15 @@
             <dd>{{ __('transport.shipment_types.'.$shipment->shipment_type) }}</dd>
             <dt>{{ __('transport.shipments.tracking_number') }}</dt>
             <dd>{{ $shipment->tracking_number ?: __('transport.not_selected') }}</dd>
+            {{-- CHANGE_REQUESTS #135 (audit TMS-10): the two shipments of a failed drop point at each other. --}}
+            @if ($shipment->redeliveryOf !== null)
+                <dt>{{ __('transport.redelivery.origin') }}</dt>
+                <dd><a href="{{ route('transport.shipments.show', $shipment->redeliveryOf) }}">{{ $shipment->redeliveryOf->shipment_no }}</a> <span class="badge" data-tone="danger">{{ __('transport.statuses.'.$shipment->redeliveryOf->status) }}</span></dd>
+            @endif
+            @if ($shipment->redelivery !== null)
+                <dt>{{ __('transport.redelivery.existing') }}</dt>
+                <dd><a href="{{ route('transport.shipments.show', $shipment->redelivery) }}">{{ $shipment->redelivery->shipment_no }}</a> {!! \App\Support\Ui\StatusBadge::render('transport.statuses.', $shipment->redelivery->status) !!}</dd>
+            @endif
             <dt>{{ __('transport.quotes.client_preference') }}</dt>
             <dd>
                 @if ($shipment->isCollection())
@@ -51,6 +60,14 @@
             </dd>
         </dl>
     </article>
+
+    {{-- CHANGE_REQUESTS #135 (audit TMS-10): right after 创建重派运输单 — the 二次派送 fee is a separate manual step on the ORIGINAL shipment (it is booked-or-later; this one is not yet). --}}
+    @if (($redeliveryHintShipment ?? null) !== null)
+        <article class="flash" role="status">
+            {{ __('transport.redelivery.charge_hint', ['shipment' => $redeliveryHintShipment->shipment_no]) }}
+            <a href="{{ route('transport.shipments.show', $redeliveryHintShipment) }}#extra-charges">{{ __('transport.redelivery.charge_link') }}</a>
+        </article>
+    @endif
 
     {{-- 2026-09-10 audit: every action form below is gated by the same roles its controller accepts, so no role is offered a form the server refuses. --}}
     @if ($shipment->status === 'quote_confirmed' && $shipment->selectedQuote !== null)
@@ -116,8 +133,9 @@
                 @if (count($manualQuoteStages) < 2)
                     <small>{{ __('transport.manual_quote.stage_unavailable_hint', ['stages' => collect($manualQuoteStages)->map(fn (string $stage) => __('transport.quote_stages.'.$stage))->implode(' / ')]) }}</small>
                 @endif
-                <label>{{ __('transport.manual_quote.cost_cents') }}<input type="number" name="cost_cents" min="1" step="1" value="{{ old('cost_cents') }}" required></label>
-                <label>{{ __('transport.manual_quote.customer_price_cents') }}<input type="number" name="customer_price_cents" min="1" step="1" value="{{ old('customer_price_cents') }}" required></label>
+                {{-- CHANGE_REQUESTS #135 (audit TMS-03 / CS-19): dollars with two decimals, as on every Billing form; the controller stores cents. --}}
+                <label>{{ __('transport.manual_quote.cost') }}<input type="number" name="cost" min="0.01" step="0.01" inputmode="decimal" placeholder="125.00" value="{{ old('cost') }}" required></label>
+                <label>{{ __('transport.manual_quote.customer_price') }}<input type="number" name="customer_price" min="0.01" step="0.01" inputmode="decimal" placeholder="185.50" value="{{ old('customer_price') }}" required><small>{{ __('transport.money_hint') }}</small></label>
                 <label>{{ __('transport.manual_quote.eta_days') }}<input type="number" name="eta_days" min="0" step="1" value="{{ old('eta_days', 3) }}" required></label>
                 <button type="submit">{{ __('transport.manual_quote.submit') }}</button>
             </form>
@@ -133,8 +151,10 @@
             <form method="post" action="{{ route('transport.shipments.own-fleet-cost.store', $shipment) }}">
                 @csrf
                 <label>
-                    {{ __('transport.costs.actual_cost_cents') }}
-                    <input type="number" name="cost_cents" min="0" step="1" value="{{ old('cost_cents', $shipment->carrierCost?->actual_cost_cents) }}" required>
+                    {{ __('transport.costs.actual_cost') }}
+                    {{-- CHANGE_REQUESTS #135 (audit TMS-03): dollars in, cents stored. --}}
+                    <input type="number" name="actual_cost" min="0" step="0.01" inputmode="decimal" placeholder="83.00" value="{{ old('actual_cost', $shipment->carrierCost?->actual_cost_cents === null ? '' : \App\Support\Money::cents($shipment->carrierCost->actual_cost_cents)->toDecimal()) }}" required>
+                    <small>{{ __('transport.money_hint') }}</small>
                 </label>
                 <label>
                     {{ __('transport.costs.note') }}
@@ -168,10 +188,16 @@
 
     @if ($shipment->status === 'failed')
         @role('admin|customer_service|dispatcher')
-        <form method="post" action="{{ route('transport.shipments.redelivery.store', $shipment) }}">
-            @csrf
-            <button type="submit">{{ __('transport.redelivery.create') }}</button>
-        </form>
+        {{-- CHANGE_REQUESTS #135 (audit TMS-10): one redelivery per failed shipment — once it exists the button gives way to the link. --}}
+        @if ($shipment->redelivery !== null)
+            <p>{{ __('transport.redelivery.existing') }}: <a href="{{ route('transport.shipments.show', $shipment->redelivery) }}">{{ $shipment->redelivery->shipment_no }}</a> {!! \App\Support\Ui\StatusBadge::render('transport.statuses.', $shipment->redelivery->status) !!}</p>
+        @else
+            <form method="post" action="{{ route('transport.shipments.redelivery.store', $shipment) }}">
+                @csrf
+                <button type="submit">{{ __('transport.redelivery.create') }}</button>
+                <small class="text-muted">{{ __('transport.redelivery.create_hint') }}</small>
+            </form>
+        @endif
         @endrole
     @endif
 
@@ -191,9 +217,15 @@
                     {{ __('transport.driver.recipient_name') }}
                     <input name="recipient_name" value="{{ old('recipient_name') }}" maxlength="150" required>
                 </label>
+                {{-- CHANGE_REQUESTS #135 (audit TMS-12): the carrier's own signing time, not the upload moment; JPG / PNG accepted next to PDF. --}}
+                <label>
+                    {{ __('transport.carrier_pod.delivered_at') }}
+                    <x-date-field name="delivered_at" :value="old('delivered_at', now()->format('Y-m-d\TH:i'))" time required />
+                    <small>{{ __('transport.carrier_pod.delivered_at_hint') }}</small>
+                </label>
                 <label>
                     {{ __('transport.carrier_pod.file') }}
-                    <input type="file" name="pod_file" accept="application/pdf" required>
+                    <input type="file" name="pod_file" accept="application/pdf,image/jpeg,image/png" required>
                 </label>
                 <button type="submit">{{ __('transport.carrier_pod.save') }}</button>
             </form>
@@ -226,8 +258,11 @@
     @endif
 
     @role('admin|customer_service|dispatcher')
-    <details>
+    {{-- CHANGE_REQUESTS #135 (audit TMS-11): the form is offered from booking onward, every report is listed below it, and a
+         repeat of a type already reported needs the explicit 确认再次上报 tick (Billing keys every report separately). --}}
+    <details id="extra-charges" @if ($errors->has('extra_charge') || $shipment->extraCharges->isNotEmpty()) open @endif>
         <summary>{{ __('transport.extra_charges.title') }}</summary>
+        @if (\App\Modules\Transport\Services\ExtraChargeService::reportable($shipment))
         <form method="post" action="{{ route('transport.shipments.extra-charges.store', $shipment) }}">
             @csrf
             <label>
@@ -251,15 +286,54 @@
                 </select>
             </label>
             <label>
-                {{ __('transport.extra_charges.cost_cents') }}
-                <input type="number" name="cost_cents" min="0" step="1" value="{{ old('cost_cents') }}">
+                {{ __('transport.extra_charges.carrier_cost') }}
+                {{-- CHANGE_REQUESTS #135 (audit TMS-03): dollars in, cents stored. --}}
+                <input type="number" name="carrier_cost" min="0" step="0.01" inputmode="decimal" placeholder="45.00" value="{{ old('carrier_cost') }}">
+                <small>{{ __('transport.money_hint') }}</small>
             </label>
             <label>
                 {{ __('transport.extra_charges.note') }}
                 <textarea name="note" maxlength="1000" required>{{ old('note') }}</textarea>
             </label>
+            @if ($shipment->extraCharges->isNotEmpty())
+                <label>
+                    <input type="checkbox" name="confirm_repeat" value="1" @checked(old('confirm_repeat'))>
+                    {{ __('transport.extra_charges.confirm_repeat') }}
+                </label>
+            @endif
             <button type="submit">{{ __('transport.extra_charges.submit') }}</button>
         </form>
+        @else
+            <p class="text-muted">{{ __('transport.extra_charges.not_booked_hint') }}</p>
+        @endif
+
+        <h3>{{ __('transport.extra_charges.reported_list') }}</h3>
+        @if ($shipment->extraCharges->isEmpty())
+            <p class="text-muted">{{ __('transport.extra_charges.none_reported') }}</p>
+        @else
+            <table class="dense">
+                <thead><tr>
+                    <th>{{ __('transport.extra_charges.reported_at') }}</th>
+                    <th>{{ __('transport.extra_charges.type') }}</th>
+                    <th class="num">{{ __('transport.extra_charges.quantity') }}</th>
+                    <th class="num">{{ __('transport.extra_charges.cost') }}</th>
+                    <th>{{ __('transport.extra_charges.note') }}</th>
+                    <th>{{ __('transport.extra_charges.reported_by') }}</th>
+                </tr></thead>
+                <tbody>
+                    @foreach ($shipment->extraCharges as $extraCharge)
+                        <tr>
+                            <td>{{ $extraCharge->reported_at->format('Y-m-d H:i') }}</td>
+                            <td>{{ __('transport.extra_charges.types.'.$extraCharge->charge_type) }}</td>
+                            <td class="num">{{ rtrim(rtrim(number_format((float) $extraCharge->qty, 2, '.', ''), '0'), '.') }} {{ __('transport.extra_charges.uoms.'.$extraCharge->uom) }}</td>
+                            <td class="num">{{ $extraCharge->cost_cents === null ? '—' : \App\Support\Money::cents($extraCharge->cost_cents)->format() }}</td>
+                            <td style="white-space:normal">{{ $extraCharge->note }}</td>
+                            <td>{{ $extraCharge->reportedBy?->name ?? '—' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
     </details>
     @endrole
 

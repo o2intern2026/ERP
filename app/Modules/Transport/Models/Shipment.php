@@ -22,7 +22,7 @@ class Shipment extends Model
         'shipment_no', 'job_id', 'client_id', 'order_id', 'asn_id', 'asn_activity_version', 'fulfilment_id', 'shipment_type', 'status',
         'selected_quote_id', 'carrier_id', 'service_level', 'booking_ref', 'tracking_number',
         'waybill_document_id', 'consignment_note_document_id', 'tailgate_required', 'delivery_run_id',
-        'dispatched_at', 'delivered_at',
+        'redelivery_of_shipment_id', 'dispatched_at', 'delivered_at',
     ];
 
     protected static function booted(): void
@@ -100,6 +100,24 @@ class Shipment extends Model
     public function deliveryRun(): BelongsTo
     {
         return $this->belongsTo(DeliveryRun::class);
+    }
+
+    /** CHANGE_REQUESTS #135 (audit TMS-11): what was reported through 报告配送额外费用, newest first. */
+    public function extraCharges(): HasMany
+    {
+        return $this->hasMany(ShipmentExtraCharge::class)->orderByDesc('reported_at')->orderByDesc('id');
+    }
+
+    /** CHANGE_REQUESTS #135 (audit TMS-10): the failed shipment this one re-attempts. */
+    public function redeliveryOf(): BelongsTo
+    {
+        return $this->belongsTo(Shipment::class, 'redelivery_of_shipment_id');
+    }
+
+    /** CHANGE_REQUESTS #135 (audit TMS-10): the redelivery created from this failed shipment (at most one). */
+    public function redelivery(): HasOne
+    {
+        return $this->hasOne(Shipment::class, 'redelivery_of_shipment_id');
     }
 
     public function waybillDocument(): BelongsTo
