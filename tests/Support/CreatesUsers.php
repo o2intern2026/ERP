@@ -51,11 +51,9 @@ trait CreatesUsers
         if (! RateCard::query()->where('is_standard', true)->exists()) {
             $this->seed(BillingSeeder::class); // real Edward rates for every module's tests
         }
-        $standardCardId = RateCard::query()->where('is_standard', true)->where('status', 'active')->value('id');
 
-        return Client::query()->withoutGlobalScopes()->create($attributes + [
-            'standard_rate_card_id' => $standardCardId,
-            'code' => 'C-'.Str::upper(Str::random(6)),
+        $client = Client::query()->withoutGlobalScopes()->create($attributes + [
+            'code' => 'C-'.Str::upper(Str::random(6)), // standard_rate_card_id: Client::creating binds the active standard card (CHANGE_REQUESTS #134)
             'name' => 'Client '.Str::random(4),
             'leg_type' => 'both',
             'status' => 'active',
@@ -63,5 +61,12 @@ trait CreatesUsers
             'invoice_mode' => 'per_job',
             'default_markup_percent' => 20,
         ]);
+
+        // An explicit null asks for an unpriced client (Missing Rate tests); Client::creating would bind the standard card, so unbind after create.
+        if (array_key_exists('standard_rate_card_id', $attributes) && $attributes['standard_rate_card_id'] === null) {
+            $client->update(['standard_rate_card_id' => null]);
+        }
+
+        return $client;
     }
 }

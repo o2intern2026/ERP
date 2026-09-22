@@ -6,7 +6,12 @@
     <h1>{{ __('masterdata.title') }}</h1>
     @include('masterdata::partials.tabs', ['active' => 'clients'])
     @if ($pendingCount ?? 0)<p><mark>{{ __('masterdata.clients.pending_hint', ['count' => $pendingCount]) }}</mark></p>@endif
-    <p style="text-align:right"><a role="button" href="{{ route('masterdata.clients.create') }}">{{ __('masterdata.clients.create') }}</a></p>
+    {{-- CHANGE_REQUESTS #134: no staff "new client" form — companies register themselves, staff approve here. --}}
+    @if ($signupOpen ?? true)
+        <p class="text-muted"><small>{{ __('masterdata.clients.signup_hint') }} <a href="{{ route('platform.register') }}">{{ __('masterdata.clients.signup_link') }}</a></small></p>
+    @else
+        <p class="text-muted"><small>{{ __('masterdata.clients.signup_closed_hint') }}</small></p>
+    @endif
     <div class="overflow-auto">
         <table class="dense">
             <thead>
@@ -34,11 +39,19 @@
                         <td>{{ __('masterdata.invoice_modes.'.$c->invoice_mode) }}</td>
                         <td class="num">{{ $c->default_markup_percent }}%</td>
                         <td>{{ $c->dispatch_cutoff_time ? substr($c->dispatch_cutoff_time, 0, 5) : '—' }}</td>
-                        <td><span class="badge" data-tone="{{ ['active' => 'ok', 'pending' => 'warn'][$c->status] ?? 'muted' }}">{{ __('masterdata.statuses.'.$c->status) }}</span></td>
+                        <td>
+                            <span class="badge" data-tone="{{ ['active' => 'ok', 'pending' => 'warn'][$c->status] ?? 'muted' }}">{{ __('masterdata.statuses.'.$c->status) }}</span>
+                            @if ($c->standard_rate_card_id === null)<span class="badge" data-tone="warn" title="{{ __('masterdata.clients.no_standard_card') }}">{{ __('masterdata.clients.standard_card_missing') }}</span>@endif
+                        </td>
                         <td>
                             <a href="{{ route('masterdata.clients.edit', $c) }}">{{ __('platform.common.edit') }}</a>
                             @if ($c->status === 'pending')
                                 <form method="post" action="{{ route('masterdata.clients.approve', $c) }}" style="display:inline">@csrf <button type="submit" class="outline" style="padding:.1rem .6rem;margin:0">{{ __('masterdata.clients.approve') }}</button></form>
+                            @endif
+                            @if ($c->standard_rate_card_id === null)
+                                @role('admin')
+                                    <form method="post" action="{{ route('masterdata.clients.bind_standard_card', $c) }}" style="display:inline">@csrf <button type="submit" class="outline" style="padding:.1rem .6rem;margin:0">{{ __('masterdata.clients.bind_standard_card') }}</button></form>
+                                @endrole
                             @endif
                         </td>
                     </tr>

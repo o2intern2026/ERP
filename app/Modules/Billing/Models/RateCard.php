@@ -26,6 +26,20 @@ class RateCard extends Model
         return $this->belongsTo(Client::class);
     }
 
+    /**
+     * The standard card every client is bound to (§6.3 rate_cards.is_standard): the newest active standard version, or null
+     * before BillingSeeder / Finance has activated one. Used by Client::creating (CHANGE_REQUESTS #134), registration and 修复.
+     */
+    public static function activeStandard(): ?self
+    {
+        return static::query()->where('is_standard', true)->where('status', 'active')->orderByDesc('version')->first();
+    }
+
+    public static function activeStandardId(): ?int
+    {
+        return static::query()->where('is_standard', true)->where('status', 'active')->orderByDesc('version')->value('id');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(RateItem::class);

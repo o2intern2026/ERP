@@ -8,12 +8,13 @@ use Illuminate\Support\Facades\Route;
 // contracts/routes.md — MasterData owns /admin/clients/**, /admin/suppliers/**, /admin/carriers/** (name prefix "masterdata.").
 // Master data is maintained by admin, customer service and finance (PLT-2). Warehouses / locations live in Warehouse.
 Route::prefix('admin')->name('masterdata.')->middleware('role:admin|customer_service|finance')->group(function () {
+    // CHANGE_REQUESTS #134 (audit A13 / GAP-01): staff never create clients — companies register at /register (Platform
+    // RegistrationController binds the standard rate card) and are approved, edited and managed here afterwards.
     Route::get('/clients', [ClientController::class, 'index'])->name('index');
-    Route::get('/clients/create', [ClientController::class, 'create'])->name('clients.create');
-    Route::post('/clients', [ClientController::class, 'store'])->name('clients.store');
     Route::get('/clients/{client}/edit', [ClientController::class, 'edit'])->name('clients.edit');
     Route::put('/clients/{client}', [ClientController::class, 'update'])->name('clients.update');
     Route::post('/clients/{client}/approve', [ClientController::class, 'approve'])->name('clients.approve'); // tester feedback #8: activate a self-registered client + its users
+    Route::post('/clients/{client}/bind-standard-card', [ClientController::class, 'bindStandardCard'])->middleware('role:admin')->name('clients.bind_standard_card'); // #134 修复: a client with no standard card gets the active one
 
     Route::get('/suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
     Route::get('/suppliers/create', [SupplierController::class, 'create'])->name('suppliers.create');
