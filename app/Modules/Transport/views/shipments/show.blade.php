@@ -264,6 +264,16 @@
     @endrole
 
     <h2>{{ __('transport.quotes.title') }}</h2>
+    {{-- CHANGE_REQUESTS #133 (audit TMS-02): quotes live 24 h; a planner fetches fresh ones while the shipment is not booked. --}}
+    @if (in_array($shipment->status, \App\Modules\Transport\Services\ShipmentRequoteService::REQUOTABLE_STATUSES, true))
+        @role('admin|customer_service|dispatcher')
+        <form method="post" action="{{ route('transport.shipments.requote', $shipment) }}">
+            @csrf
+            <button type="submit" class="secondary">{{ __('transport.quotes.requote') }}</button>
+            <small class="text-muted">{{ __('transport.quotes.requote_hint') }}</small>
+        </form>
+        @endrole
+    @endif
     @if ($shipment->quotes->isEmpty())
         <p>{{ __('transport.quotes.empty') }}</p>
     @else
@@ -278,6 +288,7 @@
                     <th class="num">{{ __('transport.quotes.eta') }}</th>
                     <th>{{ __('transport.quotes.flags') }}</th>
                     <th>{{ __('transport.quotes.stage') }}</th>
+                    <th>{{ __('transport.quotes.expires_at') }}</th>
                     <th>{{ __('transport.quotes.status') }}</th>
                     <th>{{ __('transport.quotes.action') }}</th>
                 </tr>
@@ -297,8 +308,11 @@
                             @if ($quote->is_fastest)<span class="badge">{{ __('transport.flags.fastest') }}</span>@endif
                         </td>
                         <td>{{ __('transport.quote_stages.'.$quote->quote_stage) }}</td>
+                        {{-- CHANGE_REQUESTS #133: validity as dd/mm HH:mm; a dead quote reads 已过期, not 待选择 (selecting it is refused anyway). --}}
+                        @php($expired = $quote->status === 'quoted' && $quote->expires_at !== null && $quote->expires_at->isPast())
+                        <td>{{ $quote->expires_at?->format('d/m H:i') ?? '—' }}</td>
                         <td>
-                            {!! \App\Support\Ui\StatusBadge::render('transport.quote_statuses.', $quote->status) !!}
+                            {!! \App\Support\Ui\StatusBadge::render('transport.quote_statuses.', $expired ? 'expired' : $quote->status) !!}
                             @if ($shipment->selected_quote_id === $quote->id)
                                 <span class="badge" data-tone="ok">{{ __('transport.quotes.current_selection') }}</span>
                             @endif

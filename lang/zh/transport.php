@@ -13,7 +13,9 @@ return [
     'driver' => [
         'today' => '今日配送：:date',
         'errors' => '提交错误',
-        'no_runs' => '今天没有分配给您的配送班次。',
+        'no_runs' => '没有分配给您的待执行配送班次。',
+        // CHANGE_REQUESTS #133: an unfinished run from an earlier day stays on the page (flagged) until every stop is done or failed.
+        'run_date' => '配送日期 :date，尚未完成',
         'no_stops' => '该班次没有停靠点。',
         'stop_number' => '第 :sequence 站',
         'stop' => '停靠顺序',
@@ -51,7 +53,7 @@ return [
         'invalid_failure_reason' => '配送失败原因无效。',
         'invalid_signature' => '签名数据无效，请重新签名。',
         'storage_failed' => 'POD 文件保存失败。',
-        'stop_unavailable' => '该停靠点不属于您今天的有效班次。',
+        'stop_unavailable' => '该停靠点不属于您的有效班次（班次日期不能晚于今天，且班次未完成或取消）。',
         'already_delivered' => '该运输单已经完成签收。',
         'pod_title' => '送达签收凭证',
     ],
@@ -168,6 +170,14 @@ return [
         'client_preference_hint' => '最终报价与该估价差异在容差内时，系统按客户的选择自动确认；差异过大或该方案不可用时等客户在门户确认。这里的"确认"按钮为代客确认。',
         'client_preference_none' => '客户未在下单时选择运输方案。',
         'client_preference_collection' => '入库提货由客服 / 调度在此确认方案（客户不在门户选择）。',
+        // CHANGE_REQUESTS #133 (audit TMS-02): validity column, 重新报价 button, its flash and refusals.
+        'expires_at' => '有效至',
+        'requote' => '重新报价',
+        'requote_hint' => '方案 24 小时内有效。过期后点"重新报价"按当前阶段重新获取全部方案；客户已选方案的差异在容差内时仍会自动确认。',
+        'requoted' => '已重新报价（:stage），共 :count 个方案。',
+        'requote_none' => '重新报价没有可用的自动运输方案，请人工录价。',
+        'requote_invalid_status' => '运输单已预订或已完成，不能重新报价。',
+        'log' => ['requoted' => '重新报价'],
     ],
     'selection' => [
         'saved' => '运输方案已保存。',
@@ -345,6 +355,23 @@ return [
         // 2026-09-10 audit: one changed number is taken as "move this stop to that position"; several stops sharing a number is refused in Chinese.
         'duplicate_positions' => '有多个停靠点填了相同的顺序号。一次只移动一个停靠点（改一个数字即可），或给每个停靠点填写不同的顺序号。',
         'reorder_hint' => '修改某一站的顺序号即可把它移到该位置，其余站点自动顺延。',
+        // CHANGE_REQUESTS #133 (audit TMS-01): 修改班次 / 移出班次 / 取消班次 — their forms, flashes, refusals and activity-log lines.
+        'edit' => '修改班次',
+        'edit_hint' => '没有停靠点签收前可修改配送日期、司机和车辆；班次编号不变。',
+        'save_changes' => '保存修改',
+        'updated' => '班次已修改。',
+        'cancel' => '取消班次',
+        'cancel_confirm' => '确定取消该班次？未执行的停靠点会移出班次，其运单可重新编排。',
+        'cancelled' => '班次已取消，未执行的停靠点已移出。',
+        'actions' => '操作',
+        'remove_stop' => '移出班次',
+        'remove_stop_confirm' => '确定把该运单移出班次？运单保持已预订，可加入其他班次。',
+        'stop_removed' => '运单已移出班次，可重新编排。',
+        'not_editable' => '该班次已完成或已取消，不能修改。',
+        'delivered_stop' => '班次中已有停靠点签收，不能修改或取消班次。',
+        'stop_not_pending' => '只有待到达的停靠点可以移出班次。',
+        'stop_not_in_run' => '该停靠点不属于此班次。',
+        'log' => ['updated' => '修改班次', 'stop_removed' => '移出班次', 'cancelled' => '取消班次'],
     ],
     'consignment_note' => [
         'title' => '托运清单',

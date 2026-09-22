@@ -24,8 +24,10 @@ class DriverController extends Controller
             'runs' => DeliveryRun::query()
                 ->with(['stops.shipment.client', 'stops.shipment.selectedQuote', 'stops.shipment.pods'])
                 ->where('driver_id', $request->user()->id)
-                ->whereDate('run_date', today())
+                // CHANGE_REQUESTS #133: on or before today — an unfinished run that spilled past midnight stays here until it completes.
+                ->whereDate('run_date', '<=', today())
                 ->whereIn('status', ['planned', 'dispatched'])
+                ->orderBy('run_date')
                 ->orderBy('run_no')
                 ->get(),
             'failureReasons' => DriverPodService::FAILURE_REASONS,
