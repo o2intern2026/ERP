@@ -14,6 +14,7 @@ use App\Support\Contracts\ExceptionService;
 use App\Support\Contracts\RateService;
 use App\Support\Exceptions\RuleViolation;
 use App\Support\Money;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -223,15 +224,19 @@ final class ChargeEngine
         }
     }
 
-    /** A8b manual one-off charge: reason required; priced from the card unless an amount is given (FIN-5). */
-    public function manual(int $jobId, int $clientId, string $chargeCode, float $qty, string $reason, ?int $amountCents = null, ?int $createdBy = null): Charge
+    /**
+     * A8b manual one-off charge: reason required; priced from the card unless an amount is given (FIN-5). `$chargeDate` (audit 2026-09-22
+     * FIN-09, CR #140) dates the fee on the day it belongs to — a September labour charge entered on 2 October lands in the September
+     * period — and defaults to today; the controller refuses a future date.
+     */
+    public function manual(int $jobId, int $clientId, string $chargeCode, float $qty, string $reason, ?int $amountCents = null, ?int $createdBy = null, ?CarbonInterface $chargeDate = null): Charge
     {
         $code = ChargeCode::query()->where('code', $chargeCode)->firstOrFail();
         $priced = $this->rates->price($clientId, $code->code, $qty);
         $amount = $amountCents ?? $priced['amount_cents'];
 
         return Charge::query()->create([
-            'job_id' => $jobId, 'client_id' => $clientId, 'charge_date' => today(), 'charge_code_id' => $code->id,
+            'job_id' => $jobId, 'client_id' => $clientId, 'charge_date' => ($chargeDate ?? today())->toDateString(), 'charge_code_id' => $code->id,
             'rate_card_id' => $priced['rate_card_id'], 'rate_card_version' => $priced['rate_card_version'], 'rate_item_id' => $priced['rate_item_id'],
             'uom' => $priced['uom'] ?? $code->default_uom, 'qty' => $qty, 'rate_snapshot_cents' => $priced['rate_cents'], 'amount_cents' => $amount,
             'calculation_snapshot_json' => $priced['calculation_snapshot'] + ['manual' => true, 'amount_given' => $amountCents !== null],

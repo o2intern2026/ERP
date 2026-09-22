@@ -2,6 +2,7 @@
 
 namespace App\Modules\Billing\Models;
 
+use App\Modules\Billing\Casts\ThresholdJson;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Spatie\Activitylog\LogOptions;
@@ -20,7 +21,7 @@ class RateItem extends Model
 
     protected function casts(): array
     {
-        return ['threshold_json' => 'array', 'weight_band_min' => 'decimal:2', 'weight_band_max' => 'decimal:2', 'markup_percent' => 'decimal:2', 'rate_cents' => 'integer', 'min_charge_cents' => 'integer', 'is_poa' => 'boolean'];
+        return ['threshold_json' => ThresholdJson::class, 'weight_band_min' => 'decimal:2', 'weight_band_max' => 'decimal:2', 'markup_percent' => 'decimal:2', 'rate_cents' => 'integer', 'min_charge_cents' => 'integer', 'is_poa' => 'boolean'];
     }
 
     /** §2.5 #4: who changed which rate of which card, when. */

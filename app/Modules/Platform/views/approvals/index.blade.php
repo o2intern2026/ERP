@@ -20,7 +20,8 @@
                 <tr>
                     <td>{{ $a->id }}</td>
                     <td>{{ __('platform.approvals.types.'.$a->type) }}</td>
-                    <td>{{ $a->subject_type }} #{{ $a->subject_id }} @if ($a->client)<br><small class="text-muted">{{ $a->client->name }}</small>@endif</td>
+                    {{-- Audit 2026-09-22 FIN-08 (CR #140): the subject links to what is being approved (rate card page with its diff, the credit note's invoice). --}}
+                    <td>@if ($link = $subjectLinks[$a->id] ?? null)<a href="{{ $link['url'] }}">{{ $link['label'] }}</a>@else{{ $a->subject_type }} #{{ $a->subject_id }}@endif @if ($a->client)<br><small class="text-muted">{{ $a->client->name }}</small>@endif</td>
                     <td>{{ $a->requester->name }}<br><small class="text-muted">{{ $a->created_at->format('m-d H:i') }}</small></td>
                     <td>{{ $a->request_note }}</td>
                     <td><span class="badge" data-tone="{{ ['pending' => 'warn', 'approved' => 'ok', 'rejected' => 'danger', 'cancelled' => 'muted'][$a->status] }}">{{ __('platform.approvals.statuses.'.$a->status) }}</span></td>
