@@ -43,8 +43,18 @@ class TaskController extends Controller
     /** 作业登记: only VAS types are created by hand; the record binds to an ASN (inbound VAS), an order (outbound wrap, per-order labour) or a physical container (box-level devanning, #122). */
     public function create(Request $request): View
     {
+        // Audit 2026-09-22 INBOUND-08: the 柜号 options of the ASN the page opens on are rendered here (not only by the page script), and the
+        // ASN's only unlinked container is preselected — a devanning task saved without its container raised no devanning fee.
+        $asnId = (int) old('asn_id', $request->integer('asn_id')) ?: null;
+        $initialAsn = $asnId ? Asn::query()->with('containers')->find($asnId) : null;
+        $initialContainers = $initialAsn?->containers ?? collect();
+        $unlinked = $initialContainers->reject(fn (Container $c) => $c->isLinked())->values();
+        $requestedContainer = (int) old('container_id', $request->integer('container_id')) ?: null;
+
         return view('warehouse::tasks.create', [
             'asns' => Asn::query()->with('containers', 'client')->whereIn('status', ['booked', 'arrived', 'receiving', 'putaway'])->orderByDesc('id')->limit(200)->get(),
+            'initialContainers' => $initialContainers,
+            'selectedContainer' => $requestedContainer ?? ($unlinked->count() === 1 ? (int) $unlinked->first()->id : null),
             'orders' => Order::query()->with('client')->whereNotIn('operational_status', ['cancelled'])->orderByDesc('id')->limit(200)->get(['id', 'order_no', 'client_id', 'job_id', 'operational_status']),
             'physicalContainers' => PhysicalContainer::query()->with('warehouse')->whereNull('devanning_task_id')->where('status', '!=', 'devanned')->orderByDesc('id')->limit(100)->get(),
             'types' => Enums::VAS_TASK_TYPES,
@@ -86,6 +96,10 @@ class TaskController extends Controller
 
         if (! empty($data['asn_id'])) {
             $asn = Asn::query()->findOrFail($data['asn_id']);
+            if ($data['task_type'] === 'devanning' && empty($data['container_id']) && $asn->containers()->exists()) {
+                // Every WH-DEVAN-* rule matches on the container's size × unpack mode: without the container the task completes with no fee (audit 2026-09-22 INBOUND-08).
+                return back()->withInput()->withErrors(['container_id' => __('warehouse.tasks.container_required')]);
+            }
             $container = ! empty($data['container_id']) ? Container::query()->findOrFail($data['container_id']) : null;
             if ($container !== null && (int) $container->asn_id !== (int) $asn->id) {
                 return back()->withInput()->withErrors(['container_id' => __('warehouse.tasks.container_not_on_asn')]);

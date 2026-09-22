@@ -161,3 +161,18 @@ candidates(PhysicalContainer $box, ?string $search = null, int $limit = 50): Col
 ```
 - Refusals are `RuleViolation` with `warehouse.physical_containers.errors.*` keys. Everything that writes runs in its own `DB::transaction()` with the box row locked and publishes through `OutboxPublisher` in that transaction; both events go out with envelope job / client **null** and `correlation_id` = the box number.
 - Single-client (FCL) containers never need this service: an unlinked `containers` row keeps today's per-ASN devanning task and bills exactly as before (decision F3).
+
+## 12. Scan codes (Warehouse, C) — label barcodes, CHANGE_REQUESTS #131
+`App\Modules\Warehouse\Services\ScanCodes` (module helper, no `app/Support/Contracts` interface — only Warehouse scans; listed because the tokens are printed on labels other systems may read).
+```php
+ScanCodes::unit(int $stockUnitId): string          // 'U' . id — what a unit label's Code 128 encodes (the printed text stays the full label_code)
+ScanCodes::location(int $locationId): string       // 'L' . id — what a location label's Code 128 encodes (the printed text stays the full full_code)
+ScanCodes::normalize(string $code): string         // trim + upper case: what every scan input does with the gun's / camera's text
+ScanCodes::unitId(string $code): ?int              // 'u12' / 'U12' → 12; anything else null
+ScanCodes::locationId(string $code): ?int
+StockUnit::query()->scanCode(string $code)         // scope: label_code = code OR id = unitId(code) — the token or the full code, either case
+Location::query()->scanCode(string $code)          // scope: full_code = code OR id = locationId(code); chain ->where('warehouse_id', …) to keep a scan inside one warehouse
+```
+- Every scan input accepts BOTH forms: `ScanResolver::resolve` (扫码 page: unit → location → consignment mark, in that order), putaway, move / restore, stocktake open (location) and count (unit). Labels printed before 2026-09-22 (full code in the barcode) keep scanning.
+- `LabelService::barcodeWidthPx(string $code)` is the rendered Code 128 width at the label's width factor; `LabelService::PRINTABLE_WIDTH_PX` the 88 mm printable width in dompdf px — `tests/Feature/Warehouse/LabelScanCodeTest.php` keeps the longest possible token under it and one label = one PDF page.
+

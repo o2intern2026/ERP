@@ -3,6 +3,7 @@
 namespace App\Modules\Warehouse;
 
 use App\Modules\Warehouse\Console\ReconcileStockCommand;
+use App\Modules\Warehouse\Console\ReevaluateAsnPutawayCommand;
 use App\Modules\Warehouse\Console\SnapshotStockCommand;
 use App\Modules\Warehouse\Consumers\AsnCollectionProgressConsumer;
 use App\Modules\Warehouse\Consumers\OrderCancelledConsumer;
@@ -61,7 +62,7 @@ class WarehouseServiceProvider extends ServiceProvider
         ), ['admin', 'warehouse_supervisor', 'warehouse_operator', 'dispatcher', 'customer_service', 'finance']);
 
         if ($this->app->runningInConsole()) {
-            $this->commands([ReconcileStockCommand::class, SnapshotStockCommand::class]);
+            $this->commands([ReconcileStockCommand::class, SnapshotStockCommand::class, ReevaluateAsnPutawayCommand::class]);
         }
     }
 }

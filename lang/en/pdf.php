@@ -67,6 +67,11 @@ return [
         'level' => 'Level :level',
     ],
 
+    // CHANGE_REQUESTS #131: the unit label's small print — where the unit was when the label was printed (the receiving dock, usually).
+    'unit_label' => [
+        'received_at' => 'Received at',
+    ],
+
     'storage_tiers' => [
         'standard' => 'Standard',
         'bottom' => 'BOTTOM LEVEL',

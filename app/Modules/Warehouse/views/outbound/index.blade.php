@@ -81,7 +81,13 @@
             <tbody>
             @foreach ($toPack as $t)
                 <tr><td>{{ $orderNos[$t->order_id] ?? '#'.$t->order_id }}</td><td>#{{ $t->fulfilment_id }}</td><td>{{ $t->task_no }}</td><td class="num">{{ $t->lines->sum('completed_qty') }}</td>
-                    <td>@role('admin|warehouse_supervisor|warehouse_operator')<a role="button" class="secondary" href="{{ route('warehouse.outbound.pack.form', $t->fulfilment_id) }}">{{ __('warehouse.outbound.pack') }}</a>@endrole</td></tr>
+                    <td>
+                        @if (in_array($t->order_id, $cancelledOrders, true))
+                            <span class="badge" data-tone="danger">{{ __('warehouse.outbound.order_cancelled_badge') }}</span> <small class="text-muted">{{ __('warehouse.outbound.cancelled_card') }}</small>
+                        @else
+                            @role('admin|warehouse_supervisor|warehouse_operator')<a role="button" class="secondary" href="{{ route('warehouse.outbound.pack.form', $t->fulfilment_id) }}">{{ __('warehouse.outbound.pack') }}</a>@endrole
+                        @endif
+                    </td></tr>
             @endforeach
             </tbody>
         </table>
@@ -100,7 +106,10 @@
                     <td>@foreach ($packages as $p)<code>{{ $p->carton_label }}</code> {{ __('warehouse.package_types.'.$p->package_type) }} {{ $p->weight_kg }}kg<br>@endforeach</td>
                     <td>{{ $packages->first()->created_at->format('Y-m-d H:i') }}</td>
                     <td>
-                        @if (in_array($fulfilmentId, $heldFulfilments, true))
+                        @if (in_array($packages->first()->order_id, $cancelledOrders, true))
+                            {{-- Audit 2026-09-22 OUTBOUND-02: a cancelled order is never handed over (OutboundService::dispatch refuses) — the board says so instead of offering the form. --}}
+                            <span class="badge" data-tone="danger">{{ __('warehouse.outbound.order_cancelled_badge') }}</span> <small class="text-muted">{{ __('warehouse.outbound.cancelled_card') }}</small>
+                        @elseif (in_array($fulfilmentId, $heldFulfilments, true))
                             {{-- Audit 2026-09-10: a financial hold refuses the handover (OutboundService::dispatch) — show it on the board instead of an English refusal after the click. --}}
                             <span class="badge" data-tone="danger">{{ __('platform.exceptions.hold_types.financial') }}</span> <small class="text-muted">{{ __('warehouse.outbound.errors.financial_hold') }}</small>
                         @else

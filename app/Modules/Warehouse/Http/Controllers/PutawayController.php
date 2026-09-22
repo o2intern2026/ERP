@@ -35,7 +35,7 @@ class PutawayController extends Controller
     {
         $data = $request->validate(['location_code' => ['required', 'string', 'max:40'], 'tier_reason' => ['nullable', 'string', 'max:255']]);
 
-        $location = Location::query()->where('warehouse_id', $unit->warehouse_id)->where('full_code', strtoupper(trim($data['location_code'])))->first();
+        $location = Location::query()->where('warehouse_id', $unit->warehouse_id)->scanCode($data['location_code'])->first(); // L<id> or the full code (#131)
         if ($location === null) {
             return back()->withErrors(['location_code' => __('warehouse.putaway.unknown_location', ['code' => $data['location_code']])])->withInput(['location_code' => $data['location_code'], 'putaway_unit' => $unit->id]);
         }

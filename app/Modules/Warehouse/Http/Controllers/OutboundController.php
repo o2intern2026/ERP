@@ -33,6 +33,7 @@ class OutboundController extends Controller
 
         $ready = DB::table('fulfilments')->join('orders', 'orders.id', '=', 'fulfilments.order_id')->join('clients', 'clients.id', '=', 'orders.client_id')
             ->where('fulfilments.status', 'allocated')
+            ->where('orders.operational_status', '!=', 'cancelled') // audit 2026-09-22 OUTBOUND-02: a cancelled order's batch stays `allocated` in OMS — never offer it for release
             ->whereNotIn('fulfilments.id', (clone $pickTasks)->select('fulfilment_id'))
             ->when($warehouseId, fn ($q, $v) => $q->where('fulfilments.warehouse_id', $v))
             ->orderBy('orders.requested_date')->orderBy('fulfilments.id')
@@ -51,6 +52,8 @@ class OutboundController extends Controller
             'handedTo' => Enums::HANDED_TO,
             // Audit 2026-09-10: a financial hold lets the batch be picked and packed but refuses the handover — say so on the board instead of after the click.
             'heldFulfilments' => $toDispatch->filter(fn ($packages) => $exceptions->hasActiveHold('financial', $packages->first()->client_id, $packages->first()->order_id))->keys()->all(),
+            // OUTBOUND-02: a cancelled order's rows show a badge instead of the 打包 / 发运交接 controls (the service refuses them anyway).
+            'cancelledOrders' => OutboundService::cancelledOrderIds($orderNos->keys()),
             'shortages' => $this->shortages($stock),
         ]);
     }
@@ -110,6 +113,8 @@ class OutboundController extends Controller
         return view('warehouse::outbound.wave', [
             'wave' => $wave,
             'orderNos' => DB::table('orders')->whereIn('id', $wave->tasks->pluck('order_id'))->pluck('order_no', 'id'),
+            // Audit 2026-09-22 OUTBOUND-02: a cancelled order's card tells the picker to put the goods back and offers 关闭任务 to the supervisor.
+            'cancelledOrders' => OutboundService::cancelledOrderIds($wave->tasks->pluck('order_id')),
             // Tester feedback #9: 打包 only while the fulfilment is not packed yet; afterwards the card says so and points to 发运交接.
             'packedFulfilments' => Package::query()->whereIn('fulfilment_id', $fulfilmentIds)->distinct()->pluck('fulfilment_id')->all(),
             'dispatchedFulfilments' => OutboundDispatch::query()->whereIn('fulfilment_id', $fulfilmentIds)->distinct()->pluck('fulfilment_id')->all(),
@@ -127,6 +132,18 @@ class OutboundController extends Controller
         }
 
         return back()->with('status', __('warehouse.outbound.pick_confirmed'));
+    }
+
+    /** 关闭任务 (admin | warehouse_supervisor, route middleware): closes the started pick task of a cancelled order — OutboundService::closeCancelledTask. */
+    public function closeTask(WarehouseTask $task, OutboundService $outbound): RedirectResponse
+    {
+        try {
+            $outbound->closeCancelledTask($task, auth()->id());
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['close' => RuleViolation::display($e)]);
+        }
+
+        return back()->with('status', __('warehouse.outbound.task_closed', ['task_no' => $task->task_no]));
     }
 
     public function packForm(int $fulfilment): View|RedirectResponse
@@ -148,11 +165,12 @@ class OutboundController extends Controller
         $data = $request->validate([
             'packages' => ['required', 'array'],
             'packages.*.package_type' => ['nullable', Rule::in(Enums::PACKAGE_TYPES)],
+            'packages.*.qty' => ['nullable', 'integer', 'min:1', 'max:'.OutboundService::MAX_PACKAGES], // 件数: identical packages on one row (audit 2026-09-22 OUTBOUND-01)
             'packages.*.weight_kg' => ['nullable', 'numeric', 'min:0.001'],
             'packages.*.length_mm' => ['nullable', 'integer', 'min:1'], 'packages.*.width_mm' => ['nullable', 'integer', 'min:1'], 'packages.*.height_mm' => ['nullable', 'integer', 'min:1'],
         ]);
         $packages = collect($data['packages'])->filter(fn ($p) => filled($p['weight_kg'] ?? null) && filled($p['package_type'] ?? null))
-            ->map(fn ($p) => ['package_type' => $p['package_type'], 'weight_kg' => (float) $p['weight_kg'], 'length_mm' => $p['length_mm'] ?? null, 'width_mm' => $p['width_mm'] ?? null, 'height_mm' => $p['height_mm'] ?? null])->values()->all();
+            ->map(fn ($p) => ['package_type' => $p['package_type'], 'qty' => (int) ($p['qty'] ?? 1), 'weight_kg' => (float) $p['weight_kg'], 'length_mm' => $p['length_mm'] ?? null, 'width_mm' => $p['width_mm'] ?? null, 'height_mm' => $p['height_mm'] ?? null])->values()->all();
 
         try {
             $result = $outbound->pack($fulfilment, $packages, auth()->id());

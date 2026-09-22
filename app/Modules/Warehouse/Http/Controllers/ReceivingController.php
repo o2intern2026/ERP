@@ -46,9 +46,16 @@ class ReceivingController extends Controller
         ]);
     }
 
-    public function form(Asn $asn, AsnLine $line, GoodsReceiptService $receipts): View
+    public function form(Asn $asn, AsnLine $line, GoodsReceiptService $receipts): View|RedirectResponse
     {
         abort_unless($line->asn_id === $asn->id, 404);
+        // Audit 2026-09-22 INBOUND-02: a received line (browser Back, bookmark, the worklist of a stale tab) goes back to the ASN page with the reason instead of a fresh form.
+        if ($line->isReceived()) {
+            return redirect()->route('warehouse.asns.show', $asn)->withErrors(['receive' => __('warehouse.receiving.bulk.already_received', ['line' => $line->id])]);
+        }
+        if (! in_array($asn->status, ['booked', 'arrived', 'receiving'], true)) {
+            return redirect()->route('warehouse.asns.show', $asn)->withErrors(['receive' => __('warehouse.receiving.bulk.not_receivable')]);
+        }
 
         return view('warehouse::receiving.form', [
             'asn' => $asn->load('client', 'warehouse'),
@@ -92,7 +99,12 @@ class ReceivingController extends Controller
         $units = array_values(array_filter($data['units'] ?? [], fn ($u) => (int) ($u['carton_qty'] ?? 0) > 0));
         $location = Location::query()->findOrFail($data['receiving_location_id']);
 
-        $receiving->receiveLine($line, ['received_cartons' => (int) $data['received_cartons'], 'damaged_cartons' => (int) ($data['damaged_cartons'] ?? 0), 'variance_reason' => $data['variance_reason'] ?? null, 'units' => $units], $location, $request->user()?->id);
+        try {
+            $receiving->receiveLine($line, ['received_cartons' => (int) $data['received_cartons'], 'damaged_cartons' => (int) ($data['damaged_cartons'] ?? 0), 'variance_reason' => $data['variance_reason'] ?? null, 'units' => $units], $location, $request->user()?->id);
+        } catch (InvalidArgumentException $e) {
+            // Already received (a resubmit) or the ASN left the receiving stage: nothing was written — say so on the ASN page.
+            return redirect()->route('warehouse.asns.show', $asn)->withErrors(['receive' => RuleViolation::display($e)]);
+        }
         $receiptNo = $line->refresh()->receiptLine?->receipt?->receipt_no ?? '—';
 
         // Truck (LCL) receiving records unloaded pallets on a receiving task → WH-UNLOAD-PLT (contracts/charge-codes.md #9).

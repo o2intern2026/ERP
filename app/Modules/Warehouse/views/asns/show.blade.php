@@ -58,7 +58,7 @@
         <h2>{{ __('warehouse.asns.containers') }}</h2>
         @if ($allLinked)<p class="text-muted"><small>{{ __('warehouse.asns.box_devanning_hint') }}</small></p>@endif
         <table class="dense">
-            <thead><tr><th>{{ __('warehouse.asns.container_no') }}</th><th>{{ __('warehouse.asns.size') }}</th><th>{{ __('warehouse.asns.unpack_mode') }}</th><th class="num">{{ __('warehouse.asns.gross_weight') }}</th><th class="num">{{ __('warehouse.asns.line_count') }}</th><th>{{ __('warehouse.asns.physical_container') }}</th></tr></thead>
+            <thead><tr><th>{{ __('warehouse.asns.container_no') }}</th><th>{{ __('warehouse.asns.size') }}</th><th>{{ __('warehouse.asns.unpack_mode') }}</th><th class="num">{{ __('warehouse.asns.gross_weight') }}</th><th class="num">{{ __('warehouse.asns.line_count') }}</th><th>{{ __('warehouse.asns.physical_container') }}</th><th>{{ __('platform.common.actions') }}</th></tr></thead>
             <tbody>@foreach ($asn->containers as $c)<tr><td>{{ $c->container_no }}</td><td>{{ __('warehouse.container_sizes.'.$c->size) }}</td><td>{{ __('warehouse.unpack_modes.'.$c->unpack_mode) }}</td><td class="num">{{ $c->gross_weight_kg }}</td><td class="num">{{ $c->line_count }}</td>
                 <td>
                     @if ($c->physicalContainer)
@@ -76,6 +76,21 @@
                             <span class="text-muted">—</span>
                         @endrole
                     @endif
+                </td>
+                <td>
+                    {{-- Audit 2026-09-22 INBOUND-08: 登记拆柜 per container row carries container_id, so the devanning task always knows its size × unpack mode (the fee's key). A linked row is devanned on its box page. --}}
+                    @role('admin|warehouse_supervisor|warehouse_operator')
+                        @if ($c->isLinked())
+                            <span class="text-muted">—</span>
+                        @else
+                            @php($devanning = $tasks->first(fn ($t) => $t->task_type === 'devanning' && (int) $t->container_id === (int) $c->id && $t->status !== 'cancelled'))
+                            @if ($devanning)
+                                <small class="text-muted">{{ $devanning->task_no }} · {{ __('warehouse.task_statuses.'.$devanning->status) }}</small>
+                            @else
+                                <a href="{{ route('warehouse.tasks.create', ['asn_id' => $asn->id, 'container_id' => $c->id, 'task_type' => 'devanning']) }}">{{ __('warehouse.asns.register_devanning') }}</a>
+                            @endif
+                        @endif
+                    @endrole
                 </td>
             </tr>@endforeach</tbody>
         </table>

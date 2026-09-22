@@ -2,11 +2,14 @@
 
 namespace App\Modules\Warehouse\Services;
 
+use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnLine;
+use App\Modules\Warehouse\Models\GoodsReceiptLine;
 use App\Modules\Warehouse\Models\Location;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Support\Contracts\ExceptionService;
 use App\Support\Contracts\RateService;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -23,12 +26,17 @@ final class ReceivingService
         private readonly RateService $rates,
         private readonly ExceptionService $exceptions,
         private readonly GoodsReceiptService $receipts,
+        private readonly PutawayService $putaway,
     ) {}
 
     /**
      * @param  array{received_cartons:int, damaged_cartons?:int, variance_reason?:?string, units:list<array{unit_type:string, carton_qty:int, length_mm?:?int, width_mm?:?int, height_mm?:?int, weight_kg?:?float, pallet_source?:?string, pallet_class?:?string, pallet_class_reason?:?string}>}  $data
      * @param  ?int  $actorId  who received (defaults to the signed-in user); stamped on the 入库单 line
      * @return list<StockUnit> the units created (the line's 入库单 is reachable via AsnLine::receiptLine()->receipt)
+     *
+     * @throws RuleViolation `warehouse.receiving.bulk.already_received` when the line was received before (audit 2026-09-22 INBOUND-02: a
+     *                       browser Back + resubmit or a bookmarked form used to book the line twice — a second set of units and a second
+     *                       ledger receipt), `warehouse.receiving.bulk.not_receivable` when the ASN is past receiving
      */
     public function receiveLine(AsnLine $line, array $data, Location $receivingLocation, ?int $actorId = null): array
     {
@@ -39,7 +47,20 @@ final class ReceivingService
         $actorId ??= auth()->id();
 
         return DB::transaction(function () use ($line, $data, $receivingLocation, $actorId): array {
-            $asn = $line->asn;
+            // The goods line is held FOR UPDATE while "was it received already?" is answered, and the answer comes from locking reads:
+            // under REPEATABLE READ a plain SELECT after waiting on the lock would still show the snapshot from before the other
+            // submit committed (see GoodsReceiptService::openFor), so the second of two overlapping submits must see the first one's rows.
+            $locked = AsnLine::query()->whereKey($line->id)->lockForUpdate()->firstOrFail();
+            $received = GoodsReceiptLine::query()->where('asn_line_id', $locked->id)->lockForUpdate()->value('id') !== null
+                || StockUnit::query()->withoutGlobalScopes()->where('asn_line_id', $locked->id)->lockForUpdate()->value('id') !== null;
+            if ($received) {
+                throw new RuleViolation("ASN line {$locked->id} has already been received.", 'warehouse.receiving.bulk.already_received', ['line' => $locked->id]);
+            }
+            $asn = Asn::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($locked->asn_id);
+            if (! in_array($asn->status, ['booked', 'arrived', 'receiving'], true)) {
+                throw new RuleViolation("ASN {$asn->asn_no} is not receivable in status {$asn->status}.", 'warehouse.receiving.bulk.not_receivable');
+            }
+
             if ($asn->status === 'booked') {
                 $asn->update(['status' => 'receiving', 'arrived_at' => $asn->arrived_at ?? now()]);
             } elseif ($asn->status === 'arrived') {
@@ -111,6 +132,12 @@ final class ReceivingService
             // Reading A/C (lead decision 2026-09-08): the line joins the ASN's open 入库单 batch; the operator ends the batch with 入库完成.
             $receipt = $this->receipts->openFor($asn, $actorId);
             $this->receipts->recordLine($receipt, $line, $units, $actorId);
+
+            if ($units === []) {
+                // Nothing to put away for this line (received 0 — "not on truck"): if it was the last open line and every other unit is already
+                // put away, the ASN completes here; putaway() would never run again for it (audit 2026-09-22 INBOUND-03).
+                $this->putaway->completeIfDone($asn);
+            }
 
             return $units;
         });

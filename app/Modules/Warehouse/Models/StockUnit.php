@@ -2,7 +2,9 @@
 
 namespace App\Modules\Warehouse\Models;
 
+use App\Modules\Warehouse\Services\ScanCodes;
 use App\Support\Tenancy\BelongsToClient;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -67,6 +69,12 @@ class StockUnit extends Model
     public function availableQty(): int
     {
         return max(0, $this->qty_on_hand - $this->qty_reserved);
+    }
+
+    /** The unit a scan names: the label's short token `U<id>` or the full label_code, case-insensitive (CHANGE_REQUESTS #131). */
+    public function scopeScanCode(Builder $query, string $code): Builder
+    {
+        return ScanCodes::whereUnit($query, $code);
     }
 
     /** Only put-away, good-condition stock can be allocated (§4.3 rules 1–2). */
