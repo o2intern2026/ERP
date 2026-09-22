@@ -5,7 +5,10 @@
 @section('content')
     <header class="grid">
         <h1>{{ __('platform.jobs.title') }}</h1>
+        {{-- CR #137 (audit CRAWL-05 / TMS-15): 新建 Job only for the roles jobs.create admits (routes.php) — no 403 behind a button for the driver / the floor. --}}
+        @role('admin|customer_service|dispatcher|warehouse_supervisor')
         <p style="text-align:right"><a role="button" href="{{ route('platform.jobs.create') }}">{{ __('platform.jobs.create') }}</a></p>
+        @endrole
     </header>
 
     <form method="get" class="grid">

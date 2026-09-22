@@ -88,6 +88,7 @@
 <body>
     @include('layouts.nav')
     <main class="container">
+        @include('layouts.partials.health')
         @include('layouts.partials.flash')
         @yield('content')
     </main>

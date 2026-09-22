@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Platform\Http\Controllers\LoginController;
 use App\Support\Exceptions\RuleViolation;
 use App\Support\Tenancy\ClientScope;
 use Illuminate\Foundation\Application;
@@ -33,7 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
 
         $middleware->redirectGuestsTo(fn () => route('platform.login'));
-        $middleware->redirectUsersTo(fn () => auth()->user()?->isClientUser() ? route('portal.index') : route('platform.index'));
+        $middleware->redirectUsersTo(fn () => LoginController::landingUrl(auth()->user())); // CR #137: the driver lands on /driver
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // i18n/zh sweep (CHANGE_REQUESTS #107): a business-rule refusal no controller caught must not surface as a 500 page —

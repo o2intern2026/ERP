@@ -33,7 +33,8 @@
                     </form>
                 </li>
             @endif
-            <li class="text-muted erp-user">{{ auth()->user()->name }}</li>
+            {{-- CR #137 (audit ADMIN-13): the user name opens 修改密码 for every signed-in user (staff and client). --}}
+            <li class="erp-user"><a href="{{ route('platform.password.edit') }}" class="secondary" title="{{ __('platform.password.title') }}">{{ auth()->user()->name }}</a></li>
             <li>
                 <form method="post" action="{{ route('platform.logout') }}" class="inline">
                     @csrf

@@ -21,8 +21,10 @@ return [
         'email' => '邮箱',
         'password' => '密码',
         'remember' => '记住我',
-        'failed' => '邮箱或密码不正确,或该账号已停用。',
+        'failed' => '邮箱或密码不正确。',
         'pending' => '您的公司账号正在审核中,审核通过后即可登录。',
+        'inactive' => '账号已停用,请联系客服。', // CR #137 (audit GAP-03): a deactivated login or a deactivated client, told apart from a wrong password
+        'throttled' => '登录尝试次数过多,请 :seconds 秒后再试。', // CR #137 (audit ADMIN-13): 5 attempts per minute per email + IP
         'register_link' => '还没有账号?注册新客户',
         'login_link' => '已有账号?登录',
         'register' => '注册新客户',
@@ -120,6 +122,29 @@ return [
         'inactive' => '已停用',
         'last_login' => '最近登录',
         'never' => '从未',
+        // CR #137 (audit ADMIN-13): no admin may lock everyone out.
+        'errors' => [
+            'self_lockout' => '不能停用自己或更改自己的角色,请让另一位管理员操作。',
+            'last_admin' => '这是最后一位启用的管理员,不能停用或更改其角色;请先启用另一位管理员。',
+        ],
+    ],
+
+    // CR #137 (audit ADMIN-13): 修改密码 for the signed-in user, linked from the user name in the nav.
+    'password' => [
+        'title' => '修改密码',
+        'hint' => '输入当前密码和新密码(至少 8 位)。修改后请用新密码重新登录其他设备。',
+        'current' => '当前密码',
+        'new' => '新密码',
+        'confirm' => '确认新密码',
+        'submit' => '保存新密码',
+        'saved' => '密码已修改。',
+    ],
+
+    // CR #137 (audit ADMIN-12): the admin banner when the outbox backlog stops moving (cron / schedule:run not running).
+    'health' => [
+        'banner_title' => '后台任务可能已停止:',
+        'banner' => '最早的待投递事件已等待 :minutes 分钟(共 :pending 条待投递)。请检查服务器 cron 是否在跑 php artisan schedule:run;也可执行 php artisan erp:health 查看详情。',
+        'open_monitor' => '打开集成监控',
     ],
 
     'nav_exceptions' => '异常中心',
@@ -167,6 +192,11 @@ return [
         'title' => '文档中心',
         'upload' => '上传单据',
         'uploaded' => '单据已上传。',
+        'uploaded_to' => '单据已上传并关联到 :no。', // CR #137 (audit ADMIN-10)
+        'upload_for' => '上传单据(:no)',
+        'number' => '单号',
+        'number_hint' => '填 JOB- / ASN- / ORD- / SHP- 开头的单号或发票号,系统据此关联对象、Job 和客户;找不到的单号会被拒绝。',
+        'number_not_found' => '找不到单号 :no。支持 JOB- / ASN- / ORD- / SHP- 开头的单号或发票号,请核对后重试。',
         'file' => '文件',
         'type' => '类型',
         'related' => '关联对象',
@@ -180,7 +210,7 @@ return [
         'make_hidden' => '设为仅内部',
         'visibility_saved' => '可见性已更新。',
         'client_required' => '勾选「客户可见」时必须选择客户(或填 Job ID,系统取该 Job 的客户);否则客户门户看不到这份单据。',
-        'client_hint' => '客户可见的单据必须归属某个客户;填了 Job ID 可留空,自动取 Job 的客户。',
+        'client_hint' => '客户可见的单据以单号所属客户为准;单号没有客户时不能设为客户可见。',
         'no_client' => '未归属客户,无法设为客户可见',
         'download' => '下载',
         'size' => '大小',

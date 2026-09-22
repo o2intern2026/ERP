@@ -50,6 +50,8 @@
                         <option value="{{ $v }}" @selected(old('status', $client->status ?? 'active') === $v)>{{ __('masterdata.statuses.'.$v) }}</option>
                     @endforeach
                 </select>
+                {{-- CR #137 (audit GAP-03): 停用 also closes the portal logins; 启用 reopens them. --}}
+                <small>{{ __('masterdata.clients.status_hint') }}</small>
             </label>
             <label>{{ __('masterdata.fields.billing_email') }}<input type="email" name="billing_email" value="{{ old('billing_email', $client->billing_email) }}"></label>
         </div>

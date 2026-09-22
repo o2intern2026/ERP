@@ -10,8 +10,13 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
-/** A1: user management — one role per user; client-role users must belong to a client. Admin only. */
+/**
+ * A1: user management — one role per user; client-role users must belong to a client. Admin only.
+ * CR #137 (audit ADMIN-13): an admin cannot deactivate or demote themselves, nor the last active admin — either would lock
+ * everyone out of /admin/users with no recovery path but the database.
+ */
 class UserController extends Controller
 {
     public function index(): View
@@ -50,6 +55,7 @@ class UserController extends Controller
     public function update(Request $request, User $user): RedirectResponse
     {
         $data = $this->validated($request, $user);
+        $this->guardAdminLockout($request, $user, (bool) ($data['is_active'] ?? false), $data['role']);
 
         $user->fill([
             'name' => $data['name'],
@@ -64,6 +70,24 @@ class UserController extends Controller
         $user->syncRoles([$data['role']]);
 
         return redirect()->route('platform.users.index')->with('status', __('platform.users.saved'));
+    }
+
+    /** Refuse an update that would leave the signed-in admin, or the system, without an active admin. */
+    private function guardAdminLockout(Request $request, User $user, bool $willBeActive, string $newRole): void
+    {
+        $staysAdmin = $willBeActive && $newRole === 'admin';
+        if ($user->is($request->user()) && ! $staysAdmin) {
+            throw ValidationException::withMessages(['is_active' => __('platform.users.errors.self_lockout')]);
+        }
+        $isActiveAdmin = $user->is_active && $user->hasRole('admin');
+        if ($isActiveAdmin && ! $staysAdmin && ! $this->anotherActiveAdminExists($user)) {
+            throw ValidationException::withMessages(['is_active' => __('platform.users.errors.last_admin')]);
+        }
+    }
+
+    private function anotherActiveAdminExists(User $except): bool
+    {
+        return User::query()->withoutGlobalScopes()->where('is_active', true)->whereKeyNot($except->id)->role('admin')->exists();
     }
 
     private function form(User $user): View

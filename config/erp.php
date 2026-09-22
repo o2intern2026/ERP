@@ -44,5 +44,8 @@ return [
         'account_no' => env('COMPANY_ACCOUNT_NO', '12345678'),
         'account_name' => env('COMPANY_ACCOUNT_NAME', 'Demo Logistics Pty Ltd'),
     ],
+    // Audit ADMIN-12 (CR #137): production is cron only, so a stopped `schedule:run` is silent. When the oldest outbox event still
+    // pending is older than this many minutes, admins see a red banner on every page (HealthCheck, cached 60 s) and `erp:health` exits 1.
+    'outbox_stale_minutes' => (int) env('OUTBOX_STALE_MINUTES', 10),
 
 ];
