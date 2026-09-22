@@ -10,26 +10,35 @@
     @if ($ready->isEmpty())
         <p class="text-muted">{{ $shortages->isEmpty() ? __('warehouse.outbound.empty') : __('warehouse.outbound.ready_empty') }}</p>
     @else
-        <form method="post" action="{{ route('warehouse.outbound.waves.release') }}">
+        {{-- Audit 2026-09-22 OUTBOUND-12 (CR #141): 全选 / count on the button / at least one row (server too); client + date filters tick / un-tick rows on the page; 箱数 and a due badge per row. --}}
+        @error('order_ids')<p><mark>{{ $message }}</mark></p>@enderror
+        <form method="post" action="{{ route('warehouse.outbound.waves.release') }}" id="release-form">
             @csrf
             <div class="overflow-auto"><table class="dense">
-                <thead><tr><th></th><th>{{ __('warehouse.outbound.order') }}</th><th>{{ __('warehouse.outbound.client') }}</th><th>{{ __('warehouse.outbound.suburb') }}</th><th>{{ __('warehouse.outbound.requested_date') }}</th><th>{{ __('warehouse.outbound.fulfilment') }}</th></tr></thead>
+                <thead><tr><th><input type="checkbox" id="release-all" checked aria-label="{{ __('warehouse.outbound.select_all') }}" title="{{ __('warehouse.outbound.select_all') }}"></th><th>{{ __('warehouse.outbound.order') }}</th><th>{{ __('warehouse.outbound.client') }}</th><th>{{ __('warehouse.outbound.suburb') }}</th><th>{{ __('warehouse.outbound.requested_date_col') }}</th><th class="num">{{ __('warehouse.outbound.cartons') }}</th><th>{{ __('warehouse.outbound.fulfilment') }}</th></tr></thead>
                 <tbody>
                 @foreach ($ready as $r)
-                    <tr><td><input type="checkbox" name="order_ids[]" value="{{ $r->order_id }}" checked></td><td>{{ $r->order_no }}</td><td>{{ $r->client_name }}</td><td>{{ $r->deliver_to_suburb }}</td><td>{{ $r->requested_date }}</td><td>#{{ $r->fulfilment_id }}</td></tr>
+                    <tr data-client="{{ $r->client_id }}" data-date="{{ $r->requested_date }}">
+                        <td><input type="checkbox" name="order_ids[]" value="{{ $r->order_id }}" checked aria-label="{{ $r->order_no }}"></td>
+                        <td>{{ $r->order_no }}</td><td>{{ $r->client_name }}</td><td>{{ $r->deliver_to_suburb }}</td>
+                        <td>{{ $r->requested_date }} @if ($r->requested_date !== null && (string) $r->requested_date <= $today)<span class="badge" data-tone="danger">{{ __('warehouse.outbound.due_badge') }}</span>@endif</td>
+                        <td class="num">{{ $r->cartons }}</td><td>#{{ $r->fulfilment_id }}</td>
+                    </tr>
                 @endforeach
                 </tbody>
             </table></div>
             @role('admin|warehouse_supervisor|warehouse_operator')
                 <p class="text-muted"><small>{{ __('warehouse.outbound.filter_hint') }}</small></p>
                 <div class="grid">
-                    <select name="client_id" aria-label="{{ __('warehouse.outbound.client') }}">
-                        <option value="">{{ __('warehouse.outbound.client') }}: {{ __('platform.jobs.all') }}</option>
-                        @foreach ($ready->unique('client_id') as $c)<option value="{{ $c->client_id }}">{{ $c->client_name }}</option>@endforeach
-                    </select>
-                    <x-date-field name="requested_date" aria-label="{{ __('warehouse.outbound.requested_date') }}" title="{{ __('warehouse.outbound.requested_date') }}" />
-                    <select name="warehouse_id" required>@foreach ($warehouses as $w)<option value="{{ $w->id }}" @selected($w->id === ($currentWarehouseId ?? $ready->first()->warehouse_id))>{{ $w->code }}</option>@endforeach</select>
-                    <button type="submit">{{ __('warehouse.outbound.release') }}</button>
+                    <label>{{ __('warehouse.outbound.client') }}
+                        <select name="client_id" id="release-client">
+                            <option value="">{{ __('platform.jobs.all') }}</option>
+                            @foreach ($ready->unique('client_id') as $c)<option value="{{ $c->client_id }}">{{ $c->client_name }}</option>@endforeach
+                        </select>
+                    </label>
+                    <label>{{ __('warehouse.outbound.requested_date') }}<x-date-field name="requested_date" /></label>
+                    <label>{{ __('warehouse.outbound.warehouse') }}<select name="warehouse_id" required>@foreach ($warehouses as $w)<option value="{{ $w->id }}" @selected($w->id === ($currentWarehouseId ?? $ready->first()->warehouse_id))>{{ $w->code }}</option>@endforeach</select></label>
+                    <label>&nbsp;<button type="submit" id="release-submit" data-label="{{ __('warehouse.outbound.release_count') }}">{{ __('warehouse.outbound.release_count', ['count' => $ready->count()]) }}</button></label>
                 </div>
             @endrole
         </form>
@@ -113,12 +122,27 @@
                             {{-- Audit 2026-09-10: a financial hold refuses the handover (OutboundService::dispatch) — show it on the board instead of an English refusal after the click. --}}
                             <span class="badge" data-tone="danger">{{ __('platform.exceptions.hold_types.financial') }}</span> <small class="text-muted">{{ __('warehouse.outbound.errors.financial_hold') }}</small>
                         @else
+                            @php($shipment = $shipments->get($fulfilmentId))
+                            {{-- Audit 2026-09-22 OUTBOUND-03 (CR #141): the shipment behind the batch is shown inline; a booked one is linked automatically, an unbooked one says 未订舱; the typed id stays as an override. --}}
+                            <div>
+                                @if ($shipment)
+                                    <code>{{ $shipment->shipment_no }}</code> {{ $shipment->carrier ?? '—' }} {!! \App\Support\Ui\StatusBadge::render('transport.statuses.', $shipment->status) !!}
+                                    @if ($shipment->status !== 'booked')<span class="badge" data-tone="warn">{{ __('warehouse.outbound.not_booked') }}</span>@endif
+                                @else
+                                    <span class="badge" data-tone="warn">{{ __('warehouse.outbound.no_shipment') }}</span>
+                                @endif
+                            </div>
                             @role('admin|warehouse_supervisor|warehouse_operator')
                                 <form method="post" action="{{ route('warehouse.outbound.dispatch', $fulfilmentId) }}" class="inline">
                                     @csrf
                                     <input type="number" name="pallet_count" min="0" value="{{ $packages->where('package_type', 'pallet')->count() }}" style="width:6rem" aria-label="{{ __('warehouse.outbound.pallet_count') }}">
-                                    <select name="handed_to" style="width:9rem">@foreach ($handedTo as $h)<option value="{{ $h }}">{{ __('warehouse.handed_to.'.$h) }}</option>@endforeach</select>
-                                    <input type="number" name="shipment_id" min="1" placeholder="{{ __('warehouse.outbound.shipment_id') }}" style="width:9rem">
+                                    <select name="handed_to" style="width:9rem" aria-label="{{ __('warehouse.outbound.handed_to') }}">@foreach ($handedTo as $h)<option value="{{ $h }}" @selected($h === ($shipment?->status === 'booked' ? $shipment->handed_to : 'client'))>{{ __('warehouse.handed_to.'.$h) }}</option>@endforeach</select>
+                                    @if ($shipment && $shipment->status === 'booked')
+                                        <input type="hidden" name="shipment_id" value="{{ $shipment->id }}" class="shipment-id">
+                                    @endif
+                                    <details class="inline"><summary style="display:inline">{{ __('warehouse.outbound.manual_shipment_id') }}</summary>
+                                        <input type="number" name="shipment_id" min="1" placeholder="{{ __('warehouse.outbound.shipment_id') }}" style="width:9rem" aria-label="{{ __('warehouse.outbound.shipment_id') }}" disabled class="shipment-override">
+                                    </details>
                                     <button type="submit">{{ __('warehouse.outbound.dispatch') }}</button>
                                 </form>
                             @endrole
@@ -140,3 +164,42 @@
         </table>
     @endif
 @endsection
+
+@push('scripts')
+<script>
+    (() => {
+        // 待释放 (OUTBOUND-12): header 全选, live count on the button, no submit with nothing ticked; client / date filters tick the matching rows only.
+        const form = document.getElementById('release-form');
+        if (form) {
+            const boxes = () => Array.from(form.querySelectorAll('tbody input[name="order_ids[]"]'));
+            const all = document.getElementById('release-all'), submit = document.getElementById('release-submit');
+            const client = document.getElementById('release-client'), date = form.querySelector('input[name="requested_date"]');
+            const count = () => {
+                const n = boxes().filter(b => b.checked).length;
+                if (submit) { submit.textContent = submit.dataset.label.replace(':count', String(n)); submit.disabled = n === 0; }
+                if (all) all.checked = n > 0 && n === boxes().length;
+            };
+            const filter = () => {
+                boxes().forEach(b => {
+                    const tr = b.closest('tr');
+                    const okClient = !client || !client.value || tr.dataset.client === client.value;
+                    const okDate = !date || !date.value || (tr.dataset.date && tr.dataset.date <= date.value);
+                    b.checked = okClient && okDate;
+                });
+                count();
+            };
+            all?.addEventListener('change', () => { boxes().forEach(b => { b.checked = all.checked; }); count(); });
+            form.querySelector('tbody').addEventListener('change', count);
+            client?.addEventListener('change', filter);
+            date?.addEventListener('change', filter);
+            form.addEventListener('submit', event => { if (boxes().filter(b => b.checked).length === 0) event.preventDefault(); });
+            count();
+        }
+        // 待发运 (OUTBOUND-03): opening 手动填运单 ID enables the typed id and drops the prefilled one; closing it restores the link.
+        document.querySelectorAll('form details').forEach(details => {
+            const override = details.querySelector('.shipment-override'), auto = details.closest('form').querySelector('.shipment-id');
+            details.addEventListener('toggle', () => { override.disabled = !details.open; if (auto) auto.disabled = details.open; if (details.open) override.focus(); });
+        });
+    })();
+</script>
+@endpush

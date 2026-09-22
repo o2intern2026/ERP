@@ -78,6 +78,11 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::get('/physical-containers/{box}', [PhysicalContainerController::class, 'show'])->name('physical_containers.show')->whereNumber('box');
         Route::post('/physical-containers/{box}/link', [PhysicalContainerController::class, 'link'])->name('physical_containers.link')->whereNumber('box');
         Route::post('/physical-containers/{box}/unlink/{container}', [PhysicalContainerController::class, 'unlink'])->name('physical_containers.unlink')->whereNumber('box')->whereNumber('container');
+        // Audit 2026-09-22 INBOUND-16 (CR #141): header editable before arrival, deletable while empty, 登记到港 behind a confirmation that lists the charges.
+        Route::get('/physical-containers/{box}/edit', [PhysicalContainerController::class, 'edit'])->name('physical_containers.edit')->whereNumber('box');
+        Route::put('/physical-containers/{box}', [PhysicalContainerController::class, 'update'])->name('physical_containers.update')->whereNumber('box');
+        Route::delete('/physical-containers/{box}', [PhysicalContainerController::class, 'destroy'])->name('physical_containers.destroy')->whereNumber('box');
+        Route::get('/physical-containers/{box}/arrive', [PhysicalContainerController::class, 'arriveConfirm'])->name('physical_containers.arrive_confirm')->whereNumber('box');
         Route::post('/physical-containers/{box}/arrive', [PhysicalContainerController::class, 'arrive'])->name('physical_containers.arrive')->whereNumber('box');
         Route::post('/physical-containers/{box}/recompute', [PhysicalContainerController::class, 'recompute'])->name('physical_containers.recompute')->whereNumber('box');
     });
@@ -107,6 +112,7 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/stock/{unit}/move', [StockController::class, 'move'])->name('stock.move');
         Route::post('/stock/{unit}/quarantine', [StockController::class, 'quarantine'])->name('stock.quarantine');
         Route::post('/stock/{unit}/restore', [StockController::class, 'restore'])->name('stock.restore');
+        Route::patch('/stock/{unit}', [StockController::class, 'update'])->middleware('role:admin|warehouse_supervisor')->name('stock.update')->whereNumber('unit'); // 修改单元信息: pallet source / dims / weight after receiving (audit 2026-09-22 INBOUND-05, CR #141)
         Route::post('/outbound/waves', [OutboundController::class, 'release'])->name('outbound.waves.release');
         Route::post('/outbound/picks/{line}', [OutboundController::class, 'pick'])->name('outbound.pick');
         Route::post('/outbound/tasks/{task}/close', [OutboundController::class, 'closeTask'])->middleware('role:admin|warehouse_supervisor')->name('outbound.tasks.close')->whereNumber('task'); // 关闭任务 of a cancelled order's pick task (audit 2026-09-22 OUTBOUND-02)

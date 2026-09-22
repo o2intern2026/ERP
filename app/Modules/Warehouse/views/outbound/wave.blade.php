@@ -8,7 +8,9 @@
     <p class="text-muted">{{ $wave->warehouse->code }} · {{ __('warehouse.outbound.released_at') }} {{ $wave->released_at?->format('Y-m-d H:i') }} · {{ __('warehouse.outbound.tasks') }} {{ $wave->tasks->count() }}</p>
 
     @error('close')<p><mark>{{ $message }}</mark></p>@enderror
+    @error('short_reason')<p><mark>{{ $message }}</mark></p>@enderror
     @foreach ($wave->tasks as $task)
+        @php($shortLines = $task->lines->filter(fn ($l) => $l->confirmed_at !== null && $l->completed_qty < $l->required_qty))
         {{-- Audit 2026-09-22 OUTBOUND-02: a cancelled order's open task shows the put-back instruction and 关闭任务 (admin / supervisor) instead of the confirm forms. --}}
         @php($orderCancelled = in_array($task->order_id, $cancelledOrders, true))
         @php($openCancelled = $orderCancelled && ! in_array($task->status, ['done', 'cancelled'], true))
@@ -27,13 +29,22 @@
                 @foreach ($task->lines as $line)
                     <tr>
                         <td><strong>{{ $line->location?->full_code ?? '—' }}</strong></td><td><code>{{ $line->stockUnit?->label_code }}</code> {{ $line->stockUnit ? __('warehouse.unit_types.'.$line->stockUnit->unit_type) : '' }}</td><td>{{ $line->stockUnit?->asnLine?->description }}</td>
-                        <td class="num">{{ $line->required_qty }}</td><td class="num">{{ $line->confirmed_at ? $line->completed_qty : '—' }}</td>
+                        <td class="num">{{ $line->required_qty }}</td>
+                        <td class="num">{{ $line->confirmed_at ? $line->completed_qty : '—' }}
+                            {{-- Audit 2026-09-22 OUTBOUND-08 (CR #141): a short pick is visible on its row, not plain "15 / 14". --}}
+                            @if ($line->confirmed_at !== null && $line->completed_qty < $line->required_qty)<br><span class="badge" data-tone="warn">{{ __('warehouse.outbound.short_badge', ['short' => $line->required_qty - $line->completed_qty]) }}</span>@endif
+                        </td>
                         <td>
                             @role('admin|warehouse_supervisor|warehouse_operator')
                                 @if ($line->confirmed_at === null && ! $orderCancelled && $task->status !== 'cancelled')
-                                    <form method="post" action="{{ route('warehouse.outbound.pick', $line) }}" class="inline">
+                                    {{-- Short pick: the reason select + note appear when 实拣 < 应拣 and a confirm() names the shortfall before it is posted (OUTBOUND-08). --}}
+                                    <form method="post" action="{{ route('warehouse.outbound.pick', $line) }}" class="inline pick-form" data-required="{{ $line->required_qty }}" data-confirm="{{ __('warehouse.outbound.short_confirm') }}">
                                         @csrf
-                                        <input type="number" name="picked_qty" min="0" max="{{ $line->required_qty }}" value="{{ $line->required_qty }}" class="scan" style="width:6rem">
+                                        <input type="number" name="picked_qty" min="0" max="{{ $line->required_qty }}" value="{{ $line->required_qty }}" class="scan" style="width:6rem" aria-label="{{ __('warehouse.outbound.picked') }}">
+                                        <span class="short-fields" hidden>
+                                            <select name="short_reason" style="width:9rem" aria-label="{{ __('warehouse.outbound.short_reason') }}"><option value="">{{ __('warehouse.outbound.short_reason') }}</option>@foreach (\App\Modules\Warehouse\Services\OutboundService::SHORT_REASONS as $r)<option value="{{ $r }}">{{ __('warehouse.outbound.short_reasons.'.$r) }}</option>@endforeach</select>
+                                            <input type="text" name="short_note" maxlength="255" placeholder="{{ __('warehouse.outbound.short_note') }}" style="width:10rem" aria-label="{{ __('warehouse.outbound.short_note') }}">
+                                        </span>
                                         <button type="submit">{{ __('warehouse.outbound.confirm_pick') }}</button>
                                     </form>
                                 @elseif ($line->confirmed_at !== null)
@@ -54,8 +65,28 @@
             @elseif ($task->status === 'done' && $orderCancelled)
                 <footer><span class="badge" data-tone="danger">{{ __('warehouse.outbound.order_cancelled_badge') }}</span> <small class="text-muted">{{ __('warehouse.outbound.cancelled_card') }}</small></footer>
             @elseif ($task->status === 'done' && $task->lines->isNotEmpty())
-                @role('admin|warehouse_supervisor|warehouse_operator')<footer><a role="button" class="secondary" href="{{ route('warehouse.outbound.pack.form', $task->fulfilment_id) }}">{{ __('warehouse.outbound.pack') }}</a></footer>@endrole
+                @role('admin|warehouse_supervisor|warehouse_operator')<footer>@if ($shortLines->isNotEmpty())<span class="badge" data-tone="warn">{{ __('warehouse.outbound.short_card_badge', ['lines' => $shortLines->count(), 'short' => $shortLines->sum(fn ($l) => $l->required_qty - $l->completed_qty)]) }}</span> @endif<a role="button" class="secondary" href="{{ route('warehouse.outbound.pack.form', $task->fulfilment_id) }}">{{ __('warehouse.outbound.pack') }}</a></footer>@endrole
             @endif
         </article>
     @endforeach
 @endsection
+
+@push('scripts')
+<script>
+    (() => {
+        // Short pick (OUTBOUND-08): reason + note appear as soon as 实拣 < 应拣; the submit asks once, naming the shortfall, and the server requires the reason too.
+        document.querySelectorAll('form.pick-form').forEach(form => {
+            const qty = form.querySelector('input[name="picked_qty"]'), fields = form.querySelector('.short-fields'), reason = form.querySelector('select[name="short_reason"]');
+            const required = Number(form.dataset.required);
+            const short = () => required - (Number(qty.value) || 0);
+            const sync = () => { const s = short() > 0; fields.hidden = !s; reason.required = s; if (!s) reason.value = ''; };
+            qty.addEventListener('input', sync); sync();
+            form.addEventListener('submit', event => {
+                if (short() <= 0) return;
+                const text = form.dataset.confirm.replace(':required', String(required)).replace(':picked', String(Number(qty.value) || 0)).replace(':short', String(short()));
+                if (!confirm(text)) event.preventDefault();
+            });
+        });
+    })();
+</script>
+@endpush

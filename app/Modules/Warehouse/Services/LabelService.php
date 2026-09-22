@@ -6,18 +6,24 @@ use App\Modules\Warehouse\Models\Location;
 use App\Modules\Warehouse\Models\StockUnit;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Collection;
-use Picqer\Barcode\BarcodeGeneratorHTML;
+use Picqer\Barcode\BarcodeGeneratorPNG;
 use Picqer\Barcode\Types\TypeCode128;
 
 /**
- * B11: carton / pallet unit labels and location labels as 100 × 150 mm PDF pages, Code 128 (HTML renderer, no GD needed).
+ * B11: carton / pallet unit labels and location labels as 100 × 150 mm PDF pages, Code 128.
  * CHANGE_REQUESTS #131 (audit 2026-09-22 INBOUND-01 / INBOUND-14): the barcode encodes the short scan token (`U<id>` / `L<id>`,
  * ScanCodes) so it fits the 88 mm printable width; the text under it keeps the full code. Labels are English only (lead
  * instruction 全英文): the description prints only when it has no CJK characters — the label font has none.
+ * CHANGE_REQUESTS #141 (audit 2026-09-22 CRAWL-01): each barcode is ONE PNG <img> (GD) instead of ~100 absolutely positioned divs, and a
+ * document holds at most BATCH_SIZE labels — 80 HTML-barcode labels exhausted PHP's 128 MB in dompdf; the controller splits the rest into
+ * numbered batches.
  */
 final class LabelService
 {
     private const PAGE_100x150_PT = [0, 0, 283.46, 425.2];
+
+    /** Labels per PDF document; longer sets are printed as batch 1..n (CRAWL-01). */
+    public const BATCH_SIZE = 40;
 
     /** Width of one Code 128 module in px (dompdf renders at 96 dpi → 0.53 mm, comfortable for a 203 dpi thermal printer). */
     public const WIDTH_FACTOR = 2;
@@ -46,10 +52,33 @@ final class LabelService
         ])->setPaper(self::PAGE_100x150_PT)->output();
     }
 
-    /** The Code 128 of one scan token as inline HTML, at the label's width factor and bar height. */
+    /** The Code 128 of one scan token as a single <img> (PNG data URI, GD) at the label's width factor and bar height. */
     public function barcode(string $code): string
     {
-        return (new BarcodeGeneratorHTML)->getBarcode($code, BarcodeGeneratorHTML::TYPE_CODE_128, self::WIDTH_FACTOR, self::BAR_HEIGHT_PX);
+        $generator = new BarcodeGeneratorPNG;
+        $generator->useGd();
+        $png = $generator->getBarcode($code, BarcodeGeneratorPNG::TYPE_CODE_128, self::WIDTH_FACTOR, self::BAR_HEIGHT_PX);
+        $width = (int) self::barcodeWidthPx($code);
+
+        return sprintf('<img class="barcode-img" src="data:image/png;base64,%s" width="%d" height="%d" alt="%s" style="width:%dpx;height:%dpx">', base64_encode($png), $width, self::BAR_HEIGHT_PX, e($code), $width, self::BAR_HEIGHT_PX);
+    }
+
+    /**
+     * The labels of batch $batch (1-based) out of $items, BATCH_SIZE per batch; the number of batches a set needs is batches().
+     *
+     * @template T
+     *
+     * @param  Collection<int, T>  $items
+     * @return Collection<int, T>
+     */
+    public static function batch(Collection $items, int $batch): Collection
+    {
+        return $items->slice(max(0, $batch - 1) * self::BATCH_SIZE, self::BATCH_SIZE)->values();
+    }
+
+    public static function batches(int $total): int
+    {
+        return max(1, (int) ceil($total / self::BATCH_SIZE));
     }
 
     /** Rendered width in px of the Code 128 for $code, exactly as barcode() lays it out (modules × width factor). */

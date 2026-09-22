@@ -33,6 +33,9 @@ final class OutboundService
     /** Most Package rows one pack may create (a row's 件数 expands into that many) — audit 2026-09-22 OUTBOUND-01. */
     public const MAX_PACKAGES = 200;
 
+    /** Why a pick came up short (audit 2026-09-22 OUTBOUND-08, CR #141) — chosen by the picker, written into the pick_short exception. */
+    public const SHORT_REASONS = ['out_of_stock', 'damaged', 'not_found', 'other'];
+
     public function __construct(
         private readonly TaskService $tasks,
         private readonly StockLedger $ledger,
@@ -82,11 +85,21 @@ final class OutboundService
         });
     }
 
-    /** Confirm one pick line: stock leaves the unit (ledger `pick`), the reservation is consumed, a shortfall raises Pick Short. */
-    public function confirmPick(WarehouseTaskLine $line, int $pickedQty, ?int $userId = null): WarehouseTaskLine
+    /**
+     * Confirm one pick line: stock leaves the unit (ledger `pick`), the reservation is consumed, a shortfall raises Pick Short.
+     *
+     * A short pick (picked < required) carries a reason from SHORT_REASONS (+ optional note) — audit 2026-09-22 OUTBOUND-08, CR #141; both go
+     * into the exception message (Chinese) for the coordinator. The wave page requires the reason (OutboundController::pick); a service caller
+     * that gives none (demo story, consumers) is recorded as 其他. The shortfall is still released back to available stock: whether 找不到的货
+     * should instead go to a stocktake / stay unavailable is a pending lead decision (HANDOFF 2026-09-22), so today's rule stands.
+     */
+    public function confirmPick(WarehouseTaskLine $line, int $pickedQty, ?int $userId = null, ?string $shortReason = null, ?string $shortNote = null): WarehouseTaskLine
     {
         if ($pickedQty < 0 || $pickedQty > $line->required_qty) {
             throw new InvalidArgumentException(__('warehouse.outbound.errors.picked_range', ['max' => $line->required_qty]));
+        }
+        if (! in_array($shortReason, self::SHORT_REASONS, true)) {
+            $shortReason = 'other';
         }
         $task = $line->task;
         if ($task->status === 'done' || $line->confirmed_at !== null) {
@@ -97,7 +110,7 @@ final class OutboundService
         }
         $this->refuseCancelledOrder($task->order_id);
 
-        return DB::transaction(function () use ($line, $task, $pickedQty, $userId): WarehouseTaskLine {
+        return DB::transaction(function () use ($line, $task, $pickedQty, $userId, $shortReason, $shortNote): WarehouseTaskLine {
             $unit = StockUnit::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($line->stock_unit_id);
             $reservation = StockReservation::query()->where('order_id', $task->order_id)->where('order_line_id', $line->order_line_id)->where('stock_unit_id', $unit->id)->where('status', 'active')->lockForUpdate()->first();
 
@@ -122,7 +135,11 @@ final class OutboundService
             if ($pickedQty < $line->required_qty) {
                 $this->exceptions->raise('pick_short', 'warehouse', [
                     'job_id' => $task->job_id, 'client_id' => $task->client_id, 'order_id' => $task->order_id, 'source_type' => 'fulfilment', 'source_id' => $task->fulfilment_id,
-                    'message' => "{$task->task_no}: {$unit->label_code} picked {$pickedQty} of {$line->required_qty}", 'created_by' => $userId,
+                    'message' => __('warehouse.outbound.pick_short_message', [
+                        'task' => $task->task_no, 'label' => $unit->label_code, 'location' => $unit->location?->full_code ?? '—', 'required' => $line->required_qty, 'picked' => $pickedQty,
+                        'short' => $line->required_qty - $pickedQty, 'reason' => __('warehouse.outbound.short_reasons.'.$shortReason), 'note' => filled($shortNote) ? ' · '.$shortNote : '',
+                    ]),
+                    'created_by' => $userId,
                 ]);
             }
 

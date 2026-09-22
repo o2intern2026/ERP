@@ -52,6 +52,18 @@ return [
         'weight' => '重量 (kg)',
         'pallet_class' => '托盘类型',
         'pallet_source' => '托盘来源',
+        'pallet_class_unclassified' => '未分类(按标准托计费)',
+        // Audit 2026-09-22 INBOUND-05 (CR #141): the supervisor corrects a unit's pallet facts after receiving.
+        'correct' => [
+            'title' => '修改单元信息(托盘来源 / 尺寸 / 重量)',
+            'hint' => '收货时漏填或填错的托盘来源、尺寸、重量在这里改;托盘类型留空 = 按客户价目表重新建议。改动记入操作日志;存储费和托盘租金按每日快照计,下一次快照起按新值计费(本周已计费的周不重算)。',
+            'pallet_class_auto' => '托盘类型:按价目表自动建议',
+            'reason' => '修改原因(必填)',
+            'submit' => '保存修改',
+            'done' => '单元 :label 已修改::changes。',
+            'nothing' => '没有改动。',
+            'not_pallet_source' => '散箱单元没有托盘来源 / 托盘类型。',
+        ],
         'errors' => [
             'negative_on_hand' => '库存单元 :label 的在库数量不能为负(当前 :before,变动 :delta),操作已拒绝。',
         ],
@@ -85,6 +97,7 @@ return [
         'reference' => '参考号(新建 Job 时使用)',
         'existing_job' => '挂到已有 Job(可选)',
         'new_job' => '不选则自动新建 Job',
+        'job_not_of_client' => '所选 Job 不属于所选客户,请先选客户再选它的 Job(或留空自动新建)。', // audit 2026-09-22 INBOUND-13 (CR #141)
         'unplanned' => '无预报到货(系统自动生成临时预报单;需 协调员 确认后才能上架)',
         'unplanned_badge' => '无预报',
         'unplanned_confirmed' => '无预报到货已确认。',
@@ -260,6 +273,11 @@ return [
         'no_receiving_location' => '仓库 :code 还没有启用的「收货区」库位,无法收货。请先到「库位配置」新建一个类型为收货区的库位。',
         'no_receiving_location_short' => '所选仓库还没有启用的「收货区」库位,无法收货。请先到「库位配置」新建收货区库位。',
         'units_required' => '实收箱数大于 0 时,至少要填一行库存单元(箱数 ≥ 1)。',
+        // Audit 2026-09-22 INBOUND-04 / INBOUND-05 (CR #141)
+        'units_sum_mismatch' => '库存单元箱数合计 :units 与实收箱数 :received 不一致:入库单和库存必须相等,请改单元行或实收数。',
+        'unit_total' => '单元合计 :units / 实收 :received',
+        'remove_unit' => '删除这一行',
+        'set_all' => '全部设为',
         'bulk' => [
             'title' => '手动填写入库单(整单收货)',
             'hint' => '勾选本次到货的行,填实收和破损箱数;留空或不勾的行以后再收。提交后所有行计入同一张入库单。',
@@ -447,6 +465,17 @@ return [
         'complete' => '完成',
         'empty' => '没有任务。',
         'hint_devanning' => '拆柜任务完成即产生拆柜费(按柜型 × 拆柜方式);混装、散箱超 20 行或毛重超 22.5 吨进待报价(上限来自价目表)。拼柜按成员份额分摊。',
+        // Audit 2026-09-22 INBOUND-07 (CR #141)
+        'complete_now' => '现在完成(作业已做完,填计费数量后直接完成并计费)',
+        'complete_now_hint' => '勾上后按类型填计费数量:缠膜 / 废弃物填数量和单位,人工时 / 其它 VAS 填班内 / 班外小时,序列号扫描填扫描数或粘贴序列号;拆柜按 1 柜计费不用填。不勾则先创建,稍后在列表点"完成"。',
+        'serials' => '序列号(每行一个,可扫码)',
+        'devanning_no_qty' => '拆柜按 1 柜计费,无需填数量。',
+        'created_completed' => '任务 :task_no 已创建并完成,计费事件已发出。',
+        'quantity_required' => [
+            'qty' => ':type 必须填计费数量(大于 0)才能完成,否则不会产生费用。',
+            'hours' => ':type 必须填班内或班外小时(合计大于 0)才能完成,否则不会产生费用。',
+            'scans' => '序列号扫描必须填扫描数(大于 0)或粘贴序列号才能完成,否则不会产生费用。',
+        ],
     ],
 
     'locations' => [
@@ -556,6 +585,16 @@ return [
     'labels' => [
         'units' => '打印箱标 / 托标 (PDF)',
         'locations' => '打印库位标签 (PDF)',
+        // Audit 2026-09-22 CRAWL-01 (CR #141)
+        'batches_title' => '分批打印标签',
+        'batches_hint' => '共 :total 张标签,每份 PDF 最多 :size 张,分 :batches 批打印;点每一批分别打开 PDF。',
+        'batch_link' => '第 :n 批(第 :from–:to 张)',
+        'print_filter' => '按区 / 巷道 / 类型打印库位标签',
+        'print_filter_hint' => '留空 = 全部;超过 :size 张时先出分批页,再按批打开 PDF。巷道范围按编号比较(01–05)。',
+        'zone' => '区 (zone)',
+        'aisle_from' => '巷道从',
+        'aisle_to' => '巷道到',
+        'print' => '打印所选',
     ],
     'moves' => [
         'title' => '移库',
@@ -618,6 +657,18 @@ return [
         'picked' => '实拣',
         'confirm_pick' => '确认',
         'pick_confirmed' => '拣货已确认。',
+        // Audit 2026-09-22 OUTBOUND-08 (CR #141): short picks are confirmed with a reason and shown as such.
+        'short_reason' => '少拣原因',
+        'short_note' => '说明(可选)',
+        'short_reasons' => ['out_of_stock' => '缺货', 'damaged' => '破损', 'not_found' => '找不到', 'other' => '其他'],
+        'short_confirm' => '应拣 :required,实拣 :picked,确认少拣 :short 箱?少拣会生成"拣货短缺"异常通知客服,少的数量回到可用库存。',
+        'pick_short_recorded' => '已记录少拣 :short 箱(:reason),已生成拣货短缺异常通知客服。',
+        'pick_short_message' => ':task::label(库位 :location)应拣 :required,实拣 :picked,少 :short 箱。原因::reason:note',
+        'short_badge' => '少拣 :short',
+        'short_card_badge' => ':lines 行少拣,共少 :short 箱',
+        // Audit 2026-09-22 OUTBOUND-09 (CR #141)
+        'summary_label' => '本次打包:',
+        'summary' => '共 :pieces 件 · 总重 :weight kg · :pallets 托',
         'to_pack' => '待打包(拣货完成)',
         'pack' => '打包',
         'errors' => [
@@ -631,6 +682,13 @@ return [
             'dispatch_after_pack' => '打包后才能发运交接。',
             'already_dispatched' => '这个发货批次已经发运交接过了。',
             'financial_hold' => '该订单处于财务锁定:财务放行前不能发运交接。',
+            // Audit 2026-09-22 OUTBOUND-12 / OUTBOUND-03 (CR #141)
+            'select_orders' => '请至少勾选一个要释放的订单(全不勾不会释放全部)。',
+            'shipment_not_of_fulfilment' => '运单 ID :id 不属于这个发货批次,请核对运输页的运单号。',
+            // Audit 2026-09-22 OUTBOUND-08 / OUTBOUND-09 (CR #141)
+            'short_reason_required' => '应拣 :required,实拣 :picked:少拣必须选原因(缺货 / 破损 / 找不到 / 其他)。',
+            'row_type_required' => '第 :row 行:填了重量就要选包裹类型。',
+            'row_dims_required' => '第 :row 行:填了重量就要填长、宽、高(mm),运输按尺寸报价。',
             // Audit 2026-09-22 OUTBOUND-02
             'order_cancelled' => '订单 :order 已取消,不能拣货 / 打包 / 发运交接;已拣货物请放回原库位,主管在波次页「关闭任务」。',
             'order_not_cancelled' => '订单 :order 没有取消,不能关闭拣货任务;请正常确认拣货。',
@@ -672,6 +730,16 @@ return [
         'pallet_count' => '装车托盘数',
         'handed_to' => '交接给',
         'shipment_id' => '运单 ID(可选)',
+        // Audit 2026-09-22 OUTBOUND-03 (CR #141)
+        'shipment' => '运单',
+        'not_booked' => '未订舱',
+        'no_shipment' => '未订舱(运输尚无运单)',
+        'manual_shipment_id' => '手动填运单 ID',
+        // Audit 2026-09-22 OUTBOUND-12 (CR #141)
+        'select_all' => '全选 / 全不选',
+        'release_count' => '释放波次 (:count)',
+        'cartons' => '箱数',
+        'due_badge' => '今天 / 已过期',
         'waves' => '波次列表',
         'wave_no' => '波次号',
         'status' => '状态',
@@ -777,6 +845,25 @@ return [
         'empty' => '还没有物理柜。',
         'arrive' => '登记到港',
         'arrived' => '物理柜 :no 已登记到港;拖车 / 侧卸车费(如适用)已按份额发出。',
+        // Audit 2026-09-22 INBOUND-16 (CR #141)
+        'edit' => '修改物理柜',
+        'edit_hint' => '到港登记前柜号、柜型、拆柜方式、毛重、分摊基准、我方拖车、侧卸车、预计到港都可以改;已有成员时仓库不能改。登记到港后表头锁定,只能"重算分摊"。改动记入操作日志。',
+        'updated' => '物理柜 :no 已修改。',
+        'delete' => '删除物理柜',
+        'delete_confirm' => '删除这只物理柜?只有没有成员、没有拆柜任务、没有发出过费用的空柜可以删。',
+        'deleted' => '物理柜 :no 已删除。',
+        'arrive_confirm' => [
+            'title' => '登记到港 — 确认费用',
+            'hint' => '登记到港会发出 physical_container.arrived 事件:勾了"由我方拖柜"就按份额向每个成员 Job 收拖车费,勾了"需侧卸车"再收侧卸车附加费。下面是这次会产生的费用;不对就先回去"修改物理柜"。',
+            'no_charges' => '本柜没有勾"由我方拖柜"也没有勾"需侧卸车",登记到港不会产生费用(只记到港时间)。',
+            'will_raise' => '将产生::codes',
+            'code' => '费用代码',
+            'amount' => '预计金额(按客户价目表)',
+            'missing_rate' => '缺费率 → 待报价',
+            'poa' => 'POA / 待报价',
+            'over_weight' => '毛重超过 22.5 吨:拖车费按价目表上限规则进待报价。',
+            'confirm' => '确认登记到港并发出费用',
+        ],
         'register_devanning' => '登记拆柜(整柜一次)',
         'devanning_task' => '拆柜任务',
         'devanning_hint' => '拆柜任务在"作业登记"页点"完成"即产生拆柜费:按每个成员自己的拆柜方式 × 份额,记到各自的 Job;收货未全部完成时份额先按预报箱数(临时),之后可"重算分摊"。',
@@ -817,6 +904,9 @@ return [
             'cannot_unlink_billed' => '物理柜 :no 已拆柜,成员不能再解除关联;如需调整,请财务冲销费用后再重算分摊。',
             'no_members' => '物理柜 :no 还没有关联任何预报单柜号行。',
             'already_arrived' => '物理柜 :no 已登记过到港。',
+            'locked_after_arrival' => '物理柜 :no 已登记到港或已发出费用,表头不能再改;数量 / 成员变化请用"重算分摊"。',
+            'warehouse_change_with_members' => '物理柜 :no 已有成员,仓库不能改(成员必须与柜同仓)。',
+            'cannot_delete' => '物理柜 :no 有成员、拆柜任务或已发出费用,不能删除;先解除关联 / 取消任务。',
             'nothing_to_recompute' => '物理柜 :no 还没有发出过任何费用,无需重算。',
             'box_has_task' => '物理柜 :no 已有拆柜任务 :task_no。',
             'box_task_devanning_only' => '物理柜上只能登记拆柜任务;缠膜、人工时等请绑定预报单或订单。',

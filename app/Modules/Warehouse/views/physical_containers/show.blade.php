@@ -27,13 +27,20 @@
         </dl>
     </article>
     <p class="text-muted"><small>{{ __('warehouse.physical_containers.basis_hint') }}</small></p>
-    @foreach (['link', 'arrive', 'recompute', 'physical_container_id', 'task_type'] as $bag)
+    @foreach (['link', 'arrive', 'recompute', 'edit', 'physical_container_id', 'task_type'] as $bag)
         @error($bag)<p role="alert" style="color:var(--erp-danger)">{{ $message }}</p>@enderror
     @endforeach
 
     <div class="grid">
+        {{-- Audit 2026-09-22 INBOUND-16 (CR #141): 登记到港 goes through a confirmation page that lists the cartage / sideloader lines; the header is editable until then; an empty box can be deleted. --}}
         @if ($box->arrived_at === null && $box->members->isNotEmpty())
-            <form method="post" action="{{ route('warehouse.physical_containers.arrive', $box) }}" class="inline">@csrf<button type="submit" class="secondary">{{ __('warehouse.physical_containers.arrive') }}</button></form>
+            <a role="button" class="secondary" href="{{ route('warehouse.physical_containers.arrive_confirm', $box) }}">{{ __('warehouse.physical_containers.arrive') }}</a>
+        @endif
+        @if ($box->arrived_at === null && ! $box->hasEmitted())
+            <a role="button" class="secondary outline" href="{{ route('warehouse.physical_containers.edit', $box) }}">{{ __('warehouse.physical_containers.edit') }}</a>
+        @endif
+        @if ($box->members->isEmpty() && ! $box->hasEmitted() && $box->arrived_at === null && $box->devanningTask === null)
+            <form method="post" action="{{ route('warehouse.physical_containers.destroy', $box) }}" class="inline" onsubmit="return confirm('{{ __('warehouse.physical_containers.delete_confirm') }}')">@csrf @method('DELETE')<button type="submit" class="secondary outline">{{ __('warehouse.physical_containers.delete') }}</button></form>
         @endif
         @role('admin|warehouse_supervisor')
             @if ($box->devanningTask === null && $box->members->isNotEmpty())

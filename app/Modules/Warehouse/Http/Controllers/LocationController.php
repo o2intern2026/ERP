@@ -85,8 +85,6 @@ class LocationController extends Controller
 
     private function within(string $value, ?string $from, ?string $to): bool
     {
-        $cmp = fn (string $a, string $b): int => ctype_digit($a) && ctype_digit($b) ? ((int) $a <=> (int) $b) : strcasecmp($a, $b);
-
-        return (! filled($from) || $cmp($value, trim($from)) >= 0) && (! filled($to) || $cmp($value, trim($to)) <= 0);
+        return Location::codeBetween($value, $from, $to); // shared with the label print filter (CR #141)
     }
 }

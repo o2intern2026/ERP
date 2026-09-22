@@ -29,6 +29,7 @@ class UnplannedReceivingController extends Controller
             'receivingLocations' => Location::query()->where('type', 'receiving')->where('active', true)->orderBy('full_code')->get()->groupBy('warehouse_id'),
             'inboundTypes' => Enums::INBOUND_TYPES,
             'unitTypes' => Enums::UNIT_TYPES,
+            'palletSources' => Enums::PALLET_SOURCES,
             'rows' => array_values(array_filter((array) old('rows', []), 'is_array')) ?: [['unit_type' => 'pallet', 'unit_count' => 1]],
         ]);
     }
@@ -53,6 +54,7 @@ class UnplannedReceivingController extends Controller
             'rows.*.unit_type' => ['required', Rule::in(Enums::UNIT_TYPES)],
             'rows.*.unit_count' => ['nullable', 'integer', 'min:1', 'max:500'],
             'rows.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
+            'rows.*.pallet_source' => ['nullable', Rule::in(Enums::PALLET_SOURCES)], // 托盘来源 per row (audit 2026-09-22 INBOUND-05, CR #141)
             'rows.*.variance_reason' => ['nullable', 'string', 'max:255'],
         ], ['rows.required' => __('warehouse.receiving.unplanned.rows_required'), 'rows.min' => __('warehouse.receiving.unplanned.rows_required')]);
         $validator->after(function ($v) use ($request) {

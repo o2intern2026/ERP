@@ -10,6 +10,7 @@ use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Modules\Warehouse\Services\PhysicalContainerService;
 use App\Modules\Warehouse\Services\WarehouseContext;
+use App\Support\Contracts\RateService;
 use App\Support\Enums;
 use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
@@ -88,6 +89,73 @@ class PhysicalContainerController extends Controller
         }
 
         return redirect()->route('warehouse.physical_containers.show', $box)->with('status', __('warehouse.physical_containers.created', ['no' => $box->container_no]));
+    }
+
+    /** 修改物理柜 (CR #141): the header form, only while the box has not arrived / emitted anything. */
+    public function edit(PhysicalContainer $box): View|RedirectResponse
+    {
+        if ($box->arrived_at !== null || $box->hasEmitted()) {
+            return redirect()->route('warehouse.physical_containers.show', $box)->withErrors(['edit' => __('warehouse.physical_containers.errors.locked_after_arrival', ['no' => $box->container_no])]);
+        }
+
+        return view('warehouse::physical_containers.edit', [
+            'box' => $box->load('warehouse')->loadCount('members'),
+            'warehouses' => Warehouse::query()->where('active', true)->orderBy('code')->get(['id', 'code', 'name']),
+            'sizes' => Enums::CONTAINER_SIZES,
+            'modes' => Enums::UNPACK_MODES,
+            'bases' => Enums::ALLOCATION_BASES,
+        ]);
+    }
+
+    public function update(Request $request, PhysicalContainer $box, PhysicalContainerService $boxes): RedirectResponse
+    {
+        $data = $request->validate([
+            'container_no' => ['required', 'string', 'max:20'],
+            'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')],
+            'size' => ['required', Rule::in(Enums::CONTAINER_SIZES)],
+            'unpack_mode' => ['required', Rule::in(Enums::UNPACK_MODES)],
+            'gross_weight_kg' => ['nullable', 'numeric', 'min:0'],
+            'allocation_basis' => ['required', Rule::in(Enums::ALLOCATION_BASES)],
+            'cartage_by_us' => ['nullable', 'boolean'],
+            'sideloader_required' => ['nullable', 'boolean'],
+            'eta_date' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $data['cartage_by_us'] = (bool) ($data['cartage_by_us'] ?? false);
+        $data['sideloader_required'] = (bool) ($data['sideloader_required'] ?? false);
+        $data += ['eta_date' => null, 'gross_weight_kg' => null, 'notes' => null];
+
+        try {
+            $boxes->update($box, $data);
+        } catch (InvalidArgumentException $e) {
+            return back()->withInput()->withErrors(['edit' => RuleViolation::display($e)]);
+        }
+
+        return redirect()->route('warehouse.physical_containers.show', $box)->with('status', __('warehouse.physical_containers.updated', ['no' => $box->fresh()->container_no]));
+    }
+
+    public function destroy(PhysicalContainer $box, PhysicalContainerService $boxes): RedirectResponse
+    {
+        $no = $box->container_no;
+        try {
+            $boxes->delete($box);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['edit' => RuleViolation::display($e)]);
+        }
+
+        return redirect()->route('warehouse.physical_containers.index')->with('status', __('warehouse.physical_containers.deleted', ['no' => $no]));
+    }
+
+    /** 登记到港 confirmation (CR #141): the cartage / sideloader lines the event will raise, per member share, before anything is published. */
+    public function arriveConfirm(PhysicalContainer $box, PhysicalContainerService $boxes, RateService $rates): View|RedirectResponse
+    {
+        if ($box->arrived_at !== null) {
+            return redirect()->route('warehouse.physical_containers.show', $box)->withErrors(['arrive' => __('warehouse.physical_containers.errors.already_arrived', ['no' => $box->container_no])]);
+        }
+        $box->load(['warehouse', 'members.asn' => fn ($q) => $q->withoutGlobalScopes()->with(['client', 'job'])]);
+        $preview = $boxes->arrivalPreview($box, $rates);
+
+        return view('warehouse::physical_containers.arrive', ['box' => $box, 'preview' => $preview, 'jobs' => $box->members->mapWithKeys(fn ($m) => [(int) $m->job_id => $m->asn])]);
     }
 
     public function show(Request $request, PhysicalContainer $box, PhysicalContainerService $boxes): View

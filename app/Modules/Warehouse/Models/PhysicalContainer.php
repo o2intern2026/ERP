@@ -73,6 +73,6 @@ class PhysicalContainer extends Model
 
     public function getActivitylogOptions(): LogOptions
     {
-        return LogOptions::defaults()->logOnly(['status', 'consolidation', 'allocation_basis', 'cartage_by_us', 'sideloader_required', 'gross_weight_kg', 'allocation_version'])->logOnlyDirty()->dontSubmitEmptyLogs();
+        return LogOptions::defaults()->logOnly(['container_no', 'warehouse_id', 'size', 'unpack_mode', 'eta_date', 'status', 'consolidation', 'allocation_basis', 'cartage_by_us', 'sideloader_required', 'gross_weight_kg', 'allocation_version'])->logOnlyDirty()->dontSubmitEmptyLogs();
     }
 }

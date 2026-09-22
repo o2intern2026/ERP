@@ -73,7 +73,7 @@ class ReceivingController extends Controller
         // Spare unit rows the operator never touched (no 箱数) are dropped BEFORE validation — testers hit "units.1.carton_qty is required" on hidden rows (2026-09-10).
         $request->merge(['units' => array_values(array_filter((array) $request->input('units', []), fn ($u) => is_array($u) && filled($u['carton_qty'] ?? null)))]);
 
-        $data = $request->validate([
+        $validator = Validator::make($request->all(), [
             'receiving_location_id' => ['required', 'integer', Rule::exists('locations', 'id')->where('warehouse_id', $asn->warehouse_id)->where('type', 'receiving')],
             'received_cartons' => ['required', 'integer', 'min:0'],
             'damaged_cartons' => ['nullable', 'integer', 'min:0'],
@@ -95,6 +95,20 @@ class ReceivingController extends Controller
             'units.*.pallet_class' => ['nullable', Rule::in(Enums::PALLET_CLASSES)],
             'units.*.pallet_class_reason' => ['nullable', 'string', 'max:255'],
         ]);
+        // Audit 2026-09-22 INBOUND-04 (CR #141): the 入库单 figure and the stock must agree — Σ unit 箱数 = 实收箱数 — and the variance reason
+        // the label already called 必填 is enforced with the bulk form's rule (received + damaged ≠ expected, or any damage).
+        $validator->after(function ($v) use ($request, $line) {
+            $received = (int) $request->input('received_cartons');
+            $damaged = (int) $request->input('damaged_cartons', 0);
+            $sum = (int) array_sum(array_map(fn ($u) => (int) ($u['carton_qty'] ?? 0), array_filter((array) $request->input('units', []), 'is_array')));
+            if ($received > 0 && $sum !== $received) {
+                $v->errors()->add('units', __('warehouse.receiving.units_sum_mismatch', ['units' => $sum, 'received' => $received]));
+            }
+            if (($received + $damaged !== (int) $line->expected_cartons || $damaged > 0) && blank($request->input('variance_reason'))) {
+                $v->errors()->add('variance_reason', __('warehouse.receiving.bulk.reason_required', ['line' => $line->id]));
+            }
+        });
+        $data = $validator->validate();
 
         $units = array_values(array_filter($data['units'] ?? [], fn ($u) => (int) ($u['carton_qty'] ?? 0) > 0));
         $location = Location::query()->findOrFail($data['receiving_location_id']);
@@ -127,6 +141,7 @@ class ReceivingController extends Controller
             'receipt' => $receipts->nextReceiptNo($asn),
             'receivingLocations' => Location::query()->where('warehouse_id', $asn->warehouse_id)->where('type', 'receiving')->where('active', true)->orderBy('full_code')->get(),
             'unitTypes' => Enums::UNIT_TYPES,
+            'palletSources' => Enums::PALLET_SOURCES,
             'defaultUnitType' => $asn->inbound_type === 'loose_truck' ? 'pallet' : 'carton',
             'receivable' => in_array($asn->status, ['booked', 'arrived', 'receiving'], true),
         ]);
@@ -149,6 +164,7 @@ class ReceivingController extends Controller
             'rows.*.unit_type' => ['required', Rule::in(Enums::UNIT_TYPES)],
             'rows.*.unit_count' => ['nullable', 'integer', 'min:1', 'max:500'],
             'rows.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
+            'rows.*.pallet_source' => ['nullable', Rule::in(Enums::PALLET_SOURCES)], // 托盘来源 per row (audit 2026-09-22 INBOUND-05, CR #141) — pallet rental / purchase bill from it
             'rows.*.variance_reason' => ['nullable', 'string', 'max:255'],
         ], ['rows.required' => __('warehouse.receiving.bulk.rows_required'), 'rows.min' => __('warehouse.receiving.bulk.rows_required')]);
         $validator->after(function ($v) use ($request, $asn) {

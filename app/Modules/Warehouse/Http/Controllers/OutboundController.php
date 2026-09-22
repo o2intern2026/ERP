@@ -20,6 +20,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
@@ -39,6 +40,10 @@ class OutboundController extends Controller
             ->orderBy('orders.requested_date')->orderBy('fulfilments.id')
             ->get(['fulfilments.id as fulfilment_id', 'fulfilments.warehouse_id', 'orders.id as order_id', 'orders.order_no', 'orders.requested_date', 'orders.deliver_to_suburb', 'orders.client_id', 'clients.name as client_name']);
 
+        // Audit 2026-09-22 OUTBOUND-12 (CR #141): size per row (箱数 = Σ fulfilment_lines.qty) so the supervisor sees what a wave will hold.
+        $cartons = DB::table('fulfilment_lines')->whereIn('fulfilment_id', $ready->pluck('fulfilment_id'))->groupBy('fulfilment_id')->selectRaw('fulfilment_id, sum(qty) as cartons')->pluck('cartons', 'fulfilment_id');
+        $ready->each(fn ($r) => $r->cartons = (int) ($cartons[$r->fulfilment_id] ?? 0));
+
         $picking = (clone $pickTasks)->with(['wave', 'lines'])->whereIn('status', ['pending', 'in_progress'])->when($warehouseId, fn ($q, $v) => $q->where('warehouse_id', $v))->orderBy('id')->get();
         $toPack = (clone $pickTasks)->with('lines')->where('status', 'done')->whereNotIn('fulfilment_id', Package::query()->select('fulfilment_id'))->when($warehouseId, fn ($q, $v) => $q->where('warehouse_id', $v))->orderBy('id')->get();
         $toDispatch = Package::query()->whereNotIn('fulfilment_id', OutboundDispatch::query()->select('fulfilment_id'))->orderBy('id')->get()->groupBy('fulfilment_id');
@@ -55,7 +60,30 @@ class OutboundController extends Controller
             // OUTBOUND-02: a cancelled order's rows show a badge instead of the 打包 / 发运交接 controls (the service refuses them anyway).
             'cancelledOrders' => OutboundService::cancelledOrderIds($orderNos->keys()),
             'shortages' => $this->shortages($stock),
+            'shipments' => $this->shipmentsFor($toDispatch->keys()),
+            'today' => today()->toDateString(),
         ]);
+    }
+
+    /**
+     * Audit 2026-09-22 OUTBOUND-03 (CR #141): the booked shipment behind each 待发运 batch, read-only from Transport's tables (shipments,
+     * carriers, transport_quotes — the same DB::table pattern this board already uses for orders / fulfilments; Transport exposes no
+     * shipment read in contracts/services.md). Keyed by fulfilment_id; `handed_to` is the default the quote source implies.
+     *
+     * @return Collection<int, object{id:int, shipment_no:string, status:string, carrier:?string, source:?string, handed_to:string}>
+     */
+    private function shipmentsFor(Collection $fulfilmentIds): Collection
+    {
+        if ($fulfilmentIds->isEmpty()) {
+            return collect();
+        }
+
+        return DB::table('shipments')->leftJoin('carriers', 'carriers.id', '=', 'shipments.carrier_id')->leftJoin('transport_quotes', 'transport_quotes.id', '=', 'shipments.selected_quote_id')
+            ->whereIn('shipments.fulfilment_id', $fulfilmentIds)->whereNotIn('shipments.status', ['booking_cancelled'])
+            ->orderByDesc('shipments.id')
+            ->get(['shipments.id', 'shipments.fulfilment_id', 'shipments.shipment_no', 'shipments.status', 'carriers.name as carrier', 'transport_quotes.source'])
+            ->unique('fulfilment_id')->keyBy('fulfilment_id')
+            ->map(fn ($s) => (object) ['id' => (int) $s->id, 'shipment_no' => $s->shipment_no, 'status' => $s->status, 'carrier' => $s->carrier, 'source' => $s->source, 'handed_to' => $s->source === 'own_fleet' ? 'driver' : 'carrier']);
     }
 
     /**
@@ -88,12 +116,13 @@ class OutboundController extends Controller
 
     public function release(Request $request, OutboundService $outbound): RedirectResponse
     {
+        // Audit 2026-09-22 OUTBOUND-12 (CR #141): un-ticking every row used to release EVERY allocated batch of the warehouse — at least one order is required.
         $data = $request->validate([
             'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')],
             'client_id' => ['nullable', 'integer'],
             'requested_date' => ['nullable', 'date'],
-            'order_ids' => ['nullable', 'array'], 'order_ids.*' => ['integer'],
-        ]);
+            'order_ids' => ['required', 'array', 'min:1'], 'order_ids.*' => ['integer'],
+        ], ['order_ids.required' => __('warehouse.outbound.errors.select_orders'), 'order_ids.min' => __('warehouse.outbound.errors.select_orders')]);
 
         try {
             $result = $outbound->releaseWave((int) $data['warehouse_id'], ['client_id' => $data['client_id'] ?? null, 'requested_date' => $data['requested_date'] ?? null, 'order_ids' => $data['order_ids'] ?? []], auth()->id());
@@ -123,15 +152,29 @@ class OutboundController extends Controller
 
     public function pick(Request $request, WarehouseTaskLine $line, OutboundService $outbound): RedirectResponse
     {
-        $data = $request->validate(['picked_qty' => ['required', 'integer', 'min:0']]);
+        // Audit 2026-09-22 OUTBOUND-08 (CR #141): a short pick is confirmed with a reason (+ note) and gets its own flash; the wave page shows a badge.
+        $validator = Validator::make($request->all(), [
+            'picked_qty' => ['required', 'integer', 'min:0'],
+            'short_reason' => ['nullable', Rule::in(OutboundService::SHORT_REASONS)],
+            'short_note' => ['nullable', 'string', 'max:255'],
+        ]);
+        $validator->after(function ($v) use ($request, $line) {
+            if ($request->filled('picked_qty') && (int) $request->input('picked_qty') < $line->required_qty && ! $request->filled('short_reason')) {
+                $v->errors()->add('short_reason', __('warehouse.outbound.errors.short_reason_required', ['required' => $line->required_qty, 'picked' => (int) $request->input('picked_qty')]));
+            }
+        });
+        $data = $validator->validate();
+        $short = $line->required_qty - (int) $data['picked_qty'];
 
         try {
-            $outbound->confirmPick($line, (int) $data['picked_qty'], auth()->id());
+            $outbound->confirmPick($line, (int) $data['picked_qty'], auth()->id(), $short > 0 ? $data['short_reason'] : null, $data['short_note'] ?? null);
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['picked_qty' => RuleViolation::display($e)]);
         }
 
-        return back()->with('status', __('warehouse.outbound.pick_confirmed'));
+        return back()->with('status', $short > 0
+            ? __('warehouse.outbound.pick_short_recorded', ['short' => $short, 'reason' => __('warehouse.outbound.short_reasons.'.$data['short_reason'])])
+            : __('warehouse.outbound.pick_confirmed'));
     }
 
     /** 关闭任务 (admin | warehouse_supervisor, route middleware): closes the started pick task of a cancelled order — OutboundService::closeCancelledTask. */
@@ -162,13 +205,29 @@ class OutboundController extends Controller
 
     public function pack(Request $request, int $fulfilment, OutboundService $outbound): RedirectResponse
     {
-        $data = $request->validate([
+        $validator = Validator::make($request->all(), [
             'packages' => ['required', 'array'],
             'packages.*.package_type' => ['nullable', Rule::in(Enums::PACKAGE_TYPES)],
             'packages.*.qty' => ['nullable', 'integer', 'min:1', 'max:'.OutboundService::MAX_PACKAGES], // 件数: identical packages on one row (audit 2026-09-22 OUTBOUND-01)
             'packages.*.weight_kg' => ['nullable', 'numeric', 'min:0.001'],
             'packages.*.length_mm' => ['nullable', 'integer', 'min:1'], 'packages.*.width_mm' => ['nullable', 'integer', 'min:1'], 'packages.*.height_mm' => ['nullable', 'integer', 'min:1'],
         ]);
+        // Audit 2026-09-22 OUTBOUND-09 (CR #141): a row with a weight is a package — it needs its type and all three dims (Transport quoted 0 mm otherwise, a
+        // typeless row was dropped silently). Rows with nothing typed stay ignorable spare rows. Errors name the visible row number.
+        $validator->after(function ($v) use ($request) {
+            foreach (array_values(array_filter((array) $request->input('packages', []), 'is_array')) as $i => $row) {
+                if (! filled($row['weight_kg'] ?? null)) {
+                    continue;
+                }
+                if (! filled($row['package_type'] ?? null)) {
+                    $v->errors()->add("packages.{$i}.package_type", __('warehouse.outbound.errors.row_type_required', ['row' => $i + 1]));
+                }
+                if (! filled($row['length_mm'] ?? null) || ! filled($row['width_mm'] ?? null) || ! filled($row['height_mm'] ?? null)) {
+                    $v->errors()->add("packages.{$i}.length_mm", __('warehouse.outbound.errors.row_dims_required', ['row' => $i + 1]));
+                }
+            }
+        });
+        $data = $validator->validate();
         $packages = collect($data['packages'])->filter(fn ($p) => filled($p['weight_kg'] ?? null) && filled($p['package_type'] ?? null))
             ->map(fn ($p) => ['package_type' => $p['package_type'], 'qty' => (int) ($p['qty'] ?? 1), 'weight_kg' => (float) $p['weight_kg'], 'length_mm' => $p['length_mm'] ?? null, 'width_mm' => $p['width_mm'] ?? null, 'height_mm' => $p['height_mm'] ?? null])->values()->all();
 
@@ -184,6 +243,10 @@ class OutboundController extends Controller
     public function dispatch(Request $request, int $fulfilment, OutboundService $outbound): RedirectResponse
     {
         $data = $request->validate(['pallet_count' => ['required', 'integer', 'min:0'], 'handed_to' => ['required', Rule::in(Enums::HANDED_TO)], 'shipment_id' => ['nullable', 'integer']]);
+        // Audit 2026-09-22 OUTBOUND-03 (CR #141): a typed / prefilled shipment id must be this batch's shipment — a wrong one used to fail later inside Transport's consumer.
+        if (! empty($data['shipment_id']) && ! DB::table('shipments')->where('id', $data['shipment_id'])->where('fulfilment_id', $fulfilment)->exists()) {
+            return back()->withErrors(['pallet_count' => __('warehouse.outbound.errors.shipment_not_of_fulfilment', ['id' => $data['shipment_id']])]);
+        }
 
         try {
             $dispatch = $outbound->dispatch($fulfilment, (int) $data['pallet_count'], $data['handed_to'], $data['shipment_id'] ?? null, auth()->id());
