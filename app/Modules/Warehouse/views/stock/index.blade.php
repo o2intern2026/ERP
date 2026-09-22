@@ -54,7 +54,7 @@
                 <th>{{ __('warehouse.stock.label_code') }}</th><th>{{ __('warehouse.stock.client') }}</th><th>{{ __('warehouse.stock.job') }}</th>
                 <th>{{ __('warehouse.stock.mark') }}</th><th>{{ __('warehouse.stock.description') }}</th><th>{{ __('warehouse.stock.location') }}</th>
                 <th>{{ __('warehouse.stock.unit_type') }}</th><th class="num">{{ __('warehouse.stock.on_hand') }}</th><th class="num">{{ __('warehouse.stock.reserved') }}</th>
-                <th class="num">{{ __('warehouse.stock.available') }}</th><th>{{ __('warehouse.stock.condition') }}</th><th>{{ __('warehouse.stock.putaway') }}</th>
+                <th class="num">{{ __('warehouse.stock.frozen') }}</th><th class="num">{{ __('warehouse.stock.available') }}</th><th>{{ __('warehouse.stock.condition') }}</th><th>{{ __('warehouse.stock.putaway') }}</th>
             </tr></thead>
             <tbody>
             @foreach ($units as $u)
@@ -68,6 +68,7 @@
                     <td>{{ __('warehouse.unit_types.'.$u->unit_type) }}</td>
                     <td class="num">{{ $u->qty_on_hand }}</td>
                     <td class="num">{{ $u->qty_reserved }}</td>
+                    <td class="num">@if ($u->qty_frozen > 0)<span class="badge" data-tone="warn" title="{{ __('warehouse.stock.frozen_hint', ['qty' => $u->qty_frozen]) }}">{{ $u->qty_frozen }}</span>@else—@endif</td>
                     <td class="num">{{ $u->isAllocatable() ? $u->availableQty() : 0 }}</td>
                     <td><span class="badge" data-tone="{{ $u->condition === 'good' ? 'ok' : 'danger' }}">{{ __('warehouse.conditions.'.$u->condition) }}</span></td>
                     <td>{{ $u->putaway_completed ? __('platform.common.yes') : __('warehouse.stock.not_putaway') }}</td>

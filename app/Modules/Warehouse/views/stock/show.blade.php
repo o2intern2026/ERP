@@ -13,7 +13,9 @@
         </article>
         <article>
             <p>{{ __('warehouse.stock.location') }}: <strong>{{ $unit->location?->full_code ?? '—' }}</strong> ({{ $unit->warehouse->code }})<br>
-               {{ __('warehouse.stock.on_hand') }} {{ $unit->qty_on_hand }} · {{ __('warehouse.stock.reserved') }} {{ $unit->qty_reserved }} · {{ __('warehouse.stock.available') }} {{ $unit->isAllocatable() ? $unit->availableQty() : 0 }}<br>
+               {{ __('warehouse.stock.on_hand') }} {{ $unit->qty_on_hand }} · {{ __('warehouse.stock.reserved') }} {{ $unit->qty_reserved }} @if ($unit->qty_frozen > 0)· <span class="badge" data-tone="warn" title="{{ __('warehouse.stock.frozen_hint', ['qty' => $unit->qty_frozen]) }}">{{ __('warehouse.stock.frozen') }} {{ $unit->qty_frozen }}</span> @endif· {{ __('warehouse.stock.available') }} {{ $unit->isAllocatable() ? $unit->availableQty() : 0 }}<br>
+               {{-- CR #142: 找不到 cartons stay on hand (storage billed) but out of available until the 差异盘点 line is counted. --}}
+               @if ($unit->qty_frozen > 0)<small class="text-muted">{{ __('warehouse.stock.frozen_hint', ['qty' => $unit->qty_frozen]) }}</small><br>@endif
                {{ __('warehouse.stock.condition') }}: {{ __('warehouse.conditions.'.$unit->condition) }} · {{ __('warehouse.stock.putaway') }}: {{ $unit->putaway_completed ? __('platform.common.yes') : __('platform.common.no') }}</p>
         </article>
         @if ($unit->unit_type === 'pallet')

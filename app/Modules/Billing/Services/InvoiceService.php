@@ -2,12 +2,14 @@
 
 namespace App\Modules\Billing\Services;
 
+use App\Models\User;
 use App\Modules\Billing\Events\InvoiceIssued;
 use App\Modules\Billing\Models\Charge;
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Billing\Models\InvoiceLine;
 use App\Modules\Billing\Models\Payment;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Platform\Models\ExceptionRecord;
 use App\Support\Contracts\DocumentService;
 use App\Support\Enums;
 use App\Support\Exceptions\RuleViolation;
@@ -103,7 +105,13 @@ final class InvoiceService
         return $this->draft($charges, 'storage', $from, $to);
     }
 
-    public function issue(Invoice $invoice): Invoice
+    /**
+     * 开出发票. Refused while the draft's scope still holds unpriced revenue — needs_review charges (missing-rate placeholders, POA) or open
+     * missing-rate exceptions of the same Job(s) / period (unpricedItems()) — unless Finance ticks 仍然开票(未定价费用留到下期) (lead decision
+     * 2026-09-22, CHANGE_REQUESTS #142, replacing the CR #132 warning). The override is recorded on the invoice (`notes`) and in the activity
+     * log (`invoice` / `issued_with_unpriced_override`, the ids left behind) and shown on the invoice page. An empty draft is never issued.
+     */
+    public function issue(Invoice $invoice, bool $unpricedOverride = false, ?int $by = null): Invoice
     {
         if ($invoice->status !== 'draft') {
             throw new InvalidArgumentException(__('billing.errors.already_issued', ['no' => $invoice->invoice_no, 'status' => __('billing.invoices.statuses.'.$invoice->status)]));
@@ -113,13 +121,39 @@ final class InvoiceService
         if (trim((string) config('erp.company.abn')) === '') {
             throw new InvalidArgumentException(__('billing.errors.company_abn_missing'));
         }
+        if ($invoice->lines()->doesntExist()) {
+            throw new RuleViolation("Draft {$invoice->invoice_no} has no lines.", 'billing.errors.empty_draft', ['no' => $invoice->invoice_no]);
+        }
+        $unpriced = $this->unpricedItems($invoice);
+        $unpricedCount = $unpriced['charges']->count() + $unpriced['exceptions']->count();
+        if ($unpricedCount > 0 && ! $unpricedOverride) {
+            throw new RuleViolation("Draft {$invoice->invoice_no}: {$unpricedCount} unpriced item(s) in scope.", 'billing.errors.unpriced_block', ['n' => $unpricedCount, 'label' => __('billing.invoices.unpriced_override_label')]);
+        }
 
-        return DB::transaction(function () use ($invoice): Invoice {
+        return DB::transaction(function () use ($invoice, $unpriced, $unpricedCount, $by): Invoice {
             $client = Client::query()->withoutGlobalScopes()->findOrFail($invoice->client_id);
             $lines = $invoice->lines()->get();
             $subtotal = (int) $lines->sum('amount_cents');
             $gst = (int) $lines->sum('gst_cents');
             $now = now();
+            $by ??= auth()->id();
+
+            $notes = $invoice->notes;
+            if ($unpricedCount > 0) {
+                // #142: the override is part of the invoice's record — the note stays on the invoice, the log keeps the ids that were left to the next period.
+                $user = $by ? User::query()->find($by) : null;
+                $overrideNote = __('billing.invoices.unpriced_override_note', [
+                    'date' => $now->format('Y-m-d H:i'), 'user' => $user?->name ?? __('billing.invoices.system_user'), 'n' => $unpricedCount,
+                    'charges' => $unpriced['charges']->isEmpty() ? '—' : $unpriced['charges']->map(fn (Charge $c) => '#'.$c->id.' '.$c->chargeCode->code)->implode(', '),
+                    'exceptions' => $unpriced['exceptions']->isEmpty() ? '—' : $unpriced['exceptions']->map(fn ($e) => '#'.$e->id)->implode(', '),
+                ]);
+                $notes = trim(($notes ? $notes."\n" : '').$overrideNote);
+                $log = activity('invoice')->performedOn($invoice)->withProperties(['unpriced_charge_ids' => $unpriced['charges']->pluck('id')->all(), 'missing_rate_exception_ids' => $unpriced['exceptions']->pluck('id')->all()]);
+                if ($user !== null) {
+                    $log->causedBy($user);
+                }
+                $log->log('issued_with_unpriced_override');
+            }
 
             $invoice->update([
                 'invoice_no' => Numbers::next(Invoice::query()->withoutGlobalScopes()->where('status', '!=', 'draft'), 'invoice_no', 'INV', 'Ym'),
@@ -132,6 +166,7 @@ final class InvoiceService
                 'subtotal_cents' => $subtotal,
                 'gst_cents' => $gst,
                 'total_cents' => $subtotal + $gst,
+                'notes' => $notes,
             ]);
 
             Charge::query()->withoutGlobalScopes()->whereIn('id', $lines->pluck('charge_id')->filter())->update(['status' => 'invoiced']);
@@ -153,6 +188,57 @@ final class InvoiceService
             ], jobId: $lines->pluck('job_id')->filter()->count() === 1 ? (int) $lines->first()->job_id : null, clientId: $invoice->client_id, correlationId: $invoice->invoice_no));
 
             return $invoice->fresh();
+        });
+    }
+
+    /**
+     * Unpriced revenue in the draft's scope (audit 2026-09-22 FIN-03, CR #132; a block since CR #142): needs_review charges (missing-rate
+     * placeholders, POA) and open missing-rate exceptions of the same Job(s) (per-Job draft) or of the client inside the period (period /
+     * monthly / storage draft). An exception already represented by a listed placeholder is not listed twice. Read by the draft page and
+     * by issue().
+     *
+     * @return array{charges: Collection<int, Charge>, exceptions: Collection<int, ExceptionRecord>}
+     */
+    public function unpricedItems(Invoice $invoice): array
+    {
+        $jobIds = $invoice->jobs()->pluck('jobs.id');
+        $charges = Charge::query()->withoutGlobalScopes()->with(['chargeCode', 'job'])->where('client_id', $invoice->client_id)->where('status', 'needs_review')
+            ->when($invoice->period_from === null, fn ($q) => $q->whereIn('job_id', $jobIds), fn ($q) => $q->whereBetween('charge_date', [$invoice->period_from->toDateString(), $invoice->period_to->toDateString()]))
+            ->orderBy('id')->get();
+        $linked = $charges->map(fn (Charge $c) => (int) ($c->calculation_snapshot_json['exception_id'] ?? 0))->filter();
+        $exceptions = ExceptionRecord::query()->withoutGlobalScopes()->with('job')->where('type', 'missing_rate')->where('status', '!=', 'resolved')->where('client_id', $invoice->client_id)
+            ->whereNotIn('id', $linked)
+            ->when($invoice->period_from === null, fn ($q) => $q->whereIn('job_id', $jobIds), fn ($q) => $q->where(fn ($w) => $w->whereIn('job_id', $jobIds)->orWhereBetween('created_at', [$invoice->period_from->copy()->startOfDay(), $invoice->period_to->copy()->endOfDay()])))
+            ->orderBy('id')->get();
+
+        return ['charges' => $charges, 'exceptions' => $exceptions];
+    }
+
+    /**
+     * 移出草稿 (lead decision 2026-09-22, CHANGE_REQUESTS #142): one line leaves a DRAFT — the charge returns to the unbilled pool (its
+     * `invoice_line_id` cleared; its status was never changed by drafting), the line row is deleted, the Job is detached when no line of it
+     * remains, totals are recomputed. An empty draft may stay (the page says so; issue() refuses it). Never on an issued invoice — credit note.
+     */
+    public function removeLine(Invoice $invoice, InvoiceLine $line): Charge
+    {
+        if ($invoice->status !== 'draft') {
+            throw new RuleViolation("Invoice {$invoice->invoice_no} is not a draft.", 'billing.errors.only_drafts_remove_line', ['no' => $invoice->invoice_no]);
+        }
+        if ((int) $line->invoice_id !== (int) $invoice->id) {
+            throw new InvalidArgumentException("Line {$line->id} is not on invoice {$invoice->invoice_no}.");
+        }
+
+        return DB::transaction(function () use ($invoice, $line): Charge {
+            $charge = Charge::query()->withoutGlobalScopes()->findOrFail($line->charge_id);
+            $charge->update(['invoice_line_id' => null]);
+            $jobId = $line->job_id;
+            $line->delete();
+            if ($jobId !== null && $invoice->lines()->where('job_id', $jobId)->doesntExist()) {
+                $invoice->jobs()->detach($jobId);
+            }
+            $this->recomputeTotals($invoice);
+
+            return $charge->fresh();
         });
     }
 

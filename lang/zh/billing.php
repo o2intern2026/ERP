@@ -66,6 +66,10 @@ return [
         'only_drafts_append' => '发票 :no 不是草稿,不能并入新费用;已开出的发票请按 Job 另开补充发票。',
         'append_storage_draft' => '仓储费草稿不接受服务费;服务费请按 Job 或按账期另开草稿。',
         'append_other_client' => '该 Job 属于另一个客户,不能并入这张草稿。',
+        // CR #142 (lead decisions 2026-09-22): unpriced items block 开出发票 unless overridden; a draft line can be removed; an empty draft is not issued.
+        'unpriced_block' => '本发票范围内还有 :n 项未定价费用(待复核 / 缺费率),未处理前不能开出:请先在待复核队列定价或补价目表,或确认要先开票再勾选「:label」重新点开出。',
+        'empty_draft' => '草稿 :no 没有费用行,不能开出;请「并入本草稿」加入费用,或放弃草稿。',
+        'only_drafts_remove_line' => '发票 :no 不是草稿,不能移出费用行;已开出的发票请用 credit note 冲减。',
     ],
 
     'invoices' => [
@@ -77,9 +81,15 @@ return [
         // Audit 2026-09-22 FIN-10 (CR #140): a draft is a snapshot — new charges are listed and joined on request, they never slip in unnoticed.
         'bill_to' => '开票对象(开票时快照)', 'draft_hint' => '草稿是生成那一刻的费用快照:之后新产生的费用留在未开票池,不会自动进入本草稿(有的话列在下方,点「并入本草稿」加入);开出后冻结,只能用 credit note 冲减。', 'empty' => '没有发票。',
         'new_charges_for_job' => ':job 另有 :n 条新服务费(:amount)还在未开票池,未并入本草稿', 'append_to_draft' => '并入本草稿', 'appended' => '已把 :n 条费用并入草稿 :no,金额已重算。',
-        // Audit 2026-09-22 FIN-03: the draft page warns (does not block) about unpriced items in the same Job / period.
-        'review_warning_title' => '提醒:本发票范围内还有 :n 项未定价费用,不在这张发票里', 'review_warning_hint' => '待复核行定价后进入未开票池(再按 Job / 账期开草稿或补充发票);缺费率异常需补价目表或人工定价。只是提醒,不阻止开出。',
+        // Audit 2026-09-22 FIN-03 (CR #132) → CR #142: unpriced items in the same Job / period BLOCK 开出发票 unless Finance ticks the override.
+        'review_warning_title' => '注意:本发票范围内还有 :n 项未定价费用,不在这张发票里', 'review_warning_hint' => '待复核行定价后进入未开票池(再按 Job / 账期开草稿或补充发票);缺费率异常需补价目表或人工定价。未处理前「开出发票」会被拒绝;确需先开,勾选下方「仍然开票」——勾选会记在发票上。',
         'review_item' => '费用行 #:id :code · 数量 :qty · :job', 'exception_item' => '异常 #:id · :job · :message', 'review_link' => '待复核队列', 'exceptions_link' => '异常中心(缺费率)',
+        'unpriced_override_label' => '仍然开票(未定价费用留到下期)', 'unpriced_override_hint' => '勾选后开出:这些未定价费用不在本发票里,定价后进未开票池,下期或补充发票再开;勾选人和时间记在发票备注和审计日志。',
+        'unpriced_override_note' => ':date :user 勾选「仍然开票(未定价费用留到下期)」开出:开票时另有 :n 项未定价费用留到下期(费用行 :charges;缺费率异常 :exceptions)。',
+        'unpriced_override_badge' => '开票时有未定价费用', 'notes' => '备注', 'system_user' => '系统',
+        // CR #142: a draft line can be taken out one by one; an empty draft stays with a hint.
+        'remove_line' => '移出草稿', 'remove_line_confirm' => '把这一行移出草稿?费用回到未开票池(可再并入或另开),草稿金额重算。', 'line_removed' => '费用行 :code(费用 #:id)已移出草稿,回到未开票池;草稿金额已重算。',
+        'empty_draft_hint' => '草稿已没有费用行:从未开票池「并入本草稿」加入费用,或「放弃草稿」。空草稿不能开出。',
         'types' => ['service' => '服务发票', 'storage' => '周仓储', 'supplementary' => '补充发票', 'monthly' => '月结汇总'],
         'group_by' => ['job' => '按 Job 分组', 'order' => '按订单分组'],
         'statuses' => ['draft' => '草稿', 'issued' => '已开出', 'part_paid' => '部分收款', 'paid' => '已收款', 'void' => '作废'],

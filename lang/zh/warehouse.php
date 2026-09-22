@@ -28,6 +28,8 @@ return [
         'unit_type' => '包装单元',
         'on_hand' => '在库',
         'reserved' => '已预留',
+        'frozen' => '冻结', // CR #142: 找不到 cartons awaiting the 差异盘点 count — on hand, not available
+        'frozen_hint' => '冻结 :qty 箱:拣货时「找不到」,不计入可用,待差异盘点计数后释放或调整。',
         'available' => '可用',
         'condition' => '状态',
         'putaway' => '已上架',
@@ -56,7 +58,7 @@ return [
         // Audit 2026-09-22 INBOUND-05 (CR #141): the supervisor corrects a unit's pallet facts after receiving.
         'correct' => [
             'title' => '修改单元信息(托盘来源 / 尺寸 / 重量)',
-            'hint' => '收货时漏填或填错的托盘来源、尺寸、重量在这里改;托盘类型留空 = 按客户价目表重新建议。改动记入操作日志;存储费和托盘租金按每日快照计,下一次快照起按新值计费(本周已计费的周不重算)。',
+            'hint' => '收货时漏填或填错的托盘来源、尺寸、重量在这里改;托盘类型留空 = 按客户价目表重新建议。改动记入操作日志。计费影响:存储费和托盘租金按每日快照计,改动从下一次快照、也就是下一次每周仓储计费起按新值出账;已经计费的周不会重算(负责人决定,CR #142),需要更正已出账的周请开手工费用或 credit note。',
             'pallet_class_auto' => '托盘类型:按价目表自动建议',
             'reason' => '修改原因(必填)',
             'submit' => '保存修改',
@@ -561,6 +563,11 @@ return [
         'closed' => '盘点已关闭,差异已按原因调整并写入流水。',
         'empty' => '还没有盘点。',
         'statuses' => ['counting' => '盘点中', 'closed' => '已关闭'],
+        // CR #142 (lead decision 2026-09-22): the warehouse's running 差异盘点 collects the units a picker reported 找不到.
+        'kind' => '类型',
+        'kinds' => ['full' => '常规盘点', 'discrepancy' => '差异盘点'],
+        'discrepancy_hint' => '由拣货少拣「找不到」自动生成:每个找不到货的库存单元一行(冻结数已含在账面数内),请到库位实数。实数 ≥ 账面 → 冻结数量当即回到可用;实数 < 账面 → 关闭时按差异调整流水并清除冻结。后续的「找不到」会继续加进这张未关闭的差异盘点。',
+        'frozen_badge' => '冻结 :qty',
         'progress' => '已计 :done / :total',
         'not_counted' => '未计',
         'close_blocked' => '还有 :count 个单元未计数,全部记录后才能关闭。',
@@ -661,9 +668,13 @@ return [
         'short_reason' => '少拣原因',
         'short_note' => '说明(可选)',
         'short_reasons' => ['out_of_stock' => '缺货', 'damaged' => '破损', 'not_found' => '找不到', 'other' => '其他'],
-        'short_confirm' => '应拣 :required,实拣 :picked,确认少拣 :short 箱?少拣会生成"拣货短缺"异常通知客服,少的数量回到可用库存。',
+        'short_confirm' => '应拣 :required,实拣 :picked,确认少拣 :short 箱?少拣会生成"拣货短缺"异常通知客服,少的数量回到可用库存(选「找不到」则冻结并进差异盘点)。',
+        // CR #142 (lead decision 2026-09-22): 找不到 freezes the shortfall on the unit and appends it to the warehouse's 差异盘点.
+        'short_confirm_frozen' => '应拣 :required,实拣 :picked,确认少拣 :short 箱(找不到)?这 :short 箱会被冻结、不回可用库存,并加入本仓库的差异盘点,由主管到库位实数后释放或调整;同时生成"拣货短缺"异常通知客服。',
         'pick_short_recorded' => '已记录少拣 :short 箱(:reason),已生成拣货短缺异常通知客服。',
+        'pick_short_frozen_recorded' => '已记录少拣 :short 箱(找不到):这 :short 箱已冻结、不回可用,已加入差异盘点 :stocktake,并生成拣货短缺异常通知客服。',
         'pick_short_message' => ':task::label(库位 :location)应拣 :required,实拣 :picked,少 :short 箱。原因::reason:note',
+        'pick_short_frozen_suffix' => ' 少的 :short 箱已冻结(不回可用),待差异盘点 :stocktake 计数:实数 ≥ 账面则释放回可用,实数 < 账面则按差异调整。',
         'short_badge' => '少拣 :short',
         'short_card_badge' => ':lines 行少拣,共少 :short 箱',
         // Audit 2026-09-22 OUTBOUND-09 (CR #141)

@@ -54,6 +54,7 @@ final class PortalStockController extends Controller
                 DB::raw("sum(case when u.unit_type = 'pallet' then 1 else 0 end) as pallets"),
                 DB::raw('coalesce(sum(u.qty_on_hand), 0) as qty_on_hand'),
                 DB::raw('coalesce(sum(u.qty_reserved), 0) as qty_reserved'),
+                DB::raw('coalesce(sum(u.qty_frozen), 0) as qty_frozen'), // 找不到 cartons awaiting the warehouse's 差异盘点 (CHANGE_REQUESTS #142, C as integrator — HANDOFF 2026-09-22)
                 DB::raw('coalesce(sum(u.qty_inbound), 0) as qty_inbound'),
             ])
             ->map(function ($row): object {
@@ -64,7 +65,8 @@ final class PortalStockController extends Controller
                 $row->pallets = (int) $row->pallets;
                 $row->putaway_completed = (bool) $row->putaway_completed;
                 // Only put-away, good-condition stock is available to orders (§4.3 rules 1–2); the rest is shown but counts as 0 available.
-                $row->qty_available = $row->putaway_completed && $row->condition === 'good' ? max(0, $row->qty_on_hand - $row->qty_reserved) : 0;
+                // Frozen (找不到, awaiting the stocktake count) cartons are on hand but never available — same rule as StockUnit::availableQty() (CR #142).
+                $row->qty_available = $row->putaway_completed && $row->condition === 'good' ? max(0, $row->qty_on_hand - $row->qty_reserved - (int) $row->qty_frozen) : 0;
 
                 return $row;
             })

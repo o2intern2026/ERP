@@ -5,6 +5,7 @@ namespace App\Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Warehouse\Models\OutboundDispatch;
 use App\Modules\Warehouse\Models\Package;
+use App\Modules\Warehouse\Models\Stocktake;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Modules\Warehouse\Models\WarehouseTaskLine;
@@ -170,6 +171,13 @@ class OutboundController extends Controller
             $outbound->confirmPick($line, (int) $data['picked_qty'], auth()->id(), $short > 0 ? $data['short_reason'] : null, $data['short_note'] ?? null);
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['picked_qty' => RuleViolation::display($e)]);
+        }
+
+        if ($short > 0 && $data['short_reason'] === 'not_found') {
+            // CR #142: the flash names the 差异盘点 the unit was just added to (the open one of this warehouse — confirmPick created or reused it).
+            $stocktake = Stocktake::query()->where('warehouse_id', $line->task->warehouse_id)->where('kind', Stocktake::KIND_DISCREPANCY)->where('status', 'counting')->latest('id')->first();
+
+            return back()->with('status', __('warehouse.outbound.pick_short_frozen_recorded', ['short' => $short, 'stocktake' => $stocktake?->stocktake_no ?? '—']));
         }
 
         return back()->with('status', $short > 0

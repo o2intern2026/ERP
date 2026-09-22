@@ -684,13 +684,18 @@ final class DemoStory
         // per_job clients already have the draft from the final quote confirmation (PerJobInvoiceConsumer); otherwise draft it now.
         $draft = Invoice::query()->withoutGlobalScopes()->where('status', 'draft')->whereHas('lines', fn ($q) => $q->where('job_id', $jobId))->latest('id')->first()
             ?? $invoices->draftForJob($jobId, 'service');
-        $invoice = $invoices->issue($draft);
+        // CR #142: unpriced items (the demo client's card has no rate for some freight codes) block 开出发票 — the demo does what Finance would do
+        // on the draft page, ticks 仍然开票(未定价费用留到下期), and says so; the override lands in the invoice notes and the activity log.
+        $unpriced = $invoices->unpricedItems($draft);
+        $unpricedCount = $unpriced['charges']->count() + $unpriced['exceptions']->count();
+        $invoice = $invoices->issue($draft, $unpricedCount > 0, auth()->id());
         $this->dispatch();
         $unbilled = Charge::query()->withoutGlobalScopes()->where('job_id', $jobId)->whereIn('status', ['pending', 'approved'])->whereNull('invoice_line_id')->count();
 
-        $this->out['invoice'] = ['id' => $invoice->id, 'invoice_no' => $invoice->invoice_no, 'status' => $invoice->status, 'total_cents' => (int) $invoice->total_cents, 'url' => route('billing.invoices.show', ['invoice' => $invoice->id])];
+        $this->out['invoice'] = ['id' => $invoice->id, 'invoice_no' => $invoice->invoice_no, 'status' => $invoice->status, 'total_cents' => (int) $invoice->total_cents, 'unpriced_override' => $unpricedCount, 'url' => route('billing.invoices.show', ['invoice' => $invoice->id])];
 
-        return ['detail' => __('demo.steps.invoiced', ['invoice' => $invoice->invoice_no, 'total' => $this->money((int) $invoice->total_cents), 'gst' => $this->money((int) $invoice->gst_cents), 'unbilled' => $unbilled]), 'url' => $this->out['invoice']['url']];
+        return ['detail' => __('demo.steps.invoiced', ['invoice' => $invoice->invoice_no, 'total' => $this->money((int) $invoice->total_cents), 'gst' => $this->money((int) $invoice->gst_cents), 'unbilled' => $unbilled])
+            .($unpricedCount > 0 ? __('demo.steps.invoiced_override', ['n' => $unpricedCount]) : ''), 'url' => $this->out['invoice']['url']];
     }
 
     // ------------------------------------------------------------------ summary

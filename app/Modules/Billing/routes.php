@@ -34,8 +34,9 @@ Route::prefix('billing')->name('billing.')->group(function () {
         Route::post('/invoices/storage', [InvoiceController::class, 'draftStorage'])->name('invoices.draft_storage');
         Route::post('/invoices/period', [InvoiceController::class, 'draftPeriod'])->name('invoices.draft_period');
         Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show')->whereNumber('invoice');
-        Route::post('/invoices/{invoice}/issue', [InvoiceController::class, 'issue'])->name('invoices.issue');
+        Route::post('/invoices/{invoice}/issue', [InvoiceController::class, 'issue'])->name('invoices.issue'); // blocked on unpriced items unless `unpriced_override` — CHANGE_REQUESTS #142
         Route::delete('/invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
+        Route::delete('/invoices/{invoice}/lines/{line}', [InvoiceController::class, 'removeLine'])->name('invoices.lines.destroy')->whereNumber('invoice')->whereNumber('line'); // 移出草稿 — CHANGE_REQUESTS #142
         Route::get('/invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->name('invoices.pdf');
         Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'payment'])->name('invoices.payments.store');
         Route::post('/payments/{payment}/void', [InvoiceController::class, 'voidPayment'])->name('payments.void'); // 作废收款 — CHANGE_REQUESTS #140 (FIN-13)

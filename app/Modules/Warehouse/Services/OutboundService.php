@@ -42,6 +42,7 @@ final class OutboundService
         private readonly ExceptionService $exceptions,
         private readonly OutboxPublisher $outbox,
         private readonly StockService $stock,
+        private readonly StocktakeService $stocktakes,
     ) {}
 
     /**
@@ -90,8 +91,13 @@ final class OutboundService
      *
      * A short pick (picked < required) carries a reason from SHORT_REASONS (+ optional note) — audit 2026-09-22 OUTBOUND-08, CR #141; both go
      * into the exception message (Chinese) for the coordinator. The wave page requires the reason (OutboundController::pick); a service caller
-     * that gives none (demo story, consumers) is recorded as 其他. The shortfall is still released back to available stock: whether 找不到的货
-     * should instead go to a stocktake / stay unavailable is a pending lead decision (HANDOFF 2026-09-22), so today's rule stands.
+     * that gives none (demo story, consumers) is recorded as 其他.
+     *
+     * The reservation is consumed either way and the shortfall leaves `qty_reserved` (ledger `release`). Where it goes depends on the reason
+     * (lead decision 2026-09-22, CHANGE_REQUESTS #142): 缺货 / 破损 / 其他 → back to available, the coordinator decides (backorder / partial /
+     * cancel) as before; 找不到 → the cartons are frozen on the unit (`qty_frozen`, out of available, still on hand and billed for storage) and
+     * the unit is appended to the warehouse's open 差异盘点 (StocktakeService::addDiscrepancyLine); the pick_short exception then points at
+     * that stocktake (source stocktake, number in the message) and the count releases or adjusts the frozen quantity.
      */
     public function confirmPick(WarehouseTaskLine $line, int $pickedQty, ?int $userId = null, ?string $shortReason = null, ?string $shortNote = null): WarehouseTaskLine
     {
@@ -118,11 +124,17 @@ final class OutboundService
                 $unit->qty_reserved = max(0, $unit->qty_reserved - $pickedQty);
                 $this->ledger->record($unit, 'pick', -$pickedQty, ['from_location_id' => $unit->location_id, 'source_type' => 'task', 'source_id' => $task->id, 'operator_id' => $userId]);
             }
+            $stocktake = null;
             if ($reservation !== null) {
                 $shortfall = $reservation->qty - $pickedQty;
                 if ($shortfall > 0) {
-                    // What could not be picked is released so the coordinator can decide (backorder / partial / cancel).
+                    // What could not be picked leaves the reservation: released so the coordinator can decide (backorder / partial / cancel) …
                     $this->ledger->record($unit, 'release', -$shortfall, ['source_type' => 'task', 'source_id' => $task->id, 'operator_id' => $userId]);
+                    if ($shortReason === 'not_found') {
+                        // … unless nobody could find it (CR #142): frozen on the unit, out of available, and one line on the warehouse's 差异盘点.
+                        $unit->update(['qty_frozen' => $unit->qty_frozen + $shortfall]);
+                        $stocktake = $this->stocktakes->addDiscrepancyLine($unit, $userId);
+                    }
                 }
                 $reservation->update(['status' => 'consumed', 'released_at' => $shortfall > 0 ? now() : null, 'released_reason' => $shortfall > 0 ? 'pick_short' : null]);
             }
@@ -133,12 +145,16 @@ final class OutboundService
             }
 
             if ($pickedQty < $line->required_qty) {
+                $short = $line->required_qty - $pickedQty;
+                $message = __('warehouse.outbound.pick_short_message', [
+                    'task' => $task->task_no, 'label' => $unit->label_code, 'location' => $unit->location?->full_code ?? '—', 'required' => $line->required_qty, 'picked' => $pickedQty,
+                    'short' => $short, 'reason' => __('warehouse.outbound.short_reasons.'.$shortReason), 'note' => filled($shortNote) ? ' · '.$shortNote : '',
+                ]);
                 $this->exceptions->raise('pick_short', 'warehouse', [
-                    'job_id' => $task->job_id, 'client_id' => $task->client_id, 'order_id' => $task->order_id, 'source_type' => 'fulfilment', 'source_id' => $task->fulfilment_id,
-                    'message' => __('warehouse.outbound.pick_short_message', [
-                        'task' => $task->task_no, 'label' => $unit->label_code, 'location' => $unit->location?->full_code ?? '—', 'required' => $line->required_qty, 'picked' => $pickedQty,
-                        'short' => $line->required_qty - $pickedQty, 'reason' => __('warehouse.outbound.short_reasons.'.$shortReason), 'note' => filled($shortNote) ? ' · '.$shortNote : '',
-                    ]),
+                    'job_id' => $task->job_id, 'client_id' => $task->client_id, 'order_id' => $task->order_id,
+                    // 找不到: the exception leads to the stocktake that settles it (exception centre source link); otherwise to the fulfilment as before.
+                    'source_type' => $stocktake !== null ? 'stocktake' : 'fulfilment', 'source_id' => $stocktake?->id ?? $task->fulfilment_id,
+                    'message' => $message.($stocktake !== null ? __('warehouse.outbound.pick_short_frozen_suffix', ['short' => $short, 'stocktake' => $stocktake->stocktake_no]) : ''),
                     'created_by' => $userId,
                 ]);
             }

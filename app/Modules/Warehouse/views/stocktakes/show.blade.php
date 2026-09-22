@@ -7,8 +7,10 @@
     @php($canCount = auth()->user()->hasAnyRole(['admin', 'warehouse_supervisor', 'warehouse_operator']))
     @php($uncounted = $lines->reject->isCounted()->count())
     <header>
-        <h1>{{ $stocktake->stocktake_no }} <span class="badge" data-tone="{{ $stocktake->status === 'closed' ? 'ok' : 'warn' }}">{{ __('warehouse.stocktakes.statuses.'.$stocktake->status) }}</span></h1>
+        <h1>{{ $stocktake->stocktake_no }} <span class="badge" data-tone="{{ $stocktake->status === 'closed' ? 'ok' : 'warn' }}">{{ __('warehouse.stocktakes.statuses.'.$stocktake->status) }}</span> @if ($stocktake->isDiscrepancy())<span class="badge" data-tone="danger">{{ __('warehouse.stocktakes.kinds.discrepancy') }}</span>@endif</h1>
         <p>{{ $stocktake->warehouse->code }} · {{ $stocktake->location?->full_code ?? __('platform.jobs.all') }} · {{ __('warehouse.stocktakes.progress', ['done' => $lines->count() - $uncounted, 'total' => $lines->count()]) }}</p>
+        {{-- CR #142: the running 差异盘点 is fed by short picks with reason 找不到; counting it releases or adjusts the frozen cartons. --}}
+        @if ($stocktake->isDiscrepancy())<p class="text-muted"><small>{{ __('warehouse.stocktakes.discrepancy_hint') }}</small></p>@endif
     </header>
 
     @if ($stocktake->status === 'counting' && $canCount)
@@ -29,7 +31,7 @@
                 <td>{{ $l->stockUnit->location?->full_code }}</td>
                 <td>{{ $l->stockUnit->asnLine->asn->client->name }}</td>
                 <td>{{ $l->stockUnit->asnLine->description }}</td>
-                <td class="num">{{ $l->expected_qty }}</td>
+                <td class="num">{{ $l->expected_qty }} @if ($l->stockUnit->qty_frozen > 0)<span class="badge" data-tone="warn" title="{{ __('warehouse.stock.frozen_hint', ['qty' => $l->stockUnit->qty_frozen]) }}">{{ __('warehouse.stocktakes.frozen_badge', ['qty' => $l->stockUnit->qty_frozen]) }}</span>@endif</td>
                 {{-- Audit 2026-09-10: the count form only for roles the POST route accepts; read-only roles see the plain cells. --}}
                 @if ($stocktake->status === 'counting' && $canCount)
                     <td colspan="3">
