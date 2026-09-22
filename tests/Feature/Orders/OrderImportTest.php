@@ -38,6 +38,7 @@ class OrderImportTest extends TestCase
 
         $this->actingAs($user)->post(route('orders.imports.confirm', $import), [
             'groups' => $ready->pluck('key')->all(),
+            'skip_acknowledged' => '1', // CHANGE_REQUESTS #136: the 5 refused rows are skipped knowingly
         ])->assertSessionHasNoErrors()->assertRedirect();
 
         $this->assertSame(30, Order::query()->count());
@@ -85,6 +86,7 @@ class OrderImportTest extends TestCase
 
         $this->actingAs($user)->post(route('orders.imports.confirm', $import), [
             'groups' => [$ready['key']],
+            'skip_acknowledged' => '1', // CHANGE_REQUESTS #136: the blocked mark and the refused row are skipped knowingly
         ])->assertSessionHasNoErrors()->assertRedirect(route('orders.imports.show', $import));
 
         $order = Order::query()->with(['lines', 'declaredPackages'])->sole();
@@ -123,7 +125,7 @@ class OrderImportTest extends TestCase
         $this->assertStringContainsString('已有相同订单', $duplicate['message']);
         $this->assertStringContainsString('文件与导入', $second->errors['warnings'][0]['message']);
 
-        $this->actingAs($user)->post(route('orders.imports.confirm', $second), ['groups' => [$duplicate['key']]])->assertRedirect();
+        $this->actingAs($user)->post(route('orders.imports.confirm', $second), ['groups' => [$duplicate['key']], 'skip_acknowledged' => '1'])->assertRedirect();
         $this->assertSame(1, Order::query()->count());
         $this->actingAs($user)->get(route('orders.imports.errors', $second))
             ->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8')->assertSee('已有相同订单');

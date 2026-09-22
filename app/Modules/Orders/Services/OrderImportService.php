@@ -26,6 +26,10 @@ use InvalidArgumentException;
  * (attachableOrders). 以订单为准: an attached order is never read into a group nor written — the list only records its id
  * (`context.manual.attached_order_ids`, then `result.attached`) so 待建预报 sees created + attached orders as ONE submission
  * (OrderImport::orderIds). Drafts (`status = draft`) keep the typed rows, ticks and context until the client submits them.
+ *
+ * CHANGE_REQUESTS #136 (audit PORTAL-05 / PORTAL-07): a 唛头 with a row the parser refused is `blocked` (`error_rows`, message
+ * naming the rows) — an order is never generated short of a goods line; the group's `deliver_to_address_type` comes from the
+ * list's 地址类型 column when the row carries one, else the address-book match, else the FBA-reference / business inference.
  */
 final class OrderImportService
 {
@@ -280,7 +284,7 @@ final class OrderImportService
         if ($fileWarning !== null) {
             array_unshift($parsed['warnings'], $fileWarning);
         }
-        $groups = $this->groups($parsed['rows'], $context, $sha256);
+        $groups = $this->groups($parsed['rows'], $parsed['errors'], $context, $sha256);
         $failedRows = count(array_unique(array_merge(
             array_column($parsed['errors'], 'row'),
             collect($groups)->whereIn('status', ['blocked', 'duplicate', 'asn_match'])->flatMap(fn ($group) => $group['row_numbers'])->all(),
@@ -424,13 +428,30 @@ final class OrderImportService
         });
     }
 
-    /** @param list<array<string,mixed>> $rows @param array<string,mixed> $context @return list<array<string,mixed>> */
-    private function groups(array $rows, array $context, string $sha256): array
+    /**
+     * One group per 唛头 from the rows the parser read. CHANGE_REQUESTS #136 (audit PORTAL-05): a mark that also has rows the parser
+     * REFUSED (`$errors`, each carrying its `consignment_mark`) is blocked with the row numbers — the confirmed order would otherwise
+     * silently lack those goods lines, and the short ASN built from it surfaces as a receiving discrepancy weeks later.
+     *
+     * @param  list<array<string,mixed>>  $rows
+     * @param  list<array<string,mixed>>  $errors
+     * @param  array<string,mixed>  $context
+     * @return list<array<string,mixed>>
+     */
+    private function groups(array $rows, array $errors, array $context, string $sha256): array
     {
         $groups = [];
         $jobId = filled($context['job_id'] ?? null) ? (int) $context['job_id'] : null;
-        foreach (collect($rows)->groupBy(fn ($row) => mb_strtolower(trim((string) $row['consignment_mark']))) as $markRows) {
+        $refused = [];
+        foreach ($errors as $error) {
+            if (filled($error['consignment_mark'] ?? null) && (int) ($error['row'] ?? 0) > 0) {
+                $refused[mb_strtolower(trim((string) $error['consignment_mark']))][(int) $error['row']] = true;
+            }
+        }
+        foreach (collect($rows)->groupBy(fn ($row) => mb_strtolower(trim((string) $row['consignment_mark']))) as $markKey => $markRows) {
             $first = $markRows->first();
+            $errorRows = array_keys($refused[$markKey] ?? []);
+            sort($errorRows);
             $signatures = $markRows->map(fn ($row) => $this->signature($row))->unique();
             $key = hash('sha256', $sha256.'|'.$first['consignment_mark'].'|'.$this->signature($first));
             $address = $this->matchingAddress((int) $context['client_id'], $first);
@@ -447,7 +468,8 @@ final class OrderImportService
                 'deliver_to_suburb' => $first['deliver_to_suburb'],
                 'deliver_to_state' => $first['deliver_to_state'],
                 'deliver_to_postcode' => $first['deliver_to_postcode'],
-                'deliver_to_address_type' => $address?->address_type ?? ($first['fba_reference'] ? 'fba' : 'business'),
+                // CHANGE_REQUESTS #136: the list's 地址类型 column wins; without it the address book, then the FBA reference, then business.
+                'deliver_to_address_type' => $first['deliver_to_address_type'] ?? $address?->address_type ?? ($first['fba_reference'] ? 'fba' : 'business'),
                 'delivery_instructions' => $address?->default_instructions,
                 'client_address_id' => $address?->id,
                 'save_address_suggested' => $address === null,
@@ -455,11 +477,15 @@ final class OrderImportService
                 'requested_date' => collect($markRows)->pluck('requested_date')->filter()->first(),
                 'service_level' => collect($markRows)->pluck('service_level')->filter()->first(),
                 'row_numbers' => $markRows->pluck('row')->map(fn ($row) => (int) $row)->values()->all(),
+                'error_rows' => $errorRows, // CHANGE_REQUESTS #136: rows of this mark the parser refused (blocks the group)
                 'rows' => $markRows->values()->all(),
             ];
             $requestedDate = (string) ($group['requested_date'] ?? $context['requested_date']);
 
-            if ($signatures->count() > 1) {
+            if ($errorRows !== []) {
+                $group['status'] = 'blocked';
+                $group['message'] = __('orders.imports.errors.rows_not_read', ['mark' => $first['consignment_mark'], 'rows' => implode('、', $errorRows)]);
+            } elseif ($signatures->count() > 1) {
                 $group['status'] = 'blocked';
                 $group['message'] = __('orders.imports.errors.inconsistent_group', ['mark' => $first['consignment_mark']]);
             } elseif ($jobId !== null && $this->matchingAsnExists((int) $context['client_id'], $jobId, (string) $first['consignment_mark'])) {
@@ -577,7 +603,7 @@ final class OrderImportService
     {
         return mb_strtolower(implode('|', array_map(fn ($value) => trim((string) $value), [
             $row['deliver_to_name'], $row['deliver_to_address'], $row['deliver_to_state'],
-            $row['deliver_to_postcode'], $row['fba_reference'],
+            $row['deliver_to_postcode'], $row['deliver_to_address_type'] ?? null, $row['fba_reference'], // #136: address type is part of the consignee
         ])));
     }
 

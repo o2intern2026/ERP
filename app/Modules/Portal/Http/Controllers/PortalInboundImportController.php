@@ -50,8 +50,8 @@ use InvalidArgumentException;
  */
 final class PortalInboundImportController extends Controller
 {
-    /** Header row of the CSV template — every entry is an alias SpreadsheetManifestParser::HEADERS accepts, in the client's reading order. */
-    private const TEMPLATE_HEADERS = ['唛头', '中文品名', '英文品名', '包装类型', '箱数', '产品数量', '实重(KG)', '长(CM)', '宽(CM)', '高(CM)', '收件人', '电话', '地址', '城区', '州', '邮编', 'FBA参考号', '要求送达日', '存储等级'];
+    /** Header row of the CSV template — every entry is an alias SpreadsheetManifestParser::HEADERS accepts, in the client's reading order (地址类型: CHANGE_REQUESTS #136). */
+    private const TEMPLATE_HEADERS = ['唛头', '中文品名', '英文品名', '包装类型', '箱数', '产品数量', '实重(KG)', '长(CM)', '宽(CM)', '高(CM)', '收件人', '电话', '地址', '城区', '州', '邮编', '地址类型', 'FBA参考号', '要求送达日', '存储等级'];
 
     public function index(Request $request): View
     {
@@ -80,15 +80,16 @@ final class PortalInboundImportController extends Controller
         ]);
     }
 
-    /** CSV skeleton: UTF-8 with BOM (Excel on Chinese Windows opens it correctly), the Chinese headers the parser accepts, two sample rows. */
+    /** CSV skeleton: UTF-8 with BOM (Excel on Chinese Windows opens it correctly), the Chinese headers the parser accepts, three sample rows (FBA / 商业 / 住宅 — CHANGE_REQUESTS #136). */
     public function template(Request $request): Response
     {
         $this->clientId($request);
         $date = today()->addDays(14)->toDateString();
         $out = fopen('php://temp', 'r+');
         fputcsv($out, self::TEMPLATE_HEADERS, ',', '"', '');
-        fputcsv($out, ['EDW-001', '蓝牙音箱', 'Bluetooth speaker', '纸箱', '10', '200', '85', '60', '40', '40', 'Amazon FBA BWU2', '0400 000 000', '1 Warehouse Rd', 'Moorebank', 'NSW', '2170', 'FBA15ABC123', $date, '标准'], ',', '"', '');
-        fputcsv($out, ['EDW-002', '电热水壶', 'Kettle', '纸箱', '5', '30', '32.5', '45', '35', '30', 'Shop B', '03 9999 0000', '12 High St', 'Richmond', 'VIC', '3121', '', $date, '底层'], ',', '"', '');
+        fputcsv($out, ['EDW-001', '蓝牙音箱', 'Bluetooth speaker', '纸箱', '10', '200', '85', '60', '40', '40', 'Amazon FBA BWU2', '0400 000 000', '1 Warehouse Rd', 'Moorebank', 'NSW', '2170', 'FBA', 'FBA15ABC123', $date, '标准'], ',', '"', '');
+        fputcsv($out, ['EDW-002', '电热水壶', 'Kettle', '纸箱', '5', '30', '32.5', '45', '35', '30', 'Shop B', '03 9999 0000', '12 High St', 'Richmond', 'VIC', '3121', '商业', '', $date, '底层'], ',', '"', '');
+        fputcsv($out, ['EDW-003', '台灯', 'Desk lamp', '纸箱', '2', '2', '6', '40', '30', '30', 'Ms Li', '0412 345 678', '8 Rose St', 'Box Hill', 'VIC', '3128', '住宅', '', $date, '标准'], ',', '"', '');
         rewind($out);
         $csv = "\xEF\xBB\xBF".stream_get_contents($out);
         fclose($out);
@@ -228,6 +229,7 @@ final class PortalInboundImportController extends Controller
             'readyCount' => $groups->where('status', 'ready')->count(),
             'blockedCount' => $groups->whereIn('status', ['blocked', 'duplicate', 'asn_match'])->count(),
             'errorRows' => count(array_unique(array_column($audit['issues'] ?? [], 'row'))),
+            'skippedRows' => $this->skippedRows($import), // CHANGE_REQUESTS #136: rows confirm will leave out → second confirmation
             'orders' => Order::query()->whereKey($orderIds)->get(['id', 'order_no', 'operational_status'])->keyBy('id'),
             'asns' => $this->asnsByOrder($orderIds),
             'document' => $import->document_id ? Document::query()->find($import->document_id) : null, // client-scoped; client_visible for the client's own upload
@@ -258,6 +260,11 @@ final class PortalInboundImportController extends Controller
         $attachedOrders = $this->attachedOrders($import);
         if ($keys === [] && $attachedOrders->isEmpty()) {
             return redirect()->route('portal.asns.imports.show', $import)->with('status', __('portal.inbound.messages.nothing'));
+        }
+        // CHANGE_REQUESTS #136 (audit PORTAL-05): rows the list will skip (not read, or a blocked / duplicate mark) need the client's
+        // explicit acknowledgement — one click must never quietly produce fewer orders (or fewer goods lines) than the list holds.
+        if ($this->skippedRows($import) > 0 && ! $request->boolean('skip_acknowledged')) {
+            return redirect()->route('portal.asns.imports.show', $import)->withErrors(['skip_acknowledged' => __('portal.inbound.errors.skip_unacknowledged')]);
         }
 
         $collection = $import->errors['context']['inbound']['collection'] ?? null;
@@ -318,6 +325,7 @@ final class PortalInboundImportController extends Controller
             'containerSizes' => Enums::CONTAINER_SIZES,
             'packageTypes' => OrderEnums::PACKAGE_TYPES,
             'states' => Enums::STATES,
+            'addressTypes' => OrderEnums::ADDRESS_TYPES, // CHANGE_REQUESTS #136
             'storageTiers' => Enums::STORAGE_TIERS,
             'warehouses' => $warehouses,
             'defaultWarehouseId' => $this->defaultWarehouseId($clientId, $warehouses),
@@ -534,6 +542,20 @@ final class PortalInboundImportController extends Controller
     {
         return array_values(array_map(fn (array $p) => $p['label'] ?? (int) ($p['row'] ?? 0), array_filter($packages, fn (array $p) => ($p['weight_kg'] ?? null) === null
             || (int) ($p['length_mm'] ?? 0) <= 0 || (int) ($p['width_mm'] ?? 0) <= 0 || (int) ($p['height_mm'] ?? 0) <= 0)));
+    }
+
+    /**
+     * CHANGE_REQUESTS #136: how many rows of the list confirm will NOT turn into an order — rows the parser refused plus every row of a
+     * blocked / duplicate / ASN-matched mark (the same count `result.failed_rows` records).
+     */
+    private function skippedRows(OrderImport $import): int
+    {
+        $audit = $import->errors ?? [];
+
+        return count(array_unique(array_merge(
+            array_column($audit['issues'] ?? [], 'row'),
+            collect($audit['groups'] ?? [])->whereIn('status', ['blocked', 'duplicate', 'asn_match'])->flatMap(fn ($group) => $group['row_numbers'] ?? [])->all(),
+        )));
     }
 
     /** The bound import must be the signed-in client's own portal submission (the global scope already hides other clients' rows). */

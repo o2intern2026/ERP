@@ -55,6 +55,11 @@
                 @foreach ($states as $state)<option value="{{ $state }}" @selected($value('deliver_to_state') === $state)>{{ $state }}</option>@endforeach
             </select></label>
             <label>{{ $label('deliver_to_postcode') }}<input name="{{ $name('deliver_to_postcode') }}" value="{{ $value('deliver_to_postcode') }}" maxlength="4" inputmode="numeric" placeholder="{{ $label('deliver_to_postcode') }}" aria-label="{{ $label('deliver_to_postcode') }}" {!! $invalid('deliver_to_postcode') !!}></label>
+            {{-- CHANGE_REQUESTS #136: the same 地址类型 choice as the CSV column; empty = the default inference (FBA number → FBA 仓库, else 商业). --}}
+            <label>{{ $label('deliver_to_address_type') }}<select name="{{ $name('deliver_to_address_type') }}" aria-label="{{ $label('deliver_to_address_type') }}" {!! $invalid('deliver_to_address_type') !!}>
+                <option value="">{{ __('portal.inbound.manual.address_type_auto') }}</option>
+                @foreach ($addressTypes as $type)<option value="{{ $type }}" @selected($value('deliver_to_address_type') === $type)>{{ __('portal.inbound.address_types.'.$type) }}</option>@endforeach
+            </select></label>
             <label>{{ $label('fba_reference') }}<input name="{{ $name('fba_reference') }}" value="{{ $value('fba_reference') }}" maxlength="100" placeholder="{{ $label('fba_reference') }}" aria-label="{{ $label('fba_reference') }}" {!! $invalid('fba_reference') !!}></label>
             <label>{{ $label('requested_date') }}<x-date-field :name="$name('requested_date')" :value="$value('requested_date')" :aria-label="$label('requested_date')" :aria-invalid="$errors->has('rows.'.$index.'.requested_date') ? 'true' : null" /></label>
         </div>

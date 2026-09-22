@@ -18,6 +18,11 @@ use ZipArchive;
  * common Chinese / English variants; weights and dimensions follow their header's unit (cm → mm, 单件重量 × 箱数 → line total);
  * phones, postcodes and states are normalised with a Chinese row-level message that names the column as the client sees it.
  * The ManifestParser contract shape is unchanged — every addition is a `warnings` entry or an extra key (`label`) on an entry.
+ *
+ * CHANGE_REQUESTS #136 (audit PORTAL-05 / PORTAL-07): every `errors` entry also carries `consignment_mark` (the refused row's mark
+ * after carry-down) so the caller can block the whole mark instead of generating an order short of a goods line; rows carry
+ * `deliver_to_address_type` from an optional 地址类型 / Address type column (住宅 → residential, 商业 → business, FBA → fba, empty →
+ * null = the caller's default) so a residential consignee on a list reaches the tailgate rule like one typed on the order form.
  */
 final class SpreadsheetManifestParser implements ManifestParser
 {
@@ -87,6 +92,19 @@ final class SpreadsheetManifestParser implements ManifestParser
         '要求送达日' => 'requested_date', '要求送达日期' => 'requested_date', '送达日期' => 'requested_date', '送货日期' => 'requested_date', '要求送货日' => 'requested_date', '要求送货日期' => 'requested_date', '派送日期' => 'requested_date',
         'servicelevel' => 'service_level', 'service' => 'service_level', '服务等级' => 'service_level', '服务级别' => 'service_level', '时效' => 'service_level',
         'storagetier' => 'storage_tier', '存储等级' => 'storage_tier', '存储要求' => 'storage_tier', '库位等级' => 'storage_tier', // CHANGE_REQUESTS #126
+        // CHANGE_REQUESTS #136: the consignee's address type — optional; an empty cell leaves the caller's default (address book / FBA reference / business).
+        'addresstype' => 'deliver_to_address_type', 'deliveryaddresstype' => 'deliver_to_address_type', 'consigneeaddresstype' => 'deliver_to_address_type', 'consigneetype' => 'deliver_to_address_type',
+        'residential' => 'deliver_to_address_type', 'residentialaddress' => 'deliver_to_address_type',
+        '地址类型' => 'deliver_to_address_type', '收件类型' => 'deliver_to_address_type', '收件地址类型' => 'deliver_to_address_type', '收货地址类型' => 'deliver_to_address_type', '收件人类型' => 'deliver_to_address_type',
+    ];
+
+    /** 地址类型 cell → OrderEnums::ADDRESS_TYPES (CHANGE_REQUESTS #136); an empty cell keeps the caller's default, anything else is a row error. */
+    private const ADDRESS_TYPE_VALUES = [
+        'residential' => 'residential', 'home' => 'residential', 'house' => 'residential', 'residence' => 'residential',
+        '住宅' => 'residential', '住宅地址' => 'residential', '民宅' => 'residential', '家庭' => 'residential', '家庭地址' => 'residential',
+        'business' => 'business', 'company' => 'business', 'commercial' => 'business', 'office' => 'business',
+        '商业' => 'business', '商业地址' => 'business', '公司' => 'business', '公司地址' => 'business', '企业' => 'business', '企业地址' => 'business',
+        'fba' => 'fba', 'amazon' => 'fba', 'amazonfba' => 'fba', 'fba仓库' => 'fba', '亚马逊' => 'fba', '亚马逊仓库' => 'fba', '亚马逊fba' => 'fba',
     ];
 
     /** 存储等级 cell → contracts/enums.md storage tier (CHANGE_REQUESTS #126); an empty cell is 标准, anything else is a row error. */
@@ -102,7 +120,7 @@ final class SpreadsheetManifestParser implements ManifestParser
     private const CARTON_FALLBACKS = ['no', 'qty', 'quantity', '数量', '件数', '总件数', 'pieces'];
 
     /** Fields carried down blank cells from the previous row of the same mark (merged cells in the client's sheet). */
-    private const CARRIED = ['consignment_mark', 'deliver_to_name', 'deliver_to_phone', 'deliver_to_address', 'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'fba_reference'];
+    private const CARRIED = ['consignment_mark', 'deliver_to_name', 'deliver_to_phone', 'deliver_to_address', 'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'deliver_to_address_type', 'fba_reference'];
 
     /** State spellings → contracts/enums.md code. Lower case, spaces / dots removed, a trailing 州 / 省 stripped before the second lookup. */
     private const STATE_ALIASES = [
@@ -142,7 +160,7 @@ final class SpreadsheetManifestParser implements ManifestParser
     public const FORM_FIELDS = [
         'consignment_mark', 'description_cn', 'description_en', 'package_type', 'carton_qty', 'unit_qty', 'actual_weight_kg',
         'length_mm', 'width_mm', 'height_mm', 'deliver_to_name', 'deliver_to_phone', 'deliver_to_address', 'deliver_to_suburb',
-        'deliver_to_state', 'deliver_to_postcode', 'fba_reference', 'external_ref', 'requested_date', 'service_level', 'storage_tier',
+        'deliver_to_state', 'deliver_to_postcode', 'deliver_to_address_type', 'fba_reference', 'external_ref', 'requested_date', 'service_level', 'storage_tier',
     ];
 
     public function parse(string $path): array
@@ -521,8 +539,10 @@ final class SpreadsheetManifestParser implements ManifestParser
     {
         $errors = [];
         $warnings = [];
-        $error = function (string $field, string $key, array $replace = []) use (&$errors, $rowNumber, $label, $raw): void {
-            $errors[] = $this->entry($rowNumber, $field, $label($field), __('orders.imports.errors.'.$key, ['row' => $rowNumber, 'field' => $label($field)] + $replace), $raw);
+        // CHANGE_REQUESTS #136: the refused row's mark (after carry-down) rides on the entry so the caller can block that whole 唛头.
+        $error = function (string $field, string $key, array $replace = []) use (&$errors, $rowNumber, $label, $raw, $mapped): void {
+            $errors[] = $this->entry($rowNumber, $field, $label($field), __('orders.imports.errors.'.$key, ['row' => $rowNumber, 'field' => $label($field)] + $replace), $raw)
+                + ['consignment_mark' => filled($mapped['consignment_mark'] ?? null) ? (string) $mapped['consignment_mark'] : null];
         };
         $warn = function (string $field, string $key, array $replace = []) use (&$warnings, $rowNumber, $label): void {
             $warnings[] = $this->entry($rowNumber, $field, $label($field), __('orders.imports.warnings.'.$key, ['row' => $rowNumber, 'field' => $label($field)] + $replace));
@@ -620,6 +640,14 @@ final class SpreadsheetManifestParser implements ManifestParser
             }
             $tierDeclared = $storageTier !== null;
         }
+        // CHANGE_REQUESTS #136 地址类型: null without a column or for an empty cell (the caller keeps its default); a recognised word → the enum.
+        $addressType = null;
+        if (filled($mapped['deliver_to_address_type'] ?? null)) {
+            $addressType = self::ADDRESS_TYPE_VALUES[$this->normaliseHeader($mapped['deliver_to_address_type'])] ?? null;
+            if ($addressType === null) {
+                $error('deliver_to_address_type', 'invalid_address_type', ['value' => (string) $mapped['deliver_to_address_type']]);
+            }
+        }
 
         if ($errors !== []) {
             return ['row' => null, 'errors' => $errors, 'warnings' => $warnings];
@@ -658,6 +686,7 @@ final class SpreadsheetManifestParser implements ManifestParser
             'deliver_to_suburb' => $suburb,
             'deliver_to_state' => $state,
             'deliver_to_postcode' => $postcode,
+            'deliver_to_address_type' => $addressType,
             'fba_reference' => $mapped['fba_reference'] ?? null,
             'external_ref' => $mapped['external_ref'] ?? null,
             'requested_date' => $requestedDate,
@@ -945,6 +974,7 @@ final class SpreadsheetManifestParser implements ManifestParser
             $row['deliver_to_address'] ?? null,
             $row['deliver_to_state'] ?? null,
             $row['deliver_to_postcode'] ?? null,
+            $row['deliver_to_address_type'] ?? null, // CHANGE_REQUESTS #136: 住宅 on one row and 商业 on another of the same mark is an inconsistency too
             $row['fba_reference'] ?? null,
         ])));
     }

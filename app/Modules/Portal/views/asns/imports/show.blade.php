@@ -141,7 +141,7 @@
         <div class="overflow-auto"><table class="dense">
             <thead><tr>
                 <th>{{ __('portal.inbound.fields.mark') }}</th><th>{{ __('portal.inbound.fields.consignee') }}</th><th>{{ __('portal.inbound.fields.address') }}</th>
-                <th>{{ __('portal.inbound.fields.suburb') }}</th><th>{{ __('portal.inbound.fields.state') }}</th><th>{{ __('portal.inbound.fields.postcode') }}</th><th>{{ __('portal.inbound.fields.fba') }}</th>
+                <th>{{ __('portal.inbound.fields.suburb') }}</th><th>{{ __('portal.inbound.fields.state') }}</th><th>{{ __('portal.inbound.fields.postcode') }}</th><th>{{ __('portal.inbound.fields.address_type') }}</th><th>{{ __('portal.inbound.fields.fba') }}</th>
                 <th>{{ __('portal.inbound.fields.goods') }}</th><th>{{ __('portal.inbound.fields.package_type') }}</th><th class="num">{{ __('portal.inbound.fields.cartons') }}</th>
                 <th class="num">{{ __('portal.inbound.fields.weight') }}</th><th>{{ __('portal.inbound.fields.dims') }}</th><th>{{ __('portal.inbound.fields.storage_tier') }}</th><th>{{ __('portal.inbound.fields.row_numbers') }}</th><th>{{ __('portal.inbound.fields.status') }}</th>
             </tr></thead>
@@ -157,6 +157,9 @@
                             <td rowspan="{{ $span }}">{{ $group['deliver_to_suburb'] ?: '—' }}</td>
                             <td rowspan="{{ $span }}">{{ $group['deliver_to_state'] }}</td>
                             <td rowspan="{{ $span }}">{{ $group['deliver_to_postcode'] }}</td>
+                            {{-- CHANGE_REQUESTS #136: the address type the order will carry; a residential consignee is flagged because OMS-13 sets tailgate_required on it. --}}
+                            @php($addressType = $group['deliver_to_address_type'] ?? 'business')
+                            <td rowspan="{{ $span }}">@if ($addressType === 'residential')<span class="badge" data-tone="warn">{{ __('portal.inbound.residential_tailgate') }}</span>@else{{ __('portal.inbound.address_types.'.$addressType) }}@endif</td>
                             <td rowspan="{{ $span }}">{{ $group['fba_reference'] ?: '—' }}</td>
                         @endif
                         <td>{{ trim(implode(' / ', array_filter([$row['description_cn'] ?? null, $row['description_en'] ?? null]))) ?: '—' }}</td>
@@ -221,7 +224,13 @@
                     </article>
                 @endif
                 @unless ($collection && ($collectionEstimate['reason'] ?? null) === 'no_items')
-                    <button type="submit">{{ __('portal.inbound.actions.confirm') }}</button>
+                    @if ($skippedRows > 0)
+                        {{-- CHANGE_REQUESTS #136 (audit PORTAL-05): rows that will NOT become orders (not read, or a blocked / duplicate 唛头) — the button says so and a tick is required. --}}
+                        <label><input type="checkbox" name="skip_acknowledged" value="1" required @checked(old('skip_acknowledged'))> {{ __('portal.inbound.skip_acknowledge') }}</label>
+                        <button type="submit">{{ __('portal.inbound.actions.confirm_partial', ['ready' => $readyCount, 'skipped' => $skippedRows]) }}</button>
+                    @else
+                        <button type="submit">{{ __('portal.inbound.actions.confirm') }}</button>
+                    @endif
                 @endunless
                 <a class="secondary" role="button" href="{{ $againRoute }}">{{ $againLabel }}</a>
             </form>
