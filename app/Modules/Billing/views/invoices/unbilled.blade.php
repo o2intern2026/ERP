@@ -4,14 +4,40 @@
 
 @section('content')
     <h1>{{ __('billing.unbilled.title') }}</h1>
-    <p class="text-muted"><small>{{ __('billing.unbilled.hint') }} @if ($reviewCount) · <a href="{{ route('billing.charges.review') }}">{{ __('billing.unbilled.review_pending', ['n' => $reviewCount]) }}</a>@endif</small></p>
+    <p class="text-muted"><small>{{ __('billing.unbilled.hint') }} @if ($reviewCount) · <a href="{{ route('billing.charges.review') }}">{{ __('billing.unbilled.review_pending', ['n' => $reviewCount]) }}</a>@endif @if ($missingRateCount) · <a href="{{ route('platform.exceptions.index', ['type' => 'missing_rate']) }}">{{ __('billing.unbilled.missing_rate_total', ['n' => $missingRateCount]) }}</a>@endif</small></p>
+    {{-- Audit 2026-09-22 FIN-03 (CR #132): clients with unpriced revenue only (no pooled charge) — otherwise invisible until someone opens the exception centre. --}}
+    @if ($attentionClients->isNotEmpty())
+        <article>
+            <header><strong>{{ __('billing.unbilled.attention_title') }}</strong> <small class="text-muted">{{ __('billing.unbilled.attention_hint') }}</small></header>
+            @foreach ($attentionClients as $ac)
+                @php($missingN = (int) ($missingByClient[$ac->id] ?? 0))
+                @php($reviewN = (int) ($reviewByClient[$ac->id] ?? 0))
+                <p>{{ $ac->name }} ·
+                    @if ($missingN)<a href="{{ route('platform.exceptions.index', ['type' => 'missing_rate', 'client_id' => $ac->id]) }}"><span class="badge" data-tone="danger">{{ __('billing.unbilled.missing_rate_count', ['n' => $missingN]) }}</span></a>@endif
+                    @if ($reviewN)<a href="{{ route('billing.charges.review', ['client_id' => $ac->id]) }}"><span class="badge" data-tone="warn">{{ __('billing.unbilled.review_count', ['n' => $reviewN]) }}</span></a>@endif
+                </p>
+            @endforeach
+        </article>
+    @endif
     @if ($pool->isEmpty())
         <p class="text-muted">{{ __('billing.unbilled.empty') }}</p>
     @else
         @foreach ($pool as $entry)
             <article>
                 <header class="grid">
-                    <strong>{{ $entry['client']->name }} <small class="text-muted">· {{ __('masterdata.invoice_modes.'.$entry['client']->invoice_mode) }} · {{ $entry['client']->payment_terms }}</small></strong>
+                    <strong>{{ $entry['client']->name }} <small class="text-muted">· {{ __('masterdata.invoice_modes.'.$entry['client']->invoice_mode) }} · {{ $entry['client']->payment_terms }}</small>
+                        {{-- Audit 2026-09-22 FIN-03 (CR #132): what this client has waiting OUTSIDE the pool — $0 missing-rate / POA rows and open missing-rate exceptions. --}}
+                        @php($missingN = (int) ($missingByClient[$entry['client']->id] ?? 0))
+                        @php($reviewN = (int) ($reviewByClient[$entry['client']->id] ?? 0))
+                        @if ($missingN || $reviewN)
+                            <br><small>
+                                @if ($missingN)<a href="{{ route('platform.exceptions.index', ['type' => 'missing_rate', 'client_id' => $entry['client']->id]) }}"><span class="badge" data-tone="danger">{{ __('billing.unbilled.missing_rate_count', ['n' => $missingN]) }}</span></a>@endif
+                                @if ($missingN && $reviewN) · @endif
+                                @if ($reviewN)<a href="{{ route('billing.charges.review', ['client_id' => $entry['client']->id]) }}"><span class="badge" data-tone="warn">{{ __('billing.unbilled.review_count', ['n' => $reviewN]) }}</span></a>@endif
+                                <span class="text-muted">{{ __('billing.unbilled.attention_hint') }}</span>
+                            </small>
+                        @endif
+                    </strong>
                     <span class="num">{{ \App\Support\Money::cents((int) round($entry['amount_cents']))->format() }} {{ __('billing.money') }}
                         @if ($entry['storage_count'] > 0)<br><small class="text-muted">{{ __('billing.unbilled.service_part') }} {{ \App\Support\Money::cents($entry['service_amount_cents'])->format() }} · {{ __('billing.unbilled.storage_part') }} {{ \App\Support\Money::cents($entry['storage_amount_cents'])->format() }}</small>@endif
                     </span>

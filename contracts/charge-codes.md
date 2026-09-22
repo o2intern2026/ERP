@@ -64,7 +64,7 @@ One charge per billable unit per week; idempotency key = unit + billing week + c
 | 34 | Other VAS – outside business hours | `VAS-LABOUR-HR-AH` | vas | man_hour | task.completed | hours_after_hours | task_type ∈ {labour, vas_other} | 55.00 |
 
 ## 6. Codes the plan requires that have **no Edward row**
-No seed rate: priced only if a client card carries them, otherwise **Missing Rate exception — never $0** (§0.2, §6.4).
+No seed rate: priced only if a client card carries them, otherwise **Missing Rate exception — never $0** (§0.2, §6.4). Since `CHANGE_REQUESTS.md` #132 (2026-09-22) the exception comes with a `needs_review` charge row at $0 (`calculation_snapshot_json.missing_rate = true`) that stays out of the unbilled pool and of every invoice until Finance prices it on the review page (which closes the exception) or the rate is added and the event replayed (re-priced in place); for `TR-DELIVERY-BASE` the review page pre-fills the `customer_price_cents` the `shipment.quote_confirmed` payload carried — never for a surcharge. The row keeps the quantity and the source document, so the revenue is visible on the unbilled pool (缺费率 N · 待复核 N) and the draft invoice page instead of being lost.
 | Code | Category | UOM | Trigger | Quantity source | Source / notes |
 |---|---|---|---|---|---|
 | `TR-DELIVERY-BASE` | transport | delivery | shipment.quote_confirmed | billable_qty (1) | own_fleet `fixed` or third-party `cost_plus` = cost × markup (§6.3, §6.4) |

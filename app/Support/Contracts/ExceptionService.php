@@ -16,8 +16,11 @@ interface ExceptionService
      */
     public function raise(string $type, string $sourceModule, array $attributes = []): int;
 
-    /** Resolving a hold releases it (released_by/at, release_reason = note). */
-    public function resolve(int $exceptionId, int $resolvedBy, ?string $note = null): void;
+    /**
+     * Resolving a hold releases it (released_by/at, release_reason = note). `$resolvedBy` null = the system closed it — e.g. the priced
+     * re-run of an event closing its missing-rate exception from cron, with no signed-in user (CHANGE_REQUESTS #132; widened, callers unchanged).
+     */
+    public function resolve(int $exceptionId, ?int $resolvedBy, ?string $note = null): void;
 
     /** Resolves every open exception of $type on $orderId (system-driven, e.g. a stock shortage that a later putaway filled). Returns how many were closed. Additive, CHANGE_REQUESTS #106. */
     public function resolveOpen(string $type, int $orderId, ?int $resolvedBy = null, ?string $note = null): int;

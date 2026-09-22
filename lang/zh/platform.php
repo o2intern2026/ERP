@@ -157,6 +157,10 @@ return [
         'statuses' => ['open' => '待处理', 'in_progress' => '处理中', 'resolved' => '已解决'],
         'modules' => ['platform' => '平台', 'masterdata' => '主数据', 'orders' => '订单', 'warehouse' => '仓库', 'transport' => '运输', 'billing' => '计费'],
         'hold_types' => ['stock' => '库存锁定', 'financial' => '财务锁定', 'address' => '地址锁定', 'transport' => '运输锁定', 'client_confirmation' => '待客户确认'],
+        // Audit 2026-09-22 ADMIN-01: a hold is taken / started / released from the centre only by the roles the order page allows.
+        'hold_roles' => '「:type」只能由订单页允许的角色处理:财务锁定由财务 / 管理员 / 调度放行,其它锁定由客服 / 调度 / 财务 / 管理员处理。',
+        'hold_roles_hint' => '只能由 :roles 放行',
+        'to_order_release' => '到订单页放行',
     ],
 
     'documents' => [

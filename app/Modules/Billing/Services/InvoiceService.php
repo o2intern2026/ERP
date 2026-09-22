@@ -106,6 +106,11 @@ final class InvoiceService
         if ($invoice->status !== 'draft') {
             throw new InvalidArgumentException(__('billing.errors.already_issued', ['no' => $invoice->invoice_no, 'status' => __('billing.invoices.statuses.'.$invoice->status)]));
         }
+        // Audit 2026-09-22 FIN-01: the stored PDF is the client's permanent tax invoice, so it must name the supplier and its ABN
+        // (config erp.company, COMPANY_* in .env) — refuse like GoodsReceiptService does without the CJK font.
+        if (trim((string) config('erp.company.abn')) === '') {
+            throw new InvalidArgumentException(__('billing.errors.company_abn_missing'));
+        }
 
         return DB::transaction(function () use ($invoice): Invoice {
             $client = Client::query()->withoutGlobalScopes()->findOrFail($invoice->client_id);
@@ -175,7 +180,7 @@ final class InvoiceService
         return DB::transaction(function () use ($invoice, $amountCents, $paidAt, $method, $reference): Payment {
             $payment = Payment::query()->create(['invoice_id' => $invoice->id, 'amount_cents' => $amountCents, 'paid_at' => $paidAt->toDateString(), 'method' => $method, 'reference' => $reference, 'recorded_by' => auth()->id(), 'created_at' => now()]);
             $paid = $invoice->paid_amount_cents + $amountCents;
-            $settled = $paid >= $invoice->total_cents - (int) $invoice->creditNotes()->where('status', 'issued')->sum('amount_cents');
+            $settled = $paid >= $invoice->total_cents - $invoice->creditedCents(); // credit notes count with their GST (audit 2026-09-22 FIN-02)
             $invoice->update(['paid_amount_cents' => $paid, 'status' => $settled ? 'paid' : 'part_paid', 'paid_at' => $settled ? now() : null, 'is_overdue' => $settled ? false : $invoice->is_overdue]);
 
             return $payment;
@@ -222,7 +227,86 @@ final class InvoiceService
 
     public function pdf(Invoice $invoice): string
     {
-        return Pdf::loadView('billing::invoices.pdf', ['invoice' => $invoice->load(['lines.charge.chargeCode', 'client']), 'groups' => $this->groupedLines($invoice)])->setPaper('a4')->output();
+        return Pdf::loadView('billing::invoices.pdf', $this->pdfData($invoice))->setPaper('a4')->output();
+    }
+
+    /**
+     * Everything the tax invoice template prints: the invoice with its grouped lines, the seller (config erp.company — audit
+     * 2026-09-22 FIN-01) and the source document of every line (GAP-04). Public so a test can render the HTML without dompdf.
+     *
+     * @return array{invoice: Invoice, groups: Collection, company: array<string, ?string>, refs: array<int, list<array{0: string, 1: string}>>}
+     */
+    public function pdfData(Invoice $invoice): array
+    {
+        $invoice->load(['lines.charge.chargeCode', 'client']);
+
+        return ['invoice' => $invoice, 'groups' => $this->groupedLines($invoice), 'company' => (array) config('erp.company', []), 'refs' => $this->sourceRefs($invoice)];
+    }
+
+    /**
+     * What each line was raised for, as the client knows it (audit 2026-09-22 GAP-04): order number + mark, ASN number, container
+     * number or the mark of the stock unit — never the internal charge id. Read-only lookups on the other modules' tables, like
+     * orderIdsFor(): order → itself, shipment → its order or ASN, task → its order / ASN / container, asn / container → itself,
+     * snapshot → the stock unit's ASN line (mark + ASN). Manual charges have no source.
+     *
+     * @return array<int, list<array{0: string, 1: string}>> invoice line id → [[pdf.invoice.* label key, value], ...]
+     */
+    public function sourceRefs(Invoice $invoice): array
+    {
+        $lines = $invoice->lines()->with('charge')->get();
+        $charges = $lines->pluck('charge')->filter();
+        $ids = fn (string $type) => $charges->where('source_type', $type)->pluck('source_id')->filter()->unique()->values();
+
+        $shipments = DB::table('shipments')->whereIn('id', $ids('shipment'))->get(['id', 'order_id', 'asn_id'])->keyBy('id');
+        $tasks = DB::table('warehouse_tasks')->whereIn('id', $ids('task'))->get(['id', 'order_id', 'asn_id', 'container_id'])->keyBy('id');
+        $units = DB::table('stock_units')->join('asn_lines', 'asn_lines.id', '=', 'stock_units.asn_line_id')->whereIn('stock_units.id', $ids('snapshot'))
+            ->get(['stock_units.id', 'asn_lines.asn_id', 'asn_lines.consignment_mark'])->keyBy('id');
+
+        $orderIds = $lines->pluck('order_id')->merge($shipments->pluck('order_id'))->merge($tasks->pluck('order_id'))->filter()->unique();
+        $asnIds = $ids('asn')->merge($shipments->pluck('asn_id'))->merge($tasks->pluck('asn_id'))->merge($units->pluck('asn_id'))->filter()->unique();
+        $orders = DB::table('orders')->whereIn('id', $orderIds)->get(['id', 'order_no', 'consignment_mark'])->keyBy('id');
+        $asnNos = DB::table('asns')->whereIn('id', $asnIds)->pluck('asn_no', 'id');
+        $containerNos = DB::table('containers')->whereIn('id', $tasks->pluck('container_id')->filter()->unique())->pluck('container_no', 'id');
+        $physicalNos = DB::table('physical_containers')->whereIn('id', $ids('container'))->pluck('container_no', 'id');
+
+        $refs = [];
+        foreach ($lines as $line) {
+            $charge = $line->charge;
+            $out = [];
+            $orderId = $line->order_id ?? match ($charge?->source_type) {
+                'shipment' => $shipments[$charge->source_id]->order_id ?? null,
+                'task' => $tasks[$charge->source_id]->order_id ?? null,
+                default => null,
+            };
+            $asnId = match ($charge?->source_type) {
+                'asn' => $charge->source_id,
+                'shipment' => $shipments[$charge->source_id]->asn_id ?? null,
+                'task' => $tasks[$charge->source_id]->asn_id ?? null,
+                'snapshot' => $units[$charge->source_id]->asn_id ?? null,
+                default => null,
+            };
+            if ($orderId && isset($orders[$orderId])) {
+                $out[] = ['order', (string) $orders[$orderId]->order_no];
+                if ($orders[$orderId]->consignment_mark) {
+                    $out[] = ['mark', (string) $orders[$orderId]->consignment_mark];
+                }
+            } elseif ($asnId && isset($asnNos[$asnId])) {
+                $out[] = ['asn', (string) $asnNos[$asnId]];
+                if ($charge->source_type === 'snapshot' && ($units[$charge->source_id]->consignment_mark ?? null)) {
+                    $out[] = ['mark', (string) $units[$charge->source_id]->consignment_mark];
+                }
+                if ($charge->source_type === 'task' && ($containerNos[$tasks[$charge->source_id]->container_id ?? 0] ?? null)) {
+                    $out[] = ['container', (string) $containerNos[$tasks[$charge->source_id]->container_id]];
+                }
+            } elseif ($charge?->source_type === 'container' && isset($physicalNos[$charge->source_id])) {
+                $out[] = ['container', (string) $physicalNos[$charge->source_id]];
+            }
+            if ($out !== []) {
+                $refs[$line->id] = $out;
+            }
+        }
+
+        return $refs;
     }
 
     private function unbilled()

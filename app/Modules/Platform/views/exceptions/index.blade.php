@@ -31,10 +31,14 @@
                     <td><span class="badge" data-tone="{{ ['open' => 'danger', 'in_progress' => 'warn', 'resolved' => 'ok'][$e->status] }}">{{ __('platform.exceptions.statuses.'.$e->status) }}</span></td>
                     <td>{{ $e->created_at->format('m-d H:i') }}</td>
                     <td>
-                        @if ($e->status !== 'resolved')
+                        @if ($e->status !== 'resolved' && $canRelease($e))
                             <form method="post" action="{{ route('platform.exceptions.assign', $e) }}" class="inline">@csrf<select name="owner_id" style="width:9rem;padding:.2rem;margin:0"><option value="">{{ __('platform.exceptions.take') }}</option>@foreach ($users as $u)<option value="{{ $u->id }}" @selected($e->owner_id === $u->id)>{{ $u->name }}</option>@endforeach</select><button type="submit" class="secondary outline">{{ __('platform.exceptions.assign_to') }}</button></form>
                             @if ($e->status === 'open')<form method="post" action="{{ route('platform.exceptions.start', $e) }}" class="inline">@csrf<button type="submit" class="secondary">{{ __('platform.exceptions.start') }}</button></form>@endif
                             <form method="post" action="{{ route('platform.exceptions.resolve', $e) }}" class="inline">@csrf<input type="text" name="note" placeholder="{{ __('platform.exceptions.note') }}" style="width:14rem" @required($e->isHold())><button type="submit">{{ __('platform.exceptions.resolve') }}</button></form>
+                        @elseif ($e->status !== 'resolved')
+                            {{-- Audit 2026-09-22 ADMIN-01: a hold is released only by the order page's roles (OrderHoldService::rolesFor); everyone else is pointed there. --}}
+                            <small class="text-muted">{{ __('platform.exceptions.hold_roles_hint', ['roles' => collect(\App\Modules\Orders\Services\OrderHoldService::rolesFor((string) $e->hold_type, true))->map(fn ($r) => __('platform.roles.'.$r))->join(' / ')]) }}</small>
+                            @if ($url = $orderUrl($e))<br><a href="{{ $url }}">{{ __('platform.exceptions.to_order_release') }}</a>@endif
                         @else
                             <small class="text-muted">{{ $e->resolved_at?->format('m-d H:i') }} · {{ $e->release_reason }}</small>
                         @endif

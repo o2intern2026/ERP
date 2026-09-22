@@ -118,14 +118,18 @@ class DevanningAllocationTest extends TestCase
         $charges = $engine->applyEvent(['event_name' => 'task.completed', 'job_id' => null, 'client_id' => null, 'payload' => $payload]);
 
         // 500.00 × 0.5 on the negotiated card (its minimum quantity / minimum charge do NOT apply to a fraction), 550.00 × 0.3 on the standard card.
-        $this->assertCount(2, $charges);
-        $this->assertSame([$jobs[$negotiated->id] => 25000, $jobs[$standard->id] => 16500], $this->byJob('WH-DEVAN-40-LOOSE'));
-        $this->assertSame(['client', 'standard'], Charge::query()->orderBy('job_id')->get()->map(fn (Charge $c) => $c->calculation_snapshot_json['card'])->all());
+        $this->assertCount(3, $charges); // two priced + the unpriced member's $0 placeholder (CR #132)
+        $this->assertSame([$jobs[$negotiated->id] => 25000, $jobs[$standard->id] => 16500, $jobs[$unpriced->id] => 0], $this->byJob('WH-DEVAN-40-LOOSE'));
+        $this->assertSame(['client', 'standard'], Charge::query()->where('status', 'pending')->orderBy('job_id')->get()->map(fn (Charge $c) => $c->calculation_snapshot_json['card'])->all());
         $this->assertTrue(Charge::query()->where('job_id', $jobs[$negotiated->id])->sole()->calculation_snapshot_json['allocated']); // priced as a fraction: 25000 < the card's 40000 minimum, not floored
-        // The unpriced member gets a Missing Rate exception on ITS Job — the others are billed; never $0.
+        // The unpriced member gets a Missing Rate exception on ITS Job — the others are billed; never $0: its row is a needs_review placeholder
+        // out of the pool (CR #132, audit 2026-09-22 FIN-03), carrying the allocation so Finance can price the share.
         $this->assertSame(1, ExceptionRecord::query()->where('type', 'missing_rate')->count());
         $this->assertDatabaseHas('exceptions', ['type' => 'missing_rate', 'source_module' => 'billing', 'job_id' => $jobs[$unpriced->id], 'client_id' => $unpriced->id, 'source_type' => 'container', 'source_id' => 77]);
-        $this->assertDatabaseMissing('charges', ['job_id' => $jobs[$unpriced->id]]);
+        $placeholder = Charge::query()->where('job_id', $jobs[$unpriced->id])->sole();
+        $this->assertSame(['needs_review', 0, 'task:900:job:'.$jobs[$unpriced->id]], [$placeholder->status, $placeholder->amount_cents, $placeholder->source_activity_id]);
+        $this->assertTrue($placeholder->calculation_snapshot_json['missing_rate']);
+        $this->assertSame(0.2, $placeholder->calculation_snapshot_json['allocation']['share']);
     }
 
     public function test_each_member_pays_its_own_unpack_mode_and_the_line_cap_applies_to_the_whole_box(): void
@@ -170,16 +174,20 @@ class DevanningAllocationTest extends TestCase
         // Our cartage, 40', 15 t, sideloader flagged: TR-CARTAGE-40 1291.60 × share per member; TR-SIDELOADER has no Edward row → Missing Rate per member (F4).
         $engine->applyEvent(['event_name' => 'physical_container.arrived', 'job_id' => null, 'client_id' => null, 'payload' => $this->boxPayload(80, $members, ['sideloader_required' => true]) + ['arrived_at' => now()->toIso8601String()]]);
         $this->assertSame([$jobA => 77496, $jobB => 51664], $this->byJob('TR-CARTAGE-40'));
-        $this->assertSame(['cartage:80:job:'.$jobA, 'cartage:80:job:'.$jobB], Charge::query()->orderBy('job_id')->pluck('source_activity_id')->all());
+        $this->assertSame(['cartage:80:job:'.$jobA, 'cartage:80:job:'.$jobB], Charge::query()->where('status', 'pending')->orderBy('job_id')->pluck('source_activity_id')->all());
         $this->assertSame(2, ExceptionRecord::query()->where('type', 'missing_rate')->count());
         $this->assertDatabaseHas('exceptions', ['type' => 'missing_rate', 'job_id' => $jobA, 'client_id' => $a->id, 'source_type' => 'container', 'source_id' => 80]);
         $this->assertDatabaseHas('exceptions', ['type' => 'missing_rate', 'job_id' => $jobB, 'client_id' => $b->id, 'source_type' => 'container', 'source_id' => 80]);
-        $this->assertDatabaseMissing('charges', ['charge_code_id' => ChargeCode::query()->where('code', 'TR-SIDELOADER')->value('id')]);
+        // CR #132: the unpriced surcharge is a $0 needs_review placeholder per member (out of the pool), not a lost row.
+        $sideloaderCode = ChargeCode::query()->where('code', 'TR-SIDELOADER')->value('id');
+        $this->assertSame(['sideloader:80:job:'.$jobA, 'sideloader:80:job:'.$jobB], Charge::query()->where('charge_code_id', $sideloaderCode)->orderBy('job_id')->pluck('source_activity_id')->all());
+        $this->assertSame(0, Charge::query()->where('charge_code_id', $sideloaderCode)->where('status', '!=', 'needs_review')->count());
         // Once the client's card prices the surcharge, the member is charged (150.00 × 0.6) and no new exception is raised for it.
         $card = RateCard::query()->create(['client_id' => $a->id, 'name' => 'sideloader', 'version' => 1, 'effective_from' => today()->subDay(), 'status' => 'active']);
-        RateItem::query()->create(['rate_card_id' => $card->id, 'charge_code_id' => ChargeCode::query()->where('code', 'TR-SIDELOADER')->value('id'), 'pricing_mode' => 'fixed', 'rate_cents' => 15000]);
+        RateItem::query()->create(['rate_card_id' => $card->id, 'charge_code_id' => $sideloaderCode, 'pricing_mode' => 'fixed', 'rate_cents' => 15000]);
         $engine->applyEvent(['event_name' => 'physical_container.arrived', 'job_id' => null, 'client_id' => null, 'payload' => $this->boxPayload(81, $members, ['sideloader_required' => true])]);
-        $this->assertSame([$jobA => 9000], $this->byJob('TR-SIDELOADER'));
+        $this->assertSame(['pending', 9000], Charge::query()->where('source_activity_id', 'sideloader:81:job:'.$jobA)->get(['status', 'amount_cents'])->map(fn (Charge $c) => [$c->status, $c->amount_cents])->sole());
+        $this->assertSame(['needs_review', 0], Charge::query()->where('source_activity_id', 'sideloader:81:job:'.$jobB)->get(['status', 'amount_cents'])->map(fn (Charge $c) => [$c->status, $c->amount_cents])->sole());
         $this->assertSame(3, ExceptionRecord::query()->where('type', 'missing_rate')->count()); // + one for B only
 
         // A box the forwarder delivers (cartage_by_us = false) bills no cartage; a 23 t box is POA for every member (22.5 t cap on the whole box).

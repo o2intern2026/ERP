@@ -40,7 +40,7 @@ final class ExceptionService implements ExceptionServiceContract
         return $record->id;
     }
 
-    public function resolve(int $exceptionId, int $resolvedBy, ?string $note = null): void
+    public function resolve(int $exceptionId, ?int $resolvedBy, ?string $note = null): void
     {
         $record = ExceptionRecord::query()->withoutGlobalScopes()->findOrFail($exceptionId);
 
@@ -48,6 +48,9 @@ final class ExceptionService implements ExceptionServiceContract
 
         if ($record->isHold()) {
             $update += ['released_by' => $resolvedBy, 'released_at' => now(), 'release_reason' => $note];
+        } elseif ($note !== null && $note !== '') {
+            // A non-hold closed with a note (e.g. Finance pricing a missing-rate charge, CR #132) keeps the note on the record like resolveOpen() does.
+            $update['message'] = trim($record->message.' — '.$note);
         }
 
         $record->update($update);

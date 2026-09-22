@@ -43,9 +43,16 @@ class ChargeController extends Controller
         ]);
     }
 
-    public function review(): View
+    public function review(Request $request): View
     {
-        return view('billing::charges.review', ['charges' => Charge::query()->with(['chargeCode', 'client', 'job'])->where('status', 'needs_review')->orderBy('id')->paginate(50)]);
+        // CR #132: the unbilled pool links here per client (待复核 N); missing-rate rows pre-fill the suggested amount in the view.
+        $filters = $request->validate(['client_id' => ['nullable', 'integer']]);
+        $client = ($filters['client_id'] ?? null) ? Client::query()->find($filters['client_id']) : null;
+
+        return view('billing::charges.review', [
+            'charges' => Charge::query()->with(['chargeCode', 'client', 'job'])->where('status', 'needs_review')->when($client, fn ($q) => $q->where('client_id', $client->id))->orderBy('id')->paginate(50)->withQueryString(),
+            'client' => $client,
+        ]);
     }
 
     public function storeReview(Request $request, Charge $charge, ChargeEngine $engine): RedirectResponse
@@ -83,8 +90,10 @@ class ChargeController extends Controller
     public function reverse(Request $request, Charge $charge, ChargeEngine $engine): RedirectResponse
     {
         $data = $request->validate(['reason' => ['required', 'string', 'max:255']]);
+        $before = $charge->status;
         $twin = $engine->reverse($charge, $data['reason']);
+        $reversed = $twin !== null || ($before !== 'reversed' && $charge->fresh()->status === 'reversed'); // a $0 missing-rate placeholder is reversed without a twin (CR #132)
 
-        return back()->with('status', $twin ? __('billing.charges.reversed', ['id' => $charge->id]) : __('billing.charges.not_reversible'));
+        return back()->with('status', $reversed ? __('billing.charges.reversed', ['id' => $charge->id]) : __('billing.charges.not_reversible'));
     }
 }

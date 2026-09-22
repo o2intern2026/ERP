@@ -60,7 +60,7 @@ final class CreditNoteService
         return DB::transaction(function () use ($note, $by): CreditNote {
             $note->update(['credit_note_no' => Numbers::next(CreditNote::query()->withoutGlobalScopes()->where('status', 'issued'), 'credit_note_no', 'CN', 'Ym'), 'status' => 'issued', 'approved_by' => $by->id, 'issued_at' => now()]);
             $invoice = $note->invoice;
-            if ($invoice->status !== 'paid' && $invoice->paid_amount_cents >= $invoice->total_cents - (int) $invoice->creditNotes()->where('status', 'issued')->sum('amount_cents')) {
+            if ($invoice->status !== 'paid' && $invoice->paid_amount_cents >= $invoice->total_cents - $invoice->creditedCents()) { // GST-inclusive credit (audit 2026-09-22 FIN-02)
                 $invoice->update(['status' => 'paid', 'paid_at' => now(), 'is_overdue' => false]);
             }
 

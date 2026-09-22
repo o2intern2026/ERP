@@ -5,8 +5,11 @@ namespace App\Modules\Platform\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Orders\Models\Order;
+use App\Modules\Orders\Services\OrderHoldService;
 use App\Modules\Platform\Models\ExceptionRecord;
 use App\Modules\Warehouse\Models\AsnLine;
+use App\Support\Auth\RequiredRoles;
 use App\Support\Contracts\ExceptionService;
 use App\Support\Enums;
 use Illuminate\Contracts\View\View;
@@ -14,6 +17,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\Rule;
+use InvalidArgumentException;
 
 /** A28 Exception Centre: one list for every module's exceptions; take, start, resolve (holds are released on resolve). */
 class ExceptionController extends Controller
@@ -42,11 +46,15 @@ class ExceptionController extends Controller
             'users' => User::query()->where('is_active', true)->whereDoesntHave('roles', fn ($q) => $q->where('name', 'client'))->orderBy('name')->get(['id', 'name']),
             'types' => Enums::EXCEPTION_TYPES, 'modules' => Enums::SOURCE_MODULES, 'statuses' => Enums::EXCEPTION_STATUSES,
             'sourceUrl' => fn (ExceptionRecord $e) => self::sourceUrl($e),
+            // ADMIN-01: the row shows the take / start / resolve forms only to the roles that may act on it; a hold links the others to the order page.
+            'canRelease' => fn (ExceptionRecord $e) => self::canRelease($e),
+            'orderUrl' => fn (ExceptionRecord $e) => $e->order_id && Route::has('orders.show') ? route('orders.show', $e->order_id) : null,
         ]);
     }
 
     public function assign(Request $request, ExceptionRecord $exception, ExceptionService $service): RedirectResponse
     {
+        $this->authorizeHold($exception);
         $data = $request->validate(['owner_id' => ['nullable', 'integer', Rule::exists('users', 'id')]]);
         $service->assign($exception->id, isset($data['owner_id']) ? (int) $data['owner_id'] : auth()->id());
 
@@ -55,17 +63,50 @@ class ExceptionController extends Controller
 
     public function start(ExceptionRecord $exception, ExceptionService $service): RedirectResponse
     {
+        $this->authorizeHold($exception);
         $service->start($exception->id, auth()->id());
 
         return back()->with('status', __('platform.exceptions.started'));
     }
 
-    public function resolve(Request $request, ExceptionRecord $exception, ExceptionService $service): RedirectResponse
+    public function resolve(Request $request, ExceptionRecord $exception, ExceptionService $service, OrderHoldService $holds): RedirectResponse
     {
-        $data = $request->validate(['note' => [$exception->isHold() ? 'required' : 'nullable', 'string', 'max:500']]);
-        $service->resolve($exception->id, auth()->id(), $data['note'] ?? null);
+        $this->authorizeHold($exception);
+        $data = $request->validate(['note' => [$exception->isHold() ? 'required' : 'nullable', 'string', $exception->isHold() ? 'max:255' : 'max:500']]);
+
+        // Audit 2026-09-22 ADMIN-01: a hold on an order is released through the SAME Orders service the order page uses, so the release
+        // (actor + note) lands in the order timeline; a client-wide hold (no order) has no timeline and is resolved directly.
+        $order = $exception->isHold() && $exception->order_id ? Order::query()->withoutGlobalScopes()->find($exception->order_id) : null;
+        if ($order !== null) {
+            try {
+                $holds->release($order, $exception->id, (string) $data['note'], (int) auth()->id());
+            } catch (InvalidArgumentException $e) {
+                return back()->withErrors(['note' => $e->getMessage()]);
+            }
+        } else {
+            $service->resolve($exception->id, auth()->id(), $data['note'] ?? null);
+        }
 
         return back()->with('status', __('platform.exceptions.resolved'));
+    }
+
+    /**
+     * Audit 2026-09-22 ADMIN-01: taking, starting or releasing a hold from the centre needs the roles the order page needs
+     * (Orders' OrderHoldService::rolesFor — financial: admin / finance / dispatcher). The 403 page lists them.
+     */
+    private function authorizeHold(ExceptionRecord $exception): void
+    {
+        if ($exception->isHold()) {
+            RequiredRoles::requireAny(OrderHoldService::rolesFor((string) $exception->hold_type, true), __('platform.exceptions.hold_roles', ['type' => __('platform.exceptions.hold_types.'.$exception->hold_type)]));
+        }
+    }
+
+    /** May this user act on the row from the centre? Non-holds: every staff role; holds: the release roles of the order page. */
+    public static function canRelease(ExceptionRecord $exception, ?User $user = null): bool
+    {
+        $user ??= auth()->user();
+
+        return ! $exception->isHold() || ($user !== null && $user->hasAnyRole(OrderHoldService::rolesFor((string) $exception->hold_type, true)));
     }
 
     /**
