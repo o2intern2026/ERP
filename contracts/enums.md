@@ -171,7 +171,8 @@ Currency `AUD`, money as integer cents (`app/Support/Money`); timezone `Australi
 | `order_imports.source` | `excel` \| `pdf` \| `portal` (the client's own 入库清单 upload in the portal — CHANGE_REQUESTS #123; its orders are created with `orders.source = portal`) |
 | `order_imports.status`, `asn_imports.status` | `pending` \| `imported` \| `failed`; `order_imports.status` also `draft` (a portal 手工建立入库清单 saved to continue later — rows / ticks / context kept in `errors.context`, no groups, no result; CHANGE_REQUESTS #128) |
 | `waves.status` | `planned` \| `released` \| `completed` \| `cancelled` |
-| `stocktakes.status` | `open` \| `counted` \| `adjusted` \| `cancelled` |
+| `stocktakes.status` | `counting` \| `closed` (as built in B10b — the earlier ※ draft `open \| counted \| adjusted \| cancelled` was never implemented; aligned 2026-09-22, CHANGE_REQUESTS #142) |
+| `stocktakes.kind` | `full` \| `discrepancy` (the warehouse's running 差异盘点 fed by short picks with reason 找不到 — CHANGE_REQUESTS #142) |
 | `tracking_events.source` | `api` \| `driver` \| `manual` |
 | `carrier_invoices.status` | `received` \| `matched` \| `disputed` \| `paid` |
 | `delivery.extra_charge.charge_type` (event) | `waiting` \| `redelivery` \| `failed` \| `other` |

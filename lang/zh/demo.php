@@ -87,6 +87,8 @@ return [
         'delivered_driver' => ':order 由司机 :driver 签收送达(运单 :shipment)',
         'delivered_carrier' => ':order 承运商 POD 已上传,送达(运单 :shipment)',
         'invoiced' => ':invoice 已开出,合计 :total(含 GST :gst)· 未开票费用 :unbilled 条留在池中',
+        // CR #142: the demo client's card lacks some freight rates, so the demo ticks the override the way Finance would on the draft page.
+        'invoiced_override' => ';另有 :n 项未定价费用(缺费率 / 待复核),按「仍然开票(未定价费用留到下期)」开出,已记在发票备注和审计日志',
     ],
 
     'summary' => [

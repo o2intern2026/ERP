@@ -5,7 +5,7 @@
 @section('content')
     <p><a href="{{ route('billing.invoices.index') }}">← {{ __('platform.common.back') }}</a></p>
     <header>
-        <h1>{{ $invoice->invoice_no }} <span class="badge" data-tone="{{ ['draft' => 'muted', 'issued' => 'warn', 'part_paid' => 'warn', 'paid' => 'ok', 'void' => 'muted'][$invoice->status] }}">{{ __('billing.invoices.statuses.'.$invoice->status) }}</span> @if ($invoice->is_overdue)<span class="badge" data-tone="danger">{{ __('billing.invoices.overdue') }}</span>@endif</h1>
+        <h1>{{ $invoice->invoice_no }} <span class="badge" data-tone="{{ ['draft' => 'muted', 'issued' => 'warn', 'part_paid' => 'warn', 'paid' => 'ok', 'void' => 'muted'][$invoice->status] }}">{{ __('billing.invoices.statuses.'.$invoice->status) }}</span> @if ($invoice->is_overdue)<span class="badge" data-tone="danger">{{ __('billing.invoices.overdue') }}</span>@endif @if ($issuedWithUnpricedOverride)<span class="badge" data-tone="warn" title="{{ $invoice->notes }}">{{ __('billing.invoices.unpriced_override_badge') }}</span>@endif</h1>
         <p>{{ __('billing.invoices.types.'.$invoice->invoice_type) }} · {{ $invoice->client->name }} · {{ __('billing.invoices.jobs') }}: {{ $invoice->jobs->pluck('job_no')->implode(', ') }} @if ($invoice->period_from)· {{ __('billing.invoices.period') }} {{ $invoice->period_from->format('Y-m-d') }} → {{ $invoice->period_to?->format('Y-m-d') }}@endif</p>
     </header>
     @php($outstanding = $invoice->outstandingCents())
@@ -24,8 +24,11 @@
                     <p><small>{{ __('billing.invoices.new_charges_for_job', ['job' => $row['job']?->job_no ?? '—', 'n' => $row['count'], 'amount' => \App\Support\Money::cents($row['amount_cents'])->format()]) }}</small>
                         @if ($row['job'])<form method="post" action="{{ route('billing.invoices.append_job', [$invoice, $row['job']]) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('billing.invoices.append_to_draft') }}</button></form>@endif</p>
                 @endforeach
-                {{-- Audit 2026-09-22 FIN-03 (CR #132): unpriced revenue of the same Job / period is a warning above 开出发票, not a block. --}}
-                @if ($unpricedCharges->isNotEmpty() || $unpricedExceptions->isNotEmpty())
+                {{-- CR #142 (lead decision 2026-09-22): an empty draft (every line moved out) stays with a hint; it cannot be issued. --}}
+                @if ($invoice->lines->isEmpty())<p><mark>{{ __('billing.invoices.empty_draft_hint') }}</mark></p>@endif
+                {{-- Audit 2026-09-22 FIN-03 (CR #132) → CR #142: unpriced revenue of the same Job / period BLOCKS 开出发票 unless the override below is ticked. --}}
+                @php($hasUnpriced = $unpricedCharges->isNotEmpty() || $unpricedExceptions->isNotEmpty())
+                @if ($hasUnpriced)
                     <div class="erp-warning" role="alert" style="border:1px solid #d9822b;border-radius:.25rem;padding:.6rem .8rem;margin-bottom:.8rem">
                         <strong>{{ __('billing.invoices.review_warning_title', ['n' => $unpricedCharges->count() + $unpricedExceptions->count()]) }}</strong>
                         <ul style="margin:.3rem 0">
@@ -42,7 +45,15 @@
                         </small>
                     </div>
                 @endif
-                <form method="post" action="{{ route('billing.invoices.issue', $invoice) }}">@csrf<button type="submit">{{ __('billing.invoices.issue') }}</button></form>
+                <form method="post" action="{{ route('billing.invoices.issue', $invoice) }}">
+                    @csrf
+                    @if ($hasUnpriced)
+                        {{-- The override is explicit and recorded (invoice notes + activity log) — InvoiceService::issue. --}}
+                        <label><input type="checkbox" name="unpriced_override" value="1" @checked(old('unpriced_override'))> {{ __('billing.invoices.unpriced_override_label') }}</label>
+                        <small class="text-muted">{{ __('billing.invoices.unpriced_override_hint') }}</small>
+                    @endif
+                    <button type="submit" @disabled($invoice->lines->isEmpty())>{{ __('billing.invoices.issue') }}</button>
+                </form>
                 <form method="post" action="{{ route('billing.invoices.destroy', $invoice) }}">@csrf @method('DELETE')<button type="submit" class="secondary outline">{{ __('billing.invoices.discard') }}</button></form>
             @else
                 <p><a role="button" class="secondary" href="{{ route('billing.invoices.pdf', $invoice) }}" target="_blank">{{ __('billing.invoices.pdf') }}</a></p>
@@ -61,18 +72,25 @@
     </div>
 
     <h2>{{ __('billing.invoices.lines') }}</h2>
+    @php($isDraft = $invoice->status === 'draft')
     <div class="overflow-auto"><table class="dense">
-        <thead><tr><th>{{ __('billing.charges.code') }}</th><th>{{ __('billing.charges.description') }}</th><th class="num">{{ __('billing.charges.qty') }}</th><th>{{ __('billing.charges.uom') }}</th><th class="num">{{ __('billing.charges.amount') }}</th><th class="num">{{ __('billing.invoices.gst') }}</th><th>{{ __('billing.charges.source') }}</th></tr></thead>
+        <thead><tr><th>{{ __('billing.charges.code') }}</th><th>{{ __('billing.charges.description') }}</th><th class="num">{{ __('billing.charges.qty') }}</th><th>{{ __('billing.charges.uom') }}</th><th class="num">{{ __('billing.charges.amount') }}</th><th class="num">{{ __('billing.invoices.gst') }}</th><th>{{ __('billing.charges.source') }}</th>@if ($isDraft)<th>{{ __('platform.common.actions') }}</th>@endif</tr></thead>
         <tbody>
         @foreach ($groups as $group)
             @php($lines = $group['lines'])
-            <tr><td colspan="7"><strong>{{ $group['title'] }}</strong> <small class="text-muted">{{ __('billing.invoices.group_by.'.$invoice->group_by) }}</small></td></tr>
+            <tr><td colspan="{{ $isDraft ? 8 : 7 }}"><strong>{{ $group['title'] }}</strong> <small class="text-muted">{{ __('billing.invoices.group_by.'.$invoice->group_by) }}</small></td></tr>
             @foreach ($lines as $l)
-                <tr><td><code>{{ $l->charge_code }}</code></td><td>{{ $l->description }}</td><td class="num">{{ rtrim(rtrim(number_format($l->qty, 3), '0'), '.') }}</td><td>{{ $l->uom }}</td><td class="num">{{ \App\Support\Money::cents((int) round($l->amount_cents))->format() }}</td><td class="num">{{ \App\Support\Money::cents((int) round($l->gst_cents))->format() }}</td><td><small>@if ($l->charge)<a href="{{ route('billing.index', ['job_no' => $l->job?->job_no]) }}">#{{ $l->charge_id }}</a> · {{ \Illuminate\Support\Facades\Lang::has('platform.source_types.'.$l->charge->source_type) ? __('platform.source_types.'.$l->charge->source_type) : $l->charge->source_type }} #{{ $l->charge->source_id }}@endif</small></td></tr>
+                <tr><td><code>{{ $l->charge_code }}</code></td><td>{{ $l->description }}</td><td class="num">{{ rtrim(rtrim(number_format($l->qty, 3), '0'), '.') }}</td><td>{{ $l->uom }}</td><td class="num">{{ \App\Support\Money::cents((int) round($l->amount_cents))->format() }}</td><td class="num">{{ \App\Support\Money::cents((int) round($l->gst_cents))->format() }}</td><td><small>@if ($l->charge)<a href="{{ route('billing.index', ['job_no' => $l->job?->job_no]) }}">#{{ $l->charge_id }}</a> · {{ \Illuminate\Support\Facades\Lang::has('platform.source_types.'.$l->charge->source_type) ? __('platform.source_types.'.$l->charge->source_type) : $l->charge->source_type }} #{{ $l->charge->source_id }}@endif</small></td>
+                    {{-- CR #142: a draft line goes back to the unbilled pool one by one (InvoiceService::removeLine); issued lines are reduced by credit notes only. --}}
+                    @if ($isDraft)<td><form method="post" action="{{ route('billing.invoices.lines.destroy', [$invoice, $l]) }}" class="inline" onsubmit="return confirm(@js(__('billing.invoices.remove_line_confirm')))">@csrf @method('DELETE')<button type="submit" class="secondary outline">{{ __('billing.invoices.remove_line') }}</button></form></td>@endif
+                </tr>
             @endforeach
         @endforeach
         </tbody>
     </table></div>
+    @if (! $isDraft && filled($invoice->notes))
+        <article><header>{{ __('billing.invoices.notes') }}</header><p style="white-space:pre-line">{{ $invoice->notes }}</p></article>
+    @endif
 
     @if ($invoice->status !== 'draft')
         <div class="grid">

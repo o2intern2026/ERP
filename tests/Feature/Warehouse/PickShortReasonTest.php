@@ -3,6 +3,7 @@
 namespace Tests\Feature\Warehouse;
 
 use App\Modules\Platform\Models\ExceptionRecord;
+use App\Modules\Warehouse\Models\Stocktake;
 use App\Modules\Warehouse\Models\WarehouseTask;
 use App\Modules\Warehouse\Models\Wave;
 use App\Support\Contracts\StockService;
@@ -16,7 +17,8 @@ use Tests\TestCase;
 /**
  * Audit 2026-09-22 OUTBOUND-08 (CR #141): a short pick was recorded silently — same flash, plain "15 / 14", English exception text. Now the
  * wave page asks for a reason (缺货 / 破损 / 找不到 / 其他 + note) and a confirm() when 实拣 < 应拣, the flash and a badge say "少拣", and the
- * reason lands in the pick_short exception message. The shortfall still returns to available stock (pending lead decision).
+ * reason lands in the pick_short exception message. Since CR #142 (lead decision 2026-09-22) the reason 找不到 freezes the shortfall on the
+ * unit and opens a 差异盘点 line instead of returning it to available — PickShortNotFoundTest covers that path in depth.
  */
 class PickShortReasonTest extends TestCase
 {
@@ -46,10 +48,11 @@ class PickShortReasonTest extends TestCase
         $this->assertNull($line->fresh()->confirmed_at);
         $this->assertSame(0, ExceptionRecord::query()->where('type', 'pick_short')->count());
 
-        // With the reason: recorded, distinct flash, exception message in Chinese with the reason and note.
-        $this->actingAs($operator)->post(route('warehouse.outbound.pick', $line), ['picked_qty' => 14, 'short_reason' => 'not_found', 'short_note' => '库位空了'])
-            ->assertRedirect()->assertSessionHasNoErrors()
-            ->assertSessionHas('status', __('warehouse.outbound.pick_short_recorded', ['short' => 1, 'reason' => __('warehouse.outbound.short_reasons.not_found')]));
+        // With the reason: recorded, distinct flash (找不到 names the 差异盘点 it opened — CR #142), exception message in Chinese with the reason and note.
+        $response = $this->actingAs($operator)->post(route('warehouse.outbound.pick', $line), ['picked_qty' => 14, 'short_reason' => 'not_found', 'short_note' => '库位空了'])
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $stocktake = Stocktake::query()->where('kind', Stocktake::KIND_DISCREPANCY)->sole();
+        $response->assertSessionHas('status', __('warehouse.outbound.pick_short_frozen_recorded', ['short' => 1, 'stocktake' => $stocktake->stocktake_no]));
         $this->assertSame(14, $line->fresh()->completed_qty);
         $exception = ExceptionRecord::query()->where('type', 'pick_short')->where('order_id', $order->id)->sole();
         $this->assertStringContainsString($task->task_no, $exception->message);
@@ -57,10 +60,10 @@ class PickShortReasonTest extends TestCase
         $this->assertStringContainsString('原因:找不到 · 库位空了', $exception->message);
         $this->assertDoesNotMatchRegularExpression('/picked \d+ of \d+/', $exception->message);
 
-        // Badge on the row and on the card footer next to 打包; the shortfall is back in available stock (today's rule, lead decision pending).
+        // Badge on the row and on the card footer next to 打包; the 找不到 carton is frozen, not available (CR #142 — 6 on hand, 5 available).
         $page = $this->actingAs($operator)->get(route('warehouse.outbound.waves.show', $wave))->assertOk();
         $page->assertSee(__('warehouse.outbound.short_badge', ['short' => 1]))->assertSee(__('warehouse.outbound.short_card_badge', ['lines' => 1, 'short' => 1]))->assertSee(__('warehouse.outbound.pack'));
-        $this->assertSame(['qty_on_hand' => 6, 'qty_reserved' => 0, 'qty_available' => 6], app(StockService::class)->onHand($client->id, $asnLines[0]->id));
+        $this->assertSame(['qty_on_hand' => 6, 'qty_reserved' => 0, 'qty_available' => 5], app(StockService::class)->onHand($client->id, $asnLines[0]->id));
         $this->assertSame('done', $task->fresh()->status);
 
         // A full pick keeps the plain flash and no badge.

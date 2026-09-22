@@ -38,7 +38,7 @@
                             @role('admin|warehouse_supervisor|warehouse_operator')
                                 @if ($line->confirmed_at === null && ! $orderCancelled && $task->status !== 'cancelled')
                                     {{-- Short pick: the reason select + note appear when 实拣 < 应拣 and a confirm() names the shortfall before it is posted (OUTBOUND-08). --}}
-                                    <form method="post" action="{{ route('warehouse.outbound.pick', $line) }}" class="inline pick-form" data-required="{{ $line->required_qty }}" data-confirm="{{ __('warehouse.outbound.short_confirm') }}">
+                                    <form method="post" action="{{ route('warehouse.outbound.pick', $line) }}" class="inline pick-form" data-required="{{ $line->required_qty }}" data-confirm="{{ __('warehouse.outbound.short_confirm') }}" data-confirm-frozen="{{ __('warehouse.outbound.short_confirm_frozen') }}">
                                         @csrf
                                         <input type="number" name="picked_qty" min="0" max="{{ $line->required_qty }}" value="{{ $line->required_qty }}" class="scan" style="width:6rem" aria-label="{{ __('warehouse.outbound.picked') }}">
                                         <span class="short-fields" hidden>
@@ -83,7 +83,9 @@
             qty.addEventListener('input', sync); sync();
             form.addEventListener('submit', event => {
                 if (short() <= 0) return;
-                const text = form.dataset.confirm.replace(':required', String(required)).replace(':picked', String(Number(qty.value) || 0)).replace(':short', String(short()));
+                // CR #142: 找不到 freezes the shortfall and opens a 差异盘点 line instead of returning it to available — say so before the submit.
+                const template = reason.value === 'not_found' && form.dataset.confirmFrozen ? form.dataset.confirmFrozen : form.dataset.confirm;
+                const text = template.replace(':required', String(required)).replace(':picked', String(Number(qty.value) || 0)).replace(':short', String(short()));
                 if (!confirm(text)) event.preventDefault();
             });
         });

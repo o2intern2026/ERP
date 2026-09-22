@@ -2,7 +2,10 @@
 <li><a href="{{ route('platform.index') }}">{{ __('platform.nav') }}</a></li>
 <li><a href="{{ route('platform.exceptions.index') }}">{{ __('platform.nav_exceptions') }}</a></li>
 <li><a href="{{ route('platform.documents.index') }}">{{ __('platform.nav_documents') }}</a></li>
-<li><a href="{{ route('platform.approvals.index') }}">{{ __('platform.nav_approvals') }}</a></li>
+{{-- CR #142: the approval centre is for the approving roles only (route middleware matches); requesters follow their request on the item's page. --}}
+@role('admin|finance')
+    <li><a href="{{ route('platform.approvals.index') }}">{{ __('platform.nav_approvals') }}</a></li>
+@endrole
 @role('admin')
     <li><a href="{{ route('platform.users.index') }}">{{ __('platform.nav_users') }}</a></li>
     <li><a href="{{ route('platform.integration.index') }}">{{ __('platform.nav_integration') }}</a></li>

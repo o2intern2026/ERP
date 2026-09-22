@@ -40,7 +40,7 @@ class StockController extends Controller
             ->when($filters['job_no'] ?? null, fn ($q, $v) => $q->whereHas('asnLine.asn.job', fn ($j) => $j->where('job_no', 'like', "%{$v}%")))
             ->when($filters['consignment_mark'] ?? null, fn ($q, $v) => $q->whereHas('asnLine', fn ($l) => $l->where('consignment_mark', 'like', "%{$v}%")))
             ->when($filters['location'] ?? null, fn ($q, $v) => $q->whereHas('location', fn ($l) => $l->where('full_code', 'like', "%{$v}%")))
-            ->when(! empty($filters['available_only']), fn ($q) => $q->where('putaway_completed', true)->where('condition', 'good')->whereColumn('qty_on_hand', '>', 'qty_reserved'))
+            ->when(! empty($filters['available_only']), fn ($q) => $q->where('putaway_completed', true)->where('condition', 'good')->hasAvailable())
             ->orderByDesc('id')->paginate(50)->withQueryString();
 
         return view('warehouse::stock.index', [

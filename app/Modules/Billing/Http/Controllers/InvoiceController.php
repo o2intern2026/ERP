@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Billing\Models\Charge;
 use App\Modules\Billing\Models\CreditNote;
 use App\Modules\Billing\Models\Invoice;
+use App\Modules\Billing\Models\InvoiceLine;
 use App\Modules\Billing\Models\Payment;
 use App\Modules\Billing\Services\CreditNoteService;
 use App\Modules\Billing\Services\InvoiceService;
@@ -26,6 +27,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
+use Spatie\Activitylog\Models\Activity;
 
 /** FIN-3: unbilled pool → draft (per Job / monthly / storage week) → review → issue (PDF, GST, due date) → payments, credit notes. */
 class InvoiceController extends Controller
@@ -128,6 +130,9 @@ class InvoiceController extends Controller
         // Audit 2026-09-22 FIN-16 (CR #140): the charges list sends 去开冲减单 here with ?credit_line= — the form opens with that line's remaining amount filled in.
         $creditLine = (int) $request->query('credit_line', 0);
 
+        // CR #142: unpriced items in scope BLOCK 开出发票 unless Finance ticks the override; an issued invoice shows whether that happened.
+        $unpriced = $invoice->status === 'draft' ? $invoices->unpricedItems($invoice) : ['charges' => collect(), 'exceptions' => collect()];
+
         return view('billing::invoices.show', [
             'invoice' => $invoice,
             'groups' => $invoices->groupedLines($invoice),
@@ -136,7 +141,10 @@ class InvoiceController extends Controller
             'creditedByLine' => $invoice->status === 'draft' ? [] : $this->creditedByLine($invoice),
             'creditLine' => $invoice->lines->contains('id', $creditLine) ? $creditLine : 0,
             'newCharges' => $invoice->status === 'draft' && $invoice->invoice_type !== 'storage' ? $this->newChargesByJob($invoice) : collect(),
-        ] + ($invoice->status === 'draft' ? $this->unpricedFor($invoice) : ['unpricedCharges' => collect(), 'unpricedExceptions' => collect()]));
+            'unpricedCharges' => $unpriced['charges'], 'unpricedExceptions' => $unpriced['exceptions'],
+            'issuedWithUnpricedOverride' => $invoice->status !== 'draft' && Activity::query()->where('log_name', 'invoice')->where('description', 'issued_with_unpriced_override')
+                ->where('subject_type', $invoice->getMorphClass())->where('subject_id', $invoice->id)->exists(),
+        ]);
     }
 
     /**
@@ -152,38 +160,30 @@ class InvoiceController extends Controller
             ->map(fn (Collection $group) => ['job' => $group->first()->job, 'count' => $group->count(), 'amount_cents' => (int) $group->sum('amount_cents')]);
     }
 
-    /**
-     * Audit 2026-09-22 FIN-03 (CR #132): the draft page warns — it does not block — about revenue that is NOT on this draft because
-     * it is still unpriced: needs_review charges (missing-rate placeholders, POA) and open missing-rate exceptions of the same Job(s)
-     * (per-Job draft) or of the client inside the period (period / monthly / storage draft). An exception already represented by a
-     * listed placeholder is not listed twice.
-     *
-     * @return array{unpricedCharges: Collection<int, Charge>, unpricedExceptions: Collection<int, ExceptionRecord>}
-     */
-    private function unpricedFor(Invoice $invoice): array
+    /** 开出发票 — blocked while unpriced items sit in the draft's scope unless `unpriced_override` is ticked (CR #142; InvoiceService::issue). */
+    public function issue(Request $request, Invoice $invoice, InvoiceService $invoices): RedirectResponse
     {
-        $jobIds = $invoice->jobs->pluck('id');
-        $charges = Charge::query()->with(['chargeCode', 'job'])->where('client_id', $invoice->client_id)->where('status', 'needs_review')
-            ->when($invoice->period_from === null, fn ($q) => $q->whereIn('job_id', $jobIds), fn ($q) => $q->whereBetween('charge_date', [$invoice->period_from->toDateString(), $invoice->period_to->toDateString()]))
-            ->orderBy('id')->get();
-        $linked = $charges->map(fn (Charge $c) => (int) ($c->calculation_snapshot_json['exception_id'] ?? 0))->filter();
-        $exceptions = ExceptionRecord::query()->withoutGlobalScopes()->with('job')->where('type', 'missing_rate')->where('status', '!=', 'resolved')->where('client_id', $invoice->client_id)
-            ->whereNotIn('id', $linked)
-            ->when($invoice->period_from === null, fn ($q) => $q->whereIn('job_id', $jobIds), fn ($q) => $q->where(fn ($w) => $w->whereIn('job_id', $jobIds)->orWhereBetween('created_at', [$invoice->period_from->startOfDay(), $invoice->period_to->endOfDay()])))
-            ->orderBy('id')->get();
-
-        return ['unpricedCharges' => $charges, 'unpricedExceptions' => $exceptions];
-    }
-
-    public function issue(Invoice $invoice, InvoiceService $invoices): RedirectResponse
-    {
+        $data = $request->validate(['unpriced_override' => ['nullable', 'boolean']]);
         try {
-            $invoices->issue($invoice);
+            $invoices->issue($invoice, (bool) ($data['unpriced_override'] ?? false), $request->user()->id);
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['invoice' => RuleViolation::display($e)]);
         }
 
         return redirect()->route('billing.invoices.show', $invoice)->with('status', __('billing.invoices.issued', ['no' => $invoice->fresh()->invoice_no]));
+    }
+
+    /** 移出草稿 (CR #142): one line back to the unbilled pool; refused on anything but a draft. */
+    public function removeLine(Invoice $invoice, InvoiceLine $line, InvoiceService $invoices): RedirectResponse
+    {
+        abort_unless((int) $line->invoice_id === (int) $invoice->id, 404);
+        try {
+            $charge = $invoices->removeLine($invoice, $line);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['invoice' => RuleViolation::display($e)]);
+        }
+
+        return redirect()->route('billing.invoices.show', $invoice)->with('status', __('billing.invoices.line_removed', ['code' => $line->charge_code, 'id' => $charge->id]));
     }
 
     public function destroy(Invoice $invoice, InvoiceService $invoices): RedirectResponse

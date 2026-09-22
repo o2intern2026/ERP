@@ -21,12 +21,13 @@ final class StockService implements StockServiceContract
         $units = StockUnit::query()->withoutGlobalScopes()
             ->where('client_id', $clientId)->where('asn_line_id', $asnLineId)
             ->where('putaway_completed', true)->where('condition', 'good')
-            ->get(['qty_on_hand', 'qty_reserved']);
+            ->get(['qty_on_hand', 'qty_reserved', 'qty_frozen']);
 
         $onHand = (int) $units->sum('qty_on_hand');
         $reserved = (int) $units->sum('qty_reserved');
+        $frozen = (int) $units->sum('qty_frozen'); // 找不到 cartons awaiting the 差异盘点 count (CHANGE_REQUESTS #142): on hand, not available
 
-        return ['qty_on_hand' => $onHand, 'qty_reserved' => $reserved, 'qty_available' => max(0, $onHand - $reserved)];
+        return ['qty_on_hand' => $onHand, 'qty_reserved' => $reserved, 'qty_available' => max(0, $onHand - $reserved - $frozen)];
     }
 
     public function reserve(int $clientId, int $orderId, array $lines): array
@@ -42,7 +43,7 @@ final class StockService implements StockServiceContract
                 $units = StockUnit::query()->withoutGlobalScopes()
                     ->where('client_id', $clientId)->where('asn_line_id', $line['asn_line_id'])
                     ->where('putaway_completed', true)->where('condition', 'good')
-                    ->whereColumn('qty_on_hand', '>', 'qty_reserved')
+                    ->hasAvailable()
                     ->orderBy('received_at')->orderBy('id')
                     ->lockForUpdate()->get();
 

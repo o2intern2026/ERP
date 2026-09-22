@@ -62,9 +62,12 @@ Route::middleware(['auth', 'client.scope'])->name('platform.')->group(function (
 
             Route::get('/search', [SearchController::class, 'index'])->name('search');
 
-            Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
-            Route::post('/approvals/{approval}/cancel', [ApprovalController::class, 'cancel'])->name('approvals.cancel');
+            // CR #142 (lead decision 2026-09-22): the approval centre — list and every action — is for the roles that approve rate-card changes and
+            // credit notes (admin | finance; they are also the only requesters). Other roles see no nav entry and get 403; a requester follows the
+            // status of their own request on the item's page (rate card / invoice).
             Route::middleware('role:admin|finance')->group(function () {
+                Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
+                Route::post('/approvals/{approval}/cancel', [ApprovalController::class, 'cancel'])->name('approvals.cancel');
                 Route::post('/approvals/{approval}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
                 Route::post('/approvals/{approval}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
             });

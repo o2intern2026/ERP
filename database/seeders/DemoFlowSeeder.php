@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Modules\Billing\Models\ChargeCode;
+use App\Modules\Billing\Models\Invoice;
 use App\Modules\Billing\Services\InvoiceService;
 use App\Modules\Billing\Services\RateCardService;
 use App\Modules\Billing\Services\StorageBillingService;
@@ -493,19 +494,35 @@ class DemoFlowSeeder extends Seeder
     {
         $invoices = app(InvoiceService::class);
         $edward = $this->client('EDWARD');
-        $service = $invoices->issue($invoices->draftForJob($this->out['edward_job_id'], 'service'));
+        $service = $this->issueLikeFinance($invoices->draftForJob($this->out['edward_job_id'], 'service'));
         $invoices->recordPayment($service, intdiv((int) $service->total_cents, 2), today(), 'bank_transfer', 'EFT-DEMO-'.$service->invoice_no);
         $this->out['service_invoice_no'] = $service->invoice_no;
         try {
-            $this->out['storage_invoice_no'] = $invoices->issue($invoices->draftStorageWeek($edward->id, today()->subWeek()))->invoice_no;
+            $this->out['storage_invoice_no'] = $this->issueLikeFinance($invoices->draftStorageWeek($edward->id, today()->subWeek()))->invoice_no;
         } catch (\InvalidArgumentException $e) {
             $this->notes[] = '… storage invoice skipped: '.$e->getMessage();
         }
         try {
-            $this->out['monthly_invoice_no'] = $invoices->issue($invoices->draftMonthly($this->client('MONTHLY')->id, today()->startOfMonth(), today()->endOfMonth()))->invoice_no;
+            $this->out['monthly_invoice_no'] = $this->issueLikeFinance($invoices->draftMonthly($this->client('MONTHLY')->id, today()->startOfMonth(), today()->endOfMonth()))->invoice_no;
         } catch (\InvalidArgumentException $e) {
             $this->notes[] = '… monthly invoice skipped: '.$e->getMessage();
         }
+    }
+
+    /**
+     * CR #142: unpriced items in the draft's scope (the demo cards lack a rate for some freight codes) block 开出发票. The demo does what Finance
+     * would do on the draft page — ticks 仍然开票(未定价费用留到下期) — and leaves a note; the override lands in the invoice notes and the activity log.
+     */
+    private function issueLikeFinance(Invoice $draft): Invoice
+    {
+        $invoices = app(InvoiceService::class);
+        $unpriced = $invoices->unpricedItems($draft);
+        $count = $unpriced['charges']->count() + $unpriced['exceptions']->count();
+        if ($count > 0) {
+            $this->notes[] = "… {$draft->invoice_no}: {$count} unpriced item(s) in scope — issued with the 仍然开票 override (recorded on the invoice)";
+        }
+
+        return $invoices->issue($draft, $count > 0, $this->user('finance')->id);
     }
 
     private function apiToken(): void
