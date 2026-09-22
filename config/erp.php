@@ -29,7 +29,7 @@ return [
     // Storage is billed per pallet·week; the billing week starts on this day (ERP_PLAN §4.2 stock_snapshots).
     'storage_week_starts_on' => 'monday',
 
-    // The seller printed on every tax invoice (audit 2026-09-22 FIN-01 / GAP-04, CHANGE_REQUESTS #133): an Australian tax invoice must
+    // The seller printed on every tax invoice (audit 2026-09-22 FIN-01 / GAP-04, CHANGE_REQUESTS #139): an Australian tax invoice must
     // name the supplier and its ABN, and the client needs somewhere to pay. The defaults are PLACEHOLDERS so the trial server needs no
     // configuration — replace them through COMPANY_* in .env before go-live. InvoiceService::issue() refuses (zh message) while the ABN
     // is blank, the same way GoodsReceiptService refuses without the CJK font: the stored PDF is the client's permanent copy.
