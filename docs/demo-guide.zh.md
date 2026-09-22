@@ -79,7 +79,7 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 | finance@erp.local | 财务 | 计费、发票、收款、财务锁、价目表审批 |
 | client@erp.local | 客户(Edward) | 客户门户 /portal,只看自己的数据 |
 
-**客户自助注册(反馈 #8):** 登录页有"注册新客户"链接(/register)。填公司名、ABN、联系人、地址、邮箱、密码后提交,状态为"待审核";管理员 / 客服 / 财务在 /admin/clients 看到待审核客户排在最前,点"审核通过"后该公司即可登录客户门户,只看到自己的订单、库存和发票,发票 Bill-to 用注册时的公司名 / ABN / 地址。不想开放注册时在 `.env` 设 `ALLOW_SIGNUP=false`。
+**客户自助注册(反馈 #8;2026-09-22 起这是新增客户的唯一入口,CR #134):** 登录页有"注册新客户"链接(/register)。填公司名、ABN、联系人、地址、邮箱、密码后提交,状态为"待审核",并自动绑定标准价目表;管理员 / 客服 / 财务在 /admin/clients 看到待审核客户排在最前,点"审核通过"后该公司即可登录客户门户,只看到自己的订单、库存和发票,发票 Bill-to 用注册时的公司名 / ABN / 地址。审核后在"编辑"里改账期、开票模式、加成、截单时间(编辑页顶部只读显示该客户的标准价目表和有无专属价目表)。员工端没有"新建客户"按钮——要接一个新客户,让对方在注册页自己注册(或员工代填注册表),再审核。不想开放注册时在 `.env` 设 `ALLOW_SIGNUP=false`(默认开放);关闭期间无法新增客户,/admin/clients 顶部会提示。
 
 **客户下单两步走(反馈 #10):** 客户门户"新建订单"先点"获取估价",页面显示各项仓库费用(客户价、含 GST 合计;运费在提交后另行报价),确认无误再点"确认提交订单";改动任何内容后需重新获取估价。
 
@@ -89,7 +89,7 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 |---|---|---|
 | Job 工作台 | /jobs | 每个 Job 一页:订单、入库、库存、发运、单据、发票、费用与毛利 |
 | 平台 | /admin/… | 用户 /admin/users、异常中心 /admin/exceptions、审批 /admin/approvals、审计日志 /admin/activity、单据中心 /admin/documents、集成监控 /admin/integration、全局搜索 /admin/search |
-| 主数据 | /admin/clients | 客户、承运商 /admin/carriers、供应商 |
+| 主数据 | /admin/clients | 客户(只能自助注册 /register → 员工审核 → 编辑;无"新建客户",CR #134)、承运商 /admin/carriers、供应商 |
 | 订单 | /orders | 客户请求 /orders/requests(客户的取消 / 退货申请,菜单带待处理数)、新建 /orders/create、Excel 导入 /orders/imports、PDF 读单 /orders/drafts/create、调度队列 /orders/queue、入库批次 /orders/batches、地址簿 /orders/addresses、API 钥匙 /orders/api-tokens |
 | 仓库 | /warehouse | 预报单 (ASN) /warehouse/asns（新建 / 预报单页可选"到仓方式"：客户自送，或我方上门提货 → 运输报价、订舱、司机提货、到仓即到货；管理员 / 客服 / 仓库主管）、收货(待收列表)/warehouse/receiving、无预报收货 /warehouse/receiving/unplanned、入库单 /warehouse/receipts、物理柜 / 拼柜 /warehouse/physical-containers(几个客户共用一只柜:关联各预报单的柜号行、登记拆柜一次、登记到港、重算分摊;管理员 / 客服 / 仓库主管)、上架 /warehouse/putaway(声明底层的托盘显示"建议:第一个空闲底层库位",放非底层要填原因)、库存查询 /warehouse(勾"底层库位剩货托盘"看部分拣走后仍占底层的托盘)、出库 /warehouse/outbound(含「已确认但缺货未分配」)、作业登记(VAS) /warehouse/tasks、退货 /warehouse/returns、任务 /warehouse/tasks、盘点 /warehouse/stocktakes、扫码 /warehouse/scan、快照 /warehouse/snapshots(含底层库位托盘数)、库位配置 /warehouse/config/locations(层位 / 存储等级;主管可批量设置底层库位) |
 | 运输 | /transport | 运单列表(报价 / 订舱 / 面单 / 签收)、班次 /transport/runs（管理员 / 客服 / 调度建班次、加站、排顺序；司机只看自己的）、承运商账单对账 /transport/carrier-invoices（管理员 / 财务）、司机页 /driver（司机） |
@@ -151,3 +151,4 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 | 日期框显示 yyyy/mm/日 怎么办 | 已修复：系统里每个日期框现在在任何浏览器（Chrome / Edge / Firefox / Safari，不管浏览器语言）都显示 dd/mm/yyyy（澳洲习惯）。可以直接键入 17/09/2026（也接受 17-09-2026、17.09.2026、17092026，会自动整理成 dd/mm/yyyy；扫描枪键盘输入同样可用），或点框右边的日历按钮从日历里选。格式不对或不存在的日期会标红并阻止提交。运输派车单的 ETA 是日期框加一个时间框。提交给后台的值不变（仍按 2026-09-17 这种格式保存和校验） |
 | 日期框显示 yyyy/mm/日 怎么办 | 已修复：页面仍是中文，但系统里所有日期 / 时间输入框都标了 `lang="en-AU"`，Chrome / Edge 的日期选择器现在显示 dd/mm/yyyy（澳洲习惯）。Firefox / Safari 不看这个属性，而是跟浏览器或系统语言走：想看 dd/mm/yyyy 就把浏览器语言设为 English (Australia)。提交的值不变（后台仍按 2026-09-17 这种格式保存） |
 | 司机为什么建不了班次 / 看不到运单 | 2026-09-17 起司机（transport-operator）只执行不排班：能开 /driver 签收 / 报失败，能在"配送班次"里看分配给自己的班次（只读，别人的班次打不开）；建班次、加站、排顺序、看运单 / 报价 / 成本、承运商对账都在调度（dispatcher）/ 客服 / 管理员账号下做。要让某个司机也排班，给他加 dispatcher 角色即可（CR #130）。 |
+| 管理员怎么新建客户 / "新建客户"按钮去哪了 | 2026-09-22 起(审计 A13 / GAP-01,CR #134)员工不再手工建客户:让客户在登录页"注册新客户"(/register)自己填公司资料和登录邮箱、密码(员工也可以代填),提交后在 /admin/clients 排在最前显示"待审核",点"审核通过"即可登录;再点"编辑"改账期 / 开票模式 / 加成 / 截单时间。原因:员工手工建的客户没有绑定标准价目表,所有费用都变成"缺少费率"异常;注册流程自动绑定,系统层面也对每条新建客户路径补绑。若某个旧客户仍显示"未绑定标准价目表",管理员在列表或编辑页点"修复:绑定当前标准价目表"。`.env` 里 `ALLOW_SIGNUP=false` 时不能新增客户(列表顶部会提示),需要时改回 true |

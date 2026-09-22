@@ -39,17 +39,18 @@ class ValidationLocaleTest extends TestCase
     public function test_masterdata_client_form_errors_are_chinese_with_the_on_screen_label(): void
     {
         $admin = $this->staff();
+        $client = $this->client(); // CHANGE_REQUESTS #134: staff edit self-registered clients — there is no create form any more
 
-        $response = $this->actingAs($admin)->from('/admin/clients/create')->post('/admin/clients', [
+        $response = $this->actingAs($admin)->from("/admin/clients/{$client->id}/edit")->put("/admin/clients/{$client->id}", [
             'code' => 'ACME LOGISTICS', 'name' => 'Acme', 'leg_type' => 'both', 'status' => 'active',
             'payment_terms' => 'eom', 'invoice_mode' => 'per_job', 'default_markup_percent' => '1000',
         ]);
 
-        $response->assertRedirect('/admin/clients/create')
+        $response->assertRedirect("/admin/clients/{$client->id}/edit")
             ->assertSessionHasErrors(['code' => '编码 只能包含字母、数字、短横线和下划线。'])
             ->assertSessionHasErrors(['default_markup_percent' => '默认加成 % 不能大于 999.99。']);
 
-        $page = $this->actingAs($admin)->get('/admin/clients/create')->assertOk();
+        $page = $this->actingAs($admin)->get("/admin/clients/{$client->id}/edit")->assertOk();
         $page->assertSee('编码 只能包含字母、数字、短横线和下划线。')
             ->assertDontSee('The code field')
             ->assertDontSee('default markup percent')

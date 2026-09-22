@@ -1,12 +1,36 @@
 @extends('layouts.app')
 
-@section('title', $client->exists ? __('masterdata.clients.edit') : __('masterdata.clients.create'))
+@section('title', __('masterdata.clients.edit'))
 
 @section('content')
-    <h1>{{ $client->exists ? __('masterdata.clients.edit') : __('masterdata.clients.create') }}</h1>
-    <form method="post" action="{{ $client->exists ? route('masterdata.clients.update', $client) : route('masterdata.clients.store') }}">
+    {{-- Edit only (CHANGE_REQUESTS #134): clients are created by self-registration at /register, never by staff. --}}
+    <h1>{{ __('masterdata.clients.edit') }}</h1>
+    <article>
+        <p style="margin:0">
+            <strong>{{ __('masterdata.clients.standard_card') }}:</strong>
+            @if ($standardCard)
+                @role('admin|finance')<a href="{{ route('billing.rate_cards.show', $standardCard) }}">{{ $standardCard->name }} · v{{ $standardCard->version }}</a>@else{{ $standardCard->name }} · v{{ $standardCard->version }}@endrole
+            @else
+                <mark>{{ __('masterdata.clients.no_standard_card') }}</mark>
+            @endif
+            &nbsp;·&nbsp;
+            <strong>{{ __('masterdata.clients.own_card') }}:</strong>
+            @if ($ownCard)
+                {{ __('masterdata.clients.own_card_yes') }}({{ $ownCard->name }} · v{{ $ownCard->version }})
+            @else
+                {{ __('masterdata.clients.own_card_no') }}
+            @endif
+        </p>
+        @if (! $standardCard)
+            @role('admin')
+                <form method="post" action="{{ route('masterdata.clients.bind_standard_card', $client) }}" style="margin:.5rem 0 0">@csrf <button type="submit" class="outline" style="width:auto;margin:0">{{ __('masterdata.clients.bind_standard_card') }}</button></form>
+            @endrole
+        @endif
+        <p class="text-muted" style="margin:.5rem 0 0"><small>{{ __('masterdata.clients.standard_card_hint') }}</small></p>
+    </article>
+    <form method="post" action="{{ route('masterdata.clients.update', $client) }}">
         @csrf
-        @if ($client->exists) @method('PUT') @endif
+        @method('PUT')
         <div class="grid">
             <label>{{ __('masterdata.fields.code') }}<input type="text" name="code" value="{{ old('code', $client->code) }}" maxlength="20" required></label>
             <label>{{ __('masterdata.fields.name') }}<input type="text" name="name" value="{{ old('name', $client->name) }}" required></label>
@@ -80,7 +104,6 @@
                     <small>{{ __('masterdata.clients.cutoff_hint') }}</small>
                 </label>
             </div>
-            <p class="text-muted"><small>{{ __('masterdata.clients.standard_card_hint') }}</small></p>
         </fieldset>
         <button type="submit">{{ __('platform.common.save') }}</button>
         <a href="{{ route('masterdata.index') }}" class="secondary" role="button">{{ __('platform.common.cancel') }}</a>

@@ -68,7 +68,7 @@ class RegistrationController extends Controller
                 'invoice_period' => 'monthly',
                 'invoice_grouping' => 'job',
                 'default_markup_percent' => 20,
-                'standard_rate_card_id' => RateCard::query()->where('is_standard', true)->where('status', 'active')->orderByDesc('version')->value('id'),
+                'standard_rate_card_id' => RateCard::activeStandardId(), // also enforced by Client::creating (CHANGE_REQUESTS #134)
             ]);
 
             $user = User::query()->create([

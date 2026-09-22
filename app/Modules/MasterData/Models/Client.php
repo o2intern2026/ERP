@@ -2,10 +2,12 @@
 
 namespace App\Modules\MasterData\Models;
 
+use App\Modules\Billing\Models\RateCard;
 use App\Support\Tenancy\ClientScope;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use InvalidArgumentException;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -36,6 +38,27 @@ class Client extends Model
                 $query->whereKey($clientId);
             }
         });
+
+        // Audit A13 / GAP-01, CHANGE_REQUESTS #134: every new client is bound to the active standard rate card, whichever code
+        // path creates it (self-registration, seeders, tests). Null stays null only while no standard card is active yet —
+        // BillingSeeder back-fills those, and the clients pages offer 修复 (bindStandardCard) for any that slip through.
+        static::creating(function (Client $client) {
+            if ($client->standard_rate_card_id === null) {
+                $client->standard_rate_card_id = RateCard::activeStandardId();
+            }
+        });
+    }
+
+    /** The standard card this client is billed on when no client-specific card prices a code (§0.2 rate lookup order). */
+    public function standardRateCard(): BelongsTo
+    {
+        return $this->belongsTo(RateCard::class, 'standard_rate_card_id');
+    }
+
+    /** The client's active 专属价目表, if Finance has created and activated one (RateService looks it up first). */
+    public function activeOwnRateCard(): ?RateCard
+    {
+        return RateCard::query()->where('client_id', $this->id)->where('status', 'active')->orderByDesc('version')->first();
     }
 
     /**
