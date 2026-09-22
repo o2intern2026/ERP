@@ -216,7 +216,10 @@ class StorageTierBillingTest extends TestCase
             $this->assertSame('no_base_cents', $surcharge->calculation_snapshot_json['reason']);
         }
         $this->assertSame(0, Charge::query()->withoutGlobalScopes()->whereHas('chargeCode', fn ($q) => $q->where('code', 'WH-STORAGE-TIER-PLT-WK'))->where('status', 'pending')->where('amount_cents', 0)->count());
-        $this->assertNull(Charge::query()->withoutGlobalScopes()->where('source_id', $noBase->id)->whereHas('chargeCode', fn ($q) => $q->where('code', 'WH-STORAGE-PLT-WK'))->first(), 'the base itself is a Missing Rate exception, not a charge');
+        // CR #132 (audit 2026-09-22 FIN-03): the missing base rate is an exception AND a $0 needs_review placeholder — never a billable $0, never a lost week.
+        $missingBase = Charge::query()->withoutGlobalScopes()->where('source_id', $noBase->id)->whereHas('chargeCode', fn ($q) => $q->where('code', 'WH-STORAGE-PLT-WK'))->sole();
+        $this->assertSame(['needs_review', 0, true], [$missingBase->status, $missingBase->amount_cents, $missingBase->calculation_snapshot_json['missing_rate']]);
+        $this->assertDatabaseHas('exceptions', ['id' => $missingBase->calculation_snapshot_json['exception_id'], 'type' => 'missing_rate', 'client_id' => $bare->id, 'status' => 'open']);
     }
 
     public function test_the_rate_card_form_keeps_the_percent_inside_the_band_and_the_seeder_is_idempotent(): void

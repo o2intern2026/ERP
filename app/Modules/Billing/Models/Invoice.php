@@ -52,9 +52,15 @@ class Invoice extends Model
         return $this->hasMany(CreditNote::class);
     }
 
+    /** Issued credit notes, GST included — total_cents is GST-inclusive, so the note's gst_cents must come off too (audit 2026-09-22 FIN-02). */
+    public function creditedCents(): int
+    {
+        return (int) $this->creditNotes()->where('status', 'issued')->selectRaw('COALESCE(SUM(amount_cents + gst_cents), 0) as credited')->value('credited');
+    }
+
     public function outstandingCents(): int
     {
-        return max(0, $this->total_cents - $this->paid_amount_cents - (int) $this->creditNotes()->where('status', 'issued')->sum('amount_cents'));
+        return max(0, $this->total_cents - $this->paid_amount_cents - $this->creditedCents());
     }
 
     public function getActivitylogOptions(): LogOptions

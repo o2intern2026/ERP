@@ -60,7 +60,7 @@ class ChargeEngineTest extends TestCase
         $this->assertSame('gst_10', $charges['WH-DEVAN-40-PLT']->tax_treatment);
     }
 
-    public function test_mixed_devanning_is_poa_and_a_missing_rate_raises_an_exception_without_a_charge(): void
+    public function test_mixed_devanning_is_poa_and_a_missing_rate_raises_an_exception_with_a_needs_review_placeholder(): void
     {
         $client = $this->client();
         $engine = app(ChargeEngine::class);
@@ -69,11 +69,17 @@ class ChargeEngineTest extends TestCase
         $engine->applyEvent(['event_name' => 'task.completed', 'job_id' => $job, 'client_id' => $client->id, 'payload' => ['task_id' => 501, 'task_type' => 'devanning', 'billable_qty' => 1, 'container' => ['size' => '20', 'unpack_mode' => 'mixed', 'line_count' => 5]]]);
         $this->assertDatabaseHas('charges', ['source_activity_id' => 'task:501', 'status' => 'needs_review', 'amount_cents' => 0]);
 
+        // CR #132 (audit 2026-09-22 FIN-03): a missing rate still raises the exception (§6.8 #9) AND keeps the quantity as a $0 needs_review
+        // row that never enters the pool — before, the row was simply lost.
         $client->update(['standard_rate_card_id' => null]);
         $charges = $engine->applyEvent(['event_name' => 'task.completed', 'job_id' => $job, 'client_id' => $client->id, 'payload' => ['task_id' => 502, 'task_type' => 'labour', 'hours_business' => 2, 'hours_after_hours' => 0]]);
-        $this->assertSame([], $charges);
-        $this->assertDatabaseMissing('charges', ['source_activity_id' => 'task:502']);
-        $this->assertDatabaseHas('exceptions', ['type' => 'missing_rate', 'source_module' => 'billing', 'source_type' => 'task', 'source_id' => 502, 'client_id' => $client->id]); // §6.8 #9
+        $this->assertCount(1, $charges);
+        $placeholder = Charge::query()->where('source_activity_id', 'task:502')->sole();
+        $this->assertSame(['needs_review', 0, null, null, '2.000'], [$placeholder->status, $placeholder->amount_cents, $placeholder->rate_item_id, $placeholder->rate_snapshot_cents, $placeholder->qty]);
+        $this->assertTrue($placeholder->calculation_snapshot_json['missing_rate']);
+        $this->assertNull($placeholder->calculation_snapshot_json['suggested_cents']); // a task carries no customer price
+        $this->assertDatabaseHas('exceptions', ['id' => $placeholder->calculation_snapshot_json['exception_id'], 'type' => 'missing_rate', 'source_module' => 'billing', 'source_type' => 'task', 'source_id' => 502, 'client_id' => $client->id, 'status' => 'open']);
+        $this->assertFalse($placeholder->isBillable());
     }
 
     public function test_outbound_packed_produces_despatch_and_banded_pick_charges_and_a_redo_reverses(): void

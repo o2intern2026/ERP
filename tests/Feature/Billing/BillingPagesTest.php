@@ -100,7 +100,8 @@ class BillingPagesTest extends TestCase
         $this->actingAs($second)->post("/admin/approvals/{$approval->id}/approve", ['note' => 'ok'])->assertRedirect();
         $this->actingAs($finance)->post("/billing/credit-notes/{$note->id}/issue")->assertRedirect();
         $this->assertMatchesRegularExpression('/^CN-\d{6}-0001$/', $note->fresh()->credit_note_no);
-        $this->assertSame($invoice->fresh()->total_cents - 5000, $invoice->fresh()->outstandingCents());
+        $this->assertSame(5500, $invoice->fresh()->creditedCents()); // audit 2026-09-22 FIN-02: the note's GST comes off the GST-inclusive total too
+        $this->assertSame($invoice->fresh()->total_cents - 5500, $invoice->fresh()->outstandingCents());
     }
 
     public function test_rate_card_versions_are_approval_gated_and_history_keeps_its_snapshot(): void

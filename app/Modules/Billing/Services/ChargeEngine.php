@@ -8,16 +8,19 @@ use App\Modules\Billing\Models\ChargeRule;
 use App\Modules\Billing\Models\RateCard;
 use App\Modules\Billing\Models\RateItem;
 use App\Modules\MasterData\Models\Client;
+use App\Modules\Platform\Models\ExceptionRecord;
 use App\Modules\Platform\Models\Job;
 use App\Support\Contracts\ExceptionService;
 use App\Support\Contracts\RateService;
 use App\Support\Exceptions\RuleViolation;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
  * A6a: Operational event → matching charge rules → charge code → rate item → charge (with snapshots and a business
- * idempotency key). Missing rate → exception, never $0. POA → needs_review. A newer activity_version reverses the
+ * idempotency key). Missing rate → exception PLUS a needs_review row at $0 that stays out of the pool until priced (CR #132,
+ * audit 2026-09-22 FIN-03) — never a billable $0. POA → needs_review. A newer activity_version reverses the
  * older charges (cancel / redo produce reversals, never deletions). ERP_PLAN §6.4.
  *
  * Shared physical containers (拼柜 / LCL, CHANGE_REQUESTS #122): a rule with quantity_source `allocated` yields one charge
@@ -101,31 +104,59 @@ final class ChargeEngine
     {
         return DB::transaction(function () use ($code, $clientId, $jobId, $qty, $context, $activityId, $version, $source, $at, $snapshotExtra): ?Charge {
             $existing = Charge::query()->withoutGlobalScopes()->where('source_activity_id', $activityId)->where('charge_code_id', $code->id)->where('activity_version', $version)->first();
-            if ($existing !== null) {
+            if ($existing !== null && ! self::isUnpricedMissingRate($existing)) {
                 return $existing;
             }
+            // CR #132 (audit 2026-09-22 FIN-03): an unpriced missing-rate placeholder under this key is re-priced IN PLACE by a re-run of the
+            // same event version (the key is unique per version), so adding the rate and replaying the event heals it without a reversal.
 
-            $older = Charge::query()->withoutGlobalScopes()->where('source_activity_id', $activityId)->where('charge_code_id', $code->id)
-                ->where('activity_version', '<', $version)->where('status', '!=', 'reversed')->whereNull('reversal_of_charge_id')->get();
-            foreach ($older as $old) {
-                $this->reverse($old, "superseded by activity version {$version}");
+            if ($existing === null) {
+                $older = Charge::query()->withoutGlobalScopes()->where('source_activity_id', $activityId)->where('charge_code_id', $code->id)
+                    ->where('activity_version', '<', $version)->where('status', '!=', 'reversed')->whereNull('reversal_of_charge_id')->get();
+                foreach ($older as $old) {
+                    $this->reverse($old, "superseded by activity version {$version}");
+                }
             }
 
             $priced = $this->rates->price($clientId, $code->code, $qty, $context, $at);
 
             if ($priced['missing_rate']) {
                 if ($this->codeHasBandedItems($clientId, $code)) {
-                    return null; // a banded code (carton weight, zone, carrier) simply did not match this line — not a missing rate
+                    return $existing; // a banded code (carton weight, zone, carrier) simply did not match this line — not a missing rate
                 }
-                $this->exceptions->raise('missing_rate', 'billing', [
+                if ($existing !== null) {
+                    return $existing; // still no rate: the placeholder and its open exception stand, no second exception
+                }
+                $exceptionId = $this->exceptions->raise('missing_rate', 'billing', [
                     'job_id' => Job::query()->whereKey($jobId)->exists() ? $jobId : null, 'client_id' => $clientId, 'source_type' => $source['type'], 'source_id' => $source['id'],
                     'message' => __('billing.exceptions.missing_rate', ['code' => $code->code, 'qty' => $qty]),
                 ]);
 
-                return null;
+                // Never $0: the row exists so the quantity and its source are not lost, but it is needs_review (out of the unbilled pool and
+                // every invoice) until Finance prices it on the review page — which closes the exception — or the rate is added and the event re-run.
+                return Charge::query()->create([
+                    'job_id' => $jobId,
+                    'client_id' => $clientId,
+                    'charge_date' => ($at ?? now())->format('Y-m-d'),
+                    'charge_code_id' => $code->id,
+                    'rate_card_id' => null,
+                    'rate_card_version' => null,
+                    'rate_item_id' => null,
+                    'uom' => $priced['uom'] ?? $code->default_uom,
+                    'qty' => $priced['qty'],
+                    'rate_snapshot_cents' => null,
+                    'amount_cents' => 0,
+                    'calculation_snapshot_json' => $priced['calculation_snapshot'] + ['missing_rate' => true, 'suggested_cents' => self::suggestedCents($code, $context), 'exception_id' => $exceptionId] + $snapshotExtra,
+                    'tax_treatment' => $code->tax_treatment,
+                    'status' => 'needs_review',
+                    'source_type' => $source['type'],
+                    'source_id' => $source['id'],
+                    'source_activity_id' => $activityId,
+                    'activity_version' => $version,
+                ]);
             }
 
-            return Charge::query()->create([
+            $attributes = [
                 'job_id' => $jobId,
                 'client_id' => $clientId,
                 'charge_date' => ($at ?? now())->format('Y-m-d'),
@@ -144,8 +175,52 @@ final class ChargeEngine
                 'source_id' => $source['id'],
                 'source_activity_id' => $activityId,
                 'activity_version' => $version,
-            ]);
+            ];
+            if ($existing !== null) {
+                $exceptionId = (int) ($existing->calculation_snapshot_json['exception_id'] ?? 0);
+                $attributes['calculation_snapshot_json'] += ['repriced_from_missing_rate' => ['exception_id' => $exceptionId ?: null, 'at' => now()->toIso8601String()]];
+                $existing->update($attributes);
+                $this->resolveExceptionIfOpen($exceptionId, __('billing.exceptions.missing_rate_priced', ['code' => $code->code, 'amount' => Money::cents((int) $priced['amount_cents'])->format()]), null);
+
+                return $existing->fresh();
+            }
+
+            return Charge::query()->create($attributes);
         });
+    }
+
+    /** CR #132: a missing-rate row is a needs_review charge at $0 whose snapshot says so — until it is priced (status leaves needs_review). */
+    public static function isUnpricedMissingRate(Charge $charge): bool
+    {
+        return $charge->status === 'needs_review' && (bool) ($charge->calculation_snapshot_json['missing_rate'] ?? false);
+    }
+
+    /**
+     * What the review page pre-fills for a missing-rate row (CR #132): the customer freight price the shipment.quote_confirmed
+     * payload carries, and only for the freight line itself — a surcharge (TR-FUEL / TR-TAILGATE / TR-REMOTE) on the same event
+     * must not be suggested the whole freight. Every other event carries no customer price → null.
+     */
+    private static function suggestedCents(ChargeCode $code, array $context): ?int
+    {
+        if ($code->code !== 'TR-DELIVERY-BASE') {
+            return null;
+        }
+        $price = $context['customer_price_cents'] ?? $context['client_price_cents'] ?? $context['base_cents'] ?? null;
+
+        return $price !== null && (int) $price > 0 ? (int) $price : null;
+    }
+
+    /** Closes the missing_rate exception a placeholder was raised with, once the row is priced (by Finance or by a re-run) or superseded. */
+    private function resolveMissingRateException(Charge $charge, string $note, ?int $by): void
+    {
+        $this->resolveExceptionIfOpen((int) ($charge->calculation_snapshot_json['exception_id'] ?? 0), $note, $by);
+    }
+
+    private function resolveExceptionIfOpen(int $exceptionId, string $note, ?int $by): void
+    {
+        if ($exceptionId > 0 && ExceptionRecord::query()->withoutGlobalScopes()->whereKey($exceptionId)->where('status', '!=', 'resolved')->exists()) {
+            $this->exceptions->resolve($exceptionId, $by, $note);
+        }
     }
 
     /** A8b manual one-off charge: reason required; priced from the card unless an amount is given (FIN-5). */
@@ -173,6 +248,7 @@ final class ChargeEngine
             throw new RuleViolation('Only charges awaiting review can be priced by hand.', 'billing.charges.errors.review_only');
         }
         $charge->update(['amount_cents' => $amountCents, 'status' => 'approved', 'calculation_snapshot_json' => ($charge->calculation_snapshot_json ?? []) + ['reviewed' => ['amount_cents' => $amountCents, 'note' => $note, 'by' => auth()->id(), 'at' => now()->toIso8601String()]]]);
+        $this->resolveMissingRateException($charge, $note, auth()->id()); // CR #132: pricing a missing-rate row closes its exception
 
         return $charge->fresh();
     }
@@ -181,6 +257,14 @@ final class ChargeEngine
     public function reverse(Charge $charge, string $reason): ?Charge
     {
         if ($charge->status === 'reversed' || $charge->reversal_of_charge_id !== null) {
+            return null;
+        }
+        if (self::isUnpricedMissingRate($charge)) {
+            // CR #132: a $0 placeholder never entered the pool — superseding it needs no negative twin; it is marked reversed and its exception closed
+            // (the newer event version raises its own if the rate is still missing).
+            $charge->update(['status' => 'reversed', 'calculation_snapshot_json' => ($charge->calculation_snapshot_json ?? []) + ['reversal_reason' => $reason]]);
+            $this->resolveMissingRateException($charge, __('billing.exceptions.missing_rate_superseded', ['reason' => $reason]), auth()->id());
+
             return null;
         }
         // An uninvoiced original simply leaves the pool (its twin is an audit row); an invoiced one stays and its negative twin is billable.

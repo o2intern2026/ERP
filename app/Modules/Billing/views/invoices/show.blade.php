@@ -18,6 +18,24 @@
         <article>
             @if ($invoice->status === 'draft')
                 <p class="text-muted"><small>{{ __('billing.invoices.draft_hint') }}</small></p>
+                {{-- Audit 2026-09-22 FIN-03 (CR #132): unpriced revenue of the same Job / period is a warning above 开出发票, not a block. --}}
+                @if ($unpricedCharges->isNotEmpty() || $unpricedExceptions->isNotEmpty())
+                    <div class="erp-warning" role="alert" style="border:1px solid #d9822b;border-radius:.25rem;padding:.6rem .8rem;margin-bottom:.8rem">
+                        <strong>{{ __('billing.invoices.review_warning_title', ['n' => $unpricedCharges->count() + $unpricedExceptions->count()]) }}</strong>
+                        <ul style="margin:.3rem 0">
+                            @foreach ($unpricedCharges as $c)
+                                <li><small>{{ __('billing.invoices.review_item', ['id' => $c->id, 'code' => $c->chargeCode->code, 'qty' => rtrim(rtrim(number_format($c->qty, 3), '0'), '.'), 'job' => $c->job?->job_no ?? '—']) }} @if (\App\Modules\Billing\Services\ChargeEngine::isUnpricedMissingRate($c))<span class="badge" data-tone="danger">{{ __('billing.charges.missing_rate_badge') }}</span>@endif</small></li>
+                            @endforeach
+                            @foreach ($unpricedExceptions as $e)
+                                <li><small>{{ __('billing.invoices.exception_item', ['id' => $e->id, 'job' => $e->job?->job_no ?? '—', 'message' => $e->message]) }}</small></li>
+                            @endforeach
+                        </ul>
+                        <small class="text-muted">{{ __('billing.invoices.review_warning_hint') }}
+                            @if ($unpricedCharges->isNotEmpty())<a href="{{ route('billing.charges.review', ['client_id' => $invoice->client_id]) }}">{{ __('billing.invoices.review_link') }}</a>@endif
+                            @if ($unpricedExceptions->isNotEmpty())· <a href="{{ route('platform.exceptions.index', ['type' => 'missing_rate', 'client_id' => $invoice->client_id]) }}">{{ __('billing.invoices.exceptions_link') }}</a>@endif
+                        </small>
+                    </div>
+                @endif
                 <form method="post" action="{{ route('billing.invoices.issue', $invoice) }}">@csrf<button type="submit">{{ __('billing.invoices.issue') }}</button></form>
                 <form method="post" action="{{ route('billing.invoices.destroy', $invoice) }}">@csrf @method('DELETE')<button type="submit" class="secondary outline">{{ __('billing.invoices.discard') }}</button></form>
             @else
