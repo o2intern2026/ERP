@@ -80,6 +80,7 @@ final class OrderImportController extends Controller
         return view('orders::imports.show', [
             'import' => $import->load(['client', 'creator']),
             'attachedOrders' => $attachedIds === [] ? new Collection : Order::query()->with('lines')->whereKey($attachedIds)->orderBy('id')->get(),
+            'skippedRows' => $this->skippedRows($import), // CHANGE_REQUESTS #136: rows confirm will leave out → second confirmation
         ]);
     }
 
@@ -91,7 +92,13 @@ final class OrderImportController extends Controller
             'groups.*' => ['string', 'size:64'],
             'save_addresses' => ['nullable', 'array'],
             'save_addresses.*' => ['string', 'size:64'],
+            'skip_acknowledged' => ['nullable', 'boolean'],
         ]);
+        // CHANGE_REQUESTS #136 (audit PORTAL-05): rows the import will skip (not read, or a blocked / duplicate mark) need an explicit
+        // acknowledgement before anything is generated — never fewer orders or goods lines than the list holds without a second look.
+        if ($import->status === 'pending' && $this->skippedRows($import) > 0 && ! $request->boolean('skip_acknowledged')) {
+            return redirect()->route('orders.imports.show', $import)->withErrors(['skip_acknowledged' => __('orders.imports.errors.skip_unacknowledged')]);
+        }
 
         $import = $imports->confirm($import, $data['groups'] ?? [], $data['save_addresses'] ?? [], $request->user()?->id);
 
@@ -132,5 +139,19 @@ final class OrderImportController extends Controller
     private function authorizeImport(): void
     {
         RequiredRoles::requireAny(['admin', 'customer_service', 'dispatcher']);
+    }
+
+    /**
+     * CHANGE_REQUESTS #136: how many rows of the list confirm will NOT turn into an order — rows the parser refused plus every row of a
+     * blocked / duplicate / ASN-matched mark (the same count `result.failed_rows` records).
+     */
+    private function skippedRows(OrderImport $import): int
+    {
+        $audit = $import->errors ?? [];
+
+        return count(array_unique(array_merge(
+            array_column($audit['issues'] ?? [], 'row'),
+            collect($audit['groups'] ?? [])->whereIn('status', ['blocked', 'duplicate', 'asn_match'])->flatMap(fn ($group) => $group['row_numbers'] ?? [])->all(),
+        )));
     }
 }

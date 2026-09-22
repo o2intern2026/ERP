@@ -141,16 +141,22 @@ class PortalInboundImportTest extends TestCase
         $response = $this->actingAs($user)->get(route('portal.asns.imports.template'))->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
         $body = $response->getContent();
         $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-        $this->assertStringContainsString('唛头,中文品名,英文品名,包装类型,箱数,产品数量,实重(KG),长(CM),宽(CM),高(CM),收件人,电话,地址,城区,州,邮编,FBA参考号,要求送达日', $body);
+        // CHANGE_REQUESTS #136: the 地址类型 column sits in the consignee block, with FBA / 商业 / 住宅 sample rows.
+        $this->assertStringContainsString('唛头,中文品名,英文品名,包装类型,箱数,产品数量,实重(KG),长(CM),宽(CM),高(CM),收件人,电话,地址,城区,州,邮编,地址类型,FBA参考号,要求送达日,存储等级', $body);
         $this->assertStringContainsString('EDW-001', $body);
+        $this->assertStringContainsString(',2170,FBA,FBA15ABC123,', $body);
+        $this->assertStringContainsString(',3121,商业,,', $body);
+        $this->assertStringContainsString('EDW-003', $body);
+        $this->assertStringContainsString(',3128,住宅,,', $body);
         $this->actingAs($this->staff('customer_service'))->get(route('portal.asns.imports.template'))->assertForbidden();
 
-        // The template itself uploads cleanly: two marks, every sample field mapped.
+        // The template itself uploads cleanly: three marks, every sample field mapped, the address type per mark.
         $this->actingAs($user)->post(route('portal.asns.imports.store'), ['manifest' => UploadedFile::fake()->createWithContent('inbound-list-template.csv', $body)])->assertSessionHasNoErrors()->assertRedirect();
         $import = OrderImport::query()->sole();
         $this->assertSame([], $import->errors['issues']);
         $groups = collect($import->errors['groups'])->keyBy('consignment_mark');
-        $this->assertSame(['ready', 'ready'], $groups->pluck('status')->values()->all());
+        $this->assertSame(['ready', 'ready', 'ready'], $groups->pluck('status')->values()->all());
+        $this->assertSame(['fba', 'business', 'residential'], $groups->pluck('deliver_to_address_type')->values()->all());
         $this->assertSame(['Amazon FBA BWU2', '0400000000', 'Moorebank', 'NSW', '2170', 'FBA15ABC123', today()->addDays(14)->toDateString()], [
             $groups['EDW-001']['deliver_to_name'], $groups['EDW-001']['deliver_to_phone'], $groups['EDW-001']['deliver_to_suburb'], $groups['EDW-001']['deliver_to_state'], $groups['EDW-001']['deliver_to_postcode'], $groups['EDW-001']['fba_reference'], $groups['EDW-001']['requested_date'],
         ]);

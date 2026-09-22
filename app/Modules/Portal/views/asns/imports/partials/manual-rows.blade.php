@@ -13,7 +13,7 @@
     (function () {
         var body = document.getElementById('manual-rows');
         var template = document.getElementById('manual-row-template');
-        var consignee = ['deliver_to_name', 'deliver_to_phone', 'deliver_to_address', 'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'fba_reference', 'requested_date'];
+        var consignee = ['deliver_to_name', 'deliver_to_phone', 'deliver_to_address', 'deliver_to_suburb', 'deliver_to_state', 'deliver_to_postcode', 'deliver_to_address_type', 'fba_reference', 'requested_date'];
         function rows() { return Array.prototype.slice.call(body.querySelectorAll('.manual-row')); }
         function field(card, name) { return card.querySelector('[name$="[' + name + ']"]'); }
         function renumber() {

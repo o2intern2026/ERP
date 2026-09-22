@@ -379,6 +379,12 @@ return [
         'template' => '下载 CSV 模板',
         'template_hint' => '模板为 UTF-8（带 BOM），中文 Windows 的 Excel 可直接打开；表头可用中文或英文（收件人 / Consignee、邮编 / Postcode……），多余的列会被忽略。',
         'pitfalls' => '系统会自动处理常见的表格问题：GBK / UTF-16 编码、分号或制表符分隔、全角数字、被 Excel 去掉前导 0 的邮编（800 → 0800）和手机号、州的中英文全称、cm / mm 单位、单件重量 × 箱数。电话若已显示成 4.12E+08，请先把电话列设为文本再上传。',
+        // CHANGE_REQUESTS #136 (audit PORTAL-07): the optional 地址类型 column — a residential consignee on a list reaches the tailgate rule.
+        'address_type_hint' => '「地址类型」列可选：住宅 / 商业 / FBA。填“住宅”的收件人按尾板车规则处理（确认订单时自动标记需要尾板车，尾板费在最终报价确认时产生）；留空则按地址簿或 FBA 货件编号判断，其余视为商业地址。',
+        'address_types' => ['business' => '商业地址', 'residential' => '住宅地址', 'fba' => 'FBA 仓库'],
+        'residential_tailgate' => '住宅 · 按尾板车规则处理',
+        // CHANGE_REQUESTS #136 (audit PORTAL-05): rows confirm will skip need a second, explicit confirmation.
+        'skip_acknowledge' => '我已知道跳过的行不会生成订单',
         'fields' => [
             'file' => '清单文件（CSV / XLSX）',
             'container_no' => '柜号',
@@ -398,6 +404,7 @@ return [
             'suburb' => '城区',
             'state' => '州',
             'postcode' => '邮编',
+            'address_type' => '地址类型', // CHANGE_REQUESTS #136
             'fba' => 'FBA 货件编号',
             'goods' => '品名',
             'package_type' => '包装',
@@ -420,6 +427,7 @@ return [
         'actions' => [
             'upload' => '上传并预览',
             'confirm' => '确认提交',
+            'confirm_partial' => '只提交可生成的 :ready 张（跳过 :skipped 行）', // CHANGE_REQUESTS #136
             'reupload' => '重新上传',
             'back' => '返回预报入库',
             'list' => '已提交清单',
@@ -447,6 +455,7 @@ return [
         ],
         'errors' => [
             'unsupported_file' => '只支持 CSV 或 Excel (XLSX) 清单文件；旧版 XLS 请另存为 XLSX 或 CSV。',
+            'skip_unacknowledged' => '这份清单有未读入或已阻断的行：请先勾选“我已知道跳过的行不会生成订单”，再确认提交。', // CHANGE_REQUESTS #136
         ],
         // CHANGE_REQUESTS #128 手工建立入库清单: rows typed on the page, existing orders attached (以订单为准), drafts.
         'manual' => [
@@ -475,10 +484,12 @@ return [
                 'deliver_to_suburb' => '城区',
                 'deliver_to_state' => '州',
                 'deliver_to_postcode' => '邮编',
+                'deliver_to_address_type' => '地址类型', // CHANGE_REQUESTS #136
                 'fba_reference' => 'FBA 参考号',
                 'storage_tier' => '存储等级',
                 'requested_date' => '要求送达日（可选）',
             ],
+            'address_type_auto' => '自动判断（有 FBA 号为 FBA 仓库，其余商业）', // CHANGE_REQUESTS #136: the empty option of the per-row select
             // Lead feedback 2026-09-17: one card per goods line, grouped fields.
             'row_title' => '第 :n 行',
             'row_hint' => '唛头、收件人、电话、地址、城区、州、邮编必填',

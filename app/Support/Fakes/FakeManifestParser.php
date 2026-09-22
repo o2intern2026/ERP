@@ -16,6 +16,7 @@ final class FakeManifestParser implements ManifestParser
             'deliver_to_address' => '1 Warehouse Rd, Moorebank',
             'deliver_to_state' => 'NSW',
             'deliver_to_postcode' => '2170',
+            'deliver_to_address_type' => null, // CHANGE_REQUESTS #136: no 地址类型 column → the caller's default
             'fba_reference' => 'FBA15FAKE01',
             'hs_code' => null, 'material' => null, 'usage' => null, 'brand' => null,
             'unit_price_cents' => 1000, 'unit_qty' => 10,

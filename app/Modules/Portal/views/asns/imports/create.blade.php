@@ -26,6 +26,7 @@
             <p class="text-muted"><small>{{ implode(' · ', $templateHeaders) }}</small></p>
             <p class="text-muted"><small>{{ __('portal.inbound.defaults_hint') }}</small></p>
             <p class="text-muted"><small>{{ __('portal.inbound.storage_tier_hint') }}</small></p>
+            <p class="text-muted"><small>{{ __('portal.inbound.address_type_hint') }}</small></p>{{-- CHANGE_REQUESTS #136 --}}
             <p class="text-muted"><small>{{ __('portal.inbound.pitfalls') }}</small></p>
         </article>
 

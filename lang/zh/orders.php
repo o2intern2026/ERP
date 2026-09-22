@@ -131,6 +131,8 @@ return [
             'new' => '新建导入',
             'preview' => '上传并预览',
             'confirm' => '确认生成订单',
+            'confirm_partial' => '只生成可生成的 :ready 张（跳过 :skipped 行）', // CHANGE_REQUESTS #136: some rows of the list will not become orders
+            'skip_acknowledge' => '我已知道跳过的行不会生成订单',
             'back' => '返回导入记录',
             'download_errors' => '下载错误行 CSV',
             'save_address' => '保存到地址簿',
@@ -176,6 +178,7 @@ return [
             'deliver_to_suburb' => '城区',
             'deliver_to_state' => '州',
             'deliver_to_postcode' => '邮编',
+            'deliver_to_address_type' => '地址类型', // CHANGE_REQUESTS #136
             'fba_reference' => 'FBA 货件编号',
             'external_ref' => '客户参考号',
             'requested_date' => '要求送达日',
@@ -229,6 +232,10 @@ return [
             'invalid_date' => '第 :row 行「:field」不是有效日期（现为“:value”）；请用 2026-10-01 这样的格式。',
             'invalid_service_level' => '第 :row 行「:field」无法识别（现为“:value”）；请填 标准 / 加急 / 当日送达。',
             'invalid_storage_tier' => '第 :row 行「:field」无法识别（现为“:value”）；请填 标准 或 底层，或留空。',
+            // CHANGE_REQUESTS #136 (audit PORTAL-05 / PORTAL-07)
+            'invalid_address_type' => '第 :row 行「:field」无法识别（现为“:value”）；请填 住宅 / 商业 / FBA，或留空。',
+            'rows_not_read' => '唛头 :mark 的第 :rows 行未读入，本组已阻断（否则订单会缺这几行货物）；请修正后整份重新上传。',
+            'skip_unacknowledged' => '这次导入会跳过有错误或已阻断的行：请先勾选“我已知道跳过的行不会生成订单”，再确认。',
             'inconsistent_group' => '唛头 :mark 下的收件地址或 FBA 货件编号不一致，已阻断，请人工修正。',
             'matching_asn' => '唛头 :mark 已存在于所选 Job 的 ASN，请从 ASN 生成订单，避免重复导入。',
             'duplicate_order' => '唛头 :mark 已有相同订单，本组未重复生成。',
