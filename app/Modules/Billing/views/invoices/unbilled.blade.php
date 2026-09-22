@@ -54,7 +54,14 @@
                             </td>
                             <td>
                                 @if ($row['service_count'] > 0)
-                                    <form method="post" action="{{ route('billing.invoices.draft_job', $row['job']) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('billing.unbilled.draft_job') }}</button></form>
+                                    {{-- Audit 2026-09-22 FIN-10 (CR #140): a Job that already sits on an open draft is not drafted a second time — its new charges join that draft. --}}
+                                    @if ($draft = $draftsByJob[$row['job']->id] ?? null)
+                                        <a href="{{ route('billing.invoices.show', $draft) }}">{{ __('billing.unbilled.has_draft', ['no' => $draft->invoice_no, 'amount' => \App\Support\Money::cents((int) $draft->total_cents)->format()]) }}</a>
+                                        <form method="post" action="{{ route('billing.invoices.append_job', [$draft, $row['job']]) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('billing.unbilled.append_to_draft') }}</button></form>
+                                        <br><small class="text-muted">{{ __('billing.unbilled.has_draft_hint') }}</small>
+                                    @else
+                                        <form method="post" action="{{ route('billing.invoices.draft_job', $row['job']) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('billing.unbilled.draft_job') }}</button></form>
+                                    @endif
                                 @else
                                     <small class="text-muted">{{ __('billing.unbilled.storage_only') }}</small>
                                 @endif

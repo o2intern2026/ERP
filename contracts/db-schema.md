@@ -108,7 +108,7 @@ Not tables: **holds** = `exceptions` rows with `type = hold`; **order_documents*
 | `invoice_lines` | id, invoice_id, charge_id, job_id, order_id (nullable, resolved from the charge source, 2026-09-08), charge_code, description, qty, uom, amount_cents, tax_treatment, gst_cents |
 | `credit_notes` | id, credit_note_no (unique), invoice_id, job_id, client_id, reason, amount_cents, gst_cents, status, created_by, approved_by, issued_at, timestamps |
 | `credit_note_lines` | id, credit_note_id, invoice_line_id, charge_id, description, amount_cents, gst_cents |
-| `payments` | id, invoice_id, amount_cents, paid_at, method, reference, recorded_by, created_at |
+| `payments` | id, invoice_id, amount_cents (negative on a void row), paid_at, method, reference, note (the void reason), recorded_by, void_of_payment_id (nullable → payments: set on the offsetting row 作废收款 writes; rows are never deleted — CHANGE_REQUESTS #140), created_at |
 | `customer_quotes` | id, quote_no (unique), job_id, client_id, order_id (nullable), stage, valid_until, status, subtotal_cents, gst_cents, total_cents, notes, created_by, timestamps (FIN-6 & OMS-3; X1's A7b reads/creates through RateService + Billing's quote service, `CHANGE_REQUESTS.md` #10) |
 | `customer_quote_lines` | id, customer_quote_id, charge_code, qty, uom, amount_cents, transport_quote_id (nullable), assumptions (json) |
 

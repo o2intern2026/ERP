@@ -8,16 +8,22 @@
         <h1>{{ $invoice->invoice_no }} <span class="badge" data-tone="{{ ['draft' => 'muted', 'issued' => 'warn', 'part_paid' => 'warn', 'paid' => 'ok', 'void' => 'muted'][$invoice->status] }}">{{ __('billing.invoices.statuses.'.$invoice->status) }}</span> @if ($invoice->is_overdue)<span class="badge" data-tone="danger">{{ __('billing.invoices.overdue') }}</span>@endif</h1>
         <p>{{ __('billing.invoices.types.'.$invoice->invoice_type) }} · {{ $invoice->client->name }} · {{ __('billing.invoices.jobs') }}: {{ $invoice->jobs->pluck('job_no')->implode(', ') }} @if ($invoice->period_from)· {{ __('billing.invoices.period') }} {{ $invoice->period_from->format('Y-m-d') }} → {{ $invoice->period_to?->format('Y-m-d') }}@endif</p>
     </header>
+    @php($outstanding = $invoice->outstandingCents())
     <div class="grid">
         <article><header>{{ __('billing.invoices.bill_to') }}</header>{{ $invoice->bill_to_name }}<br>{{ $invoice->bill_to_address }}<br>@if ($invoice->bill_to_abn) ABN {{ $invoice->bill_to_abn }} @endif</article>
         <article><header>{{ __('billing.invoices.total') }}</header>
             {{ __('billing.invoices.subtotal') }}: {{ \App\Support\Money::cents((int) round($invoice->subtotal_cents))->format() }}<br>{{ __('billing.invoices.gst') }}: {{ \App\Support\Money::cents((int) round($invoice->gst_cents))->format() }}<br><strong>{{ __('billing.invoices.total') }}: {{ \App\Support\Money::cents((int) round($invoice->total_cents))->format() }} {{ __('billing.money') }}</strong><br>
-            {{ __('billing.invoices.paid') }}: {{ \App\Support\Money::cents((int) round($invoice->paid_amount_cents))->format() }} · {{ __('billing.invoices.outstanding') }}: <strong>{{ \App\Support\Money::cents((int) round($invoice->outstandingCents()))->format() }}</strong><br>
+            {{ __('billing.invoices.paid') }}: {{ \App\Support\Money::cents((int) round($invoice->paid_amount_cents))->format() }} · {{ __('billing.invoices.outstanding') }}: <strong>{{ \App\Support\Money::cents((int) round($outstanding))->format() }}</strong><br>
             {{ __('billing.invoices.issued_at') }}: {{ $invoice->issued_at?->format('Y-m-d') ?? '—' }} · {{ __('billing.invoices.due_at') }}: {{ $invoice->due_at?->format('Y-m-d') ?? '—' }}
         </article>
         <article>
             @if ($invoice->status === 'draft')
                 <p class="text-muted"><small>{{ __('billing.invoices.draft_hint') }}</small></p>
+                {{-- Audit 2026-09-22 FIN-10 (CR #140): the Job's charges that arrived after this draft was made stay in the pool — list them with 并入本草稿. --}}
+                @foreach ($newCharges as $row)
+                    <p><small>{{ __('billing.invoices.new_charges_for_job', ['job' => $row['job']?->job_no ?? '—', 'n' => $row['count'], 'amount' => \App\Support\Money::cents($row['amount_cents'])->format()]) }}</small>
+                        @if ($row['job'])<form method="post" action="{{ route('billing.invoices.append_job', [$invoice, $row['job']]) }}" class="inline">@csrf<button type="submit" class="secondary outline">{{ __('billing.invoices.append_to_draft') }}</button></form>@endif</p>
+                @endforeach
                 {{-- Audit 2026-09-22 FIN-03 (CR #132): unpriced revenue of the same Job / period is a warning above 开出发票, not a block. --}}
                 @if ($unpricedCharges->isNotEmpty() || $unpricedExceptions->isNotEmpty())
                     <div class="erp-warning" role="alert" style="border:1px solid #d9822b;border-radius:.25rem;padding:.6rem .8rem;margin-bottom:.8rem">
@@ -40,11 +46,13 @@
                 <form method="post" action="{{ route('billing.invoices.destroy', $invoice) }}">@csrf @method('DELETE')<button type="submit" class="secondary outline">{{ __('billing.invoices.discard') }}</button></form>
             @else
                 <p><a role="button" class="secondary" href="{{ route('billing.invoices.pdf', $invoice) }}" target="_blank">{{ __('billing.invoices.pdf') }}</a></p>
-                @if (in_array($invoice->status, ['issued', 'part_paid']))
+                @if (in_array($invoice->status, ['issued', 'part_paid']) && $outstanding > 0)
+                    {{-- Audit 2026-09-22 FIN-13 (CR #140): the amount is pre-filled with the balance and capped at it (the service refuses more). --}}
                     <form method="post" action="{{ route('billing.invoices.payments.store', $invoice) }}">
                         @csrf
-                        <div class="grid"><input type="number" step="0.01" min="0.01" name="amount" placeholder="{{ __('billing.invoices.payment_amount') }}" required><x-date-field name="paid_at" value="{{ today()->toDateString() }}" required /></div>
+                        <div class="grid"><input type="number" step="0.01" min="0.01" max="{{ number_format($outstanding / 100, 2, '.', '') }}" name="amount" value="{{ old('amount', number_format($outstanding / 100, 2, '.', '')) }}" placeholder="{{ __('billing.invoices.payment_amount') }}" aria-label="{{ __('billing.invoices.payment_amount') }}" required><x-date-field name="paid_at" value="{{ today()->toDateString() }}" required /></div>
                         <div class="grid"><select name="method">@foreach (['bank', 'card', 'cash', 'other'] as $m)<option value="{{ $m }}">{{ __('billing.invoices.methods.'.$m) }}</option>@endforeach</select><input type="text" name="reference" placeholder="{{ __('billing.invoices.reference') }}"></div>
+                        <small class="text-muted">{{ __('billing.invoices.payment_amount_hint') }}</small>
                         <button type="submit" class="secondary">{{ __('billing.invoices.record_payment') }}</button>
                     </form>
                 @endif
@@ -70,7 +78,31 @@
         <div class="grid">
             <article>
                 <header>{{ __('billing.invoices.payments') }}</header>
-                @forelse ($invoice->payments as $p)<p>{{ $p->paid_at->format('Y-m-d') }} · {{ __('billing.invoices.methods.'.$p->method) }} · {{ $p->reference }} · <strong>{{ \App\Support\Money::cents((int) round($p->amount_cents))->format() }}</strong></p>@empty<p class="text-muted">—</p>@endforelse
+                @if ($invoice->payments->isEmpty())
+                    <p class="text-muted">—</p>
+                @else
+                    {{-- Audit 2026-09-22 FIN-13 (CR #140): every row stays; 作废收款 adds a negative twin (作废 #id · reason) and the original shows 已作废. --}}
+                    <table class="dense">
+                        <thead><tr><th>{{ __('billing.invoices.paid_at') }}</th><th>{{ __('billing.invoices.method') }}</th><th>{{ __('billing.invoices.reference') }}</th><th class="num">{{ __('billing.invoices.payment_amount') }}</th><th>{{ __('platform.common.actions') }}</th></tr></thead>
+                        <tbody>
+                        @foreach ($invoice->payments->sortBy('id') as $p)
+                            <tr>
+                                <td>{{ $p->paid_at->format('Y-m-d') }}<br><small class="text-muted">#{{ $p->id }}</small></td>
+                                <td>{{ __('billing.invoices.methods.'.$p->method) }}</td>
+                                <td>{{ $p->reference }}@if ($p->isVoidRow())<br><small class="text-muted">{{ __('billing.invoices.void_of', ['id' => $p->void_of_payment_id]) }} · {{ $p->note }}</small>@endif</td>
+                                <td class="num"><strong>{{ \App\Support\Money::cents((int) round($p->amount_cents))->format() }}</strong></td>
+                                <td>
+                                    @if ($p->voidedBy)
+                                        <span class="badge" data-tone="muted">{{ __('billing.invoices.voided_badge') }}</span>
+                                    @elseif (! $p->isVoidRow())
+                                        <form method="post" action="{{ route('billing.payments.void', $p) }}" class="inline">@csrf<input type="text" name="reason" placeholder="{{ __('billing.invoices.void_reason') }}" style="width:10rem" required><button type="submit" class="secondary outline">{{ __('billing.invoices.void_payment') }}</button></form>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                @endif
             </article>
             <article>
                 <header>{{ __('billing.credit_notes.title') }}</header>
@@ -83,14 +115,17 @@
                         @else<span class="badge" data-tone="warn">{{ __('billing.credit_notes.statuses.draft') }}</span> <small><a href="{{ route('platform.approvals.index', ['type' => 'credit_note']) }}">{{ in_array($n->id, $creditNotePending, true) ? __('billing.credit_notes.pending_hint') : __('billing.credit_notes.no_approval_hint') }}</a></small>@endif
                         @if ($n->status !== 'issued')<form method="post" action="{{ route('billing.credit_notes.issue', $n) }}" class="inline">@csrf<button type="submit" class="secondary outline" @disabled(! $approved)>{{ __('billing.credit_notes.issue') }}</button></form>@endif</p>
                 @endforeach
-                {{-- The form reopens with what was typed after a refusal (audit 2026-09-10). --}}
-                <details{{ $errors->has('reason') || $errors->has('lines') || $errors->has('lines.*') ? ' open' : '' }}>
+                {{-- The form reopens with what was typed after a refusal (audit 2026-09-10); 去开冲减单 from the charges list opens it with that line's remaining amount filled in (FIN-16, CR #140). --}}
+                <span id="credit-note"></span>
+                <details{{ $errors->has('reason') || $errors->has('lines') || $errors->has('lines.*') || $creditLine ? ' open' : '' }}>
                     <summary>{{ __('billing.credit_notes.new') }}</summary>
+                    @if ($creditLine)<p class="text-muted"><small>{{ __('billing.credit_notes.preselected_hint') }}</small></p>@endif
                     <form method="post" action="{{ route('billing.invoices.credit_notes.store', $invoice) }}">
                         @csrf
                         <input type="text" name="reason" placeholder="{{ __('billing.credit_notes.reason') }}" value="{{ old('reason') }}" required>
                         @foreach ($invoice->lines as $i => $l)
-                            <div class="grid"><span>{{ $l->charge_code }} · {{ $l->description }} ({{ \App\Support\Money::cents((int) round($l->amount_cents))->format() }})</span><input type="hidden" name="lines[{{ $i }}][invoice_line_id]" value="{{ $l->id }}"><input type="number" step="0.01" min="0" max="{{ $l->amount_cents / 100 }}" name="lines[{{ $i }}][amount]" placeholder="{{ __('billing.credit_notes.line_amount') }}" value="{{ old("lines.$i.amount") }}"></div>
+                            @php($remaining = max(0, (int) $l->amount_cents - (int) ($creditedByLine[$l->id] ?? 0)))
+                            <div class="grid"><span>{{ $l->charge_code }} · {{ $l->description }} ({{ \App\Support\Money::cents((int) round($l->amount_cents))->format() }}) <small class="text-muted">{{ __('billing.credit_notes.remaining', ['amount' => \App\Support\Money::cents($remaining)->format()]) }}</small></span><input type="hidden" name="lines[{{ $i }}][invoice_line_id]" value="{{ $l->id }}"><input type="number" step="0.01" min="0" max="{{ number_format($remaining / 100, 2, '.', '') }}" name="lines[{{ $i }}][amount]" placeholder="{{ __('billing.credit_notes.line_amount') }}" value="{{ old("lines.$i.amount", $creditLine === (int) $l->id && $remaining > 0 ? number_format($remaining / 100, 2, '.', '') : '') }}"@if ($creditLine === (int) $l->id) autofocus data-preselected="1"@endif></div>
                         @endforeach
                         <button type="submit" class="secondary">{{ __('billing.credit_notes.new') }}</button>
                     </form>

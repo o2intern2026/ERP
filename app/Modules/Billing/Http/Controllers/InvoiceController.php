@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Billing\Models\Charge;
 use App\Modules\Billing\Models\CreditNote;
 use App\Modules\Billing\Models\Invoice;
+use App\Modules\Billing\Models\Payment;
 use App\Modules\Billing\Services\CreditNoteService;
 use App\Modules\Billing\Services\InvoiceService;
 use App\Modules\MasterData\Models\Client;
@@ -54,7 +55,28 @@ class InvoiceController extends Controller
             'pool' => $pool, 'reviewCount' => (int) $reviewByClient->sum(), 'missingRateCount' => (int) $missingByClient->sum(),
             'reviewByClient' => $reviewByClient, 'missingByClient' => $missingByClient,
             'attentionClients' => Client::query()->whereIn('id', $attentionIds)->orderBy('name')->get(['id', 'name']),
+            'draftsByJob' => $this->openDraftsByJob(),
         ]);
+    }
+
+    /**
+     * Audit 2026-09-22 FIN-10 (CR #140): the open (non-storage) draft each Job already sits on, so the pool offers 并入该草稿 instead of a
+     * second 按此 Job 开票 fragment. A per-Job draft (no period) wins over a period draft; otherwise the newest.
+     *
+     * @return array<int, Invoice> job id → draft
+     */
+    private function openDraftsByJob(): array
+    {
+        $byJob = [];
+        foreach (Invoice::query()->with('jobs:jobs.id')->where('status', 'draft')->where('invoice_type', '!=', 'storage')->orderByDesc('id')->get() as $draft) {
+            foreach ($draft->jobs as $job) {
+                if (! isset($byJob[$job->id]) || ($draft->period_from === null && $byJob[$job->id]->period_from !== null)) {
+                    $byJob[$job->id] = $draft;
+                }
+            }
+        }
+
+        return $byJob;
     }
 
     public function index(Request $request): View
@@ -97,19 +119,37 @@ class InvoiceController extends Controller
         return $this->tryDraft(fn () => $invoices->draftStorageWeek((int) $data['client_id'], Carbon::parse($data['week'])));
     }
 
-    public function show(Invoice $invoice, InvoiceService $invoices, ApprovalService $approvals): View
+    public function show(Request $request, Invoice $invoice, InvoiceService $invoices, ApprovalService $approvals): View
     {
-        $invoice->load(['client', 'lines.charge.chargeCode', 'jobs', 'payments', 'creditNotes.lines']);
+        $invoice->load(['client', 'lines.charge.chargeCode', 'jobs', 'payments.voidedBy', 'creditNotes.lines']);
         // Audit 2026-09-10: the 开出 button is gated on the second person's approval, so the page shows that state (same pattern as RateCardController::show).
         $noteIds = $invoice->creditNotes->pluck('id');
         $pending = Approval::query()->where('type', 'credit_note')->where('subject_type', 'credit_note')->whereIn('subject_id', $noteIds)->where('status', 'pending')->pluck('subject_id')->all();
+        // Audit 2026-09-22 FIN-16 (CR #140): the charges list sends 去开冲减单 here with ?credit_line= — the form opens with that line's remaining amount filled in.
+        $creditLine = (int) $request->query('credit_line', 0);
 
         return view('billing::invoices.show', [
             'invoice' => $invoice,
             'groups' => $invoices->groupedLines($invoice),
             'creditNoteApproved' => $noteIds->mapWithKeys(fn ($id) => [$id => $approvals->isApproved('credit_note', 'credit_note', $id)])->all(),
             'creditNotePending' => $pending,
+            'creditedByLine' => $invoice->status === 'draft' ? [] : $this->creditedByLine($invoice),
+            'creditLine' => $invoice->lines->contains('id', $creditLine) ? $creditLine : 0,
+            'newCharges' => $invoice->status === 'draft' && $invoice->invoice_type !== 'storage' ? $this->newChargesByJob($invoice) : collect(),
         ] + ($invoice->status === 'draft' ? $this->unpricedFor($invoice) : ['unpricedCharges' => collect(), 'unpricedExceptions' => collect()]));
+    }
+
+    /**
+     * Audit 2026-09-22 FIN-10 (CR #140): service charges of this draft's Job(s) that arrived after the draft was made and still sit in the
+     * pool — the page lists them per Job with 并入本草稿 (InvoiceService::appendJobCharges).
+     *
+     * @return Collection<int, array{job: Job, count: int, amount_cents: int}> keyed by job id
+     */
+    private function newChargesByJob(Invoice $invoice): Collection
+    {
+        return Charge::query()->with('job')->whereIn('status', ['pending', 'approved'])->whereNull('invoice_line_id')->whereIn('job_id', $invoice->jobs->pluck('id'))
+            ->whereHas('chargeCode', fn ($q) => $q->where('category', '!=', 'storage'))->get()->groupBy('job_id')
+            ->map(fn (Collection $group) => ['job' => $group->first()->job, 'count' => $group->count(), 'amount_cents' => (int) $group->sum('amount_cents')]);
     }
 
     /**
@@ -174,6 +214,31 @@ class InvoiceController extends Controller
         return back()->with('status', __('billing.invoices.payment_recorded'));
     }
 
+    /** 作废收款 (audit 2026-09-22 FIN-13, CR #140): reason required; an offsetting negative row, never a delete. */
+    public function voidPayment(Request $request, Payment $payment, InvoiceService $invoices): RedirectResponse
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'max:255']]);
+        try {
+            $invoices->voidPayment($payment, $data['reason'], $request->user()->id);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['payment' => RuleViolation::display($e)]);
+        }
+
+        return back()->with('status', __('billing.invoices.payment_voided', ['id' => $payment->id]));
+    }
+
+    /** 并入该草稿 / 并入本草稿 (audit 2026-09-22 FIN-10, CR #140): the Job's new service charges join the existing draft instead of a second invoice. */
+    public function appendJob(Invoice $invoice, Job $job, InvoiceService $invoices): RedirectResponse
+    {
+        try {
+            $added = $invoices->appendJobCharges($invoice, $job->id);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['invoice' => RuleViolation::display($e)]);
+        }
+
+        return redirect()->route('billing.invoices.show', $invoice)->with('status', __('billing.invoices.appended', ['n' => $added, 'no' => $invoice->invoice_no]));
+    }
+
     public function creditNote(Request $request, Invoice $invoice, CreditNoteService $creditNotes): RedirectResponse
     {
         $data = $request->validate(['reason' => ['required', 'string', 'max:255'], 'lines' => ['required', 'array', 'min:1'], 'lines.*.invoice_line_id' => ['nullable', 'integer'], 'lines.*.amount' => ['nullable', 'numeric', 'min:0']]);
@@ -211,9 +276,7 @@ class InvoiceController extends Controller
     private function creditCapError(Invoice $invoice, array $lines): ?string
     {
         $invoiceLines = $invoice->lines()->get()->keyBy('id');
-        $credited = DB::table('credit_note_lines')->join('credit_notes', 'credit_notes.id', '=', 'credit_note_lines.credit_note_id')
-            ->whereIn('credit_note_lines.invoice_line_id', $invoiceLines->keys())->where('credit_notes.status', '!=', 'cancelled')
-            ->selectRaw('credit_note_lines.invoice_line_id, SUM(credit_note_lines.amount_cents) as credited')->groupBy('credit_note_lines.invoice_line_id')->pluck('credited', 'invoice_line_id');
+        $credited = $this->creditedByLine($invoice);
         $requested = collect($lines)->filter(fn ($l) => $l['invoice_line_id'] !== null && isset($invoiceLines[(int) $l['invoice_line_id']]))->groupBy('invoice_line_id')->map(fn ($g) => (int) $g->sum('amount_cents'));
         foreach ($requested as $lineId => $amount) {
             $line = $invoiceLines[(int) $lineId];
@@ -224,6 +287,20 @@ class InvoiceController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Ex-GST cents already credited per invoice line by every draft / issued credit note (the cap for a new line, and what the credit-note
+     * form pre-fills as the remaining amount — FIN-16).
+     *
+     * @return array<int, int> invoice line id → credited cents
+     */
+    private function creditedByLine(Invoice $invoice): array
+    {
+        return DB::table('credit_note_lines')->join('credit_notes', 'credit_notes.id', '=', 'credit_note_lines.credit_note_id')
+            ->whereIn('credit_note_lines.invoice_line_id', $invoice->lines()->pluck('id'))->where('credit_notes.status', '!=', 'cancelled')
+            ->selectRaw('credit_note_lines.invoice_line_id, SUM(credit_note_lines.amount_cents) as credited')->groupBy('credit_note_lines.invoice_line_id')
+            ->pluck('credited', 'invoice_line_id')->map(fn ($v) => (int) $v)->all();
     }
 
     private function tryDraft(callable $draft): RedirectResponse

@@ -42,15 +42,20 @@ class RateCardController extends Controller
         return redirect()->route('billing.rate_cards.show', $card)->with('status', __('billing.rate_cards.created'));
     }
 
-    public function show(RateCard $card): View
+    public function show(RateCard $card, RateCardService $service): View
     {
+        $card->load(['client', 'items.chargeCode']);
+
         return view('billing::rate_cards.show', [
-            'card' => $card->load(['client', 'items.chargeCode']),
+            'card' => $card,
             'codes' => ChargeCode::query()->where('active', true)->orderBy('code')->get(),
             'palletClasses' => Enums::PALLET_CLASSES, 'pricingModes' => Enums::PRICING_MODES,
             'warehouses' => DB::table('warehouses')->orderBy('code')->pluck('code', 'id'), // #126: a rate item may apply to one warehouse
             'approved' => app(ApprovalService::class)->isApproved('rate_card_change', 'rate_card', $card->id),
             'pendingApproval' => Approval::query()->where('type', 'rate_card_change')->where('subject_type', 'rate_card')->where('subject_id', $card->id)->where('status', 'pending')->exists(),
+            // Audit 2026-09-22 FIN-08 (CR #140): a submitted draft is frozen (no edit forms), and a draft shows what it changes against the previous version.
+            'locked' => $card->status === 'draft' && $service->lockedForApproval($card),
+            'diff' => $card->status === 'draft' ? $service->diffAgainstPrevious($card) : null,
         ]);
     }
 

@@ -44,6 +44,12 @@ class Charge extends Model
         return $this->belongsTo(RateItem::class);
     }
 
+    /** The invoice line this charge sits on — a draft's line (status still pending / approved) or an issued invoice's (status invoiced). Audit 2026-09-22 FIN-10. */
+    public function invoiceLine(): BelongsTo
+    {
+        return $this->belongsTo(InvoiceLine::class);
+    }
+
     public function isBillable(): bool
     {
         return in_array($this->status, ['pending', 'approved'], true);

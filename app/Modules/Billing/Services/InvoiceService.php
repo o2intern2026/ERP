@@ -10,6 +10,8 @@ use App\Modules\Billing\Models\Payment;
 use App\Modules\MasterData\Models\Client;
 use App\Support\Contracts\DocumentService;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
+use App\Support\Money;
 use App\Support\Numbers;
 use App\Support\Outbox\OutboxPublisher;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -176,14 +178,86 @@ final class InvoiceService
         if ($amountCents <= 0) {
             throw new InvalidArgumentException(__('billing.errors.payment_positive'));
         }
+        // Audit 2026-09-22 FIN-13 (CR #140): 7561.40 typed for 756.14 used to flip the invoice to 已收款 with no way back — an over-payment is refused.
+        $outstanding = $invoice->outstandingCents();
+        if ($amountCents > $outstanding) {
+            throw new RuleViolation('Payment exceeds the outstanding balance.', 'billing.errors.payment_exceeds_outstanding', ['amount' => Money::cents($amountCents)->format(), 'outstanding' => Money::cents($outstanding)->format()]);
+        }
 
         return DB::transaction(function () use ($invoice, $amountCents, $paidAt, $method, $reference): Payment {
             $payment = Payment::query()->create(['invoice_id' => $invoice->id, 'amount_cents' => $amountCents, 'paid_at' => $paidAt->toDateString(), 'method' => $method, 'reference' => $reference, 'recorded_by' => auth()->id(), 'created_at' => now()]);
-            $paid = $invoice->paid_amount_cents + $amountCents;
-            $settled = $paid >= $invoice->total_cents - $invoice->creditedCents(); // credit notes count with their GST (audit 2026-09-22 FIN-02)
-            $invoice->update(['paid_amount_cents' => $paid, 'status' => $settled ? 'paid' : 'part_paid', 'paid_at' => $settled ? now() : null, 'is_overdue' => $settled ? false : $invoice->is_overdue]);
+            $this->applyPaymentTotals($invoice);
 
             return $payment;
+        });
+    }
+
+    /**
+     * 作废收款 (audit 2026-09-22 FIN-13, CR #140): a wrong receipt is never deleted — an offsetting negative row is written with the
+     * reason and a pointer to the voided payment, and the invoice's paid amount / status / overdue flag are recomputed from every row.
+     * A void row cannot be voided, and a payment only once.
+     */
+    public function voidPayment(Payment $payment, string $reason, ?int $by = null): Payment
+    {
+        if ($payment->isVoidRow()) {
+            throw new RuleViolation('A void row cannot be voided.', 'billing.errors.payment_void_row', ['id' => $payment->id]);
+        }
+        if ($payment->voidedBy()->exists()) {
+            throw new RuleViolation("Payment #{$payment->id} is already voided.", 'billing.errors.payment_already_voided', ['id' => $payment->id]);
+        }
+
+        return DB::transaction(function () use ($payment, $reason, $by): Payment {
+            $invoice = Invoice::query()->withoutGlobalScopes()->findOrFail($payment->invoice_id);
+            $twin = Payment::query()->create([
+                'invoice_id' => $invoice->id, 'amount_cents' => -$payment->amount_cents, 'paid_at' => today()->toDateString(), 'method' => $payment->method,
+                'reference' => $payment->reference, 'note' => $reason, 'recorded_by' => $by ?? auth()->id(), 'void_of_payment_id' => $payment->id, 'created_at' => now(),
+            ]);
+            $this->applyPaymentTotals($invoice);
+
+            return $twin;
+        });
+    }
+
+    /** paid_amount = Σ payments (void rows are negative); settled when it covers total − issued credit notes (GST-inclusive, FIN-02); overdue only while unsettled and past due. */
+    private function applyPaymentTotals(Invoice $invoice): void
+    {
+        $paid = (int) $invoice->payments()->sum('amount_cents');
+        $settled = $paid >= $invoice->total_cents - $invoice->creditedCents();
+        $invoice->update([
+            'paid_amount_cents' => $paid,
+            'status' => $settled ? 'paid' : ($paid > 0 ? 'part_paid' : 'issued'),
+            'paid_at' => $settled ? now() : null,
+            'is_overdue' => ! $settled && $invoice->due_at !== null && $invoice->due_at->lt(today()),
+        ]);
+    }
+
+    /**
+     * 并入该草稿 (audit 2026-09-22 FIN-10, CR #140): a draft is a snapshot of the charges that existed when it was made, so a Job's later
+     * charges stayed in the pool and 按此 Job 开票 produced a second fragment. This adds the Job's unbilled service charges (never storage —
+     * that is the weekly storage invoice) to an existing draft of the same client and recomputes its totals. Returns the lines added.
+     */
+    public function appendJobCharges(Invoice $invoice, int $jobId): int
+    {
+        if ($invoice->status !== 'draft') {
+            throw new RuleViolation('Only a draft takes new lines.', 'billing.errors.only_drafts_append', ['no' => $invoice->invoice_no]);
+        }
+        if ($invoice->invoice_type === 'storage') {
+            throw new RuleViolation('A storage draft takes no service charges.', 'billing.errors.append_storage_draft');
+        }
+        $charges = $this->unbilled()->where('job_id', $jobId)->whereHas('chargeCode', fn ($q) => $q->where('category', '!=', 'storage'))->orderBy('id')->get();
+        if ($charges->isEmpty()) {
+            throw new InvalidArgumentException(__('billing.errors.no_unbilled_job'));
+        }
+        if ((int) $charges->first()->client_id !== (int) $invoice->client_id) {
+            throw new RuleViolation('The Job belongs to another client.', 'billing.errors.append_other_client');
+        }
+
+        return DB::transaction(function () use ($invoice, $charges, $jobId): int {
+            $this->addLines($invoice, $charges);
+            $invoice->jobs()->syncWithoutDetaching([$jobId]);
+            $this->recomputeTotals($invoice);
+
+            return $charges->count();
         });
     }
 
@@ -327,20 +401,39 @@ final class InvoiceService
                 'bill_to_name' => $client->name, 'bill_to_abn' => $client->abn, 'status' => 'draft', 'created_by' => auth()->id(),
             ]);
 
-            foreach ($charges->load('chargeCode') as $charge) {
-                $gst = $charge->gstCents();
-                $line = InvoiceLine::query()->create([
-                    'invoice_id' => $invoice->id, 'charge_id' => $charge->id, 'job_id' => $charge->job_id, 'order_id' => $orderIds[$charge->id] ?? null,
-                    'charge_code' => $charge->chargeCode->code, 'description' => $charge->chargeCode->customer_description,
-                    'qty' => $charge->qty, 'uom' => $charge->uom, 'amount_cents' => $charge->amount_cents, 'tax_treatment' => $charge->tax_treatment, 'gst_cents' => $gst,
-                ]);
-                $charge->update(['invoice_line_id' => $line->id]);
-            }
+            $this->addLines($invoice, $charges, $orderIds);
             $invoice->jobs()->sync($charges->pluck('job_id')->unique()->all());
-            $invoice->update(['subtotal_cents' => (int) $charges->sum('amount_cents'), 'gst_cents' => (int) $invoice->lines()->sum('gst_cents')]);
-            $invoice->update(['total_cents' => $invoice->subtotal_cents + $invoice->gst_cents]);
+            $this->recomputeTotals($invoice);
 
             return $invoice->fresh();
         });
+    }
+
+    /**
+     * One invoice line per charge (description, qty, GST from the charge) and the charge pointed at its line — shared by draft() and
+     * appendJobCharges().
+     *
+     * @param  Collection<int, Charge>  $charges
+     * @param  array<int, int>|null  $orderIds  charge id → order id (resolved here when omitted)
+     */
+    private function addLines(Invoice $invoice, Collection $charges, ?array $orderIds = null): void
+    {
+        $orderIds ??= $this->orderIdsFor($charges);
+        foreach ($charges->load('chargeCode') as $charge) {
+            $line = InvoiceLine::query()->create([
+                'invoice_id' => $invoice->id, 'charge_id' => $charge->id, 'job_id' => $charge->job_id, 'order_id' => $orderIds[$charge->id] ?? null,
+                'charge_code' => $charge->chargeCode->code, 'description' => $charge->chargeCode->customer_description,
+                'qty' => $charge->qty, 'uom' => $charge->uom, 'amount_cents' => $charge->amount_cents, 'tax_treatment' => $charge->tax_treatment, 'gst_cents' => $charge->gstCents(),
+            ]);
+            $charge->update(['invoice_line_id' => $line->id]);
+        }
+    }
+
+    /** Draft totals from its lines (a draft's figures are recomputed whenever lines are added; issue() freezes them). */
+    private function recomputeTotals(Invoice $invoice): void
+    {
+        $subtotal = (int) $invoice->lines()->sum('amount_cents');
+        $gst = (int) $invoice->lines()->sum('gst_cents');
+        $invoice->update(['subtotal_cents' => $subtotal, 'gst_cents' => $gst, 'total_cents' => $subtotal + $gst]);
     }
 }

@@ -38,6 +38,8 @@ Route::prefix('billing')->name('billing.')->group(function () {
         Route::delete('/invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
         Route::get('/invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->name('invoices.pdf');
         Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'payment'])->name('invoices.payments.store');
+        Route::post('/payments/{payment}/void', [InvoiceController::class, 'voidPayment'])->name('payments.void'); // 作废收款 — CHANGE_REQUESTS #140 (FIN-13)
+        Route::post('/invoices/{invoice}/append-job/{job}', [InvoiceController::class, 'appendJob'])->name('invoices.append_job'); // 并入该草稿 — CHANGE_REQUESTS #140 (FIN-10)
         Route::post('/invoices/{invoice}/credit-notes', [InvoiceController::class, 'creditNote'])->name('invoices.credit_notes.store');
         Route::post('/credit-notes/{note}/issue', [InvoiceController::class, 'issueCreditNote'])->name('credit_notes.issue');
         Route::get('/receivables', [ReceivableController::class, 'index'])->name('receivables');

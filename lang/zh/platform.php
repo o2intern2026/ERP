@@ -225,6 +225,8 @@ return [
             'cancel_not_allowed' => '只有申请人或管理员可以撤回申请。',
         ],
         'types' => ['rate_card_change' => '价目表变更', 'credit_note' => 'Credit note(冲减单)', 'stock_adjustment' => '大额库存调整', 'financial_release' => '财务放行', 'price_override' => '价格覆盖', 'poa_quote' => 'POA 报价'],
+        // Audit 2026-09-22 FIN-08 (CR #140): the subject column links to the thing being approved.
+        'subjects' => ['rate_card' => '价目表 :name v:version', 'credit_note' => 'Credit note :no → 发票 :invoice'],
         'statuses' => ['pending' => '待审批', 'approved' => '已批准', 'rejected' => '已拒绝', 'cancelled' => '已撤回'],
     ],
 

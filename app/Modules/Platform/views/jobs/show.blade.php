@@ -89,8 +89,12 @@
     <p class="text-muted">{{ __('platform.jobs.created_at') }}: {{ $job->created_at->format('Y-m-d H:i') }} · {{ $job->creator?->name }}</p>
     @role('admin|finance|customer_service|dispatcher')
         @php($jobCharges = \App\Modules\Billing\Models\Charge::query()->with('chargeCode')->where('job_id', $job->id)->where('status', '!=', 'reversed')->orderBy('id')->get())
+        @php($canBill = auth()->user()->hasAnyRole(['admin', 'finance']))
+        {{-- Audit 2026-09-22 FIN-09 (CR #140): Finance adds a one-off fee from the Job it belongs to — the form arrives with the Job pre-selected (also on a Job with no charge yet). --}}
+        @if ($jobCharges->isNotEmpty() || $canBill)
+            <h2>{{ __('billing.job_panel.title') }} @if ($canBill)<small><a href="{{ route('billing.charges.manual', ['job_id' => $job->id, 'client_id' => $job->client_id]) }}">{{ __('billing.job_panel.manual_charge') }}</a></small>@endif</h2>
+        @endif
         @if ($jobCharges->isNotEmpty())
-            <h2>{{ __('billing.job_panel.title') }}</h2>
             <table class="dense">
                 <thead><tr><th>{{ __('billing.charges.date') }}</th><th>{{ __('billing.charges.code') }}</th><th class="num">{{ __('billing.charges.qty') }}</th><th class="num">{{ __('billing.charges.amount') }}</th><th>{{ __('billing.charges.status') }}</th></tr></thead>
                 <tbody>
