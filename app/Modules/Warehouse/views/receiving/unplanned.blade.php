@@ -6,7 +6,7 @@
     <p><a href="{{ route('warehouse.receiving.index') }}">← {{ __('warehouse.receiving.worklist') }}</a></p>
     <h1>{{ __('warehouse.receiving.unplanned.title') }}</h1>
     <p class="text-muted"><small>{{ __('warehouse.receiving.unplanned.hint') }}</small></p>
-    <form method="post" action="{{ route('warehouse.receiving.unplanned.store') }}" id="unplanned-form">
+    <form method="post" action="{{ route('warehouse.receiving.unplanned.store') }}" id="unplanned-form" onsubmit="this.querySelector('button[type=submit]').disabled = true">
         @csrf
         <div class="grid">
             <label>{{ __('warehouse.receiving.unplanned.client') }}

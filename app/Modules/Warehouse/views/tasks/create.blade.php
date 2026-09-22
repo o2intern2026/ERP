@@ -16,10 +16,16 @@
             <label>{{ __('warehouse.tasks.asn') }}
                 <select name="asn_id" id="asn_id">
                     <option value="">—</option>
-                    @foreach ($asns as $a)<option value="{{ $a->id }}" data-containers='@json($a->containers->map(fn ($c) => ['id' => $c->id, 'no' => $c->container_no.($c->isLinked() ? ' ('.__('warehouse.asns.physical_container').')' : '')]))' @selected((int) old('asn_id', $selectedAsn) === $a->id)>{{ $a->asn_no }} · {{ $a->client?->name }}</option>@endforeach
+                    @foreach ($asns as $a)<option value="{{ $a->id }}" data-containers='@json($a->containers->map(fn ($c) => ['id' => $c->id, 'linked' => $c->isLinked(), 'no' => $c->container_no.($c->isLinked() ? ' ('.__('warehouse.asns.physical_container').')' : '')]))' @selected((int) old('asn_id', $selectedAsn) === $a->id)>{{ $a->asn_no }} · {{ $a->client?->name }}</option>@endforeach
                 </select>
             </label>
-            <label>{{ __('warehouse.tasks.container') }}<select name="container_id" id="container_id"><option value="">—</option></select></label>
+            {{-- Audit 2026-09-22 INBOUND-08: the opening ASN's containers are rendered server side with its only unlinked one preselected; the script rebuilds the list when the ASN changes. --}}
+            <label>{{ __('warehouse.tasks.container') }}
+                <select name="container_id" id="container_id">
+                    <option value="">—</option>
+                    @foreach ($initialContainers as $c)<option value="{{ $c->id }}" @selected($selectedContainer === $c->id)>{{ $c->container_no }}@if ($c->isLinked()) ({{ __('warehouse.asns.physical_container') }})@endif</option>@endforeach
+                </select>
+            </label>
             <label>{{ __('warehouse.tasks.order') }}
                 <select name="order_id" id="order_id">
                     <option value="">—</option>
@@ -54,7 +60,9 @@
         const containers = opt && opt.dataset.containers ? JSON.parse(opt.dataset.containers) : [];
         const current = containerSelect.value;
         containerSelect.innerHTML = '<option value="">—</option>' + containers.map(c => `<option value="${c.id}">${c.no}</option>`).join('');
-        containerSelect.value = current;
+        // Keep the chosen container when it belongs to this ASN; otherwise preselect the ASN's only unlinked container (a linked one is devanned on its box page).
+        const unlinked = containers.filter(c => !c.linked);
+        containerSelect.value = containers.some(c => String(c.id) === current) ? current : (unlinked.length === 1 ? String(unlinked[0].id) : '');
     };
     asnSelect.addEventListener('change', fill); fill();
 </script>

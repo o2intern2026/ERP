@@ -86,6 +86,8 @@ class BulkReceivingTest extends TestCase
             ],
         ])->assertSessionHasNoErrors()->assertRedirect(route('warehouse.asns.show', $asn));
         $this->assertSame(1, StockUnit::query()->withoutGlobalScopes()->count());
-        $this->actingAs($operator)->get(route('warehouse.receiving.form', [$asn, $line]))->assertOk(); // form still renders (line now received → shows form anyway)
+        // Audit 2026-09-22 INBOUND-02: the form of a received line goes back to the ASN page with the reason instead of rendering a fresh form.
+        $this->actingAs($operator)->get(route('warehouse.receiving.form', [$asn, $line]))->assertRedirect(route('warehouse.asns.show', $asn))
+            ->assertSessionHasErrors(['receive' => __('warehouse.receiving.bulk.already_received', ['line' => $line->id])]);
     }
 }

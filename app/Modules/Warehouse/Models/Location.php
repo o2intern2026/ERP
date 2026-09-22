@@ -2,6 +2,8 @@
 
 namespace App\Modules\Warehouse\Models;
 
+use App\Modules\Warehouse\Services\ScanCodes;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Spatie\Activitylog\LogOptions;
@@ -32,6 +34,12 @@ class Location extends Model
     public function isBottom(): bool
     {
         return $this->type === 'storage' && $this->storage_tier === 'bottom';
+    }
+
+    /** The location a scan names: the label's short token `L<id>` or the full full_code, case-insensitive (CHANGE_REQUESTS #131). */
+    public function scopeScanCode(Builder $query, string $code): Builder
+    {
+        return ScanCodes::whereLocation($query, $code);
     }
 
     public static function buildFullCode(string $warehouseCode, string $zone, string $aisle, string $bin): string

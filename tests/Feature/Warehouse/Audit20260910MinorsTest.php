@@ -163,7 +163,9 @@ class Audit20260910MinorsTest extends TestCase
         $this->actingAs($supervisor)->get(route('warehouse.stock.show', $units[0]))->assertOk()->assertSee('value="MEL-ZZ-99-99"', false)->assertSee('value="test reason"', false);
 
         // Putaway: the refused row keeps its code, other rows stay blank.
-        $pending = app(ReceivingService::class)->receiveLine(app(AsnService::class)->addLines($units[0]->asnLine->asn, [['description' => 'More', 'expected_cartons' => 2]])[0], ['received_cartons' => 2, 'units' => [['unit_type' => 'carton', 'carton_qty' => 1], ['unit_type' => 'carton', 'carton_qty' => 1]]], $this->location($warehouse, 'receiving'));
+        // A second ASN for the pending units: the first one completed (putaway) with its only line, and a completed ASN is not receivable (audit 2026-09-22 INBOUND-02).
+        $more = app(AsnService::class)->create(['client_id' => $client->id, 'warehouse_id' => $warehouse->id, 'inbound_type' => 'loose_truck']);
+        $pending = app(ReceivingService::class)->receiveLine(app(AsnService::class)->addLines($more, [['description' => 'More', 'expected_cartons' => 2]])[0], ['received_cartons' => 2, 'units' => [['unit_type' => 'carton', 'carton_qty' => 1], ['unit_type' => 'carton', 'carton_qty' => 1]]], $this->location($warehouse, 'receiving'));
         $this->actingAs($supervisor)->post(route('warehouse.putaway.store', $pending[0]), ['location_code' => 'MEL-ZZ-99-99'])->assertSessionHasErrors('location_code');
         $page = $this->actingAs($supervisor)->get(route('warehouse.putaway.index'))->assertOk();
         $this->assertSame(1, substr_count($page->getContent(), 'value="MEL-ZZ-99-99"'));
@@ -180,7 +182,8 @@ class Audit20260910MinorsTest extends TestCase
         $receiving = $this->location($warehouse, 'receiving');
 
         // Putaway into the receiving area: not a valid target.
-        $pending = app(ReceivingService::class)->receiveLine(app(AsnService::class)->addLines($units[0]->asnLine->asn, [['description' => 'More', 'expected_cartons' => 3]])[0], ['received_cartons' => 2, 'damaged_cartons' => 1, 'units' => [['unit_type' => 'carton', 'carton_qty' => 2]]], $receiving);
+        $more = app(AsnService::class)->create(['client_id' => $client->id, 'warehouse_id' => $warehouse->id, 'inbound_type' => 'loose_truck']); // the first ASN completed with its only line; a completed ASN is not receivable (INBOUND-02)
+        $pending = app(ReceivingService::class)->receiveLine(app(AsnService::class)->addLines($more, [['description' => 'More', 'expected_cartons' => 3]])[0], ['received_cartons' => 2, 'damaged_cartons' => 1, 'units' => [['unit_type' => 'carton', 'carton_qty' => 2]]], $receiving);
         $good = collect($pending)->firstWhere('condition', 'good');
         $damaged = collect($pending)->firstWhere('condition', 'damaged');
         $this->from(route('warehouse.putaway.index'))->followingRedirects()->post(route('warehouse.putaway.store', $good), ['location_code' => $receiving->full_code])->assertOk()

@@ -24,7 +24,7 @@ use InvalidArgumentException;
  */
 final class GoodsReceiptService
 {
-    public function __construct(private readonly DocumentService $documents, private readonly AsnService $asns) {}
+    public function __construct(private readonly DocumentService $documents, private readonly AsnService $asns, private readonly PutawayService $putaway) {}
 
     /**
      * The ASN's current open batch, or the next one. The ASN row is locked so two operators cannot open two batches at once.
@@ -143,6 +143,9 @@ final class GoodsReceiptService
             if ($asn->receiving_completed_at === null && $this->allLinesReceived($asn)) {
                 $asn->update(['receiving_completed_at' => now()]);
             }
+            // Audit 2026-09-22 INBOUND-03: when the last line came in with nothing to put away (received 0) after the other units were put
+            // away, no putaway ever re-checks the ASN — completing the batch does.
+            $this->putaway->completeIfDone($asn);
 
             return $receipt->fresh();
         });

@@ -45,7 +45,7 @@ class StocktakeController extends Controller
 
         $locationId = null;
         if (! empty($data['location_code'])) {
-            $location = Location::query()->where('warehouse_id', $data['warehouse_id'])->where('full_code', strtoupper(trim($data['location_code'])))->first();
+            $location = Location::query()->where('warehouse_id', $data['warehouse_id'])->scanCode($data['location_code'])->first(); // L<id> or the full code (#131)
             if ($location === null) {
                 return back()->withErrors(['location_code' => __('warehouse.putaway.unknown_location', ['code' => $data['location_code']])])->withInput();
             }
@@ -84,7 +84,7 @@ class StocktakeController extends Controller
     {
         $data = $request->validate(['code' => ['required', 'string', 'max:60'], 'counted_qty' => ['nullable', 'integer', 'min:0']]);
 
-        $line = $stocktake->lines()->whereHas('stockUnit', fn ($q) => $q->where('label_code', strtoupper(trim($data['code']))))->first();
+        $line = $stocktake->lines()->whereHas('stockUnit', fn ($q) => $q->scanCode($data['code']))->first(); // U<id> from the label barcode, or the full label_code (#131)
         if ($line === null) {
             return back()->withErrors(['code' => __('warehouse.stocktakes.unknown_code', ['code' => $data['code']])])->withInput();
         }

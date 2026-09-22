@@ -8,7 +8,6 @@ use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Services\OrderCreationService;
 use App\Modules\Platform\Services\OutboxDispatcher;
 use App\Modules\Warehouse\Models\AsnLine;
-use App\Modules\Warehouse\Models\StockUnit;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Services\AsnService;
 use App\Modules\Warehouse\Services\PutawayService;
@@ -29,7 +28,8 @@ class FulfilmentAllocationTest extends TestCase
     /** ERP_PLAN §3.8 #8: partial stock creates F1, replenishment creates F2, and only the second POD closes the order. */
     public function test_partial_stock_is_split_into_two_fulfilments_and_order_closes_only_after_both_are_delivered(): void
     {
-        [$user, $client, $warehouse, $line, $order] = $this->stockOrder(5, 8);
+        // 8 cartons on the goods line, received as two units; only the 5-unit is put away before the order — the 3-unit follows later.
+        [$user, $client, $warehouse, $line, $order, $pendingUnit] = $this->stockOrder(5, 8, 3);
 
         $this->actingAs($user)->get(route('orders.show', $order))
             ->assertOk()
@@ -51,7 +51,11 @@ class FulfilmentAllocationTest extends TestCase
         $this->assertSame(['F1'], $order->fulfilments->pluck('seq')->all());
         $this->assertSame(5, $order->fulfilments->first()->lines->first()->qty);
 
-        $newUnit = $this->receiveAndPutAway($line, $warehouse, 3, 8);
+        // Replenishment: the rest of the line is put away (the ASN completes → asn.putaway_completed → the backorder retries).
+        // Audit 2026-09-22 INBOUND-02 (seat C): a goods line is received once — receiving the same line again is refused, so the extra
+        // stock is the second unit of the one receipt rather than a second receipt of the line.
+        $newUnit = $pendingUnit;
+        app(PutawayService::class)->putaway($newUnit, $this->location($warehouse, 'storage'));
         app(OutboxDispatcher::class)->dispatchDue();
 
         $order = $order->fresh()->load('lines', 'fulfilments.lines');
@@ -142,17 +146,26 @@ class FulfilmentAllocationTest extends TestCase
     }
 
     /** @return array{User, Client, Warehouse, AsnLine, Order} */
-    private function stockOrder(int $stockQty, int $orderQty): array
+    /**
+     * A goods line with $stockQty cartons put away (available) and, when $pendingQty > 0, a second unit of that many cartons still in the
+     * receiving area — returned last, for the caller to put away as the replenishment.
+     */
+    private function stockOrder(int $stockQty, int $orderQty, int $pendingQty = 0): array
     {
         $user = $this->staff('customer_service');
         $client = $this->client();
         $warehouse = $this->warehouse();
         $asn = app(AsnService::class)->create(['client_id' => $client->id, 'warehouse_id' => $warehouse->id, 'inbound_type' => 'loose_truck']);
-        [$line] = app(AsnService::class)->addLines($asn, [['description' => 'Display stands', 'expected_cartons' => $stockQty]]);
-        $this->receiveAndPutAway($line, $warehouse, $stockQty, $stockQty);
+        [$line] = app(AsnService::class)->addLines($asn, [['description' => 'Display stands', 'expected_cartons' => $stockQty + $pendingQty]]);
+        $units = [['unit_type' => 'carton', 'carton_qty' => $stockQty]];
+        if ($pendingQty > 0) {
+            $units[] = ['unit_type' => 'carton', 'carton_qty' => $pendingQty];
+        }
+        $received = app(ReceivingService::class)->receiveLine($line, ['received_cartons' => $stockQty + $pendingQty, 'units' => $units], $this->location($warehouse, 'receiving'));
+        app(PutawayService::class)->putaway($received[0], $this->location($warehouse, 'storage'));
         $order = $this->createOrder($user, $client, $asn->job_id, $line->id, $orderQty);
 
-        return [$user, $client, $warehouse, $line, $order];
+        return [$user, $client, $warehouse, $line, $order, $received[1] ?? null];
     }
 
     private function createOrder(User $user, Client $client, int $jobId, ?int $asnLineId, int $qty): Order
@@ -177,17 +190,6 @@ class FulfilmentAllocationTest extends TestCase
                 'asn_line_id' => $asnLineId,
             ]],
         ], $user->id, 'manual');
-    }
-
-    private function receiveAndPutAway(AsnLine $line, Warehouse $warehouse, int $unitQty, int $receivedTotal): StockUnit
-    {
-        [$unit] = app(ReceivingService::class)->receiveLine($line, [
-            'received_cartons' => $receivedTotal,
-            'units' => [['unit_type' => 'carton', 'carton_qty' => $unitQty]],
-        ], $this->location($warehouse, 'receiving'));
-        app(PutawayService::class)->putaway($unit, $this->location($warehouse, 'storage'));
-
-        return $unit;
     }
 
     /** @param list<array<string, mixed>> $reservations */

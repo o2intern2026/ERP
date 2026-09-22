@@ -69,19 +69,30 @@ final class PutawayService
             && $unit->required_storage_tier !== 'bottom' && $location->storage_tier === 'bottom';
     }
 
-    private function completeIfDone(Asn $asn): void
+    /**
+     * Flip the ASN to `putaway` once every goods line is received and every stock unit is put away, and emit asn.putaway_completed.
+     * "Received" is the 入库单 rule (GoodsReceiptService::allLinesReceived): the line has a receipt line or stock units — a line received
+     * with 0 cartons ("not on truck") counts. Until audit 2026-09-22 (INBOUND-03) such a line was read as "still pending", so a
+     * short-shipped ASN never completed and its putaway / label charges never arose. Called after every putaway, after a line is
+     * received with nothing to put away (ReceivingService) and at 入库完成 (GoodsReceiptService::complete); the one-off command
+     * `asn:reevaluate-putaway` runs it over ASNs stuck in `receiving`. Returns true when the ASN flipped in this call.
+     */
+    public function completeIfDone(Asn $asn): bool
     {
         // Hold the ASN row while "is everything put away?" is answered: 从订单导入货物行 (AsnService::addOrderLinesToAsn) locks the
         // same row before appending lines, so no line can slip in between this check and the flip to putaway, and none can land
         // on an ASN that has just flipped.
         $asn = Asn::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($asn->id);
-        $units = StockUnit::query()->withoutGlobalScopes()->whereIn('asn_line_id', $asn->lines()->pluck('id'))->get();
-        if ($units->isEmpty() || $units->contains(fn (StockUnit $u) => ! $u->putaway_completed)) {
-            return;
+        if (in_array($asn->status, ['putaway', 'closed'], true)) {
+            return false;
         }
-        $linesPending = $asn->lines()->where('received_cartons', 0)->where('damaged_cartons', 0)->exists();
-        if ($linesPending) {
-            return;
+        $lineIds = $asn->lines()->pluck('id');
+        if ($lineIds->isEmpty() || $asn->lines()->whereDoesntHave('receiptLine')->whereDoesntHave('stockUnits')->exists()) {
+            return false;
+        }
+        $units = StockUnit::query()->withoutGlobalScopes()->whereIn('asn_line_id', $lineIds)->get();
+        if ($units->contains(fn (StockUnit $u) => ! $u->putaway_completed)) {
+            return false;
         }
 
         $asn->update(['status' => 'putaway', 'putaway_completed_at' => now()]);
@@ -104,5 +115,7 @@ final class PutawayService
             'completed_by' => auth()->id(),
             'completed_at' => now()->toIso8601String(),
         ], jobId: $asn->job_id, clientId: $asn->client_id, correlationId: $asn->asn_no));
+
+        return true;
     }
 }

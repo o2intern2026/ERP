@@ -84,7 +84,7 @@ class StockController extends Controller
     public function move(Request $request, StockUnit $unit, MoveService $moves): RedirectResponse
     {
         $data = $request->validate(['location_code' => ['required', 'string', 'max:40'], 'reason' => ['nullable', 'string', 'max:255']]);
-        $to = Location::query()->where('full_code', strtoupper(trim($data['location_code'])))->first();
+        $to = Location::query()->scanCode($data['location_code'])->first(); // L<id> or the full code (#131)
         if ($to === null) {
             return back()->withErrors(['location_code' => __('warehouse.putaway.unknown_location', ['code' => $data['location_code']])])->withInput();
         }
@@ -124,7 +124,7 @@ class StockController extends Controller
     public function restore(Request $request, StockUnit $unit, QuarantineService $quarantine): RedirectResponse
     {
         $data = $request->validate(['location_code' => ['required', 'string', 'max:40'], 'reason' => ['required', 'string', 'max:255']]);
-        $to = Location::query()->where('full_code', strtoupper(trim($data['location_code'])))->first();
+        $to = Location::query()->scanCode($data['location_code'])->first(); // L<id> or the full code (#131)
         if ($to === null) {
             return back()->withErrors(['location_code' => __('warehouse.putaway.unknown_location', ['code' => $data['location_code']])])->withInput();
         }

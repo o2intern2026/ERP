@@ -109,6 +109,7 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/stock/{unit}/restore', [StockController::class, 'restore'])->name('stock.restore');
         Route::post('/outbound/waves', [OutboundController::class, 'release'])->name('outbound.waves.release');
         Route::post('/outbound/picks/{line}', [OutboundController::class, 'pick'])->name('outbound.pick');
+        Route::post('/outbound/tasks/{task}/close', [OutboundController::class, 'closeTask'])->middleware('role:admin|warehouse_supervisor')->name('outbound.tasks.close')->whereNumber('task'); // 关闭任务 of a cancelled order's pick task (audit 2026-09-22 OUTBOUND-02)
         Route::get('/outbound/pack/{fulfilment}', [OutboundController::class, 'packForm'])->name('outbound.pack.form')->whereNumber('fulfilment');
         Route::post('/outbound/pack/{fulfilment}', [OutboundController::class, 'pack'])->name('outbound.pack')->whereNumber('fulfilment');
         Route::post('/outbound/dispatch/{fulfilment}', [OutboundController::class, 'dispatch'])->name('outbound.dispatch')->whereNumber('fulfilment');

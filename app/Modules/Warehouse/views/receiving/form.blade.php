@@ -12,7 +12,8 @@
         {{-- Audit 2026-09-10: a required <select> with no options blocks the submit silently — say what is missing and where to fix it. --}}
         <p><mark>{{ __('warehouse.receiving.no_receiving_location', ['code' => $asn->warehouse->code]) }}</mark> <a href="{{ route('warehouse.locations.index') }}">{{ __('warehouse.locations.title') }}</a></p>
     @else
-    <form method="post" action="{{ route('warehouse.receiving.store', [$asn, $line]) }}">
+    {{-- Audit 2026-09-22 INBOUND-02: the button locks on submit so a slow tablet's double tap cannot post the line twice (the service refuses the second anyway). --}}
+    <form method="post" action="{{ route('warehouse.receiving.store', [$asn, $line]) }}" onsubmit="this.querySelector('button[type=submit]').disabled = true">
         @csrf
         <div class="grid">
             <label>{{ __('warehouse.receiving.location') }}<select name="receiving_location_id" required>@foreach ($receivingLocations as $loc)<option value="{{ $loc->id }}" @selected((int) old('receiving_location_id') === $loc->id)>{{ $loc->full_code }}</option>@endforeach</select></label>
