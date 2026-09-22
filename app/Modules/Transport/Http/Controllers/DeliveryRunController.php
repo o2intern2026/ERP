@@ -43,13 +43,7 @@ class DeliveryRunController extends Controller
     {
         RequiredRoles::requireAny(self::PLANNER_ROLES);
 
-        return view('transport::runs.create', [
-            'drivers' => User::query()
-                ->role('transport_operator')
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get(),
-        ]);
+        return view('transport::runs.create', ['drivers' => $this->drivers()]);
     }
 
     public function store(Request $request, DeliveryRunService $service): RedirectResponse
@@ -84,6 +78,10 @@ class DeliveryRunController extends Controller
 
         return view('transport::runs.show', [
             'run' => $deliveryRun->load(['driver', 'stops.shipment.client']),
+            // CHANGE_REQUESTS #133: the planner's correction forms — 修改班次 / 取消班次 while no stop is delivered, 移出班次 while the run is open.
+            'editable' => $deliveryRun->isEditable(),
+            'open' => $deliveryRun->isOpen(),
+            'drivers' => self::driverOnly($request) ? new Collection : $this->drivers(),
             'eligibleShipments' => self::driverOnly($request) ? new Collection : Shipment::query()
                 ->with(['client', 'selectedQuote'])
                 ->whereNull('delivery_run_id')
@@ -98,11 +96,56 @@ class DeliveryRunController extends Controller
         ]);
     }
 
+    /** CHANGE_REQUESTS #133 (audit TMS-01): 修改班次 — date / driver / vehicle while no stop is delivered; the run number stays. */
+    public function update(Request $request, DeliveryRun $deliveryRun, DeliveryRunService $service): RedirectResponse
+    {
+        RequiredRoles::requireAny(self::PLANNER_ROLES);
+        $validated = $request->validate([
+            'run_date' => ['required', 'date_format:Y-m-d'],
+            'driver_id' => ['required', 'integer', 'exists:users,id'],
+            'vehicle' => ['required', 'string', 'max:100'],
+        ], TransportValidation::messages(), TransportValidation::attributes());
+
+        try {
+            $service->update($deliveryRun, $validated['run_date'], (int) $validated['driver_id'], $validated['vehicle']);
+        } catch (DomainException $exception) {
+            $field = $exception->getMessage() === __('transport.runs.invalid_driver') ? 'driver_id' : 'run';
+
+            return back()->withInput()->withErrors([$field => $exception->getMessage()]);
+        }
+
+        return redirect()->route('transport.runs.show', $deliveryRun)->with('status', __('transport.runs.updated'));
+    }
+
+    /** CHANGE_REQUESTS #133 (audit TMS-01): 取消班次 — every pending stop is released, the run is cancelled; refused after a delivery. */
+    public function cancel(Request $request, DeliveryRun $deliveryRun, DeliveryRunService $service): RedirectResponse
+    {
+        RequiredRoles::requireAny(self::PLANNER_ROLES);
+
+        try {
+            $service->cancel($deliveryRun);
+        } catch (DomainException $exception) {
+            return back()->withErrors(['run' => $exception->getMessage()]);
+        }
+
+        return redirect()->route('transport.runs.show', $deliveryRun)->with('status', __('transport.runs.cancelled'));
+    }
+
     /** A signed-in user who may read runs but not plan them, i.e. a driver without any planner role. */
     public static function driverOnly(Request $request): bool
     {
         $user = $request->user();
 
         return $user !== null && ! $user->hasAnyRole(self::PLANNER_ROLES);
+    }
+
+    /** @return Collection<int, User> the active drivers a run can be given to */
+    private function drivers(): Collection
+    {
+        return User::query()
+            ->role('transport_operator')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
     }
 }

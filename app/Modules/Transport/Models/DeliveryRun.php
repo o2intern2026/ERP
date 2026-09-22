@@ -36,4 +36,16 @@ class DeliveryRun extends Model
     {
         return $this->hasMany(RunStop::class)->orderBy('seq');
     }
+
+    /** CHANGE_REQUESTS #133: planned or dispatched — a pending stop may still leave the run. */
+    public function isOpen(): bool
+    {
+        return in_array($this->status, ['planned', 'dispatched'], true);
+    }
+
+    /** CHANGE_REQUESTS #133: open and no stop delivered yet — date / driver / vehicle may change and the run may be cancelled. */
+    public function isEditable(): bool
+    {
+        return $this->isOpen() && ! $this->stops()->where('status', 'delivered')->exists();
+    }
 }

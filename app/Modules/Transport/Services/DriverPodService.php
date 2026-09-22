@@ -224,7 +224,7 @@ final class DriverPodService
         if (! User::query()->whereKey($driver->id)->where('is_active', true)->exists()
             || ! $driver->hasRole('transport_operator')
             || $run->driver_id !== $driver->id
-            || ! $run->run_date->isSameDay(today())
+            || $run->run_date->gt(today()) // CHANGE_REQUESTS #133: on or before today — a run that spilled past midnight is still finished
             || ! in_array($run->status, ['planned', 'dispatched'], true)) {
             throw new DomainException(__('transport.driver.stop_unavailable'));
         }

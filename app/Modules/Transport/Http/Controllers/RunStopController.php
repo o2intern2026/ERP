@@ -5,6 +5,7 @@ namespace App\Modules\Transport\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Transport\Http\TransportValidation;
 use App\Modules\Transport\Models\DeliveryRun;
+use App\Modules\Transport\Models\RunStop;
 use App\Modules\Transport\Models\Shipment;
 use App\Modules\Transport\Services\DeliveryRunService;
 use App\Support\Auth\RequiredRoles;
@@ -56,6 +57,21 @@ class RunStopController extends Controller
         }
 
         return back()->with('status', __('transport.runs.order_saved'));
+    }
+
+    /** CHANGE_REQUESTS #133 (audit TMS-01): 移出班次 — a pending stop leaves the run; its shipment stays booked and can be planned again. */
+    public function destroy(Request $request, DeliveryRun $deliveryRun, RunStop $runStop, DeliveryRunService $service): RedirectResponse
+    {
+        $this->authorizeCoordinator();
+        abort_unless((int) $runStop->delivery_run_id === (int) $deliveryRun->id, 404);
+
+        try {
+            $service->removeStop($deliveryRun, $runStop);
+        } catch (DomainException $exception) {
+            return back()->withErrors(['stop' => $exception->getMessage()]);
+        }
+
+        return redirect()->route('transport.runs.show', $deliveryRun)->with('status', __('transport.runs.stop_removed'));
     }
 
     /**

@@ -16,6 +16,7 @@ use App\Modules\Transport\Http\Controllers\RunStopController;
 use App\Modules\Transport\Http\Controllers\ShipmentBookingController;
 use App\Modules\Transport\Http\Controllers\ShipmentController;
 use App\Modules\Transport\Http\Controllers\ShipmentLabelController;
+use App\Modules\Transport\Http\Controllers\ShipmentRequoteController;
 use Illuminate\Support\Facades\Route;
 
 // contracts/routes.md — Transport owns /transport/** and /driver/** (name prefix "transport.").
@@ -44,6 +45,16 @@ Route::prefix('transport')->name('transport.')->group(function () {
     Route::patch('/runs/{deliveryRun}/stops/order', [RunStopController::class, 'reorder'])
         ->whereNumber('deliveryRun')
         ->name('runs.stops.reorder');
+    // CHANGE_REQUESTS #133 (audit TMS-01): a run is corrected, a pending stop leaves it, a dead run is cancelled — planners only.
+    Route::patch('/runs/{deliveryRun}', [DeliveryRunController::class, 'update'])
+        ->whereNumber('deliveryRun')
+        ->name('runs.update');
+    Route::post('/runs/{deliveryRun}/cancel', [DeliveryRunController::class, 'cancel'])
+        ->whereNumber('deliveryRun')
+        ->name('runs.cancel');
+    Route::delete('/runs/{deliveryRun}/stops/{runStop}', [RunStopController::class, 'destroy'])
+        ->whereNumber(['deliveryRun', 'runStop'])
+        ->name('runs.stops.destroy');
     Route::get('/{shipment}/consignment-note', ConsignmentNoteController::class)
         ->whereNumber('shipment')
         ->name('shipments.consignment-note');
@@ -62,6 +73,10 @@ Route::prefix('transport')->name('transport.')->group(function () {
     Route::post('/{shipment}/quotes/manual', ManualQuoteController::class)
         ->whereNumber('shipment')
         ->name('shipments.quotes.manual');
+    // CHANGE_REQUESTS #133 (audit TMS-02): fresh quotes once the 24 h ones are dead — planners only.
+    Route::post('/{shipment}/requote', ShipmentRequoteController::class)
+        ->whereNumber('shipment')
+        ->name('shipments.requote');
     Route::post('/{shipment}/own-fleet-cost', OwnFleetCostController::class)
         ->whereNumber('shipment')
         ->name('shipments.own-fleet-cost.store');

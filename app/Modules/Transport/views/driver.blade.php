@@ -24,6 +24,10 @@
                 <strong>{{ $run->run_no }}</strong>
                 · {{ $run->vehicle }}
                 · {!! \App\Support\Ui\StatusBadge::render('transport.run_statuses.', $run->status) !!}
+                {{-- CHANGE_REQUESTS #133: a run dated before today stays until it completes — say so, above today's runs. --}}
+                @unless ($run->run_date->isToday())
+                    · <span class="badge" data-tone="warn">{{ __('transport.driver.run_date', ['date' => $run->run_date->format('Y-m-d')]) }}</span>
+                @endunless
             </header>
 
             @if ($run->stops->isEmpty())
