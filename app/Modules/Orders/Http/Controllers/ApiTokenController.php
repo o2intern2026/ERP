@@ -24,6 +24,7 @@ final class ApiTokenController extends Controller
             'tokens' => OrderApiToken::query()->with(['client', 'creator'])->latest('id')->get(),
             'clients' => Client::query()->where('status', 'active')->orderBy('name')->get(['id', 'name']),
             'endpoint' => route('orders.api.orders.store'),
+            'importEndpoint' => route('orders.api.imports.store'), // CHANGE_REQUESTS #145
         ]);
     }
 

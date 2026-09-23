@@ -7,6 +7,7 @@ use App\Modules\MasterData\Models\Client;
 use App\Modules\Orders\Http\OrderValidation;
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderImport;
+use App\Modules\Orders\Services\AutoImportService;
 use App\Modules\Orders\Services\OrderInboundService;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Support\Auth\RequiredRoles;
@@ -120,7 +121,7 @@ final class OrderInboundController extends Controller
         }
         $byId = $orders->keyBy('id');
         $result = [];
-        OrderImport::query()->where('source', 'portal')->where('status', 'imported')
+        OrderImport::query()->whereIn('source', AutoImportService::CLIENT_SOURCES)->where('status', 'imported') // #145: API / inbox lists group like a portal upload
             ->whereIn('client_id', $orders->pluck('client_id')->unique())->latest('id')->limit(300)->get()
             ->each(function (OrderImport $import) use ($byId, &$result): void {
                 $ids = array_values(array_filter($import->orderIds(), fn (int $id) => $byId->has($id)));

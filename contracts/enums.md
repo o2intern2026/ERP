@@ -168,7 +168,7 @@ Currency `AUD`, money as integer cents (`app/Support/Money`); timezone `Australi
 | `clients.status` | `pending` \| `active` \| `inactive` (`pending` = self-registered at `/register`, waiting for staff approval — tester feedback #8, CHANGE_REQUESTS #89; `Enums::CLIENT_STATUSES`) |
 | `suppliers.status`, `carriers.status` | `active` \| `inactive` (`Enums::MASTER_STATUSES`) |
 | `order_events.actor_type` | `user` \| `system` |
-| `order_imports.source` | `excel` \| `pdf` \| `portal` (the client's own 入库清单 upload in the portal — CHANGE_REQUESTS #123; its orders are created with `orders.source = portal`) |
+| `order_imports.source` | `excel` \| `pdf` \| `portal` (the client's own 入库清单 upload in the portal — CHANGE_REQUESTS #123; its orders are created with `orders.source = portal`) \| `api` (the client's system pushed the list, CHANGE_REQUESTS #145; orders `source = api`) \| `inbox` (a file from the client's inbox folder, #145; orders `source = excel`) — `Enums::ORDER_IMPORT_SOURCES` |
 | `order_imports.status`, `asn_imports.status` | `pending` \| `imported` \| `failed`; `order_imports.status` also `draft` (a portal 手工建立入库清单 saved to continue later — rows / ticks / context kept in `errors.context`, no groups, no result; CHANGE_REQUESTS #128) |
 | `waves.status` | `planned` \| `released` \| `completed` \| `cancelled` |
 | `stocktakes.status` | `counting` \| `closed` (as built in B10b — the earlier ※ draft `open \| counted \| adjusted \| cancelled` was never implemented; aligned 2026-09-22, CHANGE_REQUESTS #142) |
@@ -180,3 +180,4 @@ Currency `AUD`, money as integer cents (`app/Support/Money`); timezone `Australi
 | `invoices.group_by` ※ | `job` \| `order` (tester feedback #4) |
 | `clients.invoice_period` ※ | `weekly` \| `fortnightly` \| `monthly` |
 | `clients.invoice_grouping` ※ | `job` \| `order` |
+| `clients.import_defaults` ※ | JSON, nullable (CHANGE_REQUESTS #145): `group_by` `mark` \| `recipient` (`Enums::IMPORT_GROUP_BYS`), `address_type_default` `auto` \| `residential` \| `business` (`Enums::IMPORT_ADDRESS_TYPE_DEFAULTS`), `auto_confirm` bool, `inbox_enabled` bool, `notify_email` string\|null — read through `Client::importDefaults()` (NULL = mark / auto / false / false / null) |

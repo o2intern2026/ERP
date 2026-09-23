@@ -7,6 +7,7 @@ use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderImport;
 use App\Modules\Orders\Models\OrderLine;
 use App\Modules\Orders\OrderEnums;
+use App\Modules\Orders\Services\AutoImportService;
 use App\Modules\Orders\Services\OrderImportService;
 use App\Modules\Orders\Services\SpreadsheetManifestParser;
 use App\Modules\Platform\Models\Document;
@@ -66,7 +67,8 @@ final class PortalInboundImportController extends Controller
     public function index(Request $request): View
     {
         $clientId = $this->clientId($request);
-        $imports = OrderImport::query()->where('client_id', $clientId)->where('source', 'portal')->latest('id')->paginate(20);
+        // CHANGE_REQUESTS #145: an API push or an inbox file is the client's submission too — listed, reviewed and confirmed here like an upload.
+        $imports = OrderImport::query()->where('client_id', $clientId)->whereIn('source', AutoImportService::CLIENT_SOURCES)->latest('id')->paginate(20);
         $orderIds = $imports->getCollection()->flatMap(fn (OrderImport $import) => [...$import->orderIds(), ...$import->manualAttachedIds()])->unique()->values()->all();
 
         return view('portal::asns.imports.index', [
@@ -654,7 +656,7 @@ final class PortalInboundImportController extends Controller
     private function own(Request $request, OrderImport $import): OrderImport
     {
         $clientId = $this->clientId($request);
-        abort_unless((int) $import->client_id === $clientId && $import->source === 'portal', 404);
+        abort_unless((int) $import->client_id === $clientId && in_array($import->source, AutoImportService::CLIENT_SOURCES, true), 404); // portal / api / inbox (#145)
 
         return $import;
     }

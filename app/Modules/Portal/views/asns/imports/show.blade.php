@@ -11,7 +11,7 @@
         <h1>{{ $showTitle }}</h1>
         <p>
             {!! \App\Support\Ui\StatusBadge::render('portal.inbound.statuses.', $import->status) !!}
-            · {{ $manual ? __('portal.inbound.manual.source') : ($audit['context']['original_name'] ?? '') }} · {{ $import->created_at?->format('Y-m-d H:i') }}
+            · {{ $manual ? __('portal.inbound.manual.source') : ($audit['context']['original_name'] ?? '') }}@if (in_array($import->source, ['api', 'inbox'], true)) <span class="badge" data-tone="info">{{ __('portal.inbound.sources.'.$import->source) }}</span>@endif · {{ $import->created_at?->format('Y-m-d H:i') }}
             @if ($document)· <a href="{{ route('portal.documents.download', $document) }}">{{ __('portal.inbound.actions.download_file') }}</a>@endif
         </p>
     </header>

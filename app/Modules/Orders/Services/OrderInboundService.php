@@ -97,7 +97,7 @@ final class OrderInboundService
     public function collectionRequests(int $clientId): array
     {
         $map = [];
-        OrderImport::query()->where('client_id', $clientId)->where('source', 'portal')->where('status', 'imported')->latest('id')->limit(300)->get()
+        OrderImport::query()->where('client_id', $clientId)->whereIn('source', AutoImportService::CLIENT_SOURCES)->where('status', 'imported')->latest('id')->limit(300)->get()
             ->each(function (OrderImport $import) use (&$map): void {
                 if (! is_array($import->errors['context']['inbound']['collection'] ?? null)) {
                     return;

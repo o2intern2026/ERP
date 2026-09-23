@@ -300,6 +300,19 @@ return [
             'no_plan' => '客户未选方案（无法自动报价），生成后由客服确认运费',
         ],
         'portal_note' => '客户在门户上传的清单：由客户自己在门户核对并确认生成订单，这里只读；生成后的订单在“待建预报”里等客服建立预报单。',
+        // CHANGE_REQUESTS #145 自动导入: the result text of an inbox file (.result.txt / mail) and the API.
+        'auto' => [
+            'result_title' => '清单「:file」→ 导入 #:id',
+            'result_replayed' => '这份文件之前已经收到过（导入 #:id），没有重复读入；以下是当时的结果。',
+            'result_imported' => '已自动生成 :count 张订单（状态“已接收”），客服会在“待建预报”里建立预报单。',
+            'result_pending' => '未自动生成：可生成 :ready 张、:blocked 组已阻断、:errors 行有错误。请到客户门户“已提交清单”核对后再确认提交，或修正清单后重新发送。',
+            'result_failed' => '没有生成订单。',
+            'result_order' => '订单 :order_no（原表行号 :rows）',
+            'result_review' => '核对页面：:url',
+            'result_error' => '清单「:file」无法读入：:error',
+            'mail_subject' => '清单「:file」自动导入结果：:status',
+            'statuses' => ['imported' => '已生成订单', 'pending' => '待确认', 'failed' => '未生成'],
+        ],
         'job_note' => '客户门户清单 #:id（:file）',
         // CHANGE_REQUESTS #128: the portal 手工建立入库清单 — typed rows and attached existing orders, read-only for staff.
         'manual_entry' => '手工录入',
@@ -325,6 +338,7 @@ return [
         'api' => 'API',
         'manual' => '手工录入',
         'pdf' => 'PDF',
+        'inbox' => '收件夹自动导入', // CHANGE_REQUESTS #145 (order_imports.source)
     ],
     'service_levels' => [
         'standard' => '标准',
@@ -720,8 +734,32 @@ return [
         'none' => '尚未签发任何 token。',
         'usage_title' => '调用方式',
         'idempotency_hint' => '客户端生成的唯一键，重复提交返回同一订单',
-        'errors' => ['unauthenticated' => 'Token 缺失、无效或已吊销。'],
+        'errors' => [
+            'unauthenticated' => 'Token 缺失、无效或已吊销。',
+            'client_inactive' => '该客户未启用（待审核或已停用），不能推送清单。', // CHANGE_REQUESTS #145
+            'import_not_found' => '没有这份清单，或它不属于该 token 的客户。',
+        ],
         'messages' => ['issued' => 'Token “:name” 已签发。', 'revoked' => 'Token 已吊销。'],
+        // CHANGE_REQUESTS #145 自动导入: a whole list in one call.
+        'import_usage_title' => '清单批量推送（自动导入）',
+        'import_hint' => '客户系统可把整份清单（CSV / XLSX，含客户自己的英文拼箱清单格式，一行 = 一箱）一次推送；走客户门户上传同一条路径：解析、分组、查重、审计都相同，结果在客户门户“已提交清单”可见。没传的选项用客户资料里的“自动导入”默认值。只有整份清单零错误、零阻断时才会自动生成订单，否则停在“待确认”，由客户在门户核对后确认；同一份文件重复推送只返回第一次的结果（force=1 可强制重读）。',
+        'import_fields' => [
+            'manifest' => '清单文件（必填）',
+            'order_type' => 'from_stock 库存出库配送（默认）| pickup_deliver 现场提货直送',
+            'group_by' => 'mark 按唛头 | recipient 按收件人（拼箱清单）；不传用客户默认值',
+            'address_type_default' => 'auto | residential | business；不传用客户默认值',
+            'auto_confirm' => '1 = 零错误时自动生成订单；不传用客户默认值',
+            'inbound' => '库存出库配送可选：柜号、柜型（20/40）、预计到港日、参考号、备注',
+            'pickup' => '现场提货直送必填：要求送达日、取货联系人 / 电话 / 地址 / 城区 / 州 / 邮编',
+            'force' => '1 = 即使同一份文件已收到过也重新读入',
+            'show' => '查询结果（待确认的清单确认后再查一次）',
+        ],
+        'import_responses' => [
+            '201' => '已自动生成订单（JSON：import_id、orders[]、groups、issues[]、review_url）',
+            '202' => '待确认——有错误或阻断，或未要求自动确认；到 review_url 核对后确认',
+            '200' => '同一份文件的重复推送（replayed=true），或确认后没有生成订单',
+            '422' => '参数错误（errors 里按字段列出）',
+        ],
         // CHANGE_REQUESTS #129
         'storage_tier_hint' => 'lines[].storage_tier 可选：standard（标准，默认）或 bottom（底层库位，按周另收底层附加费）；只选等级，具体库位由仓库安排。',
     ],

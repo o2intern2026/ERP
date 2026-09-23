@@ -3,6 +3,7 @@
 namespace App\Modules\MasterData\Models;
 
 use App\Modules\Billing\Models\RateCard;
+use App\Support\Enums;
 use App\Support\Tenancy\ClientScope;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,11 +23,46 @@ class Client extends Model
         'code', 'name', 'abn', 'leg_type', 'contact_name', 'contact_phone', 'contact_email', 'billing_email',
         'address', 'suburb', 'state', 'postcode', 'status', 'payment_terms', 'invoice_mode',
         'default_markup_percent', 'dispatch_cutoff_time', 'standard_rate_card_id', 'invoice_period', 'invoice_grouping',
+        'import_defaults', // CHANGE_REQUESTS #145
     ];
+
+    /** CHANGE_REQUESTS #145 自动导入: today's rules and nothing automated — what a client without stored defaults gets. */
+    public const IMPORT_DEFAULTS = ['group_by' => 'mark', 'address_type_default' => 'auto', 'auto_confirm' => false, 'inbox_enabled' => false, 'notify_email' => null];
 
     protected function casts(): array
     {
-        return ['default_markup_percent' => 'decimal:2'];
+        return ['default_markup_percent' => 'decimal:2', 'import_defaults' => 'array'];
+    }
+
+    /**
+     * CHANGE_REQUESTS #145: what an automated list of this client (API push, inbox folder) is read with — the stored defaults over
+     * IMPORT_DEFAULTS, every value validated again so a hand-edited row never changes how a list is grouped.
+     *
+     * @return array{group_by:string, address_type_default:string, auto_confirm:bool, inbox_enabled:bool, notify_email:?string}
+     */
+    public function importDefaults(): array
+    {
+        return self::importDefaultsFrom(is_array($this->import_defaults) ? $this->import_defaults : []);
+    }
+
+    /**
+     * The stored shape of `clients.import_defaults` from a form or a raw array: an unknown option falls back to today's rule, the two
+     * flags become booleans (an unticked checkbox is simply absent), the email is trimmed or null.
+     *
+     * @param  array<string, mixed>  $raw
+     * @return array{group_by:string, address_type_default:string, auto_confirm:bool, inbox_enabled:bool, notify_email:?string}
+     */
+    public static function importDefaultsFrom(array $raw): array
+    {
+        $email = trim((string) ($raw['notify_email'] ?? ''));
+
+        return [
+            'group_by' => in_array($raw['group_by'] ?? null, Enums::IMPORT_GROUP_BYS, true) ? $raw['group_by'] : self::IMPORT_DEFAULTS['group_by'],
+            'address_type_default' => in_array($raw['address_type_default'] ?? null, Enums::IMPORT_ADDRESS_TYPE_DEFAULTS, true) ? $raw['address_type_default'] : self::IMPORT_DEFAULTS['address_type_default'],
+            'auto_confirm' => filter_var($raw['auto_confirm'] ?? false, FILTER_VALIDATE_BOOL),
+            'inbox_enabled' => filter_var($raw['inbox_enabled'] ?? false, FILTER_VALIDATE_BOOL),
+            'notify_email' => $email === '' ? null : mb_substr($email, 0, 255),
+        ];
     }
 
     protected static function booted(): void

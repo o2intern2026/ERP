@@ -107,6 +107,31 @@
                 </label>
             </div>
         </fieldset>
+        {{-- CHANGE_REQUESTS #145 自动导入: how this client's lists are read when nobody is on the page (API push / inbox folder). --}}
+        @php($importDefaults = \App\Modules\MasterData\Models\Client::importDefaultsFrom((array) old('import_defaults', $client->importDefaults())))
+        @php($inboxFolder = \Illuminate\Support\Facades\Storage::disk('local')->path(\App\Modules\Orders\Services\AutoImportService::inboxFolder($client)))
+        <fieldset id="import-defaults">
+            <legend>{{ __('masterdata.clients.import_section') }}</legend>
+            <p class="text-muted"><small>{{ __('masterdata.clients.import_hint', ['endpoint' => route('orders.api.imports.store')]) }}</small></p>
+            <div class="grid">
+                <label>{{ __('masterdata.fields.import_group_by') }}
+                    <select name="import_defaults[group_by]">
+                        @foreach (\App\Support\Enums::IMPORT_GROUP_BYS as $v)<option value="{{ $v }}" @selected($importDefaults['group_by'] === $v)>{{ __('orders.imports.options.group_by_options.'.$v) }}</option>@endforeach
+                    </select>
+                </label>
+                <label>{{ __('masterdata.fields.import_address_type_default') }}
+                    <select name="import_defaults[address_type_default]">
+                        @foreach (\App\Support\Enums::IMPORT_ADDRESS_TYPE_DEFAULTS as $v)<option value="{{ $v }}" @selected($importDefaults['address_type_default'] === $v)>{{ __('orders.imports.options.address_type_defaults.'.$v) }}</option>@endforeach
+                    </select>
+                </label>
+                <label>{{ __('masterdata.fields.import_notify_email') }}
+                    <input type="email" name="import_defaults[notify_email]" value="{{ $importDefaults['notify_email'] ?? '' }}" maxlength="255">
+                    <small>{{ __('masterdata.clients.import_notify_hint') }}</small>
+                </label>
+            </div>
+            <label><input type="checkbox" name="import_defaults[auto_confirm]" value="1" @checked($importDefaults['auto_confirm'])> {{ __('masterdata.fields.import_auto_confirm') }} <small class="text-muted">{{ __('masterdata.clients.import_auto_confirm_hint') }}</small></label>
+            <label><input type="checkbox" name="import_defaults[inbox_enabled]" value="1" @checked($importDefaults['inbox_enabled'])> {{ __('masterdata.fields.import_inbox_enabled') }} <small class="text-muted">{{ __('masterdata.clients.import_inbox_hint', ['folder' => $inboxFolder]) }}</small></label>
+        </fieldset>
         <button type="submit">{{ __('platform.common.save') }}</button>
         <a href="{{ route('masterdata.index') }}" class="secondary" role="button">{{ __('platform.common.cancel') }}</a>
     </form>

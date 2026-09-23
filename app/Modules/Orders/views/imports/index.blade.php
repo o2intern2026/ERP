@@ -22,7 +22,7 @@
                 <td><a href="{{ route('orders.imports.show', $import) }}">#{{ $import->id }}</a></td>
                 <td>{{ $import->client->name }}</td>
                 {{-- CHANGE_REQUESTS #123: portal submissions (客户门户) are listed next to the staff Excel imports, read-only on the page. --}}
-                <td><span class="badge" data-tone="{{ $import->source === 'portal' ? 'info' : 'muted' }}">{{ __('orders.sources.'.$import->source) }}</span></td>
+                <td><span class="badge" data-tone="{{ in_array($import->source, \App\Modules\Orders\Services\AutoImportService::CLIENT_SOURCES, true) ? 'info' : 'muted' }}">{{ __('orders.sources.'.$import->source) }}</span></td>
                 <td>{{ $import->errors['context']['original_name'] ?? ($import->isManual() ? __('orders.imports.manual_entry') : '—') }}</td>{{-- CHANGE_REQUESTS #128 --}}
                 <td>{!! \App\Support\Ui\StatusBadge::render('orders.imports.statuses.', $import->status) !!}</td>
                 <td>{{ $import->row_count }}</td><td>{{ $import->error_count }}</td><td>{{ $import->created_at }}</td>
