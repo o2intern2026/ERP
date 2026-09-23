@@ -37,9 +37,18 @@ use InvalidArgumentException;
  * its description as "<waybill> · <commodity>" so unit labels and the pick list show it) and `address_type_default` = `auto`
  * (today's rule) | `residential` | `business` for rows without an explicit 地址类型 value. Both are recorded with the import and
  * shown on the preview together with the resulting order count.
+ *
+ * CHANGE_REQUESTS #144 (import from 新建订单 for both order types): `context.order_type` = `from_stock` (today's inbound list) or
+ * `pickup_deliver` (现场提货直送). A 提货直送 list carries the pickup party in `context.pickup` instead of an inbound context, never
+ * declares a storage tier, opens ONE transport_only Job per submission and makes `pickup_deliver` orders sharing the list's pickup
+ * address, every row a declared package of its own weight (the parser already refuses a row without a positive weight, for every
+ * list — the portal order form requires it for that type too) — no ASN, nothing for 待建预报.
  */
 final class OrderImportService
 {
+    /** CHANGE_REQUESTS #144: the order type a list produces — `from_stock` (inbound list, ASN by customer service) or `pickup_deliver` (现场提货直送). */
+    public const ORDER_TYPES = ['from_stock', 'pickup_deliver'];
+
     /** CHANGE_REQUESTS #143: how rows become orders — by 唛头 / waybill (default) or by recipient (name + postcode + address). */
     public const GROUP_BY = ['mark', 'recipient'];
 
@@ -56,7 +65,7 @@ final class OrderImportService
     ) {}
 
     /**
-     * @param  array{client_id:int, job_id?:?int, requested_date:string, service_level:string, source?:string, client_visible?:bool, inbound?:?array<string, mixed>, group_by?:string, address_type_default?:string}  $context
+     * @param  array{client_id:int, job_id?:?int, requested_date:string, service_level:string, source?:string, client_visible?:bool, inbound?:?array<string, mixed>, group_by?:string, address_type_default?:string, order_type?:string, pickup?:?array<string, string>}  $context
      */
     public function preview(UploadedFile $file, array $context, ?int $actorId): OrderImport
     {
@@ -195,6 +204,9 @@ final class OrderImportService
             if ($jobId !== null) {
                 DB::table('jobs')->where('id', $jobId)->lockForUpdate()->first();
             }
+            // CHANGE_REQUESTS #144: a 提货直送 list makes pickup_deliver orders that share the list's pickup party; its Job is transport_only.
+            $orderType = in_array($context['order_type'] ?? null, self::ORDER_TYPES, true) ? $context['order_type'] : 'from_stock';
+            $pickupAddress = $orderType === 'pickup_deliver' && is_array($context['pickup'] ?? null) ? $this->pickupAddress($context['pickup']) : null;
             // CHANGE_REQUESTS #128 以订单为准: the ticked orders are row-locked and re-checked (still the client's, still waiting for an ASN,
             // still in no other submission) — recorded by id only, never read into a group nor written.
             if ($manual) {
@@ -225,7 +237,7 @@ final class OrderImportService
                 // One Job per submission (CHANGE_REQUESTS #123): opened with the first order, so an abandoned or fully blocked
                 // upload never leaves an empty Job behind; every order of the list then shares the Job the ASN will join.
                 if ($jobId === null) {
-                    $jobId = $this->jobs->create((int) $import->client_id, 'loose', array_filter([
+                    $jobId = $this->jobs->create((int) $import->client_id, $orderType === 'pickup_deliver' ? 'transport_only' : 'loose', array_filter([
                         'reference' => $this->jobReference($context),
                         'notes' => __('orders.imports.job_note', ['id' => $import->id, 'file' => (string) ($context['original_name'] ?? __('orders.imports.manual_entry'))]),
                     ]))['job_id'];
@@ -236,10 +248,11 @@ final class OrderImportService
                 $order = $this->orders->create([
                     'client_id' => $import->client_id,
                     'job_id' => $jobId,
-                    'order_type' => 'from_stock',
+                    'order_type' => $orderType,
                     'external_ref' => $group['external_ref'],
                     'consignment_mark' => $group['consignment_mark'],
                     'fba_reference' => $group['fba_reference'],
+                    'pickup_address' => $pickupAddress, // CHANGE_REQUESTS #144: null for a from_stock list
                     'deliver_to_name' => $group['deliver_to_name'],
                     'deliver_to_phone' => $group['deliver_to_phone'],
                     'deliver_to_address' => $group['deliver_to_address'],
@@ -296,7 +309,10 @@ final class OrderImportService
      */
     private function record(OrderImport $import, array $parsed, array $context, string $sha256, ?array $fileWarning, array $columns = []): OrderImport
     {
-        $parsed['rows'] = $this->storageTiers($parsed['rows'], (int) $context['client_id'], $context['source'] === 'portal' ? 'client' : 'staff', $parsed['warnings']);
+        // CHANGE_REQUESTS #144: a 提货直送 list stores nothing — no tier declaration, no value-rule pre-fill, no tier warning.
+        $parsed['rows'] = ($context['order_type'] ?? 'from_stock') === 'pickup_deliver'
+            ? array_map(fn (array $row) => ['storage_tier' => null, 'storage_tier_source' => null] + $row, $parsed['rows'])
+            : $this->storageTiers($parsed['rows'], (int) $context['client_id'], $context['source'] === 'portal' ? 'client' : 'staff', $parsed['warnings']);
         if ($fileWarning !== null) {
             array_unshift($parsed['warnings'], $fileWarning);
         }
@@ -336,8 +352,30 @@ final class OrderImportService
     {
         $context['group_by'] = in_array($context['group_by'] ?? null, self::GROUP_BY, true) ? $context['group_by'] : 'mark';
         $context['address_type_default'] = in_array($context['address_type_default'] ?? null, self::ADDRESS_TYPE_DEFAULTS, true) ? $context['address_type_default'] : 'auto';
+        $context['order_type'] = in_array($context['order_type'] ?? null, self::ORDER_TYPES, true) ? $context['order_type'] : 'from_stock'; // CHANGE_REQUESTS #144
 
         return $context;
+    }
+
+    /**
+     * CHANGE_REQUESTS #144: the pickup party of a 提货直送 list in the shape `orders.pickup_address` carries (the portal order form's
+     * pickup_* fields): name, phone, address, suburb, state, postcode — trimmed, the state upper-cased.
+     *
+     * @param  array<string, mixed>  $pickup
+     * @return array{name:string, phone:string, address:string, suburb:string, state:string, postcode:string}
+     */
+    private function pickupAddress(array $pickup): array
+    {
+        $field = fn (string $key): string => trim((string) ($pickup[$key] ?? ''));
+
+        return [
+            'name' => $field('name'),
+            'phone' => $field('phone'),
+            'address' => $field('address'),
+            'suburb' => $field('suburb'),
+            'state' => mb_strtoupper($field('state')),
+            'postcode' => $field('postcode'),
+        ];
     }
 
     /** The row a manual submission lives on: the client's own draft (reused), else a new portal import. */

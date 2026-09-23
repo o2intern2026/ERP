@@ -16,6 +16,7 @@
         <div class="overflow-auto"><table class="dense">
             <thead><tr>
                 <th>#</th><th>{{ __('portal.inbound.fields.submitted_at') }}</th><th>{{ __('portal.inbound.fields.source') }}</th>
+                <th>{{ __('portal.inbound.fields.order_type') }}</th>{{-- CHANGE_REQUESTS #144 --}}
                 <th>{{ __('portal.inbound.fields.container_no') }}</th><th>{{ __('portal.inbound.fields.expected_date') }}</th>
                 <th class="num">{{ __('portal.inbound.fields.rows') }}</th><th>{{ __('portal.inbound.fields.status') }}</th>
                 <th>{{ __('portal.inbound.fields.orders') }}</th><th>{{ __('portal.inbound.fields.asn') }}</th>
@@ -31,6 +32,7 @@
                     <td><a href="{{ $draft ? route('portal.asns.imports.manual.edit', $import) : route('portal.asns.imports.show', $import) }}">#{{ $import->id }}</a></td>
                     <td>{{ $import->created_at?->format('Y-m-d H:i') }}</td>
                     <td>{{ $context['original_name'] ?? ($import->isManual() ? __('portal.inbound.manual.source') : '—') }}</td>
+                    <td>{{ __('orders.types.'.$import->orderType()) }}</td>
                     <td>{{ ($context['inbound']['container_no'] ?? null) ?: '—' }}</td>
                     <td>{{ ($context['inbound']['expected_date'] ?? null) ?: '—' }}</td>
                     <td class="num">{{ $import->row_count }}</td>

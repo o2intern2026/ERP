@@ -48,6 +48,12 @@ class OrderImport extends Model
         ])));
     }
 
+    /** CHANGE_REQUESTS #144: the order type the list produces — `pickup_deliver` for a 提货直送 list, else `from_stock` (every older import). */
+    public function orderType(): string
+    {
+        return ($this->errors['context']['order_type'] ?? null) === 'pickup_deliver' ? 'pickup_deliver' : 'from_stock';
+    }
+
     /** A portal 手工建立入库清单 (rows typed on the page and / or existing orders ticked), draft, pending or confirmed. */
     public function isManual(): bool
     {
