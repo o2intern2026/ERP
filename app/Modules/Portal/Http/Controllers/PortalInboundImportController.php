@@ -51,6 +51,12 @@ use InvalidArgumentException;
  * CHANGE_REQUESTS #143 拼箱清单格式直接导入: the client's English consolidation list uploads as is (the parser knows its headers, one
  * row = one carton); the upload and the manual form carry two import options — `group_by` (按唛头 | 按收件人) and
  * `address_type_default` (自动判断 | 住宅 | 商业) — recorded in the import context and shown on the preview with the order count.
+ *
+ * CHANGE_REQUESTS #144 批量导入 from 新建订单 for BOTH order types: the upload page carries `order_type` (preselected by the link that led
+ * here — 新建订单 offers one link per type, 预报入库 keeps from_stock). `from_stock` is today's inbound list (inbound context, 到仓方式,
+ * ASN by customer service); `pickup_deliver` (现场提货直送) takes the pickup party + 要求送达日 instead, and the list becomes
+ * pickup_deliver orders sharing that pickup address — every row a declared package with its own weight (required, as on the order
+ * form), no ASN, nothing for 待建预报. 手工建立入库清单 stays a from_stock list.
  */
 final class PortalInboundImportController extends Controller
 {
@@ -76,6 +82,9 @@ final class PortalInboundImportController extends Controller
         $warehouses = Warehouse::query()->where('active', true)->orderBy('code')->get(['id', 'code', 'name']);
 
         return view('portal::asns.imports.create', [
+            'orderType' => $this->orderType($request->query('order_type')), // CHANGE_REQUESTS #144: preselected by the link that led here
+            'orderTypes' => OrderImportService::ORDER_TYPES,
+            'states' => Enums::STATES,
             'containerSizes' => Enums::CONTAINER_SIZES,
             'templateHeaders' => self::TEMPLATE_HEADERS,
             'warehouses' => $warehouses,
@@ -109,19 +118,21 @@ final class PortalInboundImportController extends Controller
     public function store(Request $request, OrderImportService $imports): RedirectResponse
     {
         $clientId = $this->clientId($request);
+        $orderType = $this->orderType($request->input('order_type')); // CHANGE_REQUESTS #144: decides which block of fields applies
         $data = $request->validate([
+            'order_type' => ['nullable', Rule::in(OrderImportService::ORDER_TYPES)],
             // .xls is accepted here so a real BIFF file gets the parser's Chinese "另存为 XLSX" message on the preview (a renamed CSV / XLSX just works).
             'manifest' => ['required', 'file', 'max:10240', function ($attribute, $value, $fail) {
                 if (! in_array(mb_strtolower($value->getClientOriginalExtension()), ['csv', 'xlsx', 'xls', 'txt'], true)) {
                     $fail(__('portal.inbound.errors.unsupported_file'));
                 }
             }],
-            ...$this->inboundRules(),
             ...$this->optionRules(),
-            ...$this->collectionRules(false),
+            // CHANGE_REQUESTS #144: the inbound context and 到仓方式 belong to a from_stock list; a 提货直送 list carries the pickup block instead.
+            ...($orderType === 'pickup_deliver' ? $this->pickupRules() : [...$this->inboundRules(), ...$this->collectionRules(false)]),
         ], PortalValidation::messages(), PortalValidation::attributes());
 
-        $import = $imports->preview($data['manifest'], $this->submissionContext($clientId, $data), $request->user()->id);
+        $import = $imports->preview($data['manifest'], $this->submissionContext($clientId, $data, $orderType), $request->user()->id);
 
         return redirect()->route('portal.asns.imports.show', $import)->with('status', __('portal.inbound.messages.uploaded'));
     }
@@ -233,6 +244,8 @@ final class PortalInboundImportController extends Controller
             'manual' => $import->isManual(),
             'attachedOrders' => $attachedOrders,
             'requestedDate' => $audit['context']['requested_date'] ?? null,
+            'orderType' => $import->orderType(), // CHANGE_REQUESTS #144: a 提货直送 list shows its pickup party instead of the inbound context
+            'pickup' => is_array($audit['context']['pickup'] ?? null) ? $audit['context']['pickup'] : [],
             'groupBy' => $audit['context']['group_by'] ?? 'mark', // CHANGE_REQUESTS #143: the rule this list was grouped by
             'addressTypeDefault' => $audit['context']['address_type_default'] ?? 'auto',
             'groups' => $groups,
@@ -248,7 +261,7 @@ final class PortalInboundImportController extends Controller
             'collectionPackages' => $packages,
             'collectionUnpriced' => $collectionEstimate['unpriced_rows'] ?? $this->unpricedRows($packages),
             'collectionWarehouse' => $collection === null ? null : Warehouse::query()->find((int) ($collection['warehouse_id'] ?? 0), ['id', 'code', 'name']),
-            'tierSurcharge' => $this->tierSurcharge((int) $import->client_id), // CHANGE_REQUESTS #126
+            'tierSurcharge' => $import->orderType() === 'pickup_deliver' ? [] : $this->tierSurcharge((int) $import->client_id), // CHANGE_REQUESTS #126; nothing is stored for a 提货直送 list (#144)
         ]);
     }
 
@@ -311,9 +324,11 @@ final class PortalInboundImportController extends Controller
         $created = count($import->errors['result']['created'] ?? []);
         $attached = count($import->errors['result']['attached'] ?? []);
 
-        return redirect()->route('portal.asns.imports.show', $import)->with('status', $import->isManual()
-            ? __('portal.inbound.manual.messages.confirmed', ['count' => $created, 'attached' => $attached])
-            : __('portal.inbound.messages.confirmed', ['count' => $created]));
+        return redirect()->route('portal.asns.imports.show', $import)->with('status', match (true) {
+            $import->isManual() => __('portal.inbound.manual.messages.confirmed', ['count' => $created, 'attached' => $attached]),
+            $import->orderType() === 'pickup_deliver' => __('portal.inbound.messages.confirmed_pickup', ['count' => $created]), // CHANGE_REQUESTS #144
+            default => __('portal.inbound.messages.confirmed', ['count' => $created]),
+        });
     }
 
     /**
@@ -416,6 +431,30 @@ final class PortalInboundImportController extends Controller
         ];
     }
 
+    /** CHANGE_REQUESTS #144: the order type a list produces — anything but `pickup_deliver` (including no value at all) is today's from_stock list. */
+    private function orderType(mixed $value): string
+    {
+        return $value === 'pickup_deliver' ? 'pickup_deliver' : 'from_stock';
+    }
+
+    /**
+     * CHANGE_REQUESTS #144: a 提货直送 list — the pickup party every order of the list shares (the same fields the single order form
+     * requires for that type) and the 要求送达日 the orders carry (a 要求送达日 column on the sheet still wins per group).
+     */
+    private function pickupRules(): array
+    {
+        return [
+            'pickup' => ['required', 'array'],
+            'pickup.name' => ['required', 'string', 'max:255'],
+            'pickup.phone' => ['nullable', 'string', 'max:40'],
+            'pickup.address' => ['required', 'string', 'max:255'],
+            'pickup.suburb' => ['required', 'string', 'max:100'],
+            'pickup.state' => ['required', Rule::in(Enums::STATES)],
+            'pickup.postcode' => ['required', 'regex:/^\d{4}$/'],
+            'requested_date' => ['required', 'date', 'after_or_equal:today'],
+        ];
+    }
+
     /** CHANGE_REQUESTS #143: the import options shared by the upload and the manual form (an omitted field keeps today's rule). */
     private function optionRules(): array
     {
@@ -452,12 +491,41 @@ final class PortalInboundImportController extends Controller
     /**
      * The OrderImportService context of a portal submission: the signed-in client (never from the request), no Job, 要求送达日 default
      * = 预计到港日 + 7, service level standard, and the inbound context (+ the collection request when 需要我们上门提货).
+     * CHANGE_REQUESTS #144: a 提货直送 list has no inbound context — it carries the pickup party and the 要求送达日 typed on the form.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    private function submissionContext(int $clientId, array $data): array
+    private function submissionContext(int $clientId, array $data, string $orderType = 'from_stock'): array
     {
+        $options = [
+            // CHANGE_REQUESTS #143: import options — the service falls back to today's rule for anything unknown.
+            'group_by' => (string) ($data['group_by'] ?? 'mark'),
+            'address_type_default' => (string) ($data['address_type_default'] ?? 'auto'),
+        ];
+        if ($orderType === 'pickup_deliver') {
+            $pickup = is_array($data['pickup'] ?? null) ? $data['pickup'] : [];
+            $field = fn (string $key): string => trim((string) ($pickup[$key] ?? ''));
+
+            return [
+                'client_id' => $clientId, // never from the request: the signed-in client is the only possible owner
+                'job_id' => null,
+                'order_type' => 'pickup_deliver',
+                'requested_date' => Carbon::parse((string) $data['requested_date'])->toDateString(), // the form's 要求送达日; a column / cell wins per group
+                'service_level' => 'standard',
+                'source' => 'portal',
+                'client_visible' => true,
+                'inbound' => null,
+                'pickup' => [
+                    'name' => $field('name'),
+                    'phone' => $field('phone'),
+                    'address' => $field('address'),
+                    'suburb' => $field('suburb'),
+                    'state' => mb_strtoupper($field('state')),
+                    'postcode' => $field('postcode'),
+                ],
+            ] + $options;
+        }
         $expected = filled($data['expected_date'] ?? null) ? Carbon::parse($data['expected_date']) : today();
         $inbound = [
             'container_no' => filled($data['container_no'] ?? null) ? mb_strtoupper(trim((string) $data['container_no'])) : null,
@@ -474,15 +542,13 @@ final class PortalInboundImportController extends Controller
         return [
             'client_id' => $clientId, // never from the request: the signed-in client is the only possible owner
             'job_id' => null,
+            'order_type' => 'from_stock',
             'requested_date' => $expected->copy()->addDays(7)->toDateString(), // default; a 要求送达日 column / cell wins per mark
             'service_level' => 'standard',
             'source' => 'portal',
             'client_visible' => true,
             'inbound' => $inbound,
-            // CHANGE_REQUESTS #143: import options — the service falls back to today's rule for anything unknown.
-            'group_by' => (string) ($data['group_by'] ?? 'mark'),
-            'address_type_default' => (string) ($data['address_type_default'] ?? 'auto'),
-        ];
+        ] + $options;
     }
 
     /**

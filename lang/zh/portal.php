@@ -73,6 +73,11 @@ return [
         'enter_manually' => '不使用地址簿，手工输入',
         'address_hint' => '常用地址按使用频率排序，选择后自动填入。',
         'suggest_hint' => '输入地址、城区或收件人时会提示贵公司用过的收件地址，选择后自动填入；新地址请完整手工输入。',
+        // CHANGE_REQUESTS #144: the bulk-import card on 新建订单 — one link per order type, the upload page opens with that type preselected.
+        'import_title' => '订单多？直接上传清单（CSV / Excel），一次生成',
+        'import_hint' => '拼箱清单 / 装箱单不用改格式，直接上传：系统按收件人或唛头合成订单，预览核对后一次生成。库存出库配送 = 货物先到我们仓库再出库配送；现场提货直送 = 我们到贵公司指定地址取货、直接送到收件人。',
+        'import_from_stock' => '批量导入：库存出库配送',
+        'import_pickup' => '批量导入：现场提货直送',
     ],
     'pickup' => [
         'name' => '取货联系人',
@@ -175,6 +180,15 @@ return [
             // CHANGE_REQUESTS #143: import options on the upload and the manual form.
             'group_by' => '分组规则',
             'address_type_default' => '地址类型默认',
+            // CHANGE_REQUESTS #144: the order type and the pickup party of a 提货直送 list.
+            'order_type' => '订单类型',
+            'pickup' => '取货信息',
+            'pickup.name' => '取货联系人 / 企业',
+            'pickup.phone' => '取货电话',
+            'pickup.address' => '取货地址',
+            'pickup.suburb' => '取货城区',
+            'pickup.state' => '取货州',
+            'pickup.postcode' => '取货邮编',
             // CHANGE_REQUESTS #128: 手工建立入库清单.
             'action' => '操作',
             'draft_id' => '草稿',
@@ -198,6 +212,15 @@ return [
             'collection.postcode.regex' => '提货邮编必须是 4 位数字。',
             'collection.type.required_if' => '请选择提货地址类型。',
             'collection.type.in' => '提货地址类型不在可选范围内。',
+            // CHANGE_REQUESTS #144
+            'pickup.required' => '请填写取货信息。',
+            'pickup.name.required' => '请填写取货联系人 / 企业。',
+            'pickup.address.required' => '请填写取货地址。',
+            'pickup.suburb.required' => '请填写取货城区。',
+            'pickup.state.required' => '请选择取货州。',
+            'pickup.state.in' => '取货州不在可选范围内。',
+            'pickup.postcode.required' => '请填写取货邮编。',
+            'pickup.postcode.regex' => '取货邮编必须是 4 位数字。',
             'collection_ready_date.required_if' => '请填写可提货日期。',
             'collection_ready_date.date' => '可提货日期不是有效日期。',
             'collection_ready_date.after_or_equal' => '可提货日期不能早于今天。',
@@ -372,8 +395,32 @@ return [
     ],
     // CHANGE_REQUESTS #123: 入库清单 CSV / Excel 提交 — the client's list becomes its orders; customer service builds the ASN from them.
     'inbound' => [
-        'title' => '上传入库清单（CSV / Excel）',
+        'title' => '批量导入订单（CSV / Excel）', // CHANGE_REQUESTS #144: one upload page for both order types
         'show_title' => '入库清单 #:id',
+        'show_title_pickup' => '提货直送清单 #:id', // CHANGE_REQUESTS #144
+        'hint_pickup' => '上传贵公司的货物清单（CSV 或 Excel）：系统按收件人或唛头把每行货物整理成贵公司的现场提货直送订单——收件人、电话、地址、城区、州、邮编、品名、箱数、重量、尺寸逐项对应，每箱一个申报包裹——预览无误后点“确认提交”生成订单；客服确认订单后安排到下面的取货地址取货并直送收件人，进度在“我的订单”查看。', // CHANGE_REQUESTS #144
+        // CHANGE_REQUESTS #144: the order type the list produces, chosen on the upload page (preselected by the link from 新建订单 / 预报入库).
+        'order_type' => '订单类型（这份清单生成哪种订单）',
+        'order_types' => [
+            'from_stock' => '货物先运到我们仓库入库（预报单由客服建立），再按订单出库配送。',
+            'pickup_deliver' => '我们到贵公司指定的取货地址取货，直接送到收件人；不入仓、不需要预报单。',
+        ],
+        'pickup' => [
+            'section' => '取货信息（这份清单的每张订单共用）',
+            'hint' => '填写我们上门取货的地址和联系人：这份清单生成的每张订单都用同一个取货地址。要求送达日为整份清单的默认值，清单里有“要求送达日”列时以该列为准。提交后由客服确认并安排取货。',
+            'weight_hint' => '现场提货直送按申报包裹计费和拣货：清单里一行 = 一箱，每行的重量 (kg) 必填；缺重量的行不会读入，它所在的订单会被阻断，请补上后整份重新上传。',
+            'fields' => [
+                'name' => '取货联系人 / 企业',
+                'phone' => '取货电话',
+                'contact' => '取货联系人 / 电话',
+                'address' => '取货地址',
+                'suburb' => '取货城区',
+                'state' => '取货州',
+                'postcode' => '取货邮编',
+                'requested_date' => '要求送达日',
+            ],
+        ],
+        'after_confirm_pickup' => '订单已生成（状态“已接收”）。客服确认订单后安排上门取货并直送收件人，进度在“我的订单”查看；提货直送不需要预报单。',
         'list_title' => '已提交清单',
         'upload_button' => '上传清单（CSV / Excel）',
         'hint' => '上传贵公司的货物清单（CSV 或 Excel）：系统按唛头把每行货物整理成贵公司的订单——收件人、电话、地址、城区、州、邮编、FBA 货件编号、品名、包装、箱数、重量、尺寸逐项对应——预览无误后点“确认提交”生成订单；客服随后在“待建预报”里按这批订单建立预报单 (ASN)，到货进度在“预报入库”查看。',
@@ -393,6 +440,7 @@ return [
         'skip_acknowledge' => '我已知道跳过的行不会生成订单',
         'fields' => [
             'file' => '清单文件（CSV / XLSX）',
+            'order_type' => '订单类型', // CHANGE_REQUESTS #144
             'container_no' => '柜号',
             'container_size' => '柜型',
             'expected_date' => '预计到港日',
@@ -459,6 +507,7 @@ return [
         ],
         'sections' => [
             'context' => '入库信息',
+            'pickup' => '取货信息', // CHANGE_REQUESTS #144
             'file' => '清单文件',
             'errors' => '以下行有错误，未读入——请修正后重新上传',
             'warnings' => '提醒（已自动处理，请核对）',
@@ -475,6 +524,7 @@ return [
         'messages' => [
             'uploaded' => '清单已读入，请核对下面的预览后再确认提交。',
             'confirmed' => '已生成 :count 张订单；客服将据此建立预报单。',
+            'confirmed_pickup' => '已生成 :count 张现场提货直送订单；客服确认后安排上门取货。', // CHANGE_REQUESTS #144
             'nothing' => '没有可生成的订单，未做任何更改。',
         ],
         'errors' => [

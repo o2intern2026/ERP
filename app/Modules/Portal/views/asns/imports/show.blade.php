@@ -1,11 +1,14 @@
 @extends('layouts.app')
 
-@section('title', __('portal.inbound.show_title', ['id' => $import->id]))
+{{-- CHANGE_REQUESTS #144: a 提货直送 list is titled as such and shows its pickup party instead of the inbound context. --}}
+@php($pickupDeliver = ($orderType ?? 'from_stock') === 'pickup_deliver')
+@php($showTitle = __($pickupDeliver ? 'portal.inbound.show_title_pickup' : 'portal.inbound.show_title', ['id' => $import->id]))
+@section('title', $showTitle)
 
 @section('content')
-    <p><a href="{{ route('portal.asns.index') }}">← {{ __('portal.asns.title') }}</a> · <a href="{{ route('portal.asns.imports.index') }}">{{ __('portal.inbound.list_title') }}</a></p>
+    <p>@if ($pickupDeliver)<a href="{{ route('portal.orders.create') }}">← {{ __('portal.actions.create') }}</a>@else<a href="{{ route('portal.asns.index') }}">← {{ __('portal.asns.title') }}</a>@endif · <a href="{{ route('portal.asns.imports.index') }}">{{ __('portal.inbound.list_title') }}</a></p>
     <header>
-        <h1>{{ __('portal.inbound.show_title', ['id' => $import->id]) }}</h1>
+        <h1>{{ $showTitle }}</h1>
         <p>
             {!! \App\Support\Ui\StatusBadge::render('portal.inbound.statuses.', $import->status) !!}
             · {{ $manual ? __('portal.inbound.manual.source') : ($audit['context']['original_name'] ?? '') }} · {{ $import->created_at?->format('Y-m-d H:i') }}
@@ -18,6 +21,20 @@
         <article role="alert"><strong>{{ __('portal.validation.heading') }}</strong><ul>@foreach (array_unique($errors->all()) as $error)<li>{{ $error }}</li>@endforeach</ul></article>
     @endif
 
+    @if ($pickupDeliver)
+        {{-- CHANGE_REQUESTS #144: the pickup party every order of this list shares, the 要求送达日 and the import options. --}}
+        <article class="kv-card" id="pickup-party">
+            <strong>{{ __('portal.inbound.sections.pickup') }}</strong>
+            <dl class="kv-2">
+                <dt>{{ __('portal.inbound.fields.order_type') }}</dt><dd>{{ __('orders.types.pickup_deliver') }}</dd>
+                <dt>{{ __('portal.inbound.pickup.fields.contact') }}</dt><dd>{{ ($pickup['name'] ?? null) ?: '—' }} · {{ ($pickup['phone'] ?? null) ?: '—' }}</dd>
+                <dt>{{ __('portal.inbound.pickup.fields.address') }}</dt><dd>{{ $pickup['address'] ?? '' }}, {{ $pickup['suburb'] ?? '' }} {{ $pickup['state'] ?? '' }} {{ $pickup['postcode'] ?? '' }}</dd>
+                <dt>{{ __('portal.inbound.pickup.fields.requested_date') }}</dt><dd>{{ $requestedDate ?: '—' }} · {{ __('orders.service_levels.standard') }}</dd>
+                <dt>{{ __('portal.inbound.options.group_by') }}</dt><dd>{{ __('portal.inbound.options.group_by_options.'.$groupBy) }}@if ($groups->isNotEmpty()) · {{ __('portal.inbound.options.preview_orders', ['count' => $groups->count()]) }}@endif</dd>
+                <dt>{{ __('portal.inbound.options.address_type_default') }}</dt><dd>{{ __('portal.inbound.options.address_type_defaults.'.$addressTypeDefault) }}</dd>
+            </dl>
+        </article>
+    @else
     <article class="kv-card">
         <strong>{{ __('portal.inbound.sections.context') }}</strong>
         <dl class="kv-2">
@@ -32,6 +49,7 @@
             <dt>{{ __('portal.inbound.options.address_type_default') }}</dt><dd>{{ __('portal.inbound.options.address_type_defaults.'.$addressTypeDefault) }}</dd>
         </dl>
     </article>
+    @endif
 
     @if ($collection)
         {{-- CHANGE_REQUESTS #125: 需要我们上门提货 — what the client asked for, the packages derived from the list rows (never typed twice). --}}
@@ -153,7 +171,7 @@
                 <th>{{ __('portal.inbound.fields.mark') }}</th><th>{{ __('portal.inbound.fields.consignee') }}</th><th>{{ __('portal.inbound.fields.address') }}</th>
                 <th>{{ __('portal.inbound.fields.suburb') }}</th><th>{{ __('portal.inbound.fields.state') }}</th><th>{{ __('portal.inbound.fields.postcode') }}</th><th>{{ __('portal.inbound.fields.address_type') }}</th><th>{{ __('portal.inbound.fields.fba') }}</th>
                 <th>{{ __('portal.inbound.fields.goods') }}</th><th>{{ __('portal.inbound.fields.package_type') }}</th><th class="num">{{ __('portal.inbound.fields.cartons') }}</th>
-                <th class="num">{{ __('portal.inbound.fields.weight') }}</th><th>{{ __('portal.inbound.fields.dims') }}</th><th>{{ __('portal.inbound.fields.storage_tier') }}</th><th>{{ __('portal.inbound.fields.row_numbers') }}</th><th>{{ __('portal.inbound.fields.status') }}</th>
+                <th class="num">{{ __('portal.inbound.fields.weight') }}</th><th>{{ __('portal.inbound.fields.dims') }}</th>@unless ($pickupDeliver)<th>{{ __('portal.inbound.fields.storage_tier') }}</th>@endunless<th>{{ __('portal.inbound.fields.row_numbers') }}</th><th>{{ __('portal.inbound.fields.status') }}</th>
             </tr></thead>
             <tbody>
             @foreach ($groups as $group)
@@ -177,7 +195,9 @@
                         <td class="num">{{ $row['carton_qty'] }}</td>
                         <td class="num">{{ $row['actual_weight_kg'] ?? '—' }}</td>
                         <td>@if ($row['length_mm'] || $row['width_mm'] || $row['height_mm']){{ $row['length_mm'] ?? '—' }}×{{ $row['width_mm'] ?? '—' }}×{{ $row['height_mm'] ?? '—' }}@else — @endif</td>
+                        @unless ($pickupDeliver){{-- CHANGE_REQUESTS #144: nothing is stored for a 提货直送 list --}}
                         <td>@if (($row['storage_tier'] ?? null) === 'bottom')<span class="badge" data-tone="warn">{{ __('portal.stock.storage_tiers.bottom') }}</span>@else{{ __('portal.stock.storage_tiers.standard') }}@endif @if (($row['storage_tier_source'] ?? null) === 'value_rule')<br><span class="badge" data-tone="info">{{ __('portal.inbound.tier_prefilled') }}</span>@endif</td>
+                        @endunless
                         <td>{{ $row['row'] }}</td>
                         @if ($loop->first)
                             <td rowspan="{{ $span }}">
@@ -194,7 +214,7 @@
         </table></div>
     @endif
 
-    @php($againRoute = $manual ? route('portal.asns.imports.manual.create') : route('portal.asns.imports.create'))
+    @php($againRoute = $manual ? route('portal.asns.imports.manual.create') : route('portal.asns.imports.create', ['order_type' => $orderType ?? 'from_stock']))
     @php($againLabel = $manual ? __('portal.inbound.manual.button') : __('portal.inbound.actions.reupload'))
     @if ($import->status === 'pending')
         @if ($readyCount > 0 || $attachedOrders->isNotEmpty())
@@ -268,7 +288,7 @@
                     </li>
                 @endforeach
             </ul>
-            <p>{{ __('portal.inbound.after_confirm') }}</p>
+            <p>{{ __($pickupDeliver ? 'portal.inbound.after_confirm_pickup' : 'portal.inbound.after_confirm') }}</p>
         @else
             <p>{{ __('portal.inbound.no_ready') }}</p>
         @endif

@@ -6,6 +6,15 @@
     <p><a href="{{ route('portal.index') }}">← {{ __('portal.actions.back') }}</a></p>
     <h1>{{ __('portal.create.title') }}</h1>
     <p class="text-muted"><small>{{ __('portal.create.hint') }}</small></p>
+    {{-- CHANGE_REQUESTS #144: many orders → upload a list (the consolidation format uploads as is) for either order type; the link preselects the type. --}}
+    <article class="kv-card" id="bulk-import">
+        <strong>{{ __('portal.create.import_title') }}</strong>
+        <p class="text-muted"><small>{{ __('portal.create.import_hint') }}</small></p>
+        <p>
+            <a role="button" class="secondary" href="{{ route('portal.asns.imports.create', ['order_type' => 'from_stock']) }}">{{ __('portal.create.import_from_stock') }}</a>
+            <a role="button" class="secondary" href="{{ route('portal.asns.imports.create', ['order_type' => 'pickup_deliver']) }}">{{ __('portal.create.import_pickup') }}</a>
+        </p>
+    </article>
     {{-- Validation errors are rendered once, by layouts/partials/flash (2026-09-10 audit: the page used to print the list twice). --}}
 
     <form method="post" action="{{ route('portal.orders.preview') }}" id="portal-order-form">
