@@ -2,6 +2,7 @@
 
 namespace App\Modules\Orders;
 
+use App\Modules\Orders\Console\ImportInboxCommand;
 use App\Modules\Orders\Consumers\AsnPutawayCompletedConsumer;
 use App\Modules\Orders\Consumers\DeliveryPodCapturedConsumer;
 use App\Modules\Orders\Consumers\InvoiceIssuedConsumer;
@@ -33,6 +34,9 @@ class OrdersServiceProvider extends ServiceProvider
     {
         $this->loadViewsFrom(__DIR__.'/views', 'orders');
         $this->loadMigrationsFrom(__DIR__.'/migrations');
+        if ($this->app->runningInConsole()) {
+            $this->commands([ImportInboxCommand::class]); // CHANGE_REQUESTS #145: cron sweep of the per-client inbox folders
+        }
 
         $registry = $this->app->make(ConsumerRegistry::class);
         $registry->register('stock.reserved', StockReservedConsumer::class);

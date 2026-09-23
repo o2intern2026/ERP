@@ -436,6 +436,7 @@ return [
         'address_type_hint' => '「地址类型」列可选：住宅 / 商业 / FBA。填“住宅”的收件人按尾板车规则处理（确认订单时自动标记需要尾板车，尾板费在最终报价确认时产生）；留空则按地址簿或 FBA 货件编号判断，其余视为商业地址。',
         'address_types' => ['business' => '商业地址', 'residential' => '住宅地址', 'fba' => 'FBA 仓库'],
         'residential_tailgate' => '住宅 · 按尾板车规则处理',
+        'sources' => ['api' => 'API 推送', 'inbox' => '收件夹自动导入'], // CHANGE_REQUESTS #145
         // CHANGE_REQUESTS #136 (audit PORTAL-05): rows confirm will skip need a second, explicit confirmation.
         'skip_acknowledge' => '我已知道跳过的行不会生成订单',
         'fields' => [

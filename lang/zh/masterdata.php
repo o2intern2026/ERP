@@ -33,6 +33,12 @@ return [
         'payment_terms_hint' => 'prepaid(预付)/ eom(月末)/ net_N(N 天,如 net_30)。只决定发票到期日,不会阻止预订或发运。',
         'markup_hint' => '第三方运费的默认加成百分比;价目表可按承运商 × 服务等级覆盖。',
         'cutoff_hint' => '当天发运的截单时间;超过后的加急派送按价目表收加急费。',
+        // CHANGE_REQUESTS #145 自动导入
+        'import_section' => '自动导入(清单不经人手上传时的规则)',
+        'import_hint' => '两种方式都走客户门户上传同一条路径,结果在客户门户“已提交清单”可见:① 客户系统用 API token 把整份清单(CSV / XLSX,multipart)推到 :endpoint,同一份文件重复推送只返回第一次的结果;② 把清单文件放进该客户的收件夹,系统每 5 分钟读一次。分组规则和地址类型默认与门户上传的两个选项相同,推送时没指定就用这里的值。',
+        'import_auto_confirm_hint' => '只有整份清单零错误、零阻断时才自动生成订单;否则停在“待确认”,由客户在门户核对后确认。',
+        'import_inbox_hint' => '收件夹::folder(放入 60 秒后才读,处理完移到 processed / review / failed 子目录并留一份 .result.txt)。收件夹清单一律按库存出库配送读入。',
+        'import_notify_hint' => '每份清单处理后发一封结果邮件;留空则用联系邮箱,都没有就不发。',
         'standard_card_hint' => '客户自助注册时自动绑定当时启用的标准价目表;标准价目表出新版本生效时自动切换。专属价目表和标准价目表都在 计费 → 价目表 维护(管理员 / 财务)。',
     ],
     'suppliers' => ['title' => '供应商', 'create' => '新建供应商', 'edit' => '编辑供应商'],
@@ -58,6 +64,12 @@ return [
         'invoice_grouping' => '发票分组',
         'default_markup_percent' => '默认加成 %',
         'dispatch_cutoff_time' => '发运截单时间',
+        // CHANGE_REQUESTS #145
+        'import_group_by' => '默认分组规则',
+        'import_address_type_default' => '默认地址类型',
+        'import_auto_confirm' => '零错误时自动生成订单',
+        'import_inbox_enabled' => '启用收件夹自动导入',
+        'import_notify_email' => '结果通知邮箱',
     ],
 
     'leg_types' => ['first_leg' => '头程', 'last_leg' => '尾程', 'both' => '头程 + 尾程'],

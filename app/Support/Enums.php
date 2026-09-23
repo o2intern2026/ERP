@@ -47,6 +47,14 @@ final class Enums
     /** clients.status — `pending` = self-registered at /register, waiting for staff approval (tester feedback #8). */
     public const CLIENT_STATUSES = ['pending', 'active', 'inactive'];
 
+    /** CHANGE_REQUESTS #145 `clients.import_defaults` (JSON): the list-import options a client's automated lists are read with — the same two options the portal upload offers (#143). */
+    public const IMPORT_GROUP_BYS = ['mark', 'recipient'];
+
+    public const IMPORT_ADDRESS_TYPE_DEFAULTS = ['auto', 'residential', 'business'];
+
+    /** `order_imports.source`: `excel` (staff import), `pdf`, `portal` (the client's upload, #123), `api` / `inbox` (自动导入, #145). */
+    public const ORDER_IMPORT_SOURCES = ['excel', 'pdf', 'portal', 'api', 'inbox'];
+
     public const INBOUND_TYPES = ['container', 'loose_truck', 'parcel'];
 
     public const ASN_STATUSES = ['booked', 'arrived', 'receiving', 'putaway', 'closed'];

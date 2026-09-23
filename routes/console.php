@@ -10,3 +10,4 @@ Schedule::command('webhooks:retry')->everyFiveMinutes()->withoutOverlapping(); /
 Schedule::command('billing:storage-weekly')->weeklyOn(1, '01:00'); // weekly storage from snapshots (ERP_PLAN §6.7 A6b)
 Schedule::command('stock:snapshot')->dailyAt('23:55'); // storage-charge basis (ERP_PLAN §4.4 每日快照, §4.8)
 Schedule::command('billing:flag-overdue')->dailyAt('06:00'); // overdue is a display flag only (ERP_PLAN §0.2 rule 9)
+Schedule::command('imports:inbox')->everyFiveMinutes()->withoutOverlapping(); // CHANGE_REQUESTS #145: per-client inbox folders → the list import pipeline

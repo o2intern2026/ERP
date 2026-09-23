@@ -106,7 +106,20 @@ class ClientController extends Controller
             'invoice_grouping' => ['nullable', Rule::in(Enums::INVOICE_GROUPINGS)],
             'default_markup_percent' => ['required', 'numeric', 'min:0', 'max:999.99'],
             'dispatch_cutoff_time' => ['nullable', 'date_format:H:i'],
+            // CHANGE_REQUESTS #145 自动导入: the defaults an API push / inbox file of this client is read with.
+            'import_defaults' => ['nullable', 'array'],
+            'import_defaults.group_by' => ['nullable', Rule::in(Enums::IMPORT_GROUP_BYS)],
+            'import_defaults.address_type_default' => ['nullable', Rule::in(Enums::IMPORT_ADDRESS_TYPE_DEFAULTS)],
+            'import_defaults.auto_confirm' => ['nullable', 'boolean'],
+            'import_defaults.inbox_enabled' => ['nullable', 'boolean'],
+            'import_defaults.notify_email' => ['nullable', 'email', 'max:255'],
         ]);
+        // The fieldset is on the form, so the key is always posted; a caller without it keeps the client's stored defaults untouched.
+        if ($request->has('import_defaults')) {
+            $data['import_defaults'] = Client::importDefaultsFrom(is_array($data['import_defaults'] ?? null) ? $data['import_defaults'] : []);
+        } else {
+            unset($data['import_defaults']);
+        }
 
         // Invoice cadence / grouping have sensible defaults so older forms and imports keep working (tester feedback #4).
         $data['invoice_period'] = $data['invoice_period'] ?? $client->invoice_period ?? 'monthly';

@@ -12,6 +12,7 @@ use App\Modules\Orders\Http\Controllers\OrderApiController;
 use App\Modules\Orders\Http\Controllers\OrderChangeController;
 use App\Modules\Orders\Http\Controllers\OrderController;
 use App\Modules\Orders\Http\Controllers\OrderEstimateController;
+use App\Modules\Orders\Http\Controllers\OrderImportApiController;
 use App\Modules\Orders\Http\Controllers\OrderImportController;
 use App\Modules\Orders\Http\Controllers\OrderInboundController;
 use App\Modules\Orders\Http\Controllers\OrderLineController;
@@ -24,6 +25,11 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('orders')->name('orders.')->group(function () {
     // A4b: token-authenticated JSON endpoint (no session, no CSRF, no client.scope — the bearer token names the client).
     Route::post('/api/orders', [OrderApiController::class, 'store'])->name('api.orders.store')
+        ->withoutMiddleware(['auth', 'client.scope', ValidateCsrfToken::class]);
+    // CHANGE_REQUESTS #145 自动导入: the client's system pushes a whole list (multipart) and polls the result — same token, same rules.
+    Route::post('/api/imports', [OrderImportApiController::class, 'store'])->name('api.imports.store')
+        ->withoutMiddleware(['auth', 'client.scope', ValidateCsrfToken::class]);
+    Route::get('/api/imports/{import}', [OrderImportApiController::class, 'show'])->whereNumber('import')->name('api.imports.show')
         ->withoutMiddleware(['auth', 'client.scope', ValidateCsrfToken::class]);
     Route::get('/api-tokens', [ApiTokenController::class, 'index'])->name('api-tokens.index');
     Route::post('/api-tokens', [ApiTokenController::class, 'store'])->name('api-tokens.store');

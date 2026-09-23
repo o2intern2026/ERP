@@ -8,6 +8,7 @@ use App\Modules\Orders\Models\OrderImport;
 use App\Support\Contracts\DocumentService;
 use App\Support\Contracts\JobService;
 use App\Support\Contracts\RateService;
+use App\Support\Enums;
 use App\Support\Exceptions\RuleViolation;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
@@ -50,10 +51,10 @@ final class OrderImportService
     public const ORDER_TYPES = ['from_stock', 'pickup_deliver'];
 
     /** CHANGE_REQUESTS #143: how rows become orders — by 唛头 / waybill (default) or by recipient (name + postcode + address). */
-    public const GROUP_BY = ['mark', 'recipient'];
+    public const GROUP_BY = Enums::IMPORT_GROUP_BYS;
 
     /** CHANGE_REQUESTS #143: the address type of rows without an explicit 地址类型 — `auto` = address book → FBA reference → business. */
-    public const ADDRESS_TYPE_DEFAULTS = ['auto', 'residential', 'business'];
+    public const ADDRESS_TYPE_DEFAULTS = Enums::IMPORT_ADDRESS_TYPE_DEFAULTS;
 
     public function __construct(
         private readonly SpreadsheetManifestParser $parser,
@@ -191,7 +192,12 @@ final class OrderImportService
         abort_unless($import->status === 'pending', 409, __('orders.imports.errors.already_processed'));
         $audit = $import->errors ?? [];
         $context = $audit['context'];
-        $source = $import->source === 'portal' ? 'portal' : 'excel';
+        // orders.source: the client's own submission → portal / api; an inbox file or the staff import → excel (CHANGE_REQUESTS #145).
+        $source = match ($import->source) {
+            'portal' => 'portal',
+            'api' => 'api',
+            default => 'excel',
+        };
         $manual = is_array($context['manual'] ?? null);
         $created = [];
         $attached = [];
@@ -213,7 +219,10 @@ final class OrderImportService
                 $attached = $this->lockAttached((int) $import->client_id, $context['manual']['attached_order_ids'] ?? [], (int) $import->id);
             }
 
-            foreach ($audit['groups'] ?? [] as &$group) {
+            // By reference over the ARRAY, not over `$audit['groups'] ?? []` (a temporary — the statuses / order ids written below were lost
+            // until CHANGE_REQUESTS #145 surfaced it: the API summary and the inbox result count `imported` groups from this audit).
+            $audit['groups'] = $audit['groups'] ?? [];
+            foreach ($audit['groups'] as &$group) {
                 if ($group['status'] !== 'ready' || ! in_array($group['key'], $selectedKeys, true)) {
                     continue;
                 }
@@ -453,7 +462,7 @@ final class OrderImportService
     private function takenOrderIds(int $clientId, ?int $exceptImportId): array
     {
         $taken = [];
-        OrderImport::query()->withoutGlobalScopes()->where('client_id', $clientId)->where('source', 'portal')
+        OrderImport::query()->withoutGlobalScopes()->where('client_id', $clientId)->whereIn('source', AutoImportService::CLIENT_SOURCES) // #145: an API / inbox list is a submission too
             ->whereIn('status', ['draft', 'pending', 'imported'])
             ->when($exceptImportId !== null, fn ($query) => $query->whereKeyNot($exceptImportId))
             ->get(['id', 'status', 'errors'])

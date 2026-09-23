@@ -50,4 +50,29 @@ Content-Type: application/json
 
 {"order_type":"from_stock","external_ref":"PO-1001","deliver_to_name":"…","deliver_to_address":"…","deliver_to_suburb":"…","deliver_to_state":"VIC","deliver_to_postcode":"3000","requested_date":"2026-10-01","lines":[{"description_en":"…","package_type":"carton","carton_qty":10,"storage_tier":"standard","asn_line_id":null}]}</code></pre>
     <p class="text-muted"><small>{{ __('orders.api.storage_tier_hint') }}</small></p>
+
+    {{-- CHANGE_REQUESTS #145 自动导入: a whole list in one call, the same file the portal upload takes. --}}
+    <h2>{{ __('orders.api.import_usage_title') }}</h2>
+    <p class="text-muted"><small>{{ __('orders.api.import_hint') }}</small></p>
+    <pre><code>POST {{ $importEndpoint }}
+Authorization: Bearer &lt;token&gt;
+Content-Type: multipart/form-data
+
+manifest=@list.xlsx                      {{ __('orders.api.import_fields.manifest') }}
+order_type=from_stock                    {{ __('orders.api.import_fields.order_type') }}
+group_by=recipient                       {{ __('orders.api.import_fields.group_by') }}
+address_type_default=residential         {{ __('orders.api.import_fields.address_type_default') }}
+auto_confirm=1                           {{ __('orders.api.import_fields.auto_confirm') }}
+container_no= container_size= expected_date= reference= notes=
+                                         {{ __('orders.api.import_fields.inbound') }}
+requested_date= pickup[name]= pickup[phone]= pickup[address]= pickup[suburb]= pickup[state]= pickup[postcode]=
+                                         {{ __('orders.api.import_fields.pickup') }}
+force=1                                  {{ __('orders.api.import_fields.force') }}
+
+201 {{ __('orders.api.import_responses.201') }}
+202 {{ __('orders.api.import_responses.202') }}
+200 {{ __('orders.api.import_responses.200') }}
+422 {{ __('orders.api.import_responses.422') }}
+
+GET {{ $importEndpoint }}/{import_id}    {{ __('orders.api.import_fields.show') }}</code></pre>
 @endsection

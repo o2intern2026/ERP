@@ -4,7 +4,7 @@
 
 @section('content')
     @php($audit = $import->errors ?? [])
-    @php($portal = $import->source === 'portal')
+    @php($portal = in_array($import->source, \App\Modules\Orders\Services\AutoImportService::CLIENT_SOURCES, true)){{-- the client's own submission: portal upload, API push or inbox file (#145) --}}
     @php($inbound = is_array($audit['context']['inbound'] ?? null) ? $audit['context']['inbound'] : [])
     @php($manual = $import->isManual())
     <h1>{{ __('orders.imports.show_title', ['id' => $import->id]) }}</h1>

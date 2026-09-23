@@ -31,7 +31,7 @@
                 <tr>
                     <td><a href="{{ $draft ? route('portal.asns.imports.manual.edit', $import) : route('portal.asns.imports.show', $import) }}">#{{ $import->id }}</a></td>
                     <td>{{ $import->created_at?->format('Y-m-d H:i') }}</td>
-                    <td>{{ $context['original_name'] ?? ($import->isManual() ? __('portal.inbound.manual.source') : '—') }}</td>
+                    <td>{{ $context['original_name'] ?? ($import->isManual() ? __('portal.inbound.manual.source') : '—') }}@if (in_array($import->source, ['api', 'inbox'], true)) <span class="badge" data-tone="info">{{ __('portal.inbound.sources.'.$import->source) }}</span>@endif</td>{{-- #145 --}}
                     <td>{{ __('orders.types.'.$import->orderType()) }}</td>
                     <td>{{ ($context['inbound']['container_no'] ?? null) ?: '—' }}</td>
                     <td>{{ ($context['inbound']['expected_date'] ?? null) ?: '—' }}</td>
