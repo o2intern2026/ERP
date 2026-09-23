@@ -14,6 +14,12 @@
         · {{ __('orders.imports.fields.file_name') }}: {{ $audit['context']['original_name'] ?? ($manual ? __('orders.imports.manual_entry') : '—') }}
         · {{ __('orders.imports.fields.status') }}: <strong>{!! \App\Support\Ui\StatusBadge::render('orders.imports.statuses.', $import->status) !!}</strong>
     </p>
+    {{-- CHANGE_REQUESTS #143: the import options the list was read with and the order count the grouping rule produces. --}}
+    <p class="text-muted"><small>
+        {{ __('orders.imports.options.group_by') }}: {{ __('orders.imports.options.group_by_options.'.($audit['context']['group_by'] ?? 'mark')) }}
+        @if (($audit['groups'] ?? []) !== []) · {{ __('orders.imports.options.preview_orders', ['count' => $import->status === 'pending' ? collect($audit['groups'])->where('status', 'ready')->count() : count($audit['result']['created'] ?? [])]) }}@endif
+        · {{ __('orders.imports.options.address_type_default') }}: {{ __('orders.imports.options.address_type_defaults.'.($audit['context']['address_type_default'] ?? 'auto')) }}
+    </small></p>
 
     @if (session('status'))<article>{{ session('status') }}</article>@endif
     @if ($errors->any())
@@ -68,7 +74,14 @@
         @endif
     @endif
     @if (($audit['warnings'] ?? []) !== [])
-        <article><strong>{{ __('orders.imports.warning_title') }}</strong><ul>@foreach ($audit['warnings'] as $warning)<li>{{ $warning['message'] }}</li>@endforeach</ul></article>
+        {{-- CHANGE_REQUESTS #143: hundreds of identical notes on a long consolidation list fold behind a count past 20. --}}
+        <article>
+            @if (count($audit['warnings']) > 20)
+                <details><summary><strong>{{ __('orders.imports.warning_title') }}</strong> {{ __('orders.imports.warnings_folded', ['count' => count($audit['warnings'])]) }}</summary><ul>@foreach ($audit['warnings'] as $warning)<li>{{ $warning['message'] }}</li>@endforeach</ul></details>
+            @else
+                <strong>{{ __('orders.imports.warning_title') }}</strong><ul>@foreach ($audit['warnings'] as $warning)<li>{{ $warning['message'] }}</li>@endforeach</ul>
+            @endif
+        </article>
     @endif
     @if (($audit['issues'] ?? []) !== [] || $import->error_count > 0)
         <p><a href="{{ route('orders.imports.errors', $import) }}">{{ __('orders.imports.actions.download_errors') }}</a></p>

@@ -124,9 +124,28 @@ return [
         'create_title' => '导入配送清单',
         'show_title' => '订单导入 #:id',
         'empty' => '暂无订单导入记录。',
-        'hint' => '支持 XLSX 或 CSV；系统按“唛头 + 收件地址 + FBA 货件编号”分组，并在正式建单前显示阻断项和重复项。',
+        'hint' => '支持 XLSX 或 CSV；系统按“唛头 + 收件地址 + FBA 货件编号”分组（或按收件人合并，见下面的分组规则），并在正式建单前显示阻断项和重复项。',
         'address_matched' => '已匹配地址簿',
         'warning_title' => '请注意：',
+        'warnings_folded' => '共 :count 条，点开查看', // CHANGE_REQUESTS #143
+        // CHANGE_REQUESTS #143: the client's English consolidation list uploads as is; the import options.
+        'consolidation_hint' => '客户的英文拼箱清单可以原样导入：ChannelWaybillNumber（运单号，作唛头）、Recipient、Recipient\'s Phone Number、Postal Code、State/Province、City（城区）、Detailed Address、Commodity、商品数量、TTL VALUE(AUD)、每箱产品总价 (AUD)、Length/Width/Height(cm)、Weight(kg)、Cube(m3)；Sender / Country / Battery / Email 列忽略；没有「箱数」列时按“一行 = 一箱”读入。',
+        'options' => [
+            'group_by' => '分组规则',
+            'group_by_options' => [
+                'mark' => '按唛头 / 运单号（默认）',
+                'recipient' => '按收件人（收件人 + 邮编 + 地址相同合为一单）',
+            ],
+            'group_by_hint' => '“按收件人”时订单唛头取第一行运单号去掉末尾“-序号”，每行品名前带上自己的运单号。',
+            'address_type_default' => '地址类型默认',
+            'address_type_defaults' => [
+                'auto' => '自动判断（地址簿 → FBA → 商业）',
+                'residential' => '未填的按住宅',
+                'business' => '未填的按商业',
+            ],
+            'address_type_default_hint' => '只影响没有「地址类型」值的行；住宅按尾板车规则处理。',
+            'preview_orders' => '将生成 :count 张订单',
+        ],
         'actions' => [
             'new' => '新建导入',
             'preview' => '上传并预览',
@@ -184,6 +203,8 @@ return [
             'requested_date' => '要求送达日',
             'service_level' => '服务等级',
             'storage_tier' => '存储等级',
+            'description_auto' => '品名', // CHANGE_REQUESTS #143: Commodity / Description / Goods — cn or en by language
+            'value_aud' => '货值 (AUD)', // CHANGE_REQUESTS #143: TTL VALUE(AUD)
         ],
         // CHANGE_REQUESTS #126: the 存储等级 column of the staff import preview.
         'tier_bottom_rows' => '底层 :count 行',
@@ -200,6 +221,8 @@ return [
             'state_mismatch' => '第 :row 行的州 :state 与邮编 :postcode 所属的 :expected 不一致，请核对。',
             'unit_weight' => '「:field」是单件重量，已按 单件重量 × 箱数 换算为每行的合计重量。',
             'duplicate_row' => '第 :row 行与第 :first 行内容完全相同（重复行），请确认是否重复。',
+            // CHANGE_REQUESTS #143: the consolidation list has one row per carton and no 箱数 column.
+            'one_carton_per_row' => '清单没有「箱数」列：已按“一行 = 一箱”读入（箱数记 1，重量为该箱重量）。如果一行代表多箱，请加一列「箱数」后重新上传。',
         ],
         'statuses' => [
             'draft' => '草稿', // CHANGE_REQUESTS #128: a portal 手工建立入库清单 saved to continue later
@@ -221,7 +244,7 @@ return [
             'unsupported_file' => '仅支持 XLSX 或 CSV 配送清单；旧版 XLS 文件请另存为 XLSX。',
             'xls_unsupported' => '旧版 XLS 文件无法读取；请在 Excel 里“另存为”XLSX 或 CSV UTF-8 后重新上传。',
             'corrupted_file' => '无法读取配送清单；请确认文件未损坏且能正常打开。',
-            'headers_missing' => '未找到必需表头（唛头、箱数）；请使用配送清单模板。',
+            'headers_missing' => '未找到必需表头（唛头 / 运单号）；请使用配送清单模板，或英文拼箱清单原格式（ChannelWaybillNumber、Recipient、Postal Code……）。', // CHANGE_REQUESTS #143: 箱数 is optional (one carton per row without it)
             // CHANGE_REQUESTS #123: every row-level message names the row and the column as it appears in the person's sheet.
             'required' => '第 :row 行「:field」不能为空。',
             'positive_number' => '第 :row 行「:field」必须是大于 0 的数字（现为“:value”）。',
@@ -504,6 +527,8 @@ return [
             'actual_weight_kg' => '重量（kg）',
             'asn_line_id' => 'ASN 货物行',
             'manifest' => '配送清单文件',
+            'group_by' => '分组规则', // CHANGE_REQUESTS #143
+            'address_type_default' => '地址类型默认',
             'document' => '采购单文件',
             'label' => '地址别名',
             'contact_name' => '联系人',

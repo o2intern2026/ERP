@@ -57,6 +57,7 @@
         </article>
 
         @include('portal::asns.imports.partials.context-fields')
+        @include('portal::asns.imports.partials.import-options'){{-- CHANGE_REQUESTS #143 --}}
         @include('portal::asns.imports.partials.collection-fields')
 
         <button type="submit" name="action" value="preview">{{ __('portal.inbound.manual.actions.preview') }}</button>

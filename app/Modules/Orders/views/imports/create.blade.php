@@ -19,6 +19,13 @@
             <label>{{ __('orders.fields.requested_date') }}<x-date-field name="requested_date" value="{{ old('requested_date') }}" required /></label>
             <label>{{ __('orders.fields.service_level') }}<select name="service_level" required>@foreach ($serviceLevels as $level)<option value="{{ $level }}" @selected(old('service_level', 'standard') === $level)>{{ __('orders.service_levels.'.$level) }}</option>@endforeach</select></label>
         </div>
+        {{-- CHANGE_REQUESTS #143 导入选项: 按唛头 | 按收件人 grouping and the address type of rows without an explicit 地址类型. --}}
+        <div class="grid">
+            <label>{{ __('orders.imports.options.group_by') }}<select name="group_by">@foreach ($groupBys as $option)<option value="{{ $option }}" @selected(old('group_by', 'mark') === $option)>{{ __('orders.imports.options.group_by_options.'.$option) }}</option>@endforeach</select></label>
+            <label>{{ __('orders.imports.options.address_type_default') }}<select name="address_type_default">@foreach ($addressTypeDefaults as $option)<option value="{{ $option }}" @selected(old('address_type_default', 'auto') === $option)>{{ __('orders.imports.options.address_type_defaults.'.$option) }}</option>@endforeach</select></label>
+        </div>
+        <p class="text-muted"><small>{{ __('orders.imports.options.group_by_hint') }} {{ __('orders.imports.options.address_type_default_hint') }}</small></p>
+        <p class="text-muted"><small>{{ __('orders.imports.consolidation_hint') }}</small></p>
         <label>{{ __('orders.imports.fields.file') }}<input type="file" name="manifest" accept=".xlsx,.csv" required></label>
         <button type="submit">{{ __('orders.imports.actions.preview') }}</button>
         <a class="secondary" role="button" href="{{ route('orders.imports.index') }}">{{ __('orders.imports.actions.back') }}</a>
