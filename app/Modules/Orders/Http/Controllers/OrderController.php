@@ -25,6 +25,7 @@ use App\Support\Auth\RequiredRoles;
 use App\Support\Contracts\RateService;
 use App\Support\Contracts\StockService;
 use App\Support\Enums;
+use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Fluent;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 final class OrderController extends Controller
 {
@@ -161,19 +163,8 @@ final class OrderController extends Controller
     {
         $this->authorizeOrderEntry();
 
-        if ($order->operational_status !== 'received') {
-            return back()->withErrors(['order' => __('orders.validation.confirm_received_only')]);
-        }
-
-        if ($order->order_type === 'from_stock') {
-            $unlinked = $order->lines()->whereNull('asn_line_id')->get();
-            if ($unlinked->isNotEmpty()) {
-                // 2026-09-10 audit: say which lines block the confirmation instead of a generic refusal.
-                return back()->withErrors(['order' => __('orders.validation.unlinked_stock_lines', [
-                    'count' => $unlinked->count(),
-                    'lines' => $unlinked->map(fn ($line) => ($line->description_cn ?: $line->description_en) ?: '#'.$line->id)->implode('、'),
-                ])]);
-            }
+        if (($refusal = $this->confirmRefusal($order)) !== null) {
+            return back()->withErrors(['order' => $refusal]);
         }
 
         // 2026-09-14 lead feedback: a 提货直送 order is never in stock — its timeline note and flash say so instead of "waiting for WMS".
@@ -181,6 +172,64 @@ final class OrderController extends Controller
         $statuses->transitionOperational($order, 'confirmed', auth()->id(), __('orders.fulfilments.timeline.confirmed'.$suffix));
 
         return back()->with('status', __('orders.messages.confirmed'.$suffix));
+    }
+
+    /**
+     * CHANGE_REQUESTS #153 一键确认: the ticked orders are confirmed one by one with exactly the checks and the transition of the single
+     * button (received only; a from_stock order needs every goods line linked to an ASN line); a refused order is named with its
+     * reason and the others still go through. Stock is then reserved by WMS through the same order.confirmed events.
+     */
+    public function confirmBulk(Request $request, OrderStatusService $statuses): RedirectResponse
+    {
+        $this->authorizeOrderEntry();
+        $data = $request->validate(['order_ids' => ['required', 'array', 'min:1'], 'order_ids.*' => ['integer']],
+            ['order_ids.required' => __('orders.bulk_confirm.none'), 'order_ids.min' => __('orders.bulk_confirm.none')]);
+
+        $done = 0;
+        $skipped = [];
+        foreach (Order::query()->with('lines')->whereKey(array_map('intval', $data['order_ids']))->orderBy('id')->get() as $order) {
+            if (($refusal = $this->confirmRefusal($order)) !== null) {
+                $skipped[] = $order->order_no.'（'.$refusal.'）';
+
+                continue;
+            }
+            try {
+                $statuses->transitionOperational($order, 'confirmed', auth()->id(), __('orders.fulfilments.timeline.confirmed'.($order->order_type === 'pickup_deliver' ? '_pickup_deliver' : '')));
+                $done++;
+            } catch (InvalidArgumentException $e) {
+                $skipped[] = $order->order_no.'（'.RuleViolation::display($e).'）';
+            }
+        }
+
+        $redirect = back();
+        if ($done > 0) {
+            $redirect->with('status', __('orders.bulk_confirm.done', ['count' => $done]));
+        }
+        if ($skipped !== []) {
+            $redirect->withErrors(['order_ids' => __('orders.bulk_confirm.skipped', ['count' => count($skipped), 'list' => implode('；', $skipped)])]);
+        }
+
+        return $redirect;
+    }
+
+    /** Why this order cannot be confirmed right now (Chinese), or null: received only; a from_stock order needs every goods line linked to an ASN line. */
+    private function confirmRefusal(Order $order): ?string
+    {
+        if ($order->operational_status !== 'received') {
+            return __('orders.validation.confirm_received_only');
+        }
+        if ($order->order_type === 'from_stock') {
+            $unlinked = $order->lines()->whereNull('asn_line_id')->get();
+            if ($unlinked->isNotEmpty()) {
+                // 2026-09-10 audit: say which lines block the confirmation instead of a generic refusal.
+                return __('orders.validation.unlinked_stock_lines', [
+                    'count' => $unlinked->count(),
+                    'lines' => $unlinked->map(fn ($line) => ($line->description_cn ?: $line->description_en) ?: '#'.$line->id)->implode('、'),
+                ]);
+            }
+        }
+
+        return null;
     }
 
     /** A3 picking lock + A11 stage rules: free before picking, supervisor + reason from picking on, never after dispatch. */

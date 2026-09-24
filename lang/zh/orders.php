@@ -332,6 +332,17 @@ return [
         'pickup_deliver' => '现场提货直送',
         'return' => '退货／拒收',
     ],
+    // CHANGE_REQUESTS #153 一键确认 on the orders list
+    'bulk_confirm' => [
+        'title' => '一键确认订单并检查库存',
+        'hint' => '勾选状态为“已接收”的订单（可全选本页），一次全部确认；每张仍按单张确认的规则检查（库存出库配送的每条货物行必须已关联预报单），被拒的会列出原因，其余照常确认，随后 WMS 按货物行锁定库存。',
+        'select_all' => '全选本页待确认的 :count 张',
+        'select_none' => '取消全选',
+        'submit' => '确认勾选的 :count 张订单并检查库存',
+        'done' => '已确认 :count 张订单，等待 WMS 锁定实际库存。',
+        'skipped' => ':count 张未确认：:list',
+        'none' => '请先勾选要确认的订单。',
+    ],
     'sources' => [
         'portal' => '客户门户',
         'excel' => 'Excel',
