@@ -4,8 +4,10 @@ namespace Tests\Feature\Portal;
 
 use App\Modules\Orders\Models\Order;
 use App\Modules\Orders\Models\OrderImport;
+use App\Modules\Orders\Services\SpreadsheetManifestParser;
 use App\Modules\Platform\Models\Document;
 use App\Modules\Platform\Models\Job;
+use App\Modules\Portal\Http\Controllers\PortalInboundImportController;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -141,26 +143,57 @@ class PortalInboundImportTest extends TestCase
         $response = $this->actingAs($user)->get(route('portal.asns.imports.template'))->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
         $body = $response->getContent();
         $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-        // CHANGE_REQUESTS #136: the 地址类型 column sits in the consignee block, with FBA / 商业 / 住宅 sample rows.
-        $this->assertStringContainsString('唛头,中文品名,英文品名,包装类型,箱数,产品数量,实重(KG),长(CM),宽(CM),高(CM),收件人,电话,地址,城区,州,邮编,地址类型,FBA参考号,要求送达日,存储等级', $body);
-        $this->assertStringContainsString('EDW-001', $body);
-        $this->assertStringContainsString(',2170,FBA,FBA15ABC123,', $body);
-        $this->assertStringContainsString(',3121,商业,,', $body);
-        $this->assertStringContainsString('EDW-003', $body);
-        $this->assertStringContainsString(',3128,住宅,,', $body);
+        // CHANGE_REQUESTS #146: the template is the client's consolidation list one to one — group row, the 27 English headers, three sample cartons.
+        $lines = explode("\n", trim(substr($body, 3)));
+        $this->assertStringStartsWith('寄件人信息,"寄件人信息 可写国内地址",寄件人信息,', $lines[0]);
+        $this->assertSame('"Sender\'s Name","Sender\'s Address","Sender\'s Phone",ChannelWaybillNumber,,Country,State/Province,City,Suburb,"Street Name","Unit/Street Number",Recipient,"Recipient\'s Email","Recipient\'s Phone Number","Postal Code","Detailed Address","Battery Type","Battery Packaging",Commodity,"TTL VALUE(AUD)",商品数量,"每箱产品总价 （AUD)",Length(cm),Width(cm),Height(cm),Weight(kg),Cube(m3)', $lines[1]);
+        $this->assertCount(5, $lines);
+        $this->assertStringContainsString(',CW1001-1,,Australia,VIC,Richmond,', $lines[2]);
+        $this->assertStringContainsString(',CW1002,,Australia,NSW,Moorebank,', $lines[4]);
         $this->actingAs($this->staff('customer_service'))->get(route('portal.asns.imports.template'))->assertForbidden();
 
-        // The template itself uploads cleanly: three marks, every sample field mapped, the address type per mark.
+        // The template itself uploads cleanly: three cartons, every sample field mapped (one carton per row, prices, cm → mm).
         $this->actingAs($user)->post(route('portal.asns.imports.store'), ['manifest' => UploadedFile::fake()->createWithContent('inbound-list-template.csv', $body)])->assertSessionHasNoErrors()->assertRedirect();
         $import = OrderImport::query()->sole();
         $this->assertSame([], $import->errors['issues']);
         $groups = collect($import->errors['groups'])->keyBy('consignment_mark');
         $this->assertSame(['ready', 'ready', 'ready'], $groups->pluck('status')->values()->all());
-        $this->assertSame(['fba', 'business', 'residential'], $groups->pluck('deliver_to_address_type')->values()->all());
-        $this->assertSame(['Amazon FBA BWU2', '0400000000', 'Moorebank', 'NSW', '2170', 'FBA15ABC123', today()->addDays(14)->toDateString()], [
-            $groups['EDW-001']['deliver_to_name'], $groups['EDW-001']['deliver_to_phone'], $groups['EDW-001']['deliver_to_suburb'], $groups['EDW-001']['deliver_to_state'], $groups['EDW-001']['deliver_to_postcode'], $groups['EDW-001']['fba_reference'], $groups['EDW-001']['requested_date'],
-        ]);
-        $this->assertSame([10, 85.0, 600, 'carton'], [$groups['EDW-001']['rows'][0]['carton_qty'], (float) $groups['EDW-001']['rows'][0]['actual_weight_kg'], $groups['EDW-001']['rows'][0]['length_mm'], $groups['EDW-001']['rows'][0]['package_type']]);
+        $this->assertSame(['CW1001-1', 'CW1001-2', 'CW1002'], $groups->keys()->all());
+        $a = $groups['CW1001-1']['rows'][0];
+        $this->assertSame(['Sample Recipient A', '0412000001', 'Richmond', 'VIC', '3121', '12 High St, Richmond VIC 3121'], [$a['deliver_to_name'], $a['deliver_to_phone'], $a['deliver_to_suburb'], $a['deliver_to_state'], $a['deliver_to_postcode'], $a['deliver_to_address']]);
+        // The audit is JSON: a whole-number weight comes back as an int, so the numbers are compared by value.
+        $this->assertEquals([1, 10, 2500, 25000, 12, 600, 400, 400, 0.096], [$a['carton_qty'], $a['unit_qty'], $a['unit_price_cents'], $a['total_price_cents'], $a['actual_weight_kg'], $a['length_mm'], $a['width_mm'], $a['height_mm'], $a['cbm']]);
+        $this->assertSame(30.0, (float) $groups['CW1001-2']['rows'][0]['actual_weight_kg']);
+        $this->assertSame('business', $groups['CW1002']['deliver_to_address_type'], 'no 地址类型 column → the auto rule (no FBA reference, no address-book match → business)');
+    }
+
+    public function test_the_excel_template_is_the_consolidation_sheet_with_sample_cartons_and_the_page_explains_every_header(): void
+    {
+        Storage::fake('local');
+        $user = $this->clientUser();
+
+        // CHANGE_REQUESTS #146: the .xlsx is the client's own sheet layout (data removed, properties scrubbed) with three sample cartons.
+        $response = $this->actingAs($user)->get(route('portal.asns.imports.template_xlsx'))->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->assertHeader('content-disposition', 'attachment; filename=inbound-list-template.xlsx');
+        $this->assertFileExists(base_path(PortalInboundImportController::TEMPLATE_XLSX));
+        $parsed = app(SpreadsheetManifestParser::class)->parse(base_path(PortalInboundImportController::TEMPLATE_XLSX));
+        $this->assertSame([], $parsed['errors']);
+        $this->assertSame(['CW1001-1', 'CW1001-2', 'CW1002'], array_column($parsed['rows'], 'consignment_mark'), 'the header is row 2, one carton per row');
+        $this->assertSame([2500, 25000, 10, 12.0], [$parsed['rows'][0]['unit_price_cents'], $parsed['rows'][0]['total_price_cents'], $parsed['rows'][0]['unit_qty'], $parsed['rows'][0]['actual_weight_kg']]);
+        $zip = new \ZipArchive;
+        $this->assertTrue($zip->open(base_path(PortalInboundImportController::TEMPLATE_XLSX)));
+        $this->assertStringContainsString('Logistics ERP', (string) $zip->getFromName('docProps/core.xml'), 'document properties scrubbed (creator / lastModifiedBy)');
+        $this->assertFalse($zip->locateName('docProps/custom.xml'), 'no custom properties of the original workbook');
+        $this->assertStringNotContainsString('DSFAU', (string) $zip->getFromName('xl/worksheets/sheet1.xml'), 'no tracking numbers of the real list');
+        $zip->close();
+        $this->actingAs($this->staff('customer_service'))->get(route('portal.asns.imports.template_xlsx'))->assertForbidden();
+
+        // The upload page links both templates and explains every header (English header = meaning), without raw lang keys.
+        $page = $this->actingAs($user)->get(route('portal.asns.imports.create'))->assertOk()
+            ->assertSee(route('portal.asns.imports.template_xlsx'), false)->assertSee(__('portal.inbound.template_xlsx'))
+            ->assertSee('ChannelWaybillNumber＝')->assertSee('TTL VALUE(AUD)＝'.__('portal.inbound.template_columns.TTL VALUE(AUD)'))->assertSee("Sender's Name＝"); // escaped by assertSee like the page escapes it
+        $this->assertDoesNotMatchRegularExpression('/portal\.inbound\./', $page->getContent());
     }
 
     public function test_hard_errors_are_chinese_with_row_and_column_and_block_confirmation_and_a_duplicate_file_is_flagged(): void

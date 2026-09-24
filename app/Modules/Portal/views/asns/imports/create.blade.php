@@ -40,8 +40,11 @@
         <article class="kv-card">
             <strong>{{ __('portal.inbound.sections.file') }}</strong>
             <label>{{ __('portal.inbound.fields.file') }}<input type="file" name="manifest" accept=".csv,.xlsx,.xls" required></label>
-            <p><small><a href="{{ route('portal.asns.imports.template') }}">{{ __('portal.inbound.template') }}</a> · {{ __('portal.inbound.template_hint') }}</small></p>
-            <p class="text-muted"><small>{{ implode(' · ', $templateHeaders) }}</small></p>
+            {{-- CHANGE_REQUESTS #146: the template is the client's consolidation list one to one (Excel keeps the layout; CSV has the same rows). --}}
+            <p><small><a href="{{ route('portal.asns.imports.template_xlsx') }}">{{ __('portal.inbound.template_xlsx') }}</a> · <a href="{{ route('portal.asns.imports.template') }}">{{ __('portal.inbound.template') }}</a> · {{ __('portal.inbound.template_hint') }}</small></p>
+            <details><summary><small>{{ __('portal.inbound.template_columns_title') }}</small></summary>
+                <p class="text-muted"><small>@foreach ($templateColumns as $header => $meaning){{ $header }}＝{{ $meaning }}@if (! $loop->last) · @endif @endforeach</small></p>
+            </details>
             <p class="text-muted"><small>{{ __('portal.inbound.consolidation_hint') }}</small></p>{{-- CHANGE_REQUESTS #143: the English consolidation list uploads as is --}}
             <p class="text-muted" data-only="from_stock"><small>{{ __('portal.inbound.defaults_hint') }}</small></p>
             <p class="text-muted" data-only="from_stock"><small>{{ __('portal.inbound.storage_tier_hint') }}</small></p>

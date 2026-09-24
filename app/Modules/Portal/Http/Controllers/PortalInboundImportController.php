@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * 客户门户 入库清单 CSV / Excel 提交 (CHANGE_REQUESTS #123). The client's list becomes the client's ORDERS (operational_status
@@ -61,8 +62,26 @@ use InvalidArgumentException;
  */
 final class PortalInboundImportController extends Controller
 {
-    /** Header row of the CSV template — every entry is an alias SpreadsheetManifestParser::HEADERS accepts, in the client's reading order (地址类型: CHANGE_REQUESTS #136). */
-    private const TEMPLATE_HEADERS = ['唛头', '中文品名', '英文品名', '包装类型', '箱数', '产品数量', '实重(KG)', '长(CM)', '宽(CM)', '高(CM)', '收件人', '电话', '地址', '城区', '州', '邮编', '地址类型', 'FBA参考号', '要求送达日', '存储等级'];
+    /**
+     * CHANGE_REQUESTS #146: the template IS the client's consolidation list, one to one — row 1 the Chinese group titles, row 2 the 27
+     * English headers exactly as the real sheet spells them (E has no header: the consolidator's own tracking number; V keeps its
+     * full-width bracket), one carton per row. Columns the parser does not read (sender, country, battery, email, tracking) are kept so
+     * a client can fill the template or upload the original without changing anything. The Excel version (`data/inbound-list-template.xlsx`,
+     * built from the real workbook with every data row removed and the document properties scrubbed) keeps the widths, fonts and frozen
+     * panes; the CSV below has the same rows.
+     */
+    private const TEMPLATE_GROUP_ROW = ['寄件人信息', '寄件人信息 可写国内地址', '寄件人信息', '先提供你们的入仓编号,不要重复,我们会生成本地尾程快递单号和标签,到时候打印贴上', '', '收件人信息', '收件人信息', '收件人信息', '收件人信息', '收件人信息', '收件人信息', '收件人信息', '收件人信息', '收件人信息', '收件人信息', '', '', '', '', '产品均价', '商品数量', '每箱产品总价', '', '', '', '', ''];
+
+    public const TEMPLATE_HEADER_ROW = ["Sender's Name", "Sender's Address", "Sender's Phone", 'ChannelWaybillNumber', '', 'Country', 'State/Province', 'City', 'Suburb', 'Street Name', 'Unit/Street Number', 'Recipient', "Recipient's Email", "Recipient's Phone Number", 'Postal Code', 'Detailed Address', 'Battery Type', 'Battery Packaging', 'Commodity', 'TTL VALUE(AUD)', '商品数量', '每箱产品总价 （AUD)', 'Length(cm)', 'Width(cm)', 'Height(cm)', 'Weight(kg)', 'Cube(m3)'];
+
+    /** Three fictional cartons: two for one recipient (12 kg and a 30 kg one for the tailgate rule) and one for another. */
+    private const TEMPLATE_SAMPLE_ROWS = [
+        ['Sample Shipper Co', '1 Example Road, Shenzhen', '+86 755 0000 0000', 'CW1001-1', '', 'Australia', 'VIC', 'Richmond', '12 High St', 'High St', '12', 'Sample Recipient A', '', '0412 000 001', '3121', '12 High St, Richmond VIC 3121', 'N/A', 'N/A', '蓝牙音箱 Bluetooth speaker', '25', '10', '250', '60', '40', '40', '12', '0.096'],
+        ['Sample Shipper Co', '1 Example Road, Shenzhen', '+86 755 0000 0000', 'CW1001-2', '', 'Australia', 'VIC', 'Richmond', '12 High St', 'High St', '12', 'Sample Recipient A', '', '0412 000 001', '3121', '12 High St, Richmond VIC 3121', 'N/A', 'N/A', '台灯 Desk lamp', '15', '4', '60', '40', '30', '30', '30', '0.036'],
+        ['Sample Shipper Co', '1 Example Road, Shenzhen', '+86 755 0000 0000', 'CW1002', '', 'Australia', 'NSW', 'Moorebank', '1 Warehouse Rd', 'Warehouse Rd', '1', 'Sample Recipient B', '', '0412 000 002', '2170', '1 Warehouse Rd, Moorebank NSW 2170', 'N/A', 'N/A', '电热水壶 Kettle', '32', '5', '160', '45', '35', '30', '8', '0.047'],
+    ];
+
+    public const TEMPLATE_XLSX = 'data/inbound-list-template.xlsx';
 
     public function index(Request $request): View
     {
@@ -88,7 +107,7 @@ final class PortalInboundImportController extends Controller
             'orderTypes' => OrderImportService::ORDER_TYPES,
             'states' => Enums::STATES,
             'containerSizes' => Enums::CONTAINER_SIZES,
-            'templateHeaders' => self::TEMPLATE_HEADERS,
+            'templateColumns' => (array) __('portal.inbound.template_columns'), // CHANGE_REQUESTS #146: header → meaning, in the sheet's order
             'warehouses' => $warehouses,
             'defaultWarehouseId' => $this->defaultWarehouseId($clientId, $warehouses),
             'defaults' => [],
@@ -97,16 +116,14 @@ final class PortalInboundImportController extends Controller
         ]);
     }
 
-    /** CSV skeleton: UTF-8 with BOM (Excel on Chinese Windows opens it correctly), the Chinese headers the parser accepts, three sample rows (FBA / 商业 / 住宅 — CHANGE_REQUESTS #136). */
+    /** CSV skeleton (CHANGE_REQUESTS #146): the consolidation list one to one — group row, header row, three sample cartons; UTF-8 with BOM so Excel on Chinese Windows opens it correctly. */
     public function template(Request $request): Response
     {
         $this->clientId($request);
-        $date = today()->addDays(14)->toDateString();
         $out = fopen('php://temp', 'r+');
-        fputcsv($out, self::TEMPLATE_HEADERS, ',', '"', '');
-        fputcsv($out, ['EDW-001', '蓝牙音箱', 'Bluetooth speaker', '纸箱', '10', '200', '85', '60', '40', '40', 'Amazon FBA BWU2', '0400 000 000', '1 Warehouse Rd', 'Moorebank', 'NSW', '2170', 'FBA', 'FBA15ABC123', $date, '标准'], ',', '"', '');
-        fputcsv($out, ['EDW-002', '电热水壶', 'Kettle', '纸箱', '5', '30', '32.5', '45', '35', '30', 'Shop B', '03 9999 0000', '12 High St', 'Richmond', 'VIC', '3121', '商业', '', $date, '底层'], ',', '"', '');
-        fputcsv($out, ['EDW-003', '台灯', 'Desk lamp', '纸箱', '2', '2', '6', '40', '30', '30', 'Ms Li', '0412 345 678', '8 Rose St', 'Box Hill', 'VIC', '3128', '住宅', '', $date, '标准'], ',', '"', '');
+        foreach ([self::TEMPLATE_GROUP_ROW, self::TEMPLATE_HEADER_ROW, ...self::TEMPLATE_SAMPLE_ROWS] as $row) {
+            fputcsv($out, $row, ',', '"', '');
+        }
         rewind($out);
         $csv = "\xEF\xBB\xBF".stream_get_contents($out);
         fclose($out);
@@ -114,6 +131,16 @@ final class PortalInboundImportController extends Controller
         return ResponseFacade::make($csv, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="inbound-list-template.csv"',
+        ]);
+    }
+
+    /** CHANGE_REQUESTS #146: the Excel template — the client's own sheet layout (widths, fonts, frozen panes) with the three sample cartons. */
+    public function templateXlsx(Request $request): BinaryFileResponse
+    {
+        $this->clientId($request);
+
+        return ResponseFacade::download(base_path(self::TEMPLATE_XLSX), 'inbound-list-template.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
 
