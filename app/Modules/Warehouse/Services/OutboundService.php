@@ -277,6 +277,44 @@ final class OutboundService
      * @param  list<array<string, mixed>>  $packages
      * @return list<array<string, mixed>>
      */
+    /**
+     * CHANGE_REQUESTS #155 批量打包: the packages a picked task packs into when nobody measures — one row per picked line, the same unit
+     * type and per-piece weight Billing uses (pickBilling): a whole pallet = one 托盘 package with the pallet's own weight and dims,
+     * cartons = the picked count × the ASN line's per-carton weight and dims. A line without a weight or all three dims is REPORTED
+     * (its unit label), never guessed — that batch is packed by hand with measured values.
+     *
+     * @return array{packages: list<array{package_type:string, qty:int, weight_kg:float, length_mm:int, width_mm:int, height_mm:int}>, missing: list<string>}
+     */
+    public function autoPackages(WarehouseTask $task): array
+    {
+        $packages = [];
+        $missing = [];
+        foreach ($task->lines->filter(fn (WarehouseTaskLine $l) => $l->completed_qty > 0) as $line) {
+            $unit = $line->stockUnit;
+            if ($unit === null) {
+                $missing[] = '#'.$line->id;
+
+                continue;
+            }
+            [$unitType, $unitWeight] = $this->pickBilling($unit, $line, $task);
+            $source = $unitType === 'pallet' ? $unit : $unit->asnLine;
+            $dims = [(int) ($source?->length_mm ?? 0), (int) ($source?->width_mm ?? 0), (int) ($source?->height_mm ?? 0)];
+            if ($unitWeight === null || $unitWeight <= 0 || min($dims) < 1) {
+                $missing[] = (string) $unit->label_code;
+
+                continue;
+            }
+            $packages[] = [
+                'package_type' => $unitType,
+                'qty' => $unitType === 'pallet' ? 1 : (int) $line->completed_qty,
+                'weight_kg' => (float) $unitWeight,
+                'length_mm' => $dims[0], 'width_mm' => $dims[1], 'height_mm' => $dims[2],
+            ];
+        }
+
+        return ['packages' => $packages, 'missing' => $missing];
+    }
+
     public static function expandPackages(array $packages): array
     {
         $expanded = [];
