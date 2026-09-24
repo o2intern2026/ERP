@@ -335,6 +335,53 @@ class OutboundController extends Controller
         return redirect()->route('warehouse.outbound.index')->with('status', __('warehouse.outbound.packed', ['count' => $result['packages']->count()]));
     }
 
+    /**
+     * CHANGE_REQUESTS #156 批量发运交接: the ticked packed batches are handed over one by one exactly as the row form would with its
+     * defaults — pallet count = the batch's 托盘 packages, the booked shipment linked automatically and its handover party used. A batch
+     * without a booked shipment is skipped and named unless `unbooked` says 客户自提 / 自有司机; a batch the service refuses (financial
+     * hold, cancelled order, already dispatched) is named; the rest go out with the same outbound.dispatched events.
+     */
+    public function dispatchBulk(Request $request, OutboundService $outbound): RedirectResponse
+    {
+        $data = $request->validate(['fulfilment_ids' => ['required', 'array', 'min:1'], 'fulfilment_ids.*' => ['integer'], 'unbooked' => ['nullable', Rule::in(['skip', 'client', 'driver'])]],
+            ['fulfilment_ids.required' => __('warehouse.outbound.dispatch_bulk.none'), 'fulfilment_ids.min' => __('warehouse.outbound.dispatch_bulk.none')]);
+        $ids = collect($data['fulfilment_ids'])->map(fn ($v) => (int) $v)->unique()->values();
+        $shipments = $this->shipmentsFor($ids);
+        $unbooked = $data['unbooked'] ?? 'skip';
+
+        $done = 0;
+        $packagesTotal = 0;
+        $skipped = [];
+        foreach ($ids as $fulfilmentId) {
+            $shipment = $shipments->get($fulfilmentId);
+            $booked = $shipment !== null && $shipment->status === 'booked';
+            $handedTo = $booked ? (string) $shipment->handed_to : ($unbooked === 'skip' ? null : $unbooked);
+            if ($handedTo === null) {
+                $skipped[] = '#'.$fulfilmentId.'（'.__('warehouse.outbound.dispatch_bulk.unbooked_skipped').'）';
+
+                continue;
+            }
+            $palletCount = Package::query()->where('fulfilment_id', $fulfilmentId)->where('package_type', 'pallet')->count();
+            try {
+                $dispatch = $outbound->dispatch($fulfilmentId, $palletCount, $handedTo, $booked ? (int) $shipment->id : null, auth()->id());
+                $done++;
+                $packagesTotal += (int) $dispatch->package_count;
+            } catch (InvalidArgumentException $e) {
+                $skipped[] = '#'.$fulfilmentId.'（'.RuleViolation::display($e).'）';
+            }
+        }
+
+        $redirect = redirect()->route('warehouse.outbound.index');
+        if ($done > 0) {
+            $redirect->with('status', __('warehouse.outbound.dispatch_bulk.done', ['count' => $done, 'packages' => $packagesTotal]));
+        }
+        if ($skipped !== []) {
+            $redirect->withErrors(['dispatch' => __('warehouse.outbound.dispatch_bulk.skipped', ['count' => count($skipped), 'list' => implode('；', $skipped)])]);
+        }
+
+        return $redirect;
+    }
+
     public function dispatch(Request $request, int $fulfilment, OutboundService $outbound): RedirectResponse
     {
         $data = $request->validate(['pallet_count' => ['required', 'integer', 'min:0'], 'handed_to' => ['required', Rule::in(Enums::HANDED_TO)], 'shipment_id' => ['nullable', 'integer']]);
