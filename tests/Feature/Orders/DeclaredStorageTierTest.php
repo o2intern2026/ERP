@@ -52,9 +52,8 @@ class DeclaredStorageTierTest extends TestCase
         $warehouse = $this->warehouse();
 
         $this->actingAs($user)->get(route('portal.asns.imports.create'))->assertOk()->assertSee('存储等级')->assertSee(__('portal.inbound.storage_tier_hint'));
-        $template = $this->actingAs($user)->get(route('portal.asns.imports.template'))->assertOk()->getContent();
-        $this->assertStringContainsString('要求送达日,存储等级', $template);
-        $this->assertStringContainsString(',底层', $template);
+        // CHANGE_REQUESTS #146: the template is the client's consolidation list one to one (no 存储等级 column); the column is still read from any sheet that carries it.
+        $this->actingAs($user)->get(route('portal.asns.imports.template'))->assertOk()->assertDontSee('存储等级');
 
         $this->actingAs($user)->post(route('portal.asns.imports.store'), ['manifest' => $this->csv([
             $this->row('MK-A', '12', '底层', 'Shop A'),
