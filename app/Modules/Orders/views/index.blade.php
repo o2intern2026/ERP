@@ -39,6 +39,10 @@
         <div class="grid">
             <input name="consignment_mark" value="{{ $filters['consignment_mark'] ?? '' }}" placeholder="{{ __('orders.fields.consignment_mark') }}">
             <x-date-field name="requested_date" value="{{ $filters['requested_date'] ?? '' }}" aria-label="{{ __('orders.fields.requested_date') }}" />
+            {{-- CHANGE_REQUESTS #153: the page size decides how many orders 一键确认's 全选本页 covers. --}}
+            <select name="per_page" aria-label="{{ __('orders.filters.per_page') }}">
+                @foreach ([25, 100, 300] as $size)<option value="{{ $size }}" @selected((int) ($filters['per_page'] ?? 25) === $size)>{{ __('orders.filters.per_page_option', ['count' => $size]) }}</option>@endforeach
+            </select>
             <button type="submit" class="secondary">{{ __('orders.actions.filter') }}</button>
         </div>
     </form>

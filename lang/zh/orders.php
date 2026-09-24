@@ -29,6 +29,8 @@ return [
         'all_clients' => '全部客户',
         'all_statuses' => '全部运营状态',
         'all_states' => '全部州',
+        'per_page' => '每页条数', // CHANGE_REQUESTS #153
+        'per_page_option' => '每页 :count 条',
     ],
     'sections' => [
         'instruction' => '订单指令',
