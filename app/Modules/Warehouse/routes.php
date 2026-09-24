@@ -96,7 +96,8 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/receiving/unplanned', [UnplannedReceivingController::class, 'store'])->name('receiving.unplanned.store');
         Route::post('/receipts/{receipt}/complete', [GoodsReceiptController::class, 'complete'])->name('receipts.complete')->whereNumber('receipt'); // 入库完成
         Route::get('/putaway', [PutawayController::class, 'index'])->name('putaway.index');
-        Route::post('/putaway/{unit}', [PutawayController::class, 'store'])->name('putaway.store');
+        Route::post('/putaway/bulk', [PutawayController::class, 'bulk'])->name('putaway.bulk'); // CHANGE_REQUESTS #149: ticked units → one location
+        Route::post('/putaway/{unit}', [PutawayController::class, 'store'])->whereNumber('unit')->name('putaway.store');
         Route::get('/tasks/create', [TaskController::class, 'create'])->name('tasks.create');
         Route::post('/tasks', [TaskController::class, 'store'])->name('tasks.store');
         Route::post('/tasks/{task}/complete', [TaskController::class, 'complete'])->name('tasks.complete');

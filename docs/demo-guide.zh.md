@@ -8,7 +8,7 @@
 |---|---|---|
 | **A. 在这台 Mac 上自己试** | 你自己 | 第 2 节启动,浏览器打开 http://localhost:8000 |
 | **B. 同一 Wi-Fi 的同事试** | 办公室里的人 | 启动时用 `php artisan serve --host=0.0.0.0 --port=8000`,把这台 Mac 的 IP 告诉对方(系统设置 → 网络,例如 `http://192.168.1.23:8000`)。Mac 不能休眠;先按第 6 节改掉默认密码 |
-| **C. 外部人员 / 长期试用(现用)** | 客户、外部同事 | 试用服务器已上线:**http://103.6.171.144**(Kamatera 悉尼,Ubuntu 24.04 + nginx + PHP 8.3 + MySQL 8,cron 每分钟跑调度和队列,无守护进程)。账号密码与第 4 节相同;数据于 2026-09-08 从本机试用库整体搬入。合入 main 后同步服务器:`bash deploy/deploy-trial.sh`(推送 main,服务器执行 `deploy/server/deploy.sh`:拉代码、依赖、增量迁移、重建缓存,不重置数据)。SSH:`ssh -i ~/.ssh/erp-oracle root@103.6.171.144`。PDF 中文字体在服务器 `storage/fonts/cjk.ttf`(git 忽略,换机器要重新放)。Karrio 已装在服务器上(Docker,只监听本机端口,后台不对外开放),第三方运输报价会出现演示承运商 Demo Freight 的三档方案,可订舱、下载测试面单、看轨迹;它不连接任何真实物流公司。 |
+| **C. 外部人员 / 长期试用(现用)** | 客户、外部同事 | 试用服务器已上线:**https://103-6-171-144.sslip.io**(Kamatera 悉尼,Ubuntu 24.04 + nginx + PHP 8.3 + MySQL 8,cron 每分钟跑调度和队列,无守护进程)。账号密码与第 4 节相同;数据于 2026-09-08 从本机试用库整体搬入。合入 main 后同步服务器:`bash deploy/deploy-trial.sh`(推送 main,服务器执行 `deploy/server/deploy.sh`:拉代码、依赖、增量迁移、重建缓存,不重置数据)。SSH:`ssh -i ~/.ssh/erp-oracle root@103.6.171.144`。PDF 中文字体在服务器 `storage/fonts/cjk.ttf`(git 忽略,换机器要重新放)。Karrio 已装在服务器上(Docker,只监听本机端口,后台不对外开放),第三方运输报价会出现演示承运商 Demo Freight 的三档方案,可订舱、下载测试面单、看轨迹;它不连接任何真实物流公司。 |
 
 ## 2. 每次启动(方式 A / B)
 
@@ -66,7 +66,7 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 
 ## 4. 登录账号
 
-试用服务器地址 **http://103.6.171.144/login**(本机开发时为 http://localhost:8000/login)。所有演示账号共用一个密码,由项目负责人另行发送,不写在本文档里(改法见第 6 节)。
+试用服务器地址 **https://103-6-171-144.sslip.io/login**（2026-09-24 起 HTTPS；旧地址 http://103.6.171.144 会自动跳转）(本机开发时为 http://localhost:8000/login)。所有演示账号共用一个密码,由项目负责人另行发送,不写在本文档里(改法见第 6 节)。
 
 | 账号 | 角色 | 看什么 |
 |---|---|---|
@@ -104,7 +104,7 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 1. **改默认密码**:本机上在 `.env` 里加一行 `SEED_DEMO_PASSWORD=你的密码`,再执行第 3 节的重置命令(所有演示账号都会用新密码)。服务器上不要重置数据,用 admin 登录 /admin/users 逐个编辑用户改密码,或让每个人自己登录后点顶栏用户名 → 修改密码(CR #137)。
 2. Karrio 后台(3002 端口)只给自己用,不要开放给别人。
 3. 演示数据里的清单是去标识版本,可以给人看。
-4. 手机扫码页(/warehouse/scan)用摄像头需要 HTTPS 或 localhost;方式 B 的局域网地址和方式 C 的服务器目前都是 http,只能用扫码枪 / 手动输入,服务器配上域名和 HTTPS 后即可用摄像头。
+4. 手机扫码页(/warehouse/scan)用摄像头需要 HTTPS 或 localhost:试用服务器 2026-09-24 起已是 HTTPS(https://103-6-171-144.sslip.io,Let's Encrypt 证书自动续期),iPhone / Android 浏览器直接用摄像头;方式 B 的局域网 http 地址仍只能用扫码枪 / 手动输入。
 
 ## 7. 手动走一遍(推荐顺序,20 分钟)
 
@@ -137,7 +137,7 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 | 端口 8000 被占 | `php artisan serve --port=8001`,并把 `.env` 的 `APP_URL` 改成对应端口 |
 | 运输报价没有 Karrio 方案 | Docker Desktop 未启动或容器未起;`.env` 里 `KARRIO_API_KEY` 为空;Karrio 里没有承运商费率(`php docker/karrio/setup-demo-carrier.php` 可重建演示承运商) |
 | 想看发出的邮件 | 本地邮件写在 `storage/logs/laravel.log`(`MAIL_MAILER=log`) |
-| API 试用 | `curl -X POST http://103.6.171.144/orders/api/orders -H "Authorization: Bearer <钥匙>" -H "Idempotency-Key: demo-1" -H "Content-Type: application/json" -d @order.json`(钥匙在 /orders/api-tokens 生成,只显示一次) |
+| API 试用 | `curl -X POST https://103-6-171-144.sslip.io/orders/api/orders -H "Authorization: Bearer <钥匙>" -H "Idempotency-Key: demo-1" -H "Content-Type: application/json" -d @order.json`(钥匙在 /orders/api-tokens 生成,只显示一次) |
 | 为什么 PDF 单据是英文 | 入库单、发票、库存 / 库位标签、托运清单、自有车队面单、签收凭证 (POD) 是发给客户和承运商的对外文件，2026-09-11 起统一为英文（文字来自 `lang/en/pdf.php`）；系统界面、提示、报错仍是中文。唛头、品名等数据按录入原样打印 |
 | 点"从预报单 (ASN) 生成派送订单"提示"收件信息不完整" | 生成派送订单要求每行收件企业／联系人、地址、城区、州、邮编五项齐全，且同一唛头下各行一致。预报单页每一行都有"编辑收件信息"（客服 / 仓库角色都能用），阻断提示里也直接链到对应行；默认勾选"同时应用到同一唛头的其他行"，一次补齐整组。已生成订单的行不能再改，地址以订单为准。手工添加货物行的表单现在也带完整地址栏 |
 | 预报单 (ASN) 应该谁来建、什么时候建 | 主流程：客户先下单（门户下单 / API 推单 / 客服导入清单），客服或仓库主管到 订单 → "待建预报" 勾选同一批到货的订单，填仓库、柜号、预计到港日，一次生成一张预报单（订单行与预报货物行双向关联，其他订单并入第一张订单的 Job，空 Job 自动关闭）。货到收货、上架后订单自动预留进入待释放。订单页也有"生成预报单"按钮直达。例外流程仍保留：仓库主管手工新建预报单 + Excel 导入，以及货先到时"从预报单生成派送订单"。客户门户的"预报入库"只读：看进度、货物明细、下载入库单 PDF。在预报单页也可以直接"从订单导入货物行"（勾选该客户待建预报的订单，收件信息和箱数自动带入，订单并入该预报单的 Job），手工添加货物行只作例外 |
