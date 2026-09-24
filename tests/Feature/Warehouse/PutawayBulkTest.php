@@ -59,8 +59,45 @@ class PutawayBulkTest extends TestCase
         $this->assertSame(0, StockUnit::query()->withoutGlobalScopes()->where('putaway_completed', false)->count());
         $this->actingAs($this->staff('customer_service'))->post(route('warehouse.putaway.bulk'), ['unit_ids' => [1], 'bulk_location_code' => 'X'])->assertForbidden();
 
-        // A scan code (L<id>, #131) resolves like the full code; another warehouse's unit does not find it.
-        $other = Location::query()->where('warehouse_id', $warehouse->id)->where('type', 'storage')->where('id', '!=', $storage->id)->first() ?? $storage;
-        $this->assertNotNull($other);
+    }
+
+    /** CHANGE_REQUESTS #151: the search box narrows the pending units; 全选 + 批量上架 then clears the whole result in one click. */
+    public function test_search_narrows_the_pending_units_by_mark_description_asn_or_client_and_the_result_is_put_away_in_one_click(): void
+    {
+        $client = $this->client(['name' => 'Search Co', 'code' => 'SRCH']);
+        $warehouse = $this->warehouse();
+        $supervisor = $this->staff('warehouse_supervisor');
+        $asnA = app(AsnService::class)->create(['client_id' => $client->id, 'warehouse_id' => $warehouse->id, 'inbound_type' => 'container']);
+        $asnB = app(AsnService::class)->create(['client_id' => $this->client(['name' => 'Other Co'])->id, 'warehouse_id' => $warehouse->id, 'inbound_type' => 'loose_truck']);
+        [$chairs, $lamps] = app(AsnService::class)->addLines($asnA, [
+            ['description' => 'Chairs', 'expected_cartons' => 4, 'consignment_mark' => 'CW1001-1'],
+            ['description' => 'Lamps', 'expected_cartons' => 2, 'consignment_mark' => 'CW1002'],
+        ]);
+        [$tables] = app(AsnService::class)->addLines($asnB, [['description' => 'Tables', 'expected_cartons' => 3, 'consignment_mark' => 'TB-9']]);
+        $receiving = $this->location($warehouse, 'receiving');
+        $units = [];
+        foreach ([[$chairs, [2, 2]], [$lamps, [2]], [$tables, [3]]] as [$line, $cartons]) {
+            $units[$line->id] = app(ReceivingService::class)->receiveLine($line, ['received_cartons' => array_sum($cartons), 'units' => array_map(fn ($q) => ['unit_type' => 'carton', 'carton_qty' => $q], $cartons)], $receiving);
+        }
+        $chairUnits = $units[$chairs->id];
+        $tableUnit = $units[$tables->id][0];
+
+        // By mark root, by description, by ASN number, by client — the other client's unit never appears; an unknown term says so.
+        $this->actingAs($supervisor)->get(route('warehouse.putaway.index', ['q' => 'CW1001']))->assertOk()
+            ->assertSee($chairUnits[0]->label_code)->assertSee($chairUnits[1]->label_code)->assertDontSee($tableUnit->label_code)
+            ->assertSee(__('warehouse.putaway.search_count', ['q' => 'CW1001', 'count' => 2, 'page' => 2]));
+        $this->actingAs($supervisor)->get(route('warehouse.putaway.index', ['q' => 'lamp']))->assertOk()->assertSee($units[$lamps->id][0]->label_code)->assertDontSee($chairUnits[0]->label_code);
+        $this->actingAs($supervisor)->get(route('warehouse.putaway.index', ['q' => $asnA->asn_no]))->assertOk()->assertSee($chairUnits[0]->label_code)->assertSee($units[$lamps->id][0]->label_code)->assertDontSee($tableUnit->label_code);
+        $this->actingAs($supervisor)->get(route('warehouse.putaway.index', ['q' => 'search co']))->assertOk()->assertSee($chairUnits[0]->label_code)->assertDontSee($tableUnit->label_code);
+        $this->actingAs($supervisor)->get(route('warehouse.putaway.index', ['q' => 'nothing-here']))->assertOk()->assertSee(__('warehouse.putaway.search_empty'))->assertDontSee('id="bulk-putaway"', false);
+        $this->actingAs($supervisor)->get(route('warehouse.putaway.index'))->assertOk()->assertSee($tableUnit->label_code)->assertDontSee(__('warehouse.putaway.search_clear'));
+
+        // The whole search result goes away in one click; the redirect keeps the search, which is now empty.
+        $storage = $this->location($warehouse, 'storage');
+        $ids = collect($chairUnits)->pluck('id')->all();
+        $this->actingAs($supervisor)->from(route('warehouse.putaway.index', ['q' => 'CW1001']))->post(route('warehouse.putaway.bulk'), ['unit_ids' => $ids, 'bulk_location_code' => $storage->full_code])
+            ->assertRedirect(route('warehouse.putaway.index', ['q' => 'CW1001']))->assertSessionHasNoErrors();
+        $this->assertSame(0, StockUnit::query()->withoutGlobalScopes()->whereKey($ids)->where('putaway_completed', false)->count());
+        $this->assertSame(2, StockUnit::query()->withoutGlobalScopes()->where('putaway_completed', false)->count(), 'the lamp and the other client\'s table wait');
     }
 }
