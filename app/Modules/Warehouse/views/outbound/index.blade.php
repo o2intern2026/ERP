@@ -14,6 +14,8 @@
         @error('order_ids')<p><mark>{{ $message }}</mark></p>@enderror
         <form method="post" action="{{ route('warehouse.outbound.waves.release') }}" id="release-form">
             @csrf
+            {{-- CHANGE_REQUESTS #152: the header tick already selects all; these two buttons say so in words. --}}
+            <p style="margin:0 0 .4rem"><button type="button" class="secondary outline" id="release-select-all" style="padding:.15rem .6rem">{{ __('warehouse.outbound.select_all_btn') }}</button> <button type="button" class="secondary outline" id="release-select-none" style="padding:.15rem .6rem">{{ __('warehouse.outbound.select_none_btn') }}</button></p>
             <div class="overflow-auto"><table class="dense">
                 <thead><tr><th><input type="checkbox" id="release-all" checked aria-label="{{ __('warehouse.outbound.select_all') }}" title="{{ __('warehouse.outbound.select_all') }}"></th><th>{{ __('warehouse.outbound.order') }}</th><th>{{ __('warehouse.outbound.client') }}</th><th>{{ __('warehouse.outbound.suburb') }}</th><th>{{ __('warehouse.outbound.requested_date_col') }}</th><th class="num">{{ __('warehouse.outbound.cartons') }}</th><th>{{ __('warehouse.outbound.fulfilment') }}</th></tr></thead>
                 <tbody>
@@ -189,6 +191,8 @@
                 count();
             };
             all?.addEventListener('change', () => { boxes().forEach(b => { b.checked = all.checked; }); count(); });
+            document.getElementById('release-select-all')?.addEventListener('click', () => { boxes().forEach(b => { b.checked = true; }); count(); }); // CHANGE_REQUESTS #152
+            document.getElementById('release-select-none')?.addEventListener('click', () => { boxes().forEach(b => { b.checked = false; }); count(); });
             form.querySelector('tbody').addEventListener('change', count);
             client?.addEventListener('change', filter);
             date?.addEventListener('change', filter);

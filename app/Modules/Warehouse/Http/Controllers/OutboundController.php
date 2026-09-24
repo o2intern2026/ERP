@@ -186,6 +186,46 @@ class OutboundController extends Controller
     }
 
     /** 关闭任务 (admin | warehouse_supervisor, route middleware): closes the started pick task of a cancelled order — OutboundService::closeCancelledTask. */
+    /**
+     * CHANGE_REQUESTS #152 全部确认拣货: the ticked, still-open lines of this wave are confirmed at their 应拣 quantity in one post — one
+     * confirmPick() each, the same rules, stock moves and events as a row confirm. A short pick keeps its own row (实拣 + reason); a
+     * line of a cancelled order or a cancelled task is never touched; a line the service refuses is named and the others still go.
+     */
+    public function pickAll(Request $request, Wave $wave, OutboundService $outbound): RedirectResponse
+    {
+        $data = $request->validate(['line_ids' => ['required', 'array', 'min:1'], 'line_ids.*' => ['integer']],
+            ['line_ids.required' => __('warehouse.outbound.pick_all.none'), 'line_ids.min' => __('warehouse.outbound.pick_all.none')]);
+
+        $tasks = $wave->tasks()->where('status', '!=', 'cancelled')->get(['id', 'order_id']);
+        $cancelled = OutboundService::cancelledOrderIds($tasks->pluck('order_id'));
+        $taskIds = $tasks->reject(fn ($task) => in_array($task->order_id, $cancelled, true))->pluck('id');
+        $lines = WarehouseTaskLine::query()->with('stockUnit')->whereKey(array_map('intval', $data['line_ids']))->whereIn('task_id', $taskIds)->whereNull('confirmed_at')->orderBy('id')->get();
+        if ($lines->isEmpty()) {
+            return back()->withErrors(['line_ids' => __('warehouse.outbound.pick_all.none')]);
+        }
+
+        $done = 0;
+        $skipped = [];
+        foreach ($lines as $line) {
+            try {
+                $outbound->confirmPick($line, (int) $line->required_qty, auth()->id());
+                $done++;
+            } catch (InvalidArgumentException $e) {
+                $skipped[] = ($line->stockUnit?->label_code ?? '#'.$line->id).'（'.RuleViolation::display($e).'）';
+            }
+        }
+
+        $redirect = back();
+        if ($done > 0) {
+            $redirect->with('status', __('warehouse.outbound.pick_all.done', ['count' => $done]));
+        }
+        if ($skipped !== []) {
+            $redirect->withErrors(['line_ids' => __('warehouse.outbound.pick_all.skipped', ['count' => count($skipped), 'list' => implode('；', $skipped)])]);
+        }
+
+        return $redirect;
+    }
+
     public function closeTask(WarehouseTask $task, OutboundService $outbound): RedirectResponse
     {
         try {
