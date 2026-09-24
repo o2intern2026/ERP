@@ -87,11 +87,29 @@
     @if ($toPack->isEmpty())
         <p class="text-muted">{{ __('warehouse.outbound.empty') }}</p>
     @else
+        {{-- CHANGE_REQUESTS #155 批量打包: the rows carry a checkbox bound to this form (form="pack-bulk"); one post packs them from their picked lines. --}}
+        @php($packable = $toPack->reject(fn ($t) => in_array($t->order_id, $cancelledOrders, true)))
+        @role('admin|warehouse_supervisor|warehouse_operator')
+            @if ($packable->isNotEmpty())
+                <form method="post" action="{{ route('warehouse.outbound.pack_bulk') }}" id="pack-bulk">
+                    @csrf
+                    <article class="kv-card">
+                        <strong>{{ __('warehouse.outbound.pack_bulk.title') }}</strong>
+                        <p class="text-muted"><small>{{ __('warehouse.outbound.pack_bulk.hint') }}</small></p>
+                        <p style="margin:0">
+                            <button type="button" class="secondary outline" id="pack-select-all" style="padding:.15rem .6rem">{{ __('warehouse.outbound.pack_bulk.select_all') }}</button>
+                            <button type="button" class="secondary outline" id="pack-select-none" style="padding:.15rem .6rem">{{ __('warehouse.outbound.pack_bulk.select_none') }}</button>
+                            <button type="submit" id="pack-bulk-submit" data-label="{{ __('warehouse.outbound.pack_bulk.submit') }}" disabled>{{ __('warehouse.outbound.pack_bulk.submit', ['count' => 0]) }}</button>
+                        </p>
+                    </article>
+                </form>
+            @endif
+        @endrole
         <table class="dense">
-            <thead><tr><th>{{ __('warehouse.outbound.order') }}</th><th>{{ __('warehouse.outbound.fulfilment') }}</th><th>{{ __('warehouse.outbound.task') }}</th><th class="num">{{ __('warehouse.outbound.picked') }}</th><th></th></tr></thead>
+            <thead><tr>@role('admin|warehouse_supervisor|warehouse_operator')<th>@if ($packable->isNotEmpty())<input type="checkbox" id="pack-select-page" aria-label="{{ __('warehouse.outbound.pack_bulk.select_all') }}">@endif</th>@endrole<th>{{ __('warehouse.outbound.order') }}</th><th>{{ __('warehouse.outbound.fulfilment') }}</th><th>{{ __('warehouse.outbound.task') }}</th><th class="num">{{ __('warehouse.outbound.picked') }}</th><th></th></tr></thead>
             <tbody>
             @foreach ($toPack as $t)
-                <tr><td>{{ $orderNos[$t->order_id] ?? '#'.$t->order_id }}</td><td>#{{ $t->fulfilment_id }}</td><td>{{ $t->task_no }}</td><td class="num">{{ $t->lines->sum('completed_qty') }}</td>
+                <tr>@role('admin|warehouse_supervisor|warehouse_operator')<td>@unless (in_array($t->order_id, $cancelledOrders, true))<input type="checkbox" name="fulfilment_ids[]" value="{{ $t->fulfilment_id }}" form="pack-bulk" class="pack-row" aria-label="#{{ $t->fulfilment_id }}">@endunless</td>@endrole<td>{{ $orderNos[$t->order_id] ?? '#'.$t->order_id }}</td><td>#{{ $t->fulfilment_id }}</td><td>{{ $t->task_no }}</td><td class="num">{{ $t->lines->sum('completed_qty') }}</td>
                     <td>
                         @if (in_array($t->order_id, $cancelledOrders, true))
                             <span class="badge" data-tone="danger">{{ __('warehouse.outbound.order_cancelled_badge') }}</span> <small class="text-muted">{{ __('warehouse.outbound.cancelled_card') }}</small>
@@ -198,6 +216,24 @@
             date?.addEventListener('change', filter);
             form.addEventListener('submit', event => { if (boxes().filter(b => b.checked).length === 0) event.preventDefault(); });
             count();
+        }
+        // CHANGE_REQUESTS #155 批量打包: 全选 / 取消 / header tick and the live count on the button; nothing ticked → no submit.
+        const packBulk = document.getElementById('pack-bulk');
+        if (packBulk) {
+            const rows = () => Array.from(document.querySelectorAll('input.pack-row'));
+            const submit = document.getElementById('pack-bulk-submit'), page = document.getElementById('pack-select-page');
+            const sync = () => {
+                const n = rows().filter(b => b.checked).length;
+                submit.textContent = submit.dataset.label.replace(':count', String(n)); submit.disabled = n === 0;
+                if (page) { page.checked = n > 0 && n === rows().length; page.indeterminate = n > 0 && n < rows().length; }
+            };
+            const setAll = (on) => { rows().forEach(b => { b.checked = on; }); sync(); };
+            document.getElementById('pack-select-all')?.addEventListener('click', () => setAll(true));
+            document.getElementById('pack-select-none')?.addEventListener('click', () => setAll(false));
+            page?.addEventListener('change', () => setAll(page.checked));
+            rows().forEach(b => b.addEventListener('change', sync));
+            packBulk.addEventListener('submit', event => { if (rows().filter(b => b.checked).length === 0) event.preventDefault(); });
+            sync();
         }
         // 待发运 (OUTBOUND-03): opening 手动填运单 ID enables the typed id and drops the prefilled one; closing it restores the link.
         document.querySelectorAll('form details').forEach(details => {

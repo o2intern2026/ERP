@@ -773,6 +773,18 @@ return [
         'select_all_btn' => '全选', // CHANGE_REQUESTS #152
         'select_none_btn' => '全不选',
         'release_count' => '释放波次 (:count)',
+        // CHANGE_REQUESTS #155 批量打包 on the outbound board
+        'pack_bulk' => [
+            'title' => '批量打包(按拣货结果自动生成包裹)',
+            'hint' => '勾选的批次一次打包:每条已拣货物行生成一个包裹行——整托出库 = 1 个托盘(用托盘登记的重量和尺寸),散箱 = 拣货箱数 × 纸箱(用货物行的单箱重量和长宽高)。缺重量或尺寸的批次不会猜,会列出来,请用该行的“打包”实测后录入;需要实测的批次也请单独打包。',
+            'select_all' => '全选本页',
+            'select_none' => '取消全选',
+            'submit' => '批量打包勾选的 :count 个批次',
+            'done' => '已打包 :count 个批次,共 :pieces 件;打包结果已同步给运输报价与计费。',
+            'skipped' => ':count 个批次未打包::list',
+            'missing' => '单元 :units 缺重量或尺寸',
+            'none' => '请先勾选要打包的批次。',
+        ],
         // CHANGE_REQUESTS #152 全部确认拣货 on the wave page
         'pick_all' => [
             'title' => '全部确认拣货',

@@ -251,6 +251,53 @@ class OutboundController extends Controller
         return view('warehouse::outbound.pack', ['task' => $task, 'order' => DB::table('orders')->where('id', $task->order_id)->first(), 'packageTypes' => Enums::PACKAGE_TYPES]);
     }
 
+    /**
+     * CHANGE_REQUESTS #155 批量打包: the ticked picked batches are packed one by one from their picked lines (OutboundService::autoPackages —
+     * whole pallet = one 托盘 package, cartons × the goods line's per-carton weight and dims), then the ordinary pack() with its events and
+     * the pack task. A batch that is not fully picked, already packed, cancelled, or whose lines lack a weight or dims is named and left
+     * for the 打包 form; the others are packed.
+     */
+    public function packBulk(Request $request, OutboundService $outbound): RedirectResponse
+    {
+        $data = $request->validate(['fulfilment_ids' => ['required', 'array', 'min:1'], 'fulfilment_ids.*' => ['integer']],
+            ['fulfilment_ids.required' => __('warehouse.outbound.pack_bulk.none'), 'fulfilment_ids.min' => __('warehouse.outbound.pack_bulk.none')]);
+
+        $done = 0;
+        $pieces = 0;
+        $skipped = [];
+        foreach (array_values(array_unique(array_map('intval', $data['fulfilment_ids']))) as $fulfilmentId) {
+            $task = WarehouseTask::query()->where('task_type', 'pick')->where('fulfilment_id', $fulfilmentId)->with('lines.stockUnit.asnLine')->first();
+            if ($task === null || $task->status !== 'done') {
+                $skipped[] = '#'.$fulfilmentId.'（'.__('warehouse.outbound.errors.pack_after_pick').'）';
+
+                continue;
+            }
+            $auto = $outbound->autoPackages($task);
+            if ($auto['missing'] !== []) {
+                $skipped[] = '#'.$fulfilmentId.'（'.__('warehouse.outbound.pack_bulk.missing', ['units' => implode('、', $auto['missing'])]).'）';
+
+                continue;
+            }
+            try {
+                $result = $outbound->pack($fulfilmentId, $auto['packages'], auth()->id());
+                $done++;
+                $pieces += count($result['packages']);
+            } catch (InvalidArgumentException $e) {
+                $skipped[] = '#'.$fulfilmentId.'（'.RuleViolation::display($e).'）';
+            }
+        }
+
+        $redirect = redirect()->route('warehouse.outbound.index');
+        if ($done > 0) {
+            $redirect->with('status', __('warehouse.outbound.pack_bulk.done', ['count' => $done, 'pieces' => $pieces]));
+        }
+        if ($skipped !== []) {
+            $redirect->withErrors(['pack' => __('warehouse.outbound.pack_bulk.skipped', ['count' => count($skipped), 'list' => implode('；', $skipped)])]);
+        }
+
+        return $redirect;
+    }
+
     public function pack(Request $request, int $fulfilment, OutboundService $outbound): RedirectResponse
     {
         $validator = Validator::make($request->all(), [
