@@ -150,6 +150,12 @@ class ReceivingController extends Controller
     public function bulkStore(Request $request, Asn $asn, GoodsReceiptService $receipts): RedirectResponse
     {
         abort_unless(in_array($asn->status, ['booked', 'arrived', 'receiving'], true), 409, __('warehouse.receiving.bulk.not_receivable'));
+        // CHANGE_REQUESTS #148: the page packs every row into one `rows_json` field (PHP's max_input_vars — 1000 by default — would
+        // otherwise silently drop every row past ~110 of a big ASN); unpacked here, then the same filter and validation as a plain post.
+        if ($request->filled('rows_json')) {
+            $decoded = json_decode((string) $request->input('rows_json'), true);
+            $request->merge(['rows' => is_array($decoded) ? $decoded : []]);
+        }
         // Only ticked rows count; unticked rows are dropped before validation so an untouched line never blocks the others.
         $request->merge(['rows' => array_values(array_filter((array) $request->input('rows', []), fn ($r) => is_array($r) && ($r['include'] ?? null)))]);
 
