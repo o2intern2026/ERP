@@ -773,6 +773,20 @@ return [
         'select_all_btn' => '全选', // CHANGE_REQUESTS #152
         'select_none_btn' => '全不选',
         'release_count' => '释放波次 (:count)',
+        // CHANGE_REQUESTS #156 批量发运交接 on the outbound board
+        'dispatch_bulk' => [
+            'title' => '批量发运交接',
+            'hint' => '勾选的批次一次交接:每个批次按行内表单的默认值处理——托盘数 = 该批次的托盘包裹数,已订舱的运单自动关联并按运单交给承运商 / 自有司机。没有已订舱运单的批次默认跳过(下面可改为客户自提或自有司机);被财务锁、订单已取消或已发运的批次会列出原因,其余照常发运。',
+            'unbooked' => '没有已订舱运单的批次',
+            'unbooked_options' => ['skip' => '跳过,单独处理', 'client' => '按客户自提交接', 'driver' => '交给自有司机(不关联运单)'],
+            'unbooked_skipped' => '没有已订舱的运单,已跳过',
+            'select_all' => '全选本页',
+            'select_none' => '取消全选',
+            'submit' => '批量发运交接勾选的 :count 个批次',
+            'done' => '已发运 :count 个批次,共 :packages 个包裹。',
+            'skipped' => ':count 个批次未发运::list',
+            'none' => '请先勾选要发运的批次。',
+        ],
         // CHANGE_REQUESTS #155 批量打包 on the outbound board
         'pack_bulk' => [
             'title' => '批量打包(按拣货结果自动生成包裹)',

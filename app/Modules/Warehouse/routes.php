@@ -121,6 +121,7 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/outbound/pack-bulk', [OutboundController::class, 'packBulk'])->name('outbound.pack_bulk'); // CHANGE_REQUESTS #155: ticked picked batches packed from their picked lines
         Route::get('/outbound/pack/{fulfilment}', [OutboundController::class, 'packForm'])->name('outbound.pack.form')->whereNumber('fulfilment');
         Route::post('/outbound/pack/{fulfilment}', [OutboundController::class, 'pack'])->name('outbound.pack')->whereNumber('fulfilment');
+        Route::post('/outbound/dispatch-bulk', [OutboundController::class, 'dispatchBulk'])->name('outbound.dispatch_bulk'); // CHANGE_REQUESTS #156: ticked packed batches handed over with the row defaults
         Route::post('/outbound/dispatch/{fulfilment}', [OutboundController::class, 'dispatch'])->name('outbound.dispatch')->whereNumber('fulfilment');
         Route::post('/returns', [ReturnController::class, 'store'])->name('returns.store');
         Route::post('/returns/{receipt}/lines/{line}/receive', [ReturnController::class, 'receive'])->name('returns.receive');

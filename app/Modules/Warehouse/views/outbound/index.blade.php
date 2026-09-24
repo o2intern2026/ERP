@@ -126,11 +126,35 @@
     @if ($toDispatch->isEmpty())
         <p class="text-muted">{{ __('warehouse.outbound.empty') }}</p>
     @else
+        {{-- CHANGE_REQUESTS #156 批量发运交接: batches neither cancelled nor held carry a checkbox bound to this form (form="dispatch-bulk"). --}}
+        @php($dispatchable = $toDispatch->reject(fn ($packages, $fulfilmentId) => in_array($packages->first()->order_id, $cancelledOrders, true) || in_array($fulfilmentId, $heldFulfilments, true)))
+        @role('admin|warehouse_supervisor|warehouse_operator')
+            @if ($dispatchable->isNotEmpty())
+                <form method="post" action="{{ route('warehouse.outbound.dispatch_bulk') }}" id="dispatch-bulk">
+                    @csrf
+                    <article class="kv-card">
+                        <strong>{{ __('warehouse.outbound.dispatch_bulk.title') }}</strong>
+                        <p class="text-muted"><small>{{ __('warehouse.outbound.dispatch_bulk.hint') }}</small></p>
+                        <div class="grid">
+                            <label>{{ __('warehouse.outbound.dispatch_bulk.unbooked') }}
+                                <select name="unbooked">@foreach (['skip', 'client', 'driver'] as $choice)<option value="{{ $choice }}" @selected(old('unbooked', 'skip') === $choice)>{{ __('warehouse.outbound.dispatch_bulk.unbooked_options.'.$choice) }}</option>@endforeach</select>
+                            </label>
+                        </div>
+                        <p style="margin:0">
+                            <button type="button" class="secondary outline" id="dispatch-select-all" style="padding:.15rem .6rem">{{ __('warehouse.outbound.dispatch_bulk.select_all') }}</button>
+                            <button type="button" class="secondary outline" id="dispatch-select-none" style="padding:.15rem .6rem">{{ __('warehouse.outbound.dispatch_bulk.select_none') }}</button>
+                            <button type="submit" id="dispatch-bulk-submit" data-label="{{ __('warehouse.outbound.dispatch_bulk.submit') }}" disabled>{{ __('warehouse.outbound.dispatch_bulk.submit', ['count' => 0]) }}</button>
+                        </p>
+                    </article>
+                </form>
+            @endif
+        @endrole
         <div class="overflow-auto"><table class="dense">
-            <thead><tr><th>{{ __('warehouse.outbound.order') }}</th><th>{{ __('warehouse.outbound.fulfilment') }}</th><th>{{ __('warehouse.outbound.labels') }}</th><th>{{ __('warehouse.outbound.packed_at') }}</th><th>{{ __('warehouse.outbound.dispatch') }}</th></tr></thead>
+            <thead><tr>@role('admin|warehouse_supervisor|warehouse_operator')<th>@if ($dispatchable->isNotEmpty())<input type="checkbox" id="dispatch-select-page" aria-label="{{ __('warehouse.outbound.dispatch_bulk.select_all') }}">@endif</th>@endrole<th>{{ __('warehouse.outbound.order') }}</th><th>{{ __('warehouse.outbound.fulfilment') }}</th><th>{{ __('warehouse.outbound.labels') }}</th><th>{{ __('warehouse.outbound.packed_at') }}</th><th>{{ __('warehouse.outbound.dispatch') }}</th></tr></thead>
             <tbody>
             @foreach ($toDispatch as $fulfilmentId => $packages)
                 <tr>
+                    @role('admin|warehouse_supervisor|warehouse_operator')<td>@if ($dispatchable->has($fulfilmentId))<input type="checkbox" name="fulfilment_ids[]" value="{{ $fulfilmentId }}" form="dispatch-bulk" class="dispatch-row" aria-label="#{{ $fulfilmentId }}">@endif</td>@endrole
                     <td>{{ $orderNos[$packages->first()->order_id] ?? '#'.$packages->first()->order_id }}</td><td>#{{ $fulfilmentId }}</td>
                     <td>@foreach ($packages as $p)<code>{{ $p->carton_label }}</code> {{ __('warehouse.package_types.'.$p->package_type) }} {{ $p->weight_kg }}kg<br>@endforeach</td>
                     <td>{{ $packages->first()->created_at->format('Y-m-d H:i') }}</td>
@@ -216,6 +240,24 @@
             date?.addEventListener('change', filter);
             form.addEventListener('submit', event => { if (boxes().filter(b => b.checked).length === 0) event.preventDefault(); });
             count();
+        }
+        // CHANGE_REQUESTS #156 批量发运交接: same tick-all pattern for the 待发运 batches.
+        const dispatchBulk = document.getElementById('dispatch-bulk');
+        if (dispatchBulk) {
+            const rows = () => Array.from(document.querySelectorAll('input.dispatch-row'));
+            const submit = document.getElementById('dispatch-bulk-submit'), page = document.getElementById('dispatch-select-page');
+            const sync = () => {
+                const n = rows().filter(b => b.checked).length;
+                submit.textContent = submit.dataset.label.replace(':count', String(n)); submit.disabled = n === 0;
+                if (page) { page.checked = n > 0 && n === rows().length; page.indeterminate = n > 0 && n < rows().length; }
+            };
+            const setAll = (on) => { rows().forEach(b => { b.checked = on; }); sync(); };
+            document.getElementById('dispatch-select-all')?.addEventListener('click', () => setAll(true));
+            document.getElementById('dispatch-select-none')?.addEventListener('click', () => setAll(false));
+            page?.addEventListener('change', () => setAll(page.checked));
+            rows().forEach(b => b.addEventListener('change', sync));
+            dispatchBulk.addEventListener('submit', event => { if (rows().filter(b => b.checked).length === 0) event.preventDefault(); });
+            sync();
         }
         // CHANGE_REQUESTS #155 批量打包: 全选 / 取消 / header tick and the live count on the button; nothing ticked → no submit.
         const packBulk = document.getElementById('pack-bulk');
