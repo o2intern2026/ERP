@@ -68,6 +68,41 @@ class BulkReceivingTest extends TestCase
         $this->actingAs($this->staff('customer_service'))->get(route('warehouse.receiving.bulk_form', $asn))->assertForbidden();
     }
 
+    public function test_the_rows_arrive_packed_in_one_field_when_the_page_posts_rows_json(): void
+    {
+        // CHANGE_REQUESTS #148: the page packs every ticked row into `rows_json` so a 286-line ASN never trips PHP's max_input_vars.
+        $client = $this->client();
+        $warehouse = $this->warehouse();
+        $supervisor = $this->staff('warehouse_supervisor');
+        $asn = app(AsnService::class)->create(['client_id' => $client->id, 'warehouse_id' => $warehouse->id, 'inbound_type' => 'container']);
+        [$a, $b, $c] = app(AsnService::class)->addLines($asn, [
+            ['description' => 'Chairs', 'expected_cartons' => 12, 'consignment_mark' => 'CHAIR-1'],
+            ['description' => 'Tables', 'expected_cartons' => 4, 'consignment_mark' => 'TABLE-1'],
+            ['description' => 'Lamps', 'expected_cartons' => 6, 'consignment_mark' => 'LAMP-1'],
+        ]);
+        $location = $this->location($warehouse, 'receiving');
+        $this->actingAs($supervisor)->get(route('warehouse.receiving.bulk_form', $asn))->assertOk()->assertSee("name = 'rows_json'", false);
+
+        // Only the packed field is posted (the page disables the row inputs); an unticked row carries no `include` and is dropped.
+        $this->actingAs($supervisor)->post(route('warehouse.receiving.bulk_store', $asn), [
+            'receiving_location_id' => $location->id, 'complete' => 1, 'delivery_reference' => 'COSU-2',
+            'rows_json' => json_encode([
+                '0' => ['include' => '1', 'asn_line_id' => (string) $a->id, 'received_cartons' => '12', 'damaged_cartons' => '0', 'unit_type' => 'pallet', 'unit_count' => '2', 'pallet_source' => 'chep', 'weight_kg' => '', 'variance_reason' => ''],
+                '1' => ['include' => '1', 'asn_line_id' => (string) $b->id, 'received_cartons' => '3', 'damaged_cartons' => '1', 'unit_type' => 'carton', 'unit_count' => '1', 'pallet_source' => '', 'weight_kg' => '', 'variance_reason' => 'one crushed'],
+                '2' => ['asn_line_id' => (string) $c->id, 'received_cartons' => '6', 'damaged_cartons' => '0', 'unit_type' => 'carton', 'unit_count' => '1', 'pallet_source' => '', 'weight_kg' => '', 'variance_reason' => ''],
+            ]),
+        ])->assertSessionHasNoErrors()->assertRedirect();
+        $receipt = GoodsReceipt::query()->withoutGlobalScopes()->sole();
+        $this->assertSame(['completed', 2, 15, 'COSU-2'], [$receipt->status, $receipt->lines()->count(), (int) $receipt->received_cartons, $receipt->delivery_reference]);
+        $this->assertTrue($a->fresh()->isReceived());
+        $this->assertTrue($b->fresh()->isReceived());
+        $this->assertFalse($c->fresh()->isReceived(), 'the unticked row stays for later');
+
+        // Malformed JSON is an ordinary "no rows" validation error, nothing written.
+        $this->actingAs($supervisor)->post(route('warehouse.receiving.bulk_store', $asn), ['receiving_location_id' => $location->id, 'rows_json' => '{not json'])->assertSessionHasErrors('rows');
+        $this->assertSame(1, GoodsReceipt::query()->withoutGlobalScopes()->count());
+    }
+
     public function test_per_line_receiving_ignores_the_hidden_spare_unit_rows(): void
     {
         $client = $this->client();

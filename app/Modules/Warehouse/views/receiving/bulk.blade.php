@@ -83,6 +83,25 @@
         });
         setAll('set-all-type', '#bulk-receive select[name$="[unit_type]"]');
         setAll('set-all-source', '#bulk-receive select.pallet-source');
+        // CHANGE_REQUESTS #148: a big ASN (286 lines × 9 inputs) exceeds PHP's max_input_vars (1000) and the server would silently drop
+        // every row past ~110. On submit the rows are packed into ONE field (rows_json — unticked rows left out, as a browser would) and
+        // the row inputs are disabled so they are not posted at all; bulkStore() unpacks the field and validates exactly as before.
+        const form = document.getElementById('bulk-receive');
+        const rowInputs = () => form ? form.querySelectorAll('[name^="rows["]') : [];
+        form?.addEventListener('submit', () => {
+            const rows = {};
+            rowInputs().forEach(el => {
+                const m = el.name.match(/^rows\[(\d+)\]\[(\w+)\]$/);
+                if (!m || (el.type === 'checkbox' && !el.checked)) return;
+                (rows[m[1]] ||= {})[m[2]] = el.value;
+            });
+            const packed = document.createElement('input');
+            packed.type = 'hidden'; packed.name = 'rows_json'; packed.value = JSON.stringify(rows);
+            form.appendChild(packed);
+            rowInputs().forEach(el => { el.disabled = true; });
+        });
+        // Coming back through the browser's cache must not leave the rows disabled.
+        window.addEventListener('pageshow', () => { rowInputs().forEach(el => { el.disabled = false; }); form?.querySelector('input[name="rows_json"]')?.remove(); });
     })();
 </script>
 @endpush

@@ -10,6 +10,7 @@ The driver POD form posts up to 5 photos (≤ 5 MB each after the phone-side dow
 |---|---|---|
 | PHP-FPM ini (`/etc/php/8.3/fpm/php.ini` or a `conf.d/99-erp.ini`) | `upload_max_filesize` | `8M` |
 | PHP-FPM ini | `post_max_size` | `40M` |
+| PHP-FPM ini | `max_input_vars` | `10000` (a bulk form with hundreds of rows; the receiving form also packs its rows into one field since CR #148, so this is belt and braces) |
 | nginx server block for the site | `client_max_body_size` | `40m;` |
 
 Then `systemctl reload php8.3-fpm nginx`. Check with `php -i | grep -E 'upload_max_filesize|post_max_size'` (CLI ini may differ from FPM's — check FPM's) and `nginx -T | grep client_max_body_size`. The application never changes these; `docs/demo-guide.zh.md` §8 carries the same note for the lead.
