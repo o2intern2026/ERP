@@ -43,6 +43,7 @@ final class OrderController extends Controller
         $filters = $request->validate([
             'client_id' => ['nullable', 'integer'],
             'status' => ['nullable', Rule::in(OrderEnums::OPERATIONAL_STATUSES)],
+            'per_page' => ['nullable', Rule::in(['25', '100', '300'])], // CHANGE_REQUESTS #153: 一键确认 covers the page, so the page can be a whole batch
             'requested_date' => ['nullable', 'date'],
             'consignment_mark' => ['nullable', 'string', 'max:255'],
             'state' => ['nullable', Rule::in(Enums::STATES)],
@@ -55,7 +56,7 @@ final class OrderController extends Controller
             ->when($filters['consignment_mark'] ?? null, fn ($query, $value) => $query->where('consignment_mark', 'like', '%'.$value.'%'))
             ->when($filters['state'] ?? null, fn ($query, $value) => $query->where('deliver_to_state', $value))
             ->latest('id')
-            ->paginate(25)
+            ->paginate((int) ($filters['per_page'] ?? 25))
             ->withQueryString();
 
         return view('orders::index', [

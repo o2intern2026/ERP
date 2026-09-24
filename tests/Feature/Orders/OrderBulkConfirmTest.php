@@ -45,6 +45,9 @@ class OrderBulkConfirmTest extends TestCase
             ->assertDontSee('name="order_ids[]" value="'.$already->id.'"', false)
             ->assertSee(__('orders.bulk_confirm.title'))->assertSee(__('orders.bulk_confirm.select_all', ['count' => 4]));
         $this->assertDoesNotMatchRegularExpression('/orders\.bulk_confirm\./', $page->getContent());
+        // The page size selector (25 / 100 / 300) decides how many orders 全选本页 covers; an unknown size is refused.
+        $this->actingAs($cs)->get(route('orders.index', ['per_page' => 300, 'status' => 'received']))->assertOk()->assertSee('name="per_page"', false)->assertSee(__('orders.filters.per_page_option', ['count' => 300]));
+        $this->actingAs($cs)->get(route('orders.index', ['per_page' => 999]))->assertSessionHasErrors('per_page');
 
         // Nothing ticked → Chinese refusal. All four ticked → three confirmed, the unlinked from_stock order named with the single button's reason.
         $this->actingAs($cs)->post(route('orders.confirm_bulk'), [])->assertSessionHasErrors('order_ids');
