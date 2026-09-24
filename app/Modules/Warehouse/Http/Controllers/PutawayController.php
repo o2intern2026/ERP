@@ -19,11 +19,21 @@ class PutawayController extends Controller
 {
     public function index(Request $request): View
     {
+        // CHANGE_REQUESTS #151: one search box over the pending units — 品名 / 唛头 / 预报单号 / 柜号 / 客户 / 单元条码 — so a big backlog is
+        // narrowed to the goods in hand, then 全选 + 批量上架 puts the whole result away in one click.
+        $q = trim((string) $request->query('q', ''));
         $units = StockUnit::query()->with(['asnLine.asn.client', 'location', 'warehouse'])->where('putaway_completed', false)
-            ->when(WarehouseContext::currentId(), fn ($q, $v) => $q->where('warehouse_id', $v))
-            ->orderBy('id')->paginate(300); // CHANGE_REQUESTS #149: a whole container's units on one page, so 全选 covers the ASN
+            ->when(WarehouseContext::currentId(), fn ($query, $v) => $query->where('warehouse_id', $v))
+            ->when($q !== '', fn ($query) => $query->where(fn ($w) => $w
+                ->where('label_code', 'like', "%{$q}%")
+                ->orWhereHas('asnLine', fn ($l) => $l->where('consignment_mark', 'like', "%{$q}%")->orWhere('description', 'like', "%{$q}%"))
+                ->orWhereHas('asnLine.asn', fn ($a) => $a->where('asn_no', 'like', "%{$q}%"))
+                ->orWhereHas('asnLine.container', fn ($c) => $c->where('container_no', 'like', "%{$q}%"))
+                ->orWhereHas('asnLine.asn.client', fn ($c) => $c->where('name', 'like', "%{$q}%")->orWhere('code', 'like', "%{$q}%"))))
+            ->orderBy('id')->paginate(300)->withQueryString(); // CHANGE_REQUESTS #149: a whole container's units on one page, so 全选 covers the ASN
 
         return view('warehouse::putaway.index', [
+            'q' => $q,
             'units' => $units,
             'highlight' => $request->integer('highlight') ?: null,
             'locations' => Location::query()->where('active', true)->whereIn('type', ['storage', 'pickface', 'quarantine'])->orderBy('full_code')->get()->groupBy('warehouse_id'),

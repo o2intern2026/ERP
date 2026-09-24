@@ -5,8 +5,17 @@
 @section('content')
     <h1>{{ __('warehouse.putaway.title') }} · {{ __('warehouse.putaway.pending') }}</h1>
     <p class="text-muted"><small>{{ __('warehouse.putaway.hint') }}</small></p>
+    {{-- CHANGE_REQUESTS #151: search the pending units (品名 / 唛头 / 预报单号 / 柜号 / 客户 / 单元条码); 全选 then covers the result. --}}
+    <form method="get" class="grid" id="putaway-search">
+        <input type="search" name="q" value="{{ $q }}" placeholder="{{ __('warehouse.putaway.search') }}" aria-label="{{ __('warehouse.putaway.search') }}" class="scan" autocomplete="off">
+        <button type="submit">{{ __('warehouse.putaway.search_go') }}</button>
+        @if ($q !== '')<a role="button" class="secondary" href="{{ route('warehouse.putaway.index') }}">{{ __('warehouse.putaway.search_clear') }}</a>@endif
+    </form>
+    @if ($q !== '')
+        <p class="text-muted"><small>{{ __('warehouse.putaway.search_count', ['q' => $q, 'count' => $units->total(), 'page' => $units->count()]) }}</small></p>
+    @endif
     @if ($units->isEmpty())
-        <p class="text-muted">{{ __('warehouse.putaway.empty') }}</p>
+        <p class="text-muted">{{ __($q === '' ? 'warehouse.putaway.empty' : 'warehouse.putaway.search_empty') }}</p>
     @else
         {{-- CHANGE_REQUESTS #149 批量上架: tick units (the checkboxes belong to this form through form="bulk-putaway"), scan ONE location, one click.
              The per-row forms below stay for the odd unit that goes elsewhere. --}}

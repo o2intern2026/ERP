@@ -410,6 +410,12 @@ return [
         'location_code' => '目标库位(可扫码)',
         'do' => '上架',
         'done' => ':label 已上架到 :location。',
+        // CHANGE_REQUESTS #151 search over the pending units
+        'search' => '搜索:品名 / 唛头 / 预报单号 / 柜号 / 客户 / 单元条码',
+        'search_go' => '搜索',
+        'search_clear' => '清除',
+        'search_count' => '“:q”找到 :count 个待上架单元(本页 :page 个);点“全选本页”再批量上架即可一次放完。',
+        'search_empty' => '没有匹配的待上架单元;换个关键词或清除搜索。',
         // CHANGE_REQUESTS #149 批量上架
         'bulk' => [
             'title' => '批量上架',
@@ -596,7 +602,10 @@ return [
         'code' => '条码',
         'go' => '查找',
         'camera' => '打开相机扫码',
-        'camera_unsupported' => '此浏览器不支持相机识码(需要 Android Chrome / 新版 Safari);请用扫码枪或手动输入。',
+        'camera_close' => '关闭相机', // CHANGE_REQUESTS #150
+        'camera_unsupported' => '此浏览器不支持相机识码;请用扫码枪或手动输入。',
+        'camera_https' => '相机识码需要 HTTPS 地址:请用 https://… 打开本页(试用服务器 https://103-6-171-144.sslip.io),或用扫码枪 / 手动输入。',
+        'camera_error' => '打不开相机:请允许浏览器使用相机(iPhone:设置 → Safari → 相机 → 允许;Android:地址栏的锁形图标 → 权限),或用扫码枪 / 手动输入。',
         'unknown' => '没有找到条码 :code 对应的单元、库位或唛头。',
         'found_unit' => '单元 :label',
         'found_location' => '库位 :label',
