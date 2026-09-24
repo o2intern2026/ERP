@@ -116,6 +116,7 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::patch('/stock/{unit}', [StockController::class, 'update'])->middleware('role:admin|warehouse_supervisor')->name('stock.update')->whereNumber('unit'); // 修改单元信息: pallet source / dims / weight after receiving (audit 2026-09-22 INBOUND-05, CR #141)
         Route::post('/outbound/waves', [OutboundController::class, 'release'])->name('outbound.waves.release');
         Route::post('/outbound/picks/{line}', [OutboundController::class, 'pick'])->name('outbound.pick');
+        Route::post('/outbound/waves/{wave}/pick-all', [OutboundController::class, 'pickAll'])->name('outbound.waves.pick_all')->whereNumber('wave'); // CHANGE_REQUESTS #152: ticked lines at 应拣数 in one post
         Route::post('/outbound/tasks/{task}/close', [OutboundController::class, 'closeTask'])->middleware('role:admin|warehouse_supervisor')->name('outbound.tasks.close')->whereNumber('task'); // 关闭任务 of a cancelled order's pick task (audit 2026-09-22 OUTBOUND-02)
         Route::get('/outbound/pack/{fulfilment}', [OutboundController::class, 'packForm'])->name('outbound.pack.form')->whereNumber('fulfilment');
         Route::post('/outbound/pack/{fulfilment}', [OutboundController::class, 'pack'])->name('outbound.pack')->whereNumber('fulfilment');

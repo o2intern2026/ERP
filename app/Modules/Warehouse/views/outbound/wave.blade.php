@@ -9,6 +9,26 @@
 
     @error('close')<p><mark>{{ $message }}</mark></p>@enderror
     @error('short_reason')<p><mark>{{ $message }}</mark></p>@enderror
+    @error('line_ids')<p><mark>{{ $message }}</mark></p>@enderror
+    {{-- CHANGE_REQUESTS #152 全部确认拣货: the open lines carry a checkbox bound to this form (form="pick-all"); default all ticked, one post
+         confirms them at 应拣数. A short pick is unticked here and confirmed on its own row with 实拣 + reason. --}}
+    @php($openLines = $wave->tasks->reject(fn ($t) => in_array($t->order_id, $cancelledOrders, true) || $t->status === 'cancelled')->flatMap(fn ($t) => $t->lines->whereNull('confirmed_at')))
+    @role('admin|warehouse_supervisor|warehouse_operator')
+        @if ($openLines->isNotEmpty())
+            <form method="post" action="{{ route('warehouse.outbound.waves.pick_all', $wave) }}" id="pick-all">
+                @csrf
+                <article class="kv-card">
+                    <strong>{{ __('warehouse.outbound.pick_all.title') }}</strong>
+                    <p class="text-muted"><small>{{ __('warehouse.outbound.pick_all.hint') }}</small></p>
+                    <p style="margin:0">
+                        <button type="button" class="secondary outline" id="pick-select-all" style="padding:.15rem .6rem">{{ __('warehouse.outbound.pick_all.select_all') }}</button>
+                        <button type="button" class="secondary outline" id="pick-select-none" style="padding:.15rem .6rem">{{ __('warehouse.outbound.pick_all.select_none') }}</button>
+                        <button type="submit" id="pick-all-submit" data-label="{{ __('warehouse.outbound.pick_all.submit') }}">{{ __('warehouse.outbound.pick_all.submit', ['count' => $openLines->count()]) }}</button>
+                    </p>
+                </article>
+            </form>
+        @endif
+    @endrole
     @foreach ($wave->tasks as $task)
         @php($shortLines = $task->lines->filter(fn ($l) => $l->confirmed_at !== null && $l->completed_qty < $l->required_qty))
         {{-- Audit 2026-09-22 OUTBOUND-02: a cancelled order's open task shows the put-back instruction and 关闭任务 (admin / supervisor) instead of the confirm forms. --}}
@@ -23,11 +43,13 @@
                     <form method="post" action="{{ route('warehouse.outbound.tasks.close', $task) }}" class="inline">@csrf<button type="submit" class="secondary" style="width:auto">{{ __('warehouse.outbound.close_task') }}</button></form>
                 @endrole
             @endif
+            @php($taskOpen = ! $openCancelled && $task->status !== 'cancelled' && $task->lines->whereNull('confirmed_at')->isNotEmpty())
             <div class="overflow-auto"><table class="dense">
-                <thead><tr><th>{{ __('warehouse.outbound.location') }}</th><th>{{ __('warehouse.outbound.unit') }}</th><th>{{ __('warehouse.stock.description') }}</th><th class="num">{{ __('warehouse.outbound.required') }}</th><th class="num">{{ __('warehouse.outbound.picked') }}</th><th>{{ __('warehouse.outbound.confirm_pick') }}</th></tr></thead>
+                <thead><tr><th>@if ($taskOpen)<input type="checkbox" class="pick-task-all" checked aria-label="{{ __('warehouse.outbound.pick_all.select_task') }}" title="{{ __('warehouse.outbound.pick_all.select_task') }}">@endif</th><th>{{ __('warehouse.outbound.location') }}</th><th>{{ __('warehouse.outbound.unit') }}</th><th>{{ __('warehouse.stock.description') }}</th><th class="num">{{ __('warehouse.outbound.required') }}</th><th class="num">{{ __('warehouse.outbound.picked') }}</th><th>{{ __('warehouse.outbound.confirm_pick') }}</th></tr></thead>
                 <tbody>
                 @foreach ($task->lines as $line)
                     <tr>
+                        <td>@if ($taskOpen && $line->confirmed_at === null)<input type="checkbox" name="line_ids[]" value="{{ $line->id }}" form="pick-all" class="pick-line" checked aria-label="{{ $line->stockUnit?->label_code ?? $line->id }}">@endif</td>
                         <td><strong>{{ $line->location?->full_code ?? '—' }}</strong></td><td><code>{{ $line->stockUnit?->label_code }}</code> {{ $line->stockUnit ? __('warehouse.unit_types.'.$line->stockUnit->unit_type) : '' }}</td><td>{{ $line->stockUnit?->asnLine?->description }}</td>
                         <td class="num">{{ $line->required_qty }}</td>
                         <td class="num">{{ $line->confirmed_at ? $line->completed_qty : '—' }}
@@ -74,6 +96,28 @@
 @push('scripts')
 <script>
     (() => {
+        // CHANGE_REQUESTS #152: 全选 / 取消 / per-task header tick and the live count on the 全部确认 button; nothing ticked → no submit.
+        const pickAll = document.getElementById('pick-all');
+        if (pickAll) {
+            const lines = () => Array.from(document.querySelectorAll('input.pick-line'));
+            const submit = document.getElementById('pick-all-submit');
+            const sync = () => {
+                const n = lines().filter(b => b.checked).length;
+                submit.textContent = submit.dataset.label.replace(':count', String(n)); submit.disabled = n === 0;
+                document.querySelectorAll('input.pick-task-all').forEach(head => {
+                    const own = Array.from(head.closest('table').querySelectorAll('input.pick-line'));
+                    const on = own.filter(b => b.checked).length;
+                    head.checked = own.length > 0 && on === own.length; head.indeterminate = on > 0 && on < own.length;
+                });
+            };
+            const setAll = (on, scope) => { (scope || lines()).forEach(b => { b.checked = on; }); sync(); };
+            document.getElementById('pick-select-all')?.addEventListener('click', () => setAll(true));
+            document.getElementById('pick-select-none')?.addEventListener('click', () => setAll(false));
+            document.querySelectorAll('input.pick-task-all').forEach(head => head.addEventListener('change', () => setAll(head.checked, Array.from(head.closest('table').querySelectorAll('input.pick-line')))));
+            lines().forEach(b => b.addEventListener('change', sync));
+            pickAll.addEventListener('submit', event => { if (lines().filter(b => b.checked).length === 0) event.preventDefault(); });
+            sync();
+        }
         // Short pick (OUTBOUND-08): reason + note appear as soon as 实拣 < 应拣; the submit asks once, naming the shortfall, and the server requires the reason too.
         document.querySelectorAll('form.pick-form').forEach(form => {
             const qty = form.querySelector('input[name="picked_qty"]'), fields = form.querySelector('.short-fields'), reason = form.querySelector('select[name="short_reason"]');

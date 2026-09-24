@@ -770,7 +770,21 @@ return [
         'manual_shipment_id' => '手动填运单 ID',
         // Audit 2026-09-22 OUTBOUND-12 (CR #141)
         'select_all' => '全选 / 全不选',
+        'select_all_btn' => '全选', // CHANGE_REQUESTS #152
+        'select_none_btn' => '全不选',
         'release_count' => '释放波次 (:count)',
+        // CHANGE_REQUESTS #152 全部确认拣货 on the wave page
+        'pick_all' => [
+            'title' => '全部确认拣货',
+            'hint' => '勾选的行按“应拣数”一次确认(默认全部勾选);实拣少于应拣的行请取消勾选,在该行填实拣数和原因后单独确认。已取消订单的任务不在其中。',
+            'select_all' => '全选未确认的行',
+            'select_none' => '取消全选',
+            'select_task' => '全选本任务的行',
+            'submit' => '按应拣数确认勾选的 :count 行',
+            'done' => '已按应拣数确认 :count 行拣货。',
+            'skipped' => ':count 行未确认::list',
+            'none' => '请先勾选要确认的拣货行。',
+        ],
         'cartons' => '箱数',
         'due_badge' => '今天 / 已过期',
         'waves' => '波次列表',
