@@ -46,10 +46,30 @@
     @if ($orders->isEmpty())
         <p>{{ __('orders.empty') }}</p>
     @else
+        {{-- CHANGE_REQUESTS #153 一键确认: the 已接收 rows carry a checkbox bound to this form (form="confirm-bulk"); one post confirms them
+             like the single 确认订单并检查库存 button, refused ones named. --}}
+        @php($confirmable = $orders->getCollection()->where('operational_status', 'received'))
+        @role('admin|customer_service|dispatcher')
+            @if ($confirmable->isNotEmpty())
+                <form method="post" action="{{ route('orders.confirm_bulk') }}" id="confirm-bulk">
+                    @csrf
+                    <article class="kv-card">
+                        <strong>{{ __('orders.bulk_confirm.title') }}</strong>
+                        <p class="text-muted"><small>{{ __('orders.bulk_confirm.hint') }}</small></p>
+                        <p style="margin:0">
+                            <button type="button" class="secondary outline" id="confirm-select-all" style="padding:.15rem .6rem">{{ __('orders.bulk_confirm.select_all', ['count' => $confirmable->count()]) }}</button>
+                            <button type="button" class="secondary outline" id="confirm-select-none" style="padding:.15rem .6rem">{{ __('orders.bulk_confirm.select_none') }}</button>
+                            <button type="submit" id="confirm-bulk-submit" data-label="{{ __('orders.bulk_confirm.submit') }}" disabled>{{ __('orders.bulk_confirm.submit', ['count' => 0]) }}</button>
+                        </p>
+                    </article>
+                </form>
+            @endif
+        @endrole
         <div class="overflow-auto">
             <table class="dense">
                 <thead>
                     <tr>
+                        @role('admin|customer_service|dispatcher')<th>@if ($confirmable->isNotEmpty())<input type="checkbox" id="confirm-select-page" aria-label="{{ __('orders.bulk_confirm.select_all', ['count' => $confirmable->count()]) }}">@endif</th>@endrole
                         <th>{{ __('orders.fields.order_no') }}</th>
                         <th>{{ __('orders.fields.client') }}</th>
                         <th>{{ __('orders.fields.job') }}</th>
@@ -63,6 +83,7 @@
                 <tbody>
                     @foreach ($orders as $order)
                         <tr>
+                            @role('admin|customer_service|dispatcher')<td>@if ($order->operational_status === 'received')<input type="checkbox" name="order_ids[]" value="{{ $order->id }}" form="confirm-bulk" class="confirm-row" aria-label="{{ $order->order_no }}">@endif</td>@endrole
                             <td><a href="{{ route('orders.show', $order) }}">{{ $order->order_no }}</a></td>
                             <td>{{ $order->client->name }}</td>
                             <td>{{ $order->job->job_no }}</td>
@@ -81,3 +102,27 @@
         {{ $orders->links() }}
     @endif
 @endsection
+
+@push('scripts')
+<script>
+    (() => {
+        // CHANGE_REQUESTS #153: 全选 / 取消 / header tick and the live count on the 一键确认 button; nothing ticked → no submit.
+        const form = document.getElementById('confirm-bulk');
+        if (!form) return;
+        const rows = () => Array.from(document.querySelectorAll('input.confirm-row'));
+        const submit = document.getElementById('confirm-bulk-submit'), page = document.getElementById('confirm-select-page');
+        const sync = () => {
+            const n = rows().filter(b => b.checked).length;
+            submit.textContent = submit.dataset.label.replace(':count', String(n)); submit.disabled = n === 0;
+            if (page) { page.checked = n > 0 && n === rows().length; page.indeterminate = n > 0 && n < rows().length; }
+        };
+        const setAll = (on) => { rows().forEach(b => { b.checked = on; }); sync(); };
+        document.getElementById('confirm-select-all')?.addEventListener('click', () => setAll(true));
+        document.getElementById('confirm-select-none')?.addEventListener('click', () => setAll(false));
+        page?.addEventListener('change', () => setAll(page.checked));
+        rows().forEach(b => b.addEventListener('change', sync));
+        form.addEventListener('submit', event => { if (rows().filter(b => b.checked).length === 0) event.preventDefault(); });
+        sync();
+    })();
+</script>
+@endpush

@@ -504,3 +504,9 @@ Audit 2026-09-22 Part B billing items FIN-16 / FIN-13 / FIN-08 / FIN-09 / FIN-10
 - **Orders (X1), edited:** `views/inbound/index.blade.php` — a `data-select-all` checkbox in each client group's 选择 header; the script's `limit()` now ends with `syncSelectAll()` so the header mirrors the rows (checked / indeterminate / disabled) after every tick, the 选中并填入 button and page load; a header tick sets its group's rows, then runs `limit()` + `checkImport()` like a row tick. `lang/zh/orders.php` — `inbound.fields.select_all`.
 - **Tests.** `PortalInboundImportTest` (the control is on the page with the group's count).
 - **Keep on rebase:** keep `syncSelectAll()` inside `limit()`; the one-client-per-ASN rule and the import-link check are unchanged.
+### 2026-09-24 · feat/orders-bulk-confirm · 一键确认订单 (CR #153) · C edited X1 Orders zone as integrator
+
+- **Why.** Testing with 175 orders: confirming them one page at a time was not workable.
+- **Orders (X1), edited:** `routes.php` (`POST /confirm-bulk`, declared before the `{order}` routes), `Http/Controllers/OrderController.php` (`confirmBulk()`; the checks of `confirm()` moved into a private `confirmRefusal()` both use — behaviour of the single button unchanged), `views/index.blade.php` (checkbox column for the order-entry roles, the 一键确认 form, inline script), `lang/zh/orders.php` (`bulk_confirm.*`).
+- **Tests.** `tests/Feature/Orders/OrderBulkConfirmTest.php`.
+- **Keep on rebase:** keep `confirmRefusal()` as the single place for "can this order be confirmed"; the bulk route must stay above `POST /{order}/confirm`.

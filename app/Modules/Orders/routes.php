@@ -38,6 +38,7 @@ Route::prefix('orders')->name('orders.')->group(function () {
     Route::get('/create', [OrderController::class, 'create'])->name('create');
     Route::post('/', [OrderController::class, 'store'])->name('store');
     Route::get('/queue', [QueueController::class, 'index'])->name('queue');
+    Route::post('/confirm-bulk', [OrderController::class, 'confirmBulk'])->name('confirm_bulk'); // CHANGE_REQUESTS #153: ticked received orders confirmed in one post
     Route::get('/requests', [ClientRequestController::class, 'index'])->name('requests.index'); // 客户请求 inbox: cancel + return requests from the portal (CR #112)
     Route::get('/inbound', [OrderInboundController::class, 'index'])->name('inbound.index'); // 从订单生成预报单: orders whose goods have no ASN yet (CR #117)
     Route::post('/inbound', [OrderInboundController::class, 'store'])->name('inbound.store');
