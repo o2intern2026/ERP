@@ -498,3 +498,9 @@ Audit 2026-09-22 Part B billing items FIN-16 / FIN-13 / FIN-08 / FIN-09 / FIN-10
 - **C's own:** `data/inbound-list-template.xlsx` (built from the real workbook: data rows deleted, properties scrubbed, sample rows added — never regenerate from the real file without re-checking for identity; the build script lives outside the repo).
 - **Tests.** `PortalInboundImportTest` (CSV round trip rewritten, new xlsx test), `DeclaredStorageTierTest` (no 存储等级 column in the template any more).
 - **Keep on rebase:** the header row must stay byte-identical to the client's sheet (empty E header, full-width bracket in V); the Chinese aliases stay so older filled templates still upload.
+### 2026-09-24 · feat/inbound-select-all · 待建预报 全选 (CR #147) · C edited X1 Orders zone as integrator
+
+- **Why.** Testing with the 175-order list showed the page had no way to tick a whole client group at once.
+- **Orders (X1), edited:** `views/inbound/index.blade.php` — a `data-select-all` checkbox in each client group's 选择 header; the script's `limit()` now ends with `syncSelectAll()` so the header mirrors the rows (checked / indeterminate / disabled) after every tick, the 选中并填入 button and page load; a header tick sets its group's rows, then runs `limit()` + `checkImport()` like a row tick. `lang/zh/orders.php` — `inbound.fields.select_all`.
+- **Tests.** `PortalInboundImportTest` (the control is on the page with the group's count).
+- **Keep on rebase:** keep `syncSelectAll()` inside `limit()`; the one-client-per-ASN rule and the import-link check are unchanged.

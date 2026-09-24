@@ -958,6 +958,7 @@ return [
         'group_count' => ':count 张订单',
         'fields' => [
             'select' => '选择',
+            'select_all' => '全选本客户的 :count 张订单', // CHANGE_REQUESTS #147
             'order_no' => '订单号',
             'job' => 'Job',
             'mark' => '唛头',

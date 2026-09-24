@@ -112,7 +112,9 @@ class PortalInboundImportTest extends TestCase
         $inbound = $this->actingAs($cs)->get(route('orders.inbound.index'))->assertOk()
             ->assertSee('MSKU1234567')->assertSee('40ft')->assertSee($eta->toDateString())->assertSee('PO-2026-9')->assertSee('周五到港')->assertSee('清单.csv')
             ->assertSee(__('orders.imports.inbound.select'))->assertSee(__('orders.imports.inbound.import', ['id' => $import->id]))
-            ->assertSee('data-orders="'.$orders->pluck('id')->implode(',').'"', false);
+            ->assertSee('data-orders="'.$orders->pluck('id')->implode(',').'"', false)
+            // CHANGE_REQUESTS #147: one header tick selects every order of the client group.
+            ->assertSee('data-select-all data-client="'.$user->client_id.'"', false)->assertSee(__('orders.inbound.fields.select_all', ['count' => $orders->count()]));
         foreach ($orders as $order) {
             $inbound->assertSee($order->order_no);
         }
