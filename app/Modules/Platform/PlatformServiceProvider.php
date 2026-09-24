@@ -5,6 +5,7 @@ namespace App\Modules\Platform;
 use App\Modules\Platform\Console\DemoRunCommand;
 use App\Modules\Platform\Console\DispatchOutboxCommand;
 use App\Modules\Platform\Console\HealthCommand;
+use App\Modules\Platform\Console\PurgeTestRoundCommand;
 use App\Modules\Platform\Console\RetryWebhooksCommand;
 use App\Modules\Platform\Consumers\JobCostConsumer;
 use App\Modules\Platform\Consumers\JobRevenueConsumer;
@@ -50,7 +51,7 @@ class PlatformServiceProvider extends ServiceProvider
             ->map(fn (Job $j) => ['type' => 'job', 'label' => $j->job_no, 'url' => route('platform.jobs.show', $j), 'meta' => $j->client->name.' · '.$j->reference])->all());
 
         if ($this->app->runningInConsole()) {
-            $this->commands([DispatchOutboxCommand::class, RetryWebhooksCommand::class, DemoRunCommand::class, HealthCommand::class]); // erp:health — CR #137 (audit ADMIN-12)
+            $this->commands([DispatchOutboxCommand::class, RetryWebhooksCommand::class, DemoRunCommand::class, HealthCommand::class, PurgeTestRoundCommand::class]); // erp:health, erp:purge-test-round (CR #157) — CR #137 (audit ADMIN-12)
         }
     }
 }
