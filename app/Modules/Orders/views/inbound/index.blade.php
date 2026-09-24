@@ -74,7 +74,8 @@
                 @endif
                 <div class="overflow-auto"><table class="dense">
                     <thead><tr>
-                        <th>{{ __('orders.inbound.fields.select') }}</th><th>{{ __('orders.inbound.fields.order_no') }}</th><th>{{ __('orders.inbound.fields.job') }}</th><th>{{ __('orders.inbound.fields.mark') }}</th>
+                        {{-- CHANGE_REQUESTS #147: one tick selects every order of this client (an ASN holds one client, so the group is the natural unit). --}}
+                        <th><input type="checkbox" data-select-all data-client="{{ $clientId }}" aria-label="{{ __('orders.inbound.fields.select_all', ['count' => $orders->count()]) }}" title="{{ __('orders.inbound.fields.select_all', ['count' => $orders->count()]) }}"> {{ __('orders.inbound.fields.select') }}</th><th>{{ __('orders.inbound.fields.order_no') }}</th><th>{{ __('orders.inbound.fields.job') }}</th><th>{{ __('orders.inbound.fields.mark') }}</th>
                         <th>{{ __('orders.inbound.fields.deliver_to') }}</th><th>{{ __('orders.inbound.fields.requested_date') }}</th><th class="num">{{ __('orders.inbound.fields.lines') }}</th><th class="num">{{ __('orders.inbound.fields.cartons') }}</th><th>{{ __('orders.inbound.fields.status') }}</th>
                     </tr></thead>
                     <tbody>
@@ -170,10 +171,22 @@
                 toggleCollection();
                 // One client per ASN: ticking an order greys out the other clients' rows.
                 var boxes = Array.prototype.slice.call(document.querySelectorAll('#inbound-form input[name="order_ids[]"]'));
+                // CHANGE_REQUESTS #147: the header tick of a client group selects / clears all of its orders; it mirrors the rows (indeterminate for a part).
+                var selectAlls = Array.prototype.slice.call(document.querySelectorAll('#inbound-form input[data-select-all]'));
+                function syncSelectAll() {
+                    selectAlls.forEach(function (all) {
+                        var own = boxes.filter(function (b) { return b.dataset.client === all.dataset.client; });
+                        var checked = own.filter(function (b) { return b.checked; }).length;
+                        all.checked = own.length > 0 && checked === own.length;
+                        all.indeterminate = checked > 0 && checked < own.length;
+                        all.disabled = own.length > 0 && own[0].disabled;
+                    });
+                }
                 function limit() {
                     var checked = boxes.filter(function (b) { return b.checked; });
                     var client = checked.length ? checked[0].dataset.client : null;
                     boxes.forEach(function (b) { b.disabled = client !== null && b.dataset.client !== client; });
+                    syncSelectAll();
                 }
                 // CHANGE_REQUESTS #125 review: the import link covers only that submission's orders (the server refuses others). Ticking another
                 // order drops the link (the pickup fields stay); ticking only part of the submission says the client's whole-list plan is not carried.
@@ -196,6 +209,13 @@
                     note.textContent = (partial ? note.dataset.partial : note.dataset.template).replace('__ID__', importInput.value);
                 }
                 boxes.forEach(function (b) { b.addEventListener('change', function () { limit(); checkImport(); }); });
+                selectAlls.forEach(function (all) {
+                    all.addEventListener('change', function () {
+                        boxes.filter(function (b) { return b.dataset.client === all.dataset.client; }).forEach(function (b) { b.checked = all.checked; });
+                        limit();
+                        checkImport();
+                    });
+                });
                 limit();
                 // CHANGE_REQUESTS #123: 选中并填入 — tick the orders of one portal submission and copy its 柜号 / 柜型 / 预计到港 / 备注 into the ASN header.
                 // CHANGE_REQUESTS #125: a collection request also sets 我方上门提货 and fills the pickup fields, the warehouse and the import id.
