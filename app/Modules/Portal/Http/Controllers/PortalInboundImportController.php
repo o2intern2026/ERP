@@ -21,6 +21,7 @@ use App\Support\Enums;
 use App\Support\Exceptions\RuleViolation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -97,7 +98,7 @@ final class PortalInboundImportController extends Controller
         ]);
     }
 
-    public function create(Request $request): View
+    public function create(Request $request, OrderImportService $imports): View
     {
         $clientId = $this->clientId($request);
         $warehouses = Warehouse::query()->where('active', true)->orderBy('code')->get(['id', 'code', 'name']);
@@ -110,7 +111,7 @@ final class PortalInboundImportController extends Controller
             'templateColumns' => (array) __('portal.inbound.template_columns'), // CHANGE_REQUESTS #146: header → meaning, in the sheet's order
             'warehouses' => $warehouses,
             'defaultWarehouseId' => $this->defaultWarehouseId($clientId, $warehouses),
-            'defaults' => [],
+            'defaults' => ['container_no' => $imports->nextContainerNumber()], // CHANGE_REQUESTS #158 (revised): a visibly generated 柜号 the client may overwrite
             'groupBys' => OrderImportService::GROUP_BY, // CHANGE_REQUESTS #143
             'addressTypeDefaults' => OrderImportService::ADDRESS_TYPE_DEFAULTS,
         ]);
@@ -132,6 +133,17 @@ final class PortalInboundImportController extends Controller
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="inbound-list-template.csv"',
         ]);
+    }
+
+    /**
+     * CHANGE_REQUESTS #158 (revised): the 重新生成 button — another generated 柜号 (CTN-XXXXXX) as JSON; the form opened with one already.
+     * Nothing is reserved; OrderImportService::withContainerNumber() keeps whatever the client submits (a taken generated number is replaced).
+     */
+    public function nextContainerNo(Request $request, OrderImportService $imports): JsonResponse
+    {
+        $this->clientId($request);
+
+        return response()->json(['container_no' => $imports->nextContainerNumber()]);
     }
 
     /** CHANGE_REQUESTS #146: the Excel template — the client's own sheet layout (widths, fonts, frozen panes) with the three sample cartons. */
@@ -401,7 +413,7 @@ final class PortalInboundImportController extends Controller
         return [
             'group_by' => $draft?->errors['context']['group_by'] ?? 'mark', // CHANGE_REQUESTS #143
             'address_type_default' => $draft?->errors['context']['address_type_default'] ?? 'auto',
-            'container_no' => $inbound['container_no'] ?? null,
+            'container_no' => $inbound['container_no'] ?? app(OrderImportService::class)->nextContainerNumber(), // #158 (revised): a new form opens with a generated 柜号
             'container_size' => $inbound['container_size'] ?? null,
             'expected_date' => $inbound['expected_date'] ?? null,
             'reference' => $inbound['reference'] ?? null,

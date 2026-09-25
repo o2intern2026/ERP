@@ -40,7 +40,7 @@ class PortalInboundImportTest extends TestCase
 
         $this->actingAs($user)->get(route('portal.asns.index'))->assertOk()->assertSee(route('portal.asns.imports.create'), false);
         $this->actingAs($user)->get('/portal')->assertOk()->assertSee(route('portal.asns.imports.create'), false);
-        $this->actingAs($user)->get(route('portal.asns.imports.create'))->assertOk()->assertSee(__('portal.inbound.template'))->assertSee(__('portal.inbound.container_auto')); // CR #158: no 柜号 input any more
+        $this->actingAs($user)->get(route('portal.asns.imports.create'))->assertOk()->assertSee(__('portal.inbound.template'))->assertSee('MSKU1234567');
 
         $response = $this->actingAs($user)->post(route('portal.asns.imports.store'), [
             'manifest' => $this->csv([
