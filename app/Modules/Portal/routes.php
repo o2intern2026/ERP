@@ -41,6 +41,7 @@ Route::prefix('portal')->name('portal.')->group(function () {
     Route::get('/asns/imports/create', [PortalInboundImportController::class, 'create'])->name('asns.imports.create');
     Route::get('/asns/imports/template', [PortalInboundImportController::class, 'template'])->name('asns.imports.template');
     Route::get('/asns/imports/template.xlsx', [PortalInboundImportController::class, 'templateXlsx'])->name('asns.imports.template_xlsx'); // CHANGE_REQUESTS #146
+    Route::get('/asns/imports/container-no/next', [PortalInboundImportController::class, 'nextContainerNo'])->name('asns.imports.container_no'); // CHANGE_REQUESTS #158: 自动生成柜号 button
     Route::post('/asns/imports', [PortalInboundImportController::class, 'store'])->name('asns.imports.store');
     // CHANGE_REQUESTS #128 手工建立入库清单: rows typed on the page and / or existing orders attached (以订单为准), drafts, then the same preview → confirm.
     Route::get('/asns/imports/manual', [PortalInboundImportController::class, 'manualCreate'])->name('asns.imports.manual.create');

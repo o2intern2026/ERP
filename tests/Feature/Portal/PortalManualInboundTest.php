@@ -102,7 +102,8 @@ class PortalManualInboundTest extends TestCase
         $again = $this->actingAs($user)->get(route('portal.asns.imports.manual.create'))->assertOk()
             ->assertSee('第 1 行「邮编」必须是 4 位澳大利亚邮编')->assertSee('第 2 行「箱数」必须是整数')
             ->assertSee('name="rows[0][deliver_to_postcode]" value="ABCD"', false)->assertSee('name="rows[1][consignment_mark]" value="MK-B"', false)
-            ->assertSee('name="rows[0][deliver_to_postcode]" value="ABCD" maxlength="4" inputmode="numeric" placeholder="邮编" aria-label="邮编" aria-invalid="true"', false); // CR #158: no 柜号 input any more
+            ->assertSee('name="rows[0][deliver_to_postcode]" value="ABCD" maxlength="4" inputmode="numeric" placeholder="邮编" aria-label="邮编" aria-invalid="true"', false)
+            ->assertSee('name="container_no" id="container-no" maxlength="20" value="msku7654321"', false); // CR #158 (revised): the typed 柜号 is kept on a refusal
         $this->assertDoesNotMatchRegularExpression('/portal\.inbound\.|orders\.imports\.|orders\.fields\./', $again->getContent(), 'no raw lang key with errors');
 
         // Neither a row nor a ticked order: refused in Chinese.
@@ -126,7 +127,7 @@ class PortalManualInboundTest extends TestCase
 
         // The upload page still works with the shared partials (regression): context + 到仓方式 fieldset + file input, and an upload previews.
         $this->actingAs($user)->get(route('portal.asns.imports.create'))->assertOk()
-            ->assertSee('name="manifest"', false)->assertSee('name="container_size"', false)->assertSee('name="inbound_transport"', false)->assertSee('id="collection-fields" hidden disabled', false)
+            ->assertSee('name="manifest"', false)->assertSee('name="container_no"', false)->assertSee('name="inbound_transport"', false)->assertSee('id="collection-fields" hidden disabled', false)
             ->assertSee(route('portal.asns.imports.manual.create'), false);
         $this->actingAs($user)->post(route('portal.asns.imports.store'), ['manifest' => $this->collectionCsv($this->collectionRows()), 'container_no' => 'csku1'])->assertSessionHasNoErrors()->assertRedirect();
         $upload = OrderImport::query()->withoutGlobalScopes()->latest('id')->firstOrFail();
@@ -256,7 +257,7 @@ class PortalManualInboundTest extends TestCase
                 ->assertSee('name="draft_id" value="'.$draft->id.'"', false)->assertSee(__('portal.inbound.manual.draft_note', ['id' => $draft->id, 'time' => $draft->updated_at->format('Y-m-d H:i')]))
                 ->assertSee('name="rows[0][consignment_mark]" value="MK-A"', false)->assertSee('name="rows[0][actual_weight_kg]" value="85"', false)
                 ->assertSee('name="attached_order_ids[]" value="'.$order->id.'" aria-label="'.$order->order_no.'" checked', false)
-                ->assertSee('value="DRAFT001" disabled', false)->assertSee('name="reference" maxlength="60" value="PO-D"', false) // CR #158: the draft's 柜号 shows read-only
+                ->assertSee('name="container_no" id="container-no" maxlength="20" value="DRAFT001"', false)->assertSee('name="reference" maxlength="60" value="PO-D"', false)
                 ->assertSee('value="we_collect" checked', false)->assertDontSee('id="collection-fields" hidden disabled', false)
                 ->assertSee('name="collection[name]" maxlength="255" value="Factory"', false)->assertSee('name="collection[postcode]" maxlength="4" inputmode="numeric" value="3028"', false);
         }

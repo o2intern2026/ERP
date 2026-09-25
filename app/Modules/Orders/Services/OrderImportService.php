@@ -10,7 +10,6 @@ use App\Support\Contracts\JobService;
 use App\Support\Contracts\RateService;
 use App\Support\Enums;
 use App\Support\Exceptions\RuleViolation;
-use App\Support\Numbers as DocumentNumbers;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -354,10 +353,11 @@ final class OrderImportService
     }
 
     /**
-     * CHANGE_REQUESTS #158: a from_stock list whose client gave no 柜号 gets one in sequence — CTN-<date>-NNNN, taken under a row lock on
-     * `order_imports.container_no` (DocumentNumbers) and written both to the column and to `context.inbound.container_no`, so the preview,
-     * the list and 待建预报 show it and the ASN is created with it (customer service may still overwrite it with the shipping line's
-     * number there). A client-typed / API-given number is kept as is; a 提货直送 list has no inbound context and no number.
+     * CHANGE_REQUESTS #158 (revised 2026-09-25): the 柜号 of a from_stock list. The portal form opens with a visibly generated number
+     * (CTN-XXXXXX, nextContainerNumber) that the client may overwrite with the shipping line's number; whatever arrives here is kept —
+     * a blank gets a fresh generated number, a generated-style number another list already carries gets a fresh one too (recorded as
+     * `container_no_adjusted_from`). Written to `order_imports.container_no` and `context.inbound.container_no`, so the preview, the
+     * list and 待建预报 show it and the ASN is created with it (customer service may still change it there). A 提货直送 list has none.
      *
      * @param  array<string, mixed>  $context
      * @return array<string, mixed>
@@ -368,22 +368,45 @@ final class OrderImportService
             return $context;
         }
         $inbound = is_array($context['inbound'] ?? null) ? $context['inbound'] : [];
-        $number = filled($inbound['container_no'] ?? null) ? (string) $inbound['container_no'] : null;
-        if ($number === null) {
-            $number = DB::transaction(function () use ($import): string {
-                $number = DocumentNumbers::next(OrderImport::query()->withoutGlobalScopes(), 'container_no', 'CTN');
-                $import->update(['container_no' => $number]);
-
-                return $number;
-            });
-            $inbound['container_no'] = $number;
+        $number = filled($inbound['container_no'] ?? null) ? mb_substr(mb_strtoupper(trim((string) $inbound['container_no'])), 0, 20) : null;
+        $taken = $number !== null && preg_match(self::GENERATED_CONTAINER_PATTERN, $number) === 1
+            && OrderImport::query()->withoutGlobalScopes()->where('container_no', $number)->whereKeyNot($import->id)->exists();
+        if ($number === null || $taken) {
+            if ($taken) {
+                $inbound['container_no_adjusted_from'] = $number;
+            }
+            $number = $this->nextContainerNumber();
             $inbound['container_no_generated'] = true;
-        } else {
-            $import->update(['container_no' => mb_substr($number, 0, 20)]);
         }
+        $import->update(['container_no' => $number]);
+        $inbound['container_no'] = $number;
         $context['inbound'] = $inbound;
 
         return $context;
+    }
+
+    /** CHANGE_REQUESTS #158 (revised): a generated 柜号 — CTN- plus six characters from an alphabet without 0/O/1/I. */
+    public const GENERATED_CONTAINER_PATTERN = '/^CTN-[2-9A-HJ-NP-Z]{6}$/';
+
+    /**
+     * A fresh, visibly generated 柜号 (CTN-XXXXXX) that no list or container carries yet — shown in the portal form as soon as it opens,
+     * fetched again by 重新生成, and used when a list arrives without one. Random, so nothing needs reserving and two clients never wait on
+     * each other; uniqueness is checked against `order_imports.container_no` and `containers.container_no`.
+     */
+    public function nextContainerNumber(): string
+    {
+        $alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+        for ($attempt = 0; $attempt < 20; $attempt++) {
+            $code = '';
+            for ($i = 0; $i < 6; $i++) {
+                $code .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+            }
+            $number = 'CTN-'.$code;
+            if (! OrderImport::query()->withoutGlobalScopes()->where('container_no', $number)->exists() && ! DB::table('containers')->where('container_no', $number)->exists()) {
+                return $number;
+            }
+        }
+        throw new \RuntimeException('Could not generate a free container number.');
     }
 
     /**

@@ -517,3 +517,10 @@ Audit 2026-09-22 Part B billing items FIN-16 / FIN-13 / FIN-08 / FIN-09 / FIN-10
 - **Portal (X1), edited:** `views/asns/imports/partials/context-fields.blade.php` (disabled 系统自动生成 box + hint instead of the input), `lang/zh/portal.php` (`inbound.context_hint`, `container_auto`, `container_auto_hint`).
 - **Tests.** `tests/Feature/Portal/PortalContainerNumberTest.php`; existing tests that post `container_no` still pass (the param is accepted, e.g. from the API).
 - **Keep on rebase:** the number is taken inside `withContainerNumber()` only — never generate it in a controller; keep `container_no` accepted by the API.
+### 2026-09-25 · feat/container-no-button · 自动柜号 revised (CR #158) · C edited X1 Orders / Portal zones as integrator
+
+- **Why.** The lead wants the client to SEE a randomly generated 柜号 on the form and be free to change it — not a silent internal number.
+- **Orders (X1), edited:** `Services/OrderImportService.php` — `nextContainerNumber()` is now a random `CTN-XXXXXX` (unique against imports and containers, no sequence / lock), `GENERATED_CONTAINER_PATTERN`, `withContainerNumber()` keeps what was submitted and replaces only a blank or a taken generated number.
+- **Portal (X1), edited:** `Http/Controllers/PortalInboundImportController.php` (`create()` / `manualDefaults()` prefill, `nextContainerNo()` JSON), `routes.php` (`asns.imports.container_no`), `views/asns/imports/partials/context-fields.blade.php` (editable box + 重新生成 button + fetch script), `lang/zh/portal.php`.
+- **Tests.** `PortalContainerNumberTest` rewritten; `PortalManualInboundTest` / `PortalInboundImportTest` / `PortalOrderTypeImportTest` back to asserting the input (with its `id`).
+- **Keep on rebase:** the box must stay editable and prefilled; the generated pattern lives in `OrderImportService::GENERATED_CONTAINER_PATTERN` only.
