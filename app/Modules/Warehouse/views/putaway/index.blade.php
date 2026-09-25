@@ -25,7 +25,17 @@
                 <strong>{{ __('warehouse.putaway.bulk.title') }}</strong>
                 <p class="text-muted"><small>{{ __('warehouse.putaway.bulk.hint') }}</small></p>
                 <div class="grid">
-                    <label>{{ __('warehouse.putaway.bulk.location') }}<input type="text" name="bulk_location_code" class="scan" list="locations-all" placeholder="{{ $units->first()->warehouse->code }}-A-01-01" value="{{ old('bulk_location_code') }}" autocomplete="off"></label>
+                    {{-- CHANGE_REQUESTS #159: the target is picked from the warehouse's existing locations (grouped by warehouse), not typed. --}}
+                    <label>{{ __('warehouse.putaway.bulk.location') }}
+                        <select name="bulk_location_code" id="bulk-location">
+                            <option value="">{{ __('warehouse.putaway.bulk.location_choose') }}</option>
+                            @foreach ($locations as $warehouseId => $list)
+                                <optgroup label="{{ $warehouseCodes[$warehouseId] ?? $warehouseId }}">
+                                    @foreach ($list as $loc)<option value="{{ $loc->full_code }}" @selected(old('bulk_location_code') === $loc->full_code)>{{ $loc->full_code }} · {{ __('warehouse.location_types.'.$loc->type) }}@if ($loc->storage_tier === 'bottom') · {{ __('warehouse.storage_tiers.bottom') }}@endif</option>@endforeach
+                                </optgroup>
+                            @endforeach
+                        </select>
+                    </label>
                     <label>{{ __('warehouse.putaway.bulk.reason') }}<input type="text" name="bulk_tier_reason" maxlength="255" value="{{ old('bulk_tier_reason') }}"></label>
                 </div>
                 <p style="margin:0">
@@ -83,7 +93,7 @@
         const boxes = () => Array.from(document.querySelectorAll('input[name="unit_ids[]"][form="bulk-putaway"]'));
         const page = document.getElementById('putaway-select-page');
         const submit = document.getElementById('putaway-bulk-submit');
-        const code = document.querySelector('#bulk-putaway input[name="bulk_location_code"]');
+        const code = document.getElementById('bulk-location');
         const template = submit ? submit.textContent : '';
         const sync = () => {
             const ticked = boxes().filter(b => b.checked).length;
@@ -95,7 +105,7 @@
         document.getElementById('putaway-select-none')?.addEventListener('click', () => setAll(false));
         page?.addEventListener('change', () => setAll(page.checked));
         boxes().forEach(b => b.addEventListener('change', sync));
-        code?.addEventListener('input', sync);
+        code?.addEventListener('change', sync);
         sync();
     })();
 </script>

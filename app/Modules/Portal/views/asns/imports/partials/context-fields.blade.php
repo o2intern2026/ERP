@@ -5,7 +5,8 @@
     <strong>{{ __('portal.inbound.sections.context') }}</strong>
     <p class="text-muted"><small>{{ __('portal.inbound.context_hint') }}</small></p>
     <div class="grid">
-        <label>{{ __('portal.inbound.fields.container_no') }}<input type="text" name="container_no" maxlength="20" value="{{ old('container_no', $defaults['container_no'] ?? '') }}" placeholder="MSKU1234567" style="text-transform:uppercase"></label>
+        {{-- CHANGE_REQUESTS #158: the 柜号 is no longer typed by the client — the system numbers the list (CTN-<date>-NNNN) when it is read. --}}
+        <label>{{ __('portal.inbound.fields.container_no') }}<input type="text" value="{{ $defaults['container_no'] ?? __('portal.inbound.container_auto') }}" disabled aria-describedby="container-auto-hint"><small id="container-auto-hint">{{ __('portal.inbound.container_auto_hint') }}</small></label>
         <label>{{ __('portal.inbound.fields.container_size') }}
             <select name="container_size">
                 <option value="">{{ __('portal.actions.select') }}</option>

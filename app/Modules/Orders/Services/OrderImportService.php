@@ -10,6 +10,7 @@ use App\Support\Contracts\JobService;
 use App\Support\Contracts\RateService;
 use App\Support\Enums;
 use App\Support\Exceptions\RuleViolation;
+use App\Support\Numbers as DocumentNumbers;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -92,6 +93,7 @@ final class OrderImportService
             'uploaded_by' => $actorId,
         ], fn ($value) => $value !== null));
 
+        $context = $this->withContainerNumber($import, $context);
         $parsed = $this->parser->parse(Storage::disk('local')->path($path));
         $previousFile = OrderImport::query()->where('client_id', $context['client_id'])->whereKeyNot($import->id)->get()
             ->first(fn (OrderImport $candidate) => data_get($candidate->errors, 'context.sha256') === $sha256);
@@ -132,6 +134,7 @@ final class OrderImportService
         $sha256 = hash('sha256', json_encode($parsed['rows'], JSON_UNESCAPED_UNICODE).'|'.implode(',', $sorted));
 
         $import = $this->manualImport($clientId, $actorId, $draft);
+        $context = $this->withContainerNumber($import, $context);
         $context['sha256'] = $sha256;
         $context['original_name'] = null;
         $context['manual'] = ['rows' => $rows, 'attached_order_ids' => $attached];
@@ -348,6 +351,39 @@ final class OrderImportService
         ]);
 
         return $import->fresh();
+    }
+
+    /**
+     * CHANGE_REQUESTS #158: a from_stock list whose client gave no 柜号 gets one in sequence — CTN-<date>-NNNN, taken under a row lock on
+     * `order_imports.container_no` (DocumentNumbers) and written both to the column and to `context.inbound.container_no`, so the preview,
+     * the list and 待建预报 show it and the ASN is created with it (customer service may still overwrite it with the shipping line's
+     * number there). A client-typed / API-given number is kept as is; a 提货直送 list has no inbound context and no number.
+     *
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     */
+    private function withContainerNumber(OrderImport $import, array $context): array
+    {
+        if (($context['order_type'] ?? 'from_stock') !== 'from_stock') {
+            return $context;
+        }
+        $inbound = is_array($context['inbound'] ?? null) ? $context['inbound'] : [];
+        $number = filled($inbound['container_no'] ?? null) ? (string) $inbound['container_no'] : null;
+        if ($number === null) {
+            $number = DB::transaction(function () use ($import): string {
+                $number = DocumentNumbers::next(OrderImport::query()->withoutGlobalScopes(), 'container_no', 'CTN');
+                $import->update(['container_no' => $number]);
+
+                return $number;
+            });
+            $inbound['container_no'] = $number;
+            $inbound['container_no_generated'] = true;
+        } else {
+            $import->update(['container_no' => mb_substr($number, 0, 20)]);
+        }
+        $context['inbound'] = $inbound;
+
+        return $context;
     }
 
     /**

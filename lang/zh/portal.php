@@ -424,7 +424,10 @@ return [
         'list_title' => '已提交清单',
         'upload_button' => '上传清单（CSV / Excel）',
         'hint' => '上传贵公司的货物清单（CSV 或 Excel）：系统按唛头把每行货物整理成贵公司的订单——收件人、电话、地址、城区、州、邮编、FBA 货件编号、品名、包装、箱数、重量、尺寸逐项对应——预览无误后点“确认提交”生成订单；客服随后在“待建预报”里按这批订单建立预报单 (ASN)，到货进度在“预报入库”查看。',
-        'context_hint' => '柜号、柜型、预计到港日、参考号和备注会随清单交给客服，建预报单时自动带入；都可以留空。',
+        'context_hint' => '柜型、预计到港日、参考号和备注会随清单交给客服，建预报单时自动带入；都可以留空。柜号不用填：系统按顺序自动编号。',
+        // CHANGE_REQUESTS #158: the 柜号 is generated, not typed.
+        'container_auto' => '系统自动生成',
+        'container_auto_hint' => '读入清单时自动编号（CTN-日期-序号），预览和“已提交清单”里可见；客服建预报单时可改成船公司的实际柜号。',
         'defaults_hint' => '要求送达日默认为预计到港日 + 7 天（未填到港日则为今天 + 7 天），服务等级默认为“标准”；清单里有“要求送达日”或“服务等级”列时以该列为准。',
         // CHANGE_REQUESTS #146: the template is the client's consolidation list one to one.
         'template' => '下载 CSV 模板',

@@ -35,7 +35,9 @@ class PutawayBulkTest extends TestCase
         // The page: a checkbox per unit bound to the bulk form, the bulk form itself, no raw lang key.
         $page = $this->actingAs($supervisor)->get(route('warehouse.putaway.index'))->assertOk()
             ->assertSee('id="bulk-putaway"', false)->assertSee('name="unit_ids[]" value="'.$stdUnits[0]->id.'" form="bulk-putaway"', false)
-            ->assertSee(__('warehouse.putaway.bulk.title'))->assertSee(__('warehouse.putaway.bulk.select_all'));
+            ->assertSee(__('warehouse.putaway.bulk.title'))->assertSee(__('warehouse.putaway.bulk.select_all'))
+            // CHANGE_REQUESTS #159: the target is a select over the warehouse's existing locations, not a typed code.
+            ->assertSee('<select name="bulk_location_code" id="bulk-location">', false)->assertSee('<option value="'.$storage->full_code.'"', false)->assertSee(__('warehouse.putaway.bulk.location_choose'));
         $this->assertDoesNotMatchRegularExpression('/warehouse\.putaway\./', $page->getContent());
 
         // Nothing ticked → Chinese refusal; the bottom pallet into a standard location without a reason is refused, the two cartons go.
