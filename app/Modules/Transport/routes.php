@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Transport\Http\Controllers\BulkActionController;
 use App\Modules\Transport\Http\Controllers\CarrierInvoiceController;
 use App\Modules\Transport\Http\Controllers\CarrierPodController;
 use App\Modules\Transport\Http\Controllers\ConsignmentNoteController;
@@ -55,6 +56,9 @@ Route::prefix('transport')->name('transport.')->group(function () {
     Route::delete('/runs/{deliveryRun}/stops/{runStop}', [RunStopController::class, 'destroy'])
         ->whereNumber(['deliveryRun', 'runStop'])
         ->name('runs.stops.destroy');
+    // CHANGE_REQUESTS #160 / #161: the board's 批量确认最终方案 / 批量确认预订 (planners only, enforced in the controller).
+    Route::post('/quotes/confirm-bulk', [BulkActionController::class, 'confirmQuotes'])->name('quotes.confirm_bulk');
+    Route::post('/book-bulk', [BulkActionController::class, 'book'])->name('book_bulk');
     Route::get('/{shipment}/consignment-note', ConsignmentNoteController::class)
         ->whereNumber('shipment')
         ->name('shipments.consignment-note');
