@@ -13,7 +13,7 @@ class OrderImport extends Model
     use BelongsToClient;
 
     protected $fillable = [
-        'client_id', 'source', 'document_id', 'status', 'row_count', 'error_count', 'errors', 'created_by',
+        'client_id', 'source', 'container_no', 'document_id', 'status', 'row_count', 'error_count', 'errors', 'created_by', // container_no: CHANGE_REQUESTS #158
     ];
 
     protected function casts(): array

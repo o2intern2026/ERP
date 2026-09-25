@@ -5,6 +5,7 @@ namespace App\Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Warehouse\Models\Location;
 use App\Modules\Warehouse\Models\StockUnit;
+use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Services\PutawayService;
 use App\Modules\Warehouse\Services\WarehouseContext;
 use App\Support\Exceptions\RuleViolation;
@@ -37,6 +38,7 @@ class PutawayController extends Controller
             'units' => $units,
             'highlight' => $request->integer('highlight') ?: null,
             'locations' => Location::query()->where('active', true)->whereIn('type', ['storage', 'pickface', 'quarantine'])->orderBy('full_code')->get()->groupBy('warehouse_id'),
+            'warehouseCodes' => Warehouse::query()->pluck('code', 'id'), // CHANGE_REQUESTS #159: optgroup labels of the bulk location select
             'bottomHints' => $this->freeBottomLocations($units->getCollection()),
         ]);
     }

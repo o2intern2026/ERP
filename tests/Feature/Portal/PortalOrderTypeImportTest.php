@@ -52,7 +52,7 @@ class PortalOrderTypeImportTest extends TestCase
 
         // Without a type (预报入库's button) the page is today's inbound list: 库存出库配送 preselected, inbound context on the page.
         $this->actingAs($user)->get(route('portal.asns.imports.create'))->assertOk()
-            ->assertSee('name="order_type" value="from_stock" checked', false)->assertSee('name="container_no"', false)->assertSee('name="inbound_transport"', false);
+            ->assertSee('name="order_type" value="from_stock" checked', false)->assertSee('name="container_size"', false)->assertSee('name="inbound_transport"', false); // CR #158: 柜号 is generated, 柜型 still typed
     }
 
     public function test_a_pickup_deliver_list_needs_the_pickup_party_and_a_delivery_date(): void

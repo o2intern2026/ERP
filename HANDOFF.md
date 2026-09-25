@@ -510,3 +510,10 @@ Audit 2026-09-22 Part B billing items FIN-16 / FIN-13 / FIN-08 / FIN-09 / FIN-10
 - **Orders (X1), edited:** `routes.php` (`POST /confirm-bulk`, declared before the `{order}` routes), `Http/Controllers/OrderController.php` (`confirmBulk()`; the checks of `confirm()` moved into a private `confirmRefusal()` both use — behaviour of the single button unchanged), `views/index.blade.php` (checkbox column for the order-entry roles, the 一键确认 form, inline script), `lang/zh/orders.php` (`bulk_confirm.*`).
 - **Tests.** `tests/Feature/Orders/OrderBulkConfirmTest.php`.
 - **Keep on rebase:** keep `confirmRefusal()` as the single place for "can this order be confirmed"; the bulk route must stay above `POST /{order}/confirm`.
+### 2026-09-25 · feat/container-seq-putaway-select · 自动柜号 (CR #158) · C edited X1 Orders / Portal zones as integrator
+
+- **Why.** The lead does not want clients typing a 柜号; the system numbers each inbound list in sequence, customer service may replace it with the shipping line's number when it builds the ASN.
+- **Orders (X1), edited:** `migrations/2026_09_25_100000_add_container_no_to_order_imports.php` (nullable indexed string 20), `Models/OrderImport.php` (fillable), `Services/OrderImportService.php` (`withContainerNumber()` called by `preview()` and `previewRows()` — DocumentNumbers over `order_imports.container_no`, prefix CTN; a given number is kept).
+- **Portal (X1), edited:** `views/asns/imports/partials/context-fields.blade.php` (disabled 系统自动生成 box + hint instead of the input), `lang/zh/portal.php` (`inbound.context_hint`, `container_auto`, `container_auto_hint`).
+- **Tests.** `tests/Feature/Portal/PortalContainerNumberTest.php`; existing tests that post `container_no` still pass (the param is accepted, e.g. from the API).
+- **Keep on rebase:** the number is taken inside `withContainerNumber()` only — never generate it in a controller; keep `container_no` accepted by the API.
