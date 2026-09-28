@@ -43,11 +43,12 @@ class LocationTierTest extends TestCase
             ->assertSee(__('warehouse.locations.bulk.title'));
         // The table itself — the create / bulk forms above it print the same words: header cells and MEL-B-01-01's level + tier cells.
         $html = $page->getContent();
-        $this->assertStringContainsString('<th class="num">'.__('warehouse.locations.rack_level').'</th><th>'.__('warehouse.locations.storage_tier').'</th>', $html);
+        $this->assertStringContainsString('<th>'.__('warehouse.locations.bay').'</th><th class="num">'.__('warehouse.locations.rack_level').'</th><th>'.__('warehouse.locations.position').'</th>', $html, 'columns follow the code order (CR #168)');
         $this->assertStringContainsString('<code>MEL-B-01-01-1-1</code>', $html);
         $row = substr($html, (int) strpos($html, '<code>MEL-B-01-01-1-1</code>'));
         $row = substr($row, 0, (int) strpos($row, '</tr>'));
-        $this->assertStringContainsString('<td class="num">1</td><td><span class="badge" data-tone="warn">'.__('warehouse.storage_tiers.bottom').'</span></td>', $row);
+        $this->assertStringContainsString('<td class="num">1</td><td>'.__('warehouse.locations.position_option', ['position' => 1, 'side' => __('warehouse.locations.sides.left')]).'</td>', $row);
+        $this->assertStringContainsString('<span class="badge" data-tone="warn">'.__('warehouse.storage_tiers.bottom').'</span>', $row);
         foreach (['warehouse.locations.', 'warehouse.storage_tiers.'] as $rawKey) {
             $page->assertDontSee($rawKey);
         }

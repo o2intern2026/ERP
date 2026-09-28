@@ -46,7 +46,8 @@ class LocationController extends Controller
         $warehouse = Warehouse::query()->findOrFail($data['warehouse_id']);
         $fullCode = Location::buildFullCode($warehouse->code, $data['zone'], $data['aisle'], $data['bay'], $data['rack_level'] ?? null, $data['position'] ?? null);
         // Only a storage location has a tier (#126): the bottom-level surcharge and the putaway check look at storage locations only.
-        $data['storage_tier'] = $data['type'] === 'storage' ? ($data['storage_tier'] ?? 'standard') : 'standard';
+        // CHANGE_REQUESTS #168: without an explicit tier, level 1 of a rack is the bottom tier, everything else standard.
+        $data['storage_tier'] = $data['type'] === 'storage' ? ($data['storage_tier'] ?? ((int) ($data['rack_level'] ?? 0) === 1 ? 'bottom' : 'standard')) : 'standard';
         Location::query()->firstOrCreate(['warehouse_id' => $warehouse->id, 'full_code' => $fullCode], $data + ['active' => true]);
 
         return back()->with('status', __('warehouse.locations.created', ['code' => $fullCode]));
