@@ -3,7 +3,7 @@
 @section('title', __('warehouse.stock.title'))
 
 @section('content')
-    <h1>{{ __('warehouse.title') }} · {{ __('warehouse.stock.title') }}</h1>
+    <h1>{{ __('warehouse.title') }} · {{ __('warehouse.stock.title') }} <small><a href="{{ route('warehouse.map.index', array_filter(['warehouse_id' => $filters['warehouse_id'] ?? null])) }}">{{ __('warehouse.map.link') }}</a></small></h1>
     <form method="get" class="grid">
         <select name="client_id" aria-label="{{ __('warehouse.stock.client') }}">
             <option value="">{{ __('warehouse.stock.client') }}: {{ __('platform.jobs.all') }}</option>

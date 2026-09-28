@@ -15,6 +15,7 @@
         <li><a href="{{ route('warehouse.physical_containers.index') }}">{{ __('warehouse.nav_physical_containers') }}</a></li>
     @endrole
     <li><a href="{{ route('warehouse.index') }}">{{ __('warehouse.nav') }}</a></li>
+    <li><a href="{{ route('warehouse.map.index') }}">{{ __('warehouse.nav_map') }}</a></li>
     @role('admin|warehouse_supervisor|warehouse_operator')
         <li><a href="{{ route('warehouse.putaway.index') }}">{{ __('warehouse.nav_putaway') }}</a></li>
         <li><a href="{{ route('warehouse.tasks.index') }}">{{ __('warehouse.nav_tasks') }}</a></li>
