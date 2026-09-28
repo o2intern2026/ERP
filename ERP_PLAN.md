@@ -745,7 +745,8 @@ asn_lines                  货物行(库存的身份来源)
 ├─ expected_cartons, received_cartons, damaged_cartons, variance_reason
 └─ weight, dims, cbm
 
-stock_units                库存单元 = 客户 + 货物行 + 包装单元 + 库位
+pallets                    托盘牌号 (LPN, CR #166):pallet_no(P-000123,条码 P<id>)、客户 + Job(一托一客户一 Job,可混放多行货)、库位、托盘分类 / 来源 / 尺寸重量、status in_use | empty;上架 / 移库 / 整托拣货按托盘;仓储费与托盘租赁按托盘计
+stock_units                库存单元 = 客户 + 货物行 + 包装单元 + 库位(+ pallet_id:所在托盘,散箱为空)
 ├─ client_id, job_id, asn_line_id     货物行即身份(无 SKU 主档)
 ├─ unit_type               pallet | carton
 ├─ label_code              系统箱标 / 托标条码(扫码对象)

@@ -28,18 +28,19 @@ class StockController extends Controller
     {
         $filters = $request->validate([
             'client_id' => ['nullable', 'integer'], 'warehouse_id' => ['nullable', 'integer'], 'job_no' => ['nullable', 'string', 'max:30'],
-            'consignment_mark' => ['nullable', 'string', 'max:60'], 'location' => ['nullable', 'string', 'max:40'],
+            'consignment_mark' => ['nullable', 'string', 'max:60'], 'location' => ['nullable', 'string', 'max:40'], 'pallet' => ['nullable', 'string', 'max:30'], // #166: P<id> or pallet_no
             'condition' => ['nullable', Rule::in(Enums::CONDITIONS)], 'available_only' => ['nullable', 'boolean'],
             'bottom_leftover' => ['nullable', 'boolean'], // 底层库位剩货托盘 (CHANGE_REQUESTS #126)
         ]);
 
-        $units = StockUnit::query()->with(['asnLine.asn.job', 'asnLine.asn.client', 'location'])
+        $units = StockUnit::query()->with(['asnLine.asn.job', 'asnLine.asn.client', 'location', 'pallet'])
             ->when($filters['client_id'] ?? null, fn ($q, $v) => $q->where('client_id', $v))
             ->when($filters['warehouse_id'] ?? WarehouseContext::currentId(), fn ($q, $v) => $q->where('warehouse_id', $v))
             ->when($filters['condition'] ?? null, fn ($q, $v) => $q->where('condition', $v))
             ->when($filters['job_no'] ?? null, fn ($q, $v) => $q->whereHas('asnLine.asn.job', fn ($j) => $j->where('job_no', 'like', "%{$v}%")))
             ->when($filters['consignment_mark'] ?? null, fn ($q, $v) => $q->whereHas('asnLine', fn ($l) => $l->where('consignment_mark', 'like', "%{$v}%")))
             ->when($filters['location'] ?? null, fn ($q, $v) => $q->whereHas('location', fn ($l) => $l->where('full_code', 'like', "%{$v}%")))
+            ->when($filters['pallet'] ?? null, fn ($q, $v) => $q->whereHas('pallet', fn ($p) => $p->scanCode($v))) // CHANGE_REQUESTS #166
             ->when(! empty($filters['available_only']), fn ($q) => $q->where('putaway_completed', true)->where('condition', 'good')->hasAvailable())
             ->orderByDesc('id')->paginate(50)->withQueryString();
 
@@ -76,7 +77,8 @@ class StockController extends Controller
     public function show(StockUnit $unit): View
     {
         return view('warehouse::stock.show', [
-            'unit' => $unit->load(['asnLine.asn.job', 'asnLine.asn.client', 'location', 'warehouse']),
+            'unit' => $unit->load(['asnLine.asn.job', 'asnLine.asn.client', 'location', 'warehouse', 'pallet']),
+            'palletMates' => $unit->pallet_id === null ? collect() : StockUnit::query()->with('asnLine')->where('pallet_id', $unit->pallet_id)->whereKeyNot($unit->id)->orderBy('id')->get(), // CHANGE_REQUESTS #166
             'ledger' => $unit->ledger()->orderBy('id')->get(),
             'reservations' => $unit->reservations()->orderByDesc('id')->get(),
             'palletSources' => Enums::PALLET_SOURCES,

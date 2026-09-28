@@ -96,6 +96,9 @@ final class Enums
 
     public const PALLET_SOURCES = ['client_own', 'warehouse_plain', 'chep', 'loscam'];
 
+    /** CHANGE_REQUESTS #166: `pallets.status` — in use, or empty once every unit on it has 0 cartons on hand. */
+    public const PALLET_STATUSES = ['in_use', 'empty'];
+
     public const CONDITIONS = ['good', 'quarantine', 'damaged'];
 
     public const TASK_TYPES = ['receiving', 'putaway', 'move', 'pick', 'pack', 'load', 'count', 'return_inspection', 'devanning', 'wrap', 'scanning', 'labour', 'waste', 'vas_other'];

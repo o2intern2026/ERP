@@ -5,6 +5,12 @@
 @section('content')
     <p><a href="{{ route('warehouse.index') }}">← {{ __('platform.common.back') }}</a></p>
     <h1><code>{{ $unit->label_code }}</code> <small class="text-muted">{{ __('warehouse.unit_types.'.$unit->unit_type) }}</small></h1>
+    {{-- CHANGE_REQUESTS #166: the pallet this unit sits on and the other goods lines on it. --}}
+    @if ($unit->pallet)
+        <p id="pallet">{{ __('warehouse.stock.pallet') }} <a href="{{ route('warehouse.index', ['pallet' => $unit->pallet->pallet_no]) }}"><code>{{ $unit->pallet->pallet_no }}</code></a> · {{ __('warehouse.pallet_statuses.'.$unit->pallet->status) }} · <a href="{{ route('warehouse.labels.pallets', ['ids' => [$unit->pallet->id]]) }}" target="_blank">{{ __('warehouse.labels.pallets') }}</a>
+            @if ($palletMates->isNotEmpty())<br><small class="text-muted">{{ __('warehouse.stock.pallet_mates') }}: @foreach ($palletMates as $m)<a href="{{ route('warehouse.stock.show', $m) }}"><code>{{ $m->label_code }}</code></a> {{ $m->asnLine?->consignment_mark }} ({{ $m->qty_on_hand }}) @endforeach</small>@endif
+        </p>
+    @endif
     <div class="grid">
         <article>
             <p>{{ __('warehouse.stock.client') }}: {{ $unit->asnLine->asn->client->name }}<br>

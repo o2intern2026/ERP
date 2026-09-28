@@ -43,7 +43,7 @@
                 <thead><tr>
                     <th>{{ __('warehouse.receiving.bulk.include') }}</th><th>#</th><th>{{ __('warehouse.stock.mark') }}</th><th>{{ __('warehouse.stock.description') }}</th><th>{{ __('warehouse.asns.container_no') }}</th>
                     <th class="num">{{ __('warehouse.asns.expected') }}</th><th class="num">{{ __('warehouse.receiving.received_cartons') }}</th><th class="num">{{ __('warehouse.receiving.damaged_cartons') }}</th>
-                    <th>{{ __('warehouse.receiving.unit_type') }}</th><th class="num">{{ __('warehouse.receiving.bulk.unit_count') }}</th><th>{{ __('warehouse.receiving.pallet_source') }}</th><th class="num">{{ __('warehouse.receiving.bulk.weight_total') }}</th><th>{{ __('warehouse.receiving.bulk.variance_reason') }}</th>
+                    <th>{{ __('warehouse.receiving.unit_type') }}</th><th class="num">{{ __('warehouse.receiving.bulk.unit_count') }}</th><th>{{ __('warehouse.receiving.pallet_no') }}</th><th>{{ __('warehouse.receiving.pallet_source') }}</th><th class="num">{{ __('warehouse.receiving.bulk.weight_total') }}</th><th>{{ __('warehouse.receiving.bulk.variance_reason') }}</th>
                 </tr></thead>
                 <tbody>
                 @foreach ($lines as $i => $l)
@@ -56,6 +56,7 @@
                         <td class="num"><input type="number" name="rows[{{ $i }}][damaged_cartons]" min="0" value="{{ $old['damaged_cartons'] ?? 0 }}" style="width:5rem"></td>
                         <td><select name="rows[{{ $i }}][unit_type]" style="width:auto">@foreach ($unitTypes as $t)<option value="{{ $t }}" @selected(($old['unit_type'] ?? $defaultUnitType) === $t)>{{ __('warehouse.unit_types.'.$t) }}</option>@endforeach</select></td>
                         <td class="num"><input type="number" name="rows[{{ $i }}][unit_count]" min="1" max="500" value="{{ $old['unit_count'] ?? 1 }}" style="width:5rem"></td>
+                        <td><input type="text" name="rows[{{ $i }}][pallet_no]" class="scan" maxlength="30" value="{{ $old['pallet_no'] ?? '' }}" placeholder="{{ __('warehouse.receiving.pallet_no') }}" title="{{ __('warehouse.receiving.pallet_no_hint') }}" style="width:8rem"></td>
                         <td><select name="rows[{{ $i }}][pallet_source]" class="pallet-source" style="width:auto" aria-label="{{ __('warehouse.receiving.pallet_source') }}">@foreach ($palletSources as $ps)<option value="{{ $ps }}" @selected(($old['pallet_source'] ?? 'client_own') === $ps)>{{ __('warehouse.pallet_sources.'.$ps) }}</option>@endforeach</select></td>
                         <td class="num"><input type="number" name="rows[{{ $i }}][weight_kg]" min="0" step="0.001" value="{{ $old['weight_kg'] ?? '' }}" placeholder="kg" style="width:6rem"></td>
                         <td><input type="text" name="rows[{{ $i }}][variance_reason]" value="{{ $old['variance_reason'] ?? '' }}" maxlength="255" style="min-width:12rem"></td>

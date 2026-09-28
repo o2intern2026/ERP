@@ -24,7 +24,7 @@ class StockUnit extends Model
     use LogsActivity;
 
     protected $fillable = [
-        'client_id', 'job_id', 'asn_line_id', 'goods_receipt_id', 'warehouse_id', 'unit_type', 'label_code', 'location_id',
+        'client_id', 'job_id', 'asn_line_id', 'goods_receipt_id', 'warehouse_id', 'unit_type', 'label_code', 'location_id', 'pallet_id',
         'qty_on_hand', 'qty_reserved', 'qty_frozen', 'qty_inbound', 'pallet_class', 'pallet_class_overridden_reason',
         'length_mm', 'width_mm', 'height_mm', 'weight_kg', 'pallet_source', 'condition', 'condition_reason', 'condition_changed_at', 'putaway_completed', 'received_at',
         'required_storage_tier', 'storage_tier_override_reason', // CHANGE_REQUESTS #126
@@ -51,6 +51,12 @@ class StockUnit extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
+    }
+
+    /** CHANGE_REQUESTS #166: the physical pallet this unit sits on; null for a loose carton unit. */
+    public function pallet(): BelongsTo
+    {
+        return $this->belongsTo(Pallet::class);
     }
 
     public function warehouse(): BelongsTo

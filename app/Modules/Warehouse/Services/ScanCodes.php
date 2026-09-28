@@ -17,6 +17,9 @@ final class ScanCodes
 
     public const LOCATION_PREFIX = 'L';
 
+    /** CHANGE_REQUESTS #166: the pallet label's token (its printed text is the pallet_no `P-000123`, which also resolves). */
+    public const PALLET_PREFIX = 'P';
+
     public static function unit(int $id): string
     {
         return self::UNIT_PREFIX.$id;
@@ -41,6 +44,22 @@ final class ScanCodes
     public static function locationId(string $code): ?int
     {
         return self::id($code, self::LOCATION_PREFIX);
+    }
+
+    public static function pallet(int $id): string
+    {
+        return self::PALLET_PREFIX.$id;
+    }
+
+    public static function palletId(string $code): ?int
+    {
+        return self::id($code, self::PALLET_PREFIX);
+    }
+
+    /** Constrain a Pallet query to the pallet a scan names: the short token `P<id>` or the printed pallet_no. */
+    public static function wherePallet(Builder $query, string $code): Builder
+    {
+        return self::where($query, $code, 'pallet_no', self::palletId($code));
     }
 
     /** Constrain a StockUnit query to the unit a scan names: the short token or the full label_code. */

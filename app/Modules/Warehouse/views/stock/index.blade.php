@@ -16,6 +16,7 @@
         <input type="text" name="job_no" placeholder="{{ __('warehouse.stock.job') }}" value="{{ $filters['job_no'] ?? '' }}">
         <input type="text" name="consignment_mark" placeholder="{{ __('warehouse.stock.mark') }}" value="{{ $filters['consignment_mark'] ?? '' }}">
         <input type="text" name="location" class="scan" placeholder="{{ __('warehouse.stock.location') }}" value="{{ $filters['location'] ?? '' }}">
+        <input type="text" name="pallet" class="scan" placeholder="{{ __('warehouse.stock.pallet_filter') }}" value="{{ $filters['pallet'] ?? '' }}">
         <select name="condition" aria-label="{{ __('warehouse.stock.condition') }}">
             <option value="">{{ __('warehouse.stock.condition') }}: {{ __('platform.jobs.all') }}</option>
             @foreach ($conditions as $c)<option value="{{ $c }}" @selected(($filters['condition'] ?? '') === $c)>{{ __('warehouse.conditions.'.$c) }}</option>@endforeach
@@ -51,7 +52,7 @@
     @else
         <div class="overflow-auto"><table class="dense">
             <thead><tr>
-                <th>{{ __('warehouse.stock.label_code') }}</th><th>{{ __('warehouse.stock.client') }}</th><th>{{ __('warehouse.stock.job') }}</th>
+                <th>{{ __('warehouse.stock.label_code') }}</th><th>{{ __('warehouse.stock.pallet') }}</th><th>{{ __('warehouse.stock.client') }}</th><th>{{ __('warehouse.stock.job') }}</th>
                 <th>{{ __('warehouse.stock.mark') }}</th><th>{{ __('warehouse.stock.description') }}</th><th>{{ __('warehouse.stock.location') }}</th>
                 <th>{{ __('warehouse.stock.unit_type') }}</th><th class="num">{{ __('warehouse.stock.on_hand') }}</th><th class="num">{{ __('warehouse.stock.reserved') }}</th>
                 <th class="num">{{ __('warehouse.stock.frozen') }}</th><th class="num">{{ __('warehouse.stock.available') }}</th><th>{{ __('warehouse.stock.condition') }}</th><th>{{ __('warehouse.stock.putaway') }}</th>
@@ -60,6 +61,7 @@
             @foreach ($units as $u)
                 <tr>
                     <td><a href="{{ route('warehouse.stock.show', $u) }}"><code>{{ $u->label_code }}</code></a></td>
+                    <td>@if ($u->pallet)<a href="{{ route('warehouse.index', ['pallet' => $u->pallet->pallet_no]) }}"><code>{{ $u->pallet->pallet_no }}</code></a>@else <span class="text-muted">—</span>@endif</td>
                     <td>{{ $u->asnLine->asn->client->name }}</td>
                     <td>{{ $u->asnLine->asn->job->job_no }}</td>
                     <td>{{ $u->asnLine->consignment_mark }}</td>

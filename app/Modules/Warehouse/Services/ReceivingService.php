@@ -6,6 +6,7 @@ use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnLine;
 use App\Modules\Warehouse\Models\GoodsReceiptLine;
 use App\Modules\Warehouse\Models\Location;
+use App\Modules\Warehouse\Models\Pallet;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Support\Contracts\ExceptionService;
 use App\Support\Contracts\RateService;
@@ -82,6 +83,10 @@ final class ReceivingService
                     ? $this->rates->suggestPalletClass($asn->client_id, (int) $spec['length_mm'], (int) $spec['width_mm'], (int) $spec['height_mm'], (float) $spec['weight_kg'])
                     : null;
                 $palletClass = $spec['pallet_class'] ?? $suggested;
+                // CHANGE_REQUESTS #166: a pallet-type unit is a NEW pallet unless a pallet_no names an existing one (same client + Job +
+                // warehouse, still at the dock) — then the line's cartons join that pallet (mixed pallet); a carton unit with a pallet_no
+                // is stacked on it, without one it stays loose. The unit sits wherever its pallet is.
+                $pallet = $this->palletFor($asn, $spec, $isPallet, $palletClass, $suggested, $receivingLocation);
 
                 $unit = StockUnit::query()->create([
                     'client_id' => $asn->client_id,
@@ -90,7 +95,8 @@ final class ReceivingService
                     'warehouse_id' => $asn->warehouse_id,
                     'unit_type' => $spec['unit_type'],
                     'label_code' => sprintf('%s-L%d-%02d', $asn->asn_no, $line->id, $seq),
-                    'location_id' => $receivingLocation->id,
+                    'location_id' => $pallet?->location_id ?? $receivingLocation->id,
+                    'pallet_id' => $pallet?->id,
                     'qty_on_hand' => 0,
                     'pallet_class' => $isPallet ? $palletClass : null,
                     'pallet_class_overridden_reason' => ($isPallet && $palletClass !== $suggested) ? ($spec['pallet_class_reason'] ?? 'overridden at receiving') : null,
@@ -104,7 +110,8 @@ final class ReceivingService
                     'received_at' => now(),
                     'required_storage_tier' => $line->storage_tier ?: 'standard', // the tier declared on the goods line travels with the goods (#126)
                 ]);
-                $this->ledger->record($unit, 'receipt', (int) $spec['carton_qty'], ['to_location_id' => $receivingLocation->id, 'source_type' => 'asn', 'source_id' => $asn->id]);
+                $this->ledger->record($unit, 'receipt', (int) $spec['carton_qty'], ['to_location_id' => $unit->location_id, 'source_type' => 'asn', 'source_id' => $asn->id]);
+                $pallet?->refreshStatus();
                 $units[] = $unit;
             }
 
@@ -141,5 +148,46 @@ final class ReceivingService
 
             return $units;
         });
+    }
+
+    /**
+     * CHANGE_REQUESTS #166: the pallet a received unit sits on — an existing one named by `pallet_no` (validated: same client, Job and
+     * warehouse, in use, not yet put away), a new one for a pallet-type unit, none for a loose carton unit.
+     *
+     * @param  array<string, mixed>  $spec
+     */
+    private function palletFor(Asn $asn, array $spec, bool $isPallet, ?string $palletClass, ?string $suggested, Location $receivingLocation): ?Pallet
+    {
+        $palletNo = strtoupper(trim((string) ($spec['pallet_no'] ?? '')));
+        if ($palletNo !== '') {
+            $pallet = Pallet::query()->scanCode($palletNo)->lockForUpdate()->first();
+            if ($pallet === null || (int) $pallet->client_id !== (int) $asn->client_id || (int) $pallet->job_id !== (int) $asn->job_id
+                || (int) $pallet->warehouse_id !== (int) $asn->warehouse_id || ! $pallet->isReceivable()) {
+                throw new RuleViolation("Pallet {$palletNo} cannot take more goods (unknown, another client / Job / warehouse, put away or empty).", 'warehouse.receiving.errors.pallet_unusable', ['pallet' => $palletNo]);
+            }
+
+            return $pallet;
+        }
+        if (! $isPallet) {
+            return null;
+        }
+
+        return Pallet::query()->create([
+            'pallet_no' => Pallet::nextNumber(),
+            'warehouse_id' => $asn->warehouse_id,
+            'client_id' => $asn->client_id,
+            'job_id' => $asn->job_id,
+            'location_id' => $receivingLocation->id,
+            'pallet_class' => $palletClass,
+            'pallet_class_overridden_reason' => $palletClass !== $suggested ? ($spec['pallet_class_reason'] ?? 'overridden at receiving') : null,
+            'pallet_source' => $spec['pallet_source'] ?? 'client_own',
+            'length_mm' => $spec['length_mm'] ?? null,
+            'width_mm' => $spec['width_mm'] ?? null,
+            'height_mm' => $spec['height_mm'] ?? null,
+            'weight_kg' => $spec['weight_kg'] ?? null,
+            'status' => 'in_use',
+            'putaway_completed' => false,
+            'received_at' => now(),
+        ]);
     }
 }
