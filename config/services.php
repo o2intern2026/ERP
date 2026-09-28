@@ -42,6 +42,13 @@ return [
         'carrier_ids' => env('KARRIO_CARRIER_IDS', ''),
     ],
 
+    // Template carrier behind docs/carrier-integration.md (CHANGE_REQUESTS #163). ExampleHttpCarrierAdapter reads these; it is not
+    // registered, so the keys are inert in production. A real carrier gets its own block like this one (key in .env / vault only).
+    'example_carrier' => [
+        'api_key' => env('EXAMPLE_CARRIER_API_KEY'),
+        'base_url' => env('EXAMPLE_CARRIER_BASE_URL', 'https://api.example-carrier.test'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
