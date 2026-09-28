@@ -133,7 +133,7 @@ class DemoFlowSeeder extends Seeder
 
     private function warehouse(): Warehouse
     {
-        return Warehouse::query()->where('code', 'MEL')->firstOrFail();
+        return Warehouse::query()->where('code', 'MEL1')->firstOrFail(); // CR #164: the seeded warehouse is MEL1
     }
 
     private function location(string $type, int $i = 0): Location
