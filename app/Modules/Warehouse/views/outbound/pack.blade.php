@@ -20,16 +20,21 @@
         @error('packages')<p><mark>{{ $message }}</mark></p>@enderror
         {{-- Audit 2026-09-22 OUTBOUND-09 (CR #141): row-numbered refusals (type / dims missing on a weighed row). --}}
         @foreach ($errors->keys() as $key)@if (str_starts_with($key, 'packages.'))<p><mark>{{ $errors->first($key) }}</mark></p>@endif @endforeach
-        @php($rows = max(3, count((array) old('packages', []))))
+        {{-- CHANGE_REQUESTS #162: the rows open prefilled from the picked units (whole pallet = receiving measurements, cartons = the goods line's declared
+             weight / dims); the operator corrects what differs; a unit without data is a red row to fill by hand. Re-rendered input (old) wins over the prefill. --}}
+        @php($prefill = old('packages') === null ? array_values($prefill ?? []) : [])
+        @if ($prefill !== [])<p class="text-muted"><small>{{ __('warehouse.outbound.prefill_hint') }}</small></p>@endif
+        @if (old('packages') === null && ($missing ?? []) !== [])<p><mark>{{ __('warehouse.outbound.prefill_missing', ['units' => implode('、', $missing)]) }}</mark></p>@endif
+        @php($rows = old('packages') !== null ? max(3, count((array) old('packages'))) : max(3, count($prefill) + 1))
         <div class="overflow-auto"><table class="dense" id="packages">
-            <thead><tr><th>#</th><th>{{ __('warehouse.outbound.package_type') }}</th><th>{{ __('warehouse.outbound.qty') }}</th><th>{{ __('warehouse.outbound.weight') }}</th><th>{{ __('warehouse.outbound.length') }}</th><th>{{ __('warehouse.outbound.width') }}</th><th>{{ __('warehouse.outbound.height') }}</th></tr></thead>
+            <thead><tr><th>#</th><th>{{ __('warehouse.outbound.package_type') }}</th><th>{{ __('warehouse.outbound.qty') }}</th><th>{{ __('warehouse.outbound.weight') }}</th><th>{{ __('warehouse.outbound.length') }}</th><th>{{ __('warehouse.outbound.width') }}</th><th>{{ __('warehouse.outbound.height') }}</th><th>{{ __('warehouse.outbound.prefill_source') }}</th></tr></thead>
             <tbody>
             @for ($i = 0; $i < $rows; $i++)
-                @include('warehouse::outbound._package-row', ['i' => $i, 'n' => $i + 1, 'default' => $i === 0 ? 'carton' : ''])
+                @include('warehouse::outbound._package-row', ['i' => $i, 'n' => $i + 1, 'default' => $prefill[$i]['package_type'] ?? ($i === 0 && $prefill === [] ? 'carton' : ''), 'row' => $prefill[$i] ?? []])
             @endfor
             </tbody>
         </table></div>
-        <template id="package-row-template">@include('warehouse::outbound._package-row', ['i' => '__INDEX__', 'n' => '', 'default' => ''])</template>
+        <template id="package-row-template">@include('warehouse::outbound._package-row', ['i' => '__INDEX__', 'n' => '', 'default' => '', 'row' => []])</template>
         <button type="button" class="secondary outline" id="add-package">{{ __('warehouse.outbound.add_package') }}</button>
         {{-- OUTBOUND-09: what is about to be posted — pieces, total weight, pallets — updated live; Enter in a box moves on instead of submitting. --}}
         <p id="pack-summary"><strong>{{ __('warehouse.outbound.summary_label') }}</strong> <span id="pack-summary-text">—</span></p>

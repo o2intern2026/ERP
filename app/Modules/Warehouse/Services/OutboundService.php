@@ -283,12 +283,15 @@ final class OutboundService
      * cartons = the picked count × the ASN line's per-carton weight and dims. A line without a weight or all three dims is REPORTED
      * (its unit label), never guessed — that batch is packed by hand with measured values.
      *
-     * @return array{packages: list<array{package_type:string, qty:int, weight_kg:float, length_mm:int, width_mm:int, height_mm:int}>, missing: list<string>}
+     * @return array{packages: list<array{package_type:string, qty:int, weight_kg:float, length_mm:int, width_mm:int, height_mm:int}>, missing: list<string>, rows: list<array{package_type:string, qty:int, weight_kg:?float, length_mm:?int, width_mm:?int, height_mm:?int, label_code:string, source:?string, complete:bool}>}
+     *                                                                                                                                                                                                                                                                                                                            `rows` (CHANGE_REQUESTS #162) is every picked unit in task order, complete or not, for the 打包 form to open prefilled:
+     *                                                                                                                                                                                                                                                                                                                            `source` = `unit` (measured at receiving) | `asn_line` (declared on the 预报单) | null when no dims were found anywhere.
      */
     public function autoPackages(WarehouseTask $task): array
     {
         $packages = [];
         $missing = [];
+        $rows = [];
         foreach ($task->lines->filter(fn (WarehouseTaskLine $l) => $l->completed_qty > 0) as $line) {
             $unit = $line->stockUnit;
             if ($unit === null) {
@@ -297,22 +300,51 @@ final class OutboundService
                 continue;
             }
             [$unitType, $unitWeight] = $this->pickBilling($unit, $line, $task);
-            $source = $unitType === 'pallet' ? $unit : $unit->asnLine;
-            $dims = [(int) ($source?->length_mm ?? 0), (int) ($source?->width_mm ?? 0), (int) ($source?->height_mm ?? 0)];
-            if ($unitWeight === null || $unitWeight <= 0 || min($dims) < 1) {
+            [$dims, $source] = $this->packageDims($unit, $unitType);
+            $complete = $unitWeight !== null && $unitWeight > 0 && min($dims) >= 1;
+            $qty = $unitType === 'pallet' ? 1 : (int) $line->completed_qty;
+            $rows[] = [
+                'package_type' => $unitType,
+                'qty' => $qty,
+                'weight_kg' => $unitWeight !== null && $unitWeight > 0 ? (float) $unitWeight : null,
+                'length_mm' => $dims[0] ?: null, 'width_mm' => $dims[1] ?: null, 'height_mm' => $dims[2] ?: null,
+                'label_code' => (string) $unit->label_code,
+                'source' => $source,
+                'complete' => $complete,
+            ];
+            if (! $complete) {
                 $missing[] = (string) $unit->label_code;
 
                 continue;
             }
             $packages[] = [
                 'package_type' => $unitType,
-                'qty' => $unitType === 'pallet' ? 1 : (int) $line->completed_qty,
+                'qty' => $qty,
                 'weight_kg' => (float) $unitWeight,
                 'length_mm' => $dims[0], 'width_mm' => $dims[1], 'height_mm' => $dims[2],
             ];
         }
 
-        return ['packages' => $packages, 'missing' => $missing];
+        return ['packages' => $packages, 'missing' => $missing, 'rows' => $rows];
+    }
+
+    /**
+     * CHANGE_REQUESTS #162: package dims come from the pallet itself when a whole pallet goes (measured at receiving), else from the goods
+     * line (declared on the 预报单); when the preferred source has none, the other one is tried before the row is left for a person.
+     *
+     * @return array{0: array{int, int, int}, 1: ?string} [L, W, H] in mm (0 = unknown) and the source: `unit` | `asn_line` | null
+     */
+    private function packageDims(StockUnit $unit, string $unitType): array
+    {
+        $candidates = $unitType === 'pallet' ? [['unit', $unit], ['asn_line', $unit->asnLine]] : [['asn_line', $unit->asnLine], ['unit', $unit]];
+        foreach ($candidates as [$source, $model]) {
+            $dims = [(int) ($model?->length_mm ?? 0), (int) ($model?->width_mm ?? 0), (int) ($model?->height_mm ?? 0)];
+            if (min($dims) >= 1) {
+                return [$dims, $source];
+            }
+        }
+
+        return [[0, 0, 0], null];
     }
 
     public static function expandPackages(array $packages): array
@@ -417,12 +449,23 @@ final class OutboundService
      *
      * @return array{string, ?float} [unit_type for Billing (pallet | carton), unit weight in kg or null when unknown]
      */
+    /** CHANGE_REQUESTS #162: a carton unit weighed at receiving — its weight over the cartons received — when the goods line carries no weight. */
+    private function cartonWeightFromUnit(StockUnit $unit): ?float
+    {
+        if ($unit->weight_kg === null || (float) $unit->weight_kg <= 0) {
+            return null;
+        }
+        $received = (int) (StockLedgerEntry::query()->where('stock_unit_id', $unit->id)->where('movement_type', 'receipt')->orderBy('id')->value('qty_after') ?? 0);
+
+        return round((float) $unit->weight_kg / max(1, $received), 3);
+    }
+
     private function pickBilling(StockUnit $unit, WarehouseTaskLine $line, WarehouseTask $task): array
     {
         $asnLine = $unit->asnLine;
         $cartonWeight = $asnLine?->weight_kg !== null ? round((float) $asnLine->weight_kg / max(1, (int) $asnLine->expected_cartons), 3) : null;
         if ($unit->unit_type !== 'pallet') {
-            return ['carton', $cartonWeight];
+            return ['carton', $cartonWeight ?? $this->cartonWeightFromUnit($unit)]; // CHANGE_REQUESTS #162: the unit's receiving weight when the line has none
         }
 
         $pick = StockLedgerEntry::query()->where('stock_unit_id', $unit->id)->where('movement_type', 'pick')
