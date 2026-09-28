@@ -87,6 +87,19 @@ class Pallet extends Model
         }
     }
 
+    /**
+     * CHANGE_REQUESTS #171: the numbers the next new pallets will get, for the receiving forms to show before the goods are booked
+     * (a preview — the transaction still takes the real next number, so a number shown on two screens is never issued twice).
+     *
+     * @return list<string>
+     */
+    public static function nextNumbers(int $count): array
+    {
+        $max = (int) DB::table('pallets')->selectRaw('MAX(CAST(SUBSTRING(pallet_no, 3) AS UNSIGNED)) as n')->where('pallet_no', 'like', 'P-%')->value('n');
+
+        return array_map(fn (int $i) => sprintf('P-%06d', $max + $i), range(1, max(1, $count)));
+    }
+
     /** Next P-000001-style number; called inside the receiving transaction (the max is read FOR UPDATE, so two docks never share a number). */
     public static function nextNumber(): string
     {

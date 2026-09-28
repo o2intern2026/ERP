@@ -166,19 +166,27 @@ final class ReceivingService
     private function palletFor(Asn $asn, array $spec, bool $isPallet, ?string $palletClass, ?string $suggested, Location $receivingLocation): ?Pallet
     {
         $palletNo = strtoupper(trim((string) ($spec['pallet_no'] ?? '')));
+        $auto = (bool) ($spec['pallet_no_auto'] ?? false); // CHANGE_REQUESTS #171: the form filled the box, nobody typed it
         $source = $spec['pallet_source'] ?? 'warehouse_plain'; // CHANGE_REQUESTS #170: our own wooden pallet unless told otherwise
         if ($palletNo !== '') {
             $pallet = Pallet::query()->scanCode($palletNo)->lockForUpdate()->first();
+            if ($pallet === null && $isPallet && preg_match('/^P-\d{6}$/', $palletNo) === 1) {
+                // CHANGE_REQUESTS #171: a number that does not exist yet — the form's suggested next number, or a pre-printed label — is issued to this pallet.
+                return $this->newPallet($asn, $spec, $palletClass, $suggested, $receivingLocation, $source, $palletNo);
+            }
             // CHANGE_REQUESTS #169: a FREE pallet (emptied, cleared from its slot) is put back to work for these goods.
             if ($pallet !== null && $pallet->isFree() && $isPallet) {
                 return app(PalletService::class)->reassign($pallet, $asn, $spec + ['pallet_source' => $source], $palletClass, $suggested, $receivingLocation);
             }
-            if ($pallet === null || (int) $pallet->client_id !== (int) $asn->client_id || (int) $pallet->job_id !== (int) $asn->job_id
-                || (int) $pallet->warehouse_id !== (int) $asn->warehouse_id || ! $pallet->isReceivable()) {
+            $usable = $pallet !== null && (int) $pallet->client_id === (int) $asn->client_id && (int) $pallet->job_id === (int) $asn->job_id
+                && (int) $pallet->warehouse_id === (int) $asn->warehouse_id && $pallet->isReceivable();
+            if ($usable) {
+                return $pallet;
+            }
+            if (! ($auto && $isPallet)) {
                 throw new RuleViolation("Pallet {$palletNo} cannot take more goods (unknown, another client / Job / warehouse, put away or empty).", 'warehouse.receiving.errors.pallet_unusable', ['pallet' => $palletNo]);
             }
-
-            return $pallet;
+            // A suggested number another dock took meanwhile: fall through to the next free / new one.
         }
         if (! $isPallet) {
             return null;
@@ -190,10 +198,21 @@ final class ReceivingService
                 return app(PalletService::class)->reassign($free, $asn, $spec + ['pallet_source' => $source], $palletClass, $suggested, $receivingLocation);
             }
         }
+
+        return $this->newPallet($asn, $spec, $palletClass, $suggested, $receivingLocation, $source, null);
+    }
+
+    /**
+     * A brand-new pallet record — the given number (CHANGE_REQUESTS #171) or the next one — at the dock, with the source's preset filling what the spec left blank.
+     *
+     * @param  array<string, mixed>  $spec
+     */
+    private function newPallet(Asn $asn, array $spec, ?string $palletClass, ?string $suggested, Location $receivingLocation, string $source, ?string $number): Pallet
+    {
         $defaults = PalletService::spec($source) ?? [];
 
         return Pallet::query()->create([
-            'pallet_no' => Pallet::nextNumber(),
+            'pallet_no' => $number ?? Pallet::nextNumber(),
             'warehouse_id' => $asn->warehouse_id,
             'billing_warehouse_id' => $asn->warehouse_id,
             'client_id' => $asn->client_id,

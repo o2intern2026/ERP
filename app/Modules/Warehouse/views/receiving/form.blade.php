@@ -75,16 +75,22 @@
         };
         // CHANGE_REQUESTS #170: a pallet row takes the next free pallet number of the warehouse and the source's footprint / tare; typed values win.
         const freePallets = @json($freePallets ?? []);
+        const nextNumbers = @json($nextPalletNumbers ?? []);
+        const suggestions = [...freePallets, ...nextNumbers]; // CHANGE_REQUESTS #171: free pallets first, then the numbers the next new pallets will get
         const specs = @json($palletSpecs ?? []);
         const prefill = (row) => {
             const type = row.querySelector('select[name$="[unit_type]"]'), no = row.querySelector('input[name$="[pallet_no]"]'), source = row.querySelector('select[name$="[pallet_source]"]');
+            const autoFlag = row.querySelector('input[name$="[pallet_no_auto]"]');
             if (!type || !no) return;
             if (type.value === 'pallet') {
-                if (!no.value && freePallets.length) { no.value = freePallets.shift(); no.dataset.auto = '1'; }
+                if (!no.value && suggestions.length) { no.value = suggestions.shift(); no.dataset.auto = '1'; if (autoFlag) autoFlag.value = '1'; }
                 const spec = specs[source?.value] || null;
                 if (spec) ['length_mm', 'width_mm', 'height_mm', 'weight_kg'].forEach(f => { const i = row.querySelector('input[name$="[' + f + ']"]'); if (i && !i.value) { i.value = spec[f]; i.dataset.auto = '1'; } });
-            } else if (no.dataset.auto === '1') { no.value = ''; delete no.dataset.auto; }
+            } else if (no.dataset.auto === '1') { no.value = ''; delete no.dataset.auto; if (autoFlag) autoFlag.value = ''; }
         };
+        body.addEventListener('input', event => { // a number typed or scanned by hand is no suggestion any more
+            if (event.target.name?.endsWith('[pallet_no]')) { delete event.target.dataset.auto; const f = event.target.closest('.unit-row')?.querySelector('input[name$="[pallet_no_auto]"]'); if (f) f.value = ''; }
+        });
         const clearAuto = (row) => ['length_mm', 'width_mm', 'height_mm', 'weight_kg'].forEach(f => { const i = row.querySelector('input[name$="[' + f + ']"]'); if (i && i.dataset.auto === '1') { i.value = ''; delete i.dataset.auto; } });
         body.addEventListener('change', event => {
             const row = event.target.closest('.unit-row'); if (!row) return;

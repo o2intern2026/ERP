@@ -17,6 +17,7 @@ use App\Modules\Warehouse\Services\PutawayService;
 use App\Modules\Warehouse\Services\ReceivingService;
 use App\Modules\Warehouse\Services\SnapshotService;
 use App\Modules\Warehouse\Services\StockLedger;
+use App\Support\Exceptions\RuleViolation;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\CreatesUsers;
@@ -147,5 +148,53 @@ class PalletPoolTest extends TestCase
         $this->assertSame(['chep', 'oversize_high', 1900, 'chep', 'oversize_high'], [$p1->fresh()->pallet_source, $p1->fresh()->pallet_class, $p1->fresh()->height_mm, $ua->fresh()->pallet_source, $ua->fresh()->pallet_class]);
         $this->actingAs($this->staff('warehouse_operator'))->post(route('warehouse.pallets.update', $p1), ['pallet_source' => 'loscam'])->assertForbidden();
         $this->actingAs($this->clientUser($client))->get(route('warehouse.pallets.index'))->assertForbidden();
+    }
+
+    public function test_the_box_suggests_a_free_pallet_or_the_next_new_number_which_is_issued_on_submit_and_a_taken_suggestion_falls_through(): void
+    {
+        $supervisor = $this->staff('warehouse_supervisor');
+        $this->actingAs($supervisor);
+        $client = $this->client();
+        $warehouse = $this->warehouse();
+        $rcv = $this->location($warehouse, 'receiving');
+        [$asn, [$a, $b, $c, $d]] = $this->asn($client, $warehouse, [4, 4, 4, 4]);
+
+        // No pallet exists yet: the form offers P-000001 as the next new number (nothing free); the bulk form carries the same list.
+        $form = $this->get(route('warehouse.receiving.form', [$asn, $a]))->assertOk();
+        $this->assertStringContainsString('const freePallets = [];', $form->getContent());
+        $this->assertStringContainsString('const nextNumbers = ["P-000001","P-000002"', $form->getContent());
+        $this->assertStringContainsString('name="units[0][pallet_no_auto]"', $form->getContent());
+        $bulk = $this->get(route('warehouse.receiving.bulk_form', $asn))->assertOk();
+        $this->assertStringContainsString('const suggestions = ["P-000001","P-000002"', $bulk->getContent());
+        $this->assertStringContainsString('name="rows[0][pallet_no_auto]"', $bulk->getContent());
+
+        // Submitting the suggested number issues it; a pre-printed label typed by hand is issued too; a non-pallet code is refused.
+        [$ua] = app(ReceivingService::class)->receiveLine($a, ['received_cartons' => 4, 'units' => [['unit_type' => 'pallet', 'carton_qty' => 4, 'pallet_no' => 'P-000001', 'pallet_no_auto' => 1]]], $rcv);
+        $this->assertSame('P-000001', $ua->fresh()->pallet->pallet_no);
+        [$ub] = app(ReceivingService::class)->receiveLine($b, ['received_cartons' => 4, 'units' => [['unit_type' => 'pallet', 'carton_qty' => 4, 'pallet_no' => 'p-000777']]], $rcv);
+        $this->assertSame('P-000777', $ub->fresh()->pallet->pallet_no, 'a typed new number in the pallet pattern is issued as it is');
+        try {
+            app(ReceivingService::class)->receiveLine($c, ['received_cartons' => 4, 'units' => [['unit_type' => 'pallet', 'carton_qty' => 4, 'pallet_no' => 'X-1']]], $rcv);
+            $this->fail('an unknown non-pallet code was accepted');
+        } catch (RuleViolation $e) {
+            $this->assertSame('warehouse.receiving.errors.pallet_unusable', $e->langKey());
+        }
+
+        // Another client's dock got P-000778 first: our suggested P-000778 is taken (in use elsewhere) → the next new number, no refusal.
+        $other = $this->client(['code' => 'POOLZ', 'name' => 'Pool Z']);
+        [, [$z]] = $this->asn($other, $warehouse, [2]);
+        app(ReceivingService::class)->receiveLine($z, ['received_cartons' => 2, 'units' => [['unit_type' => 'pallet', 'carton_qty' => 2, 'pallet_no' => 'P-000778', 'pallet_no_auto' => 1]]], $rcv);
+        [$uc] = app(ReceivingService::class)->receiveLine($c, ['received_cartons' => 4, 'units' => [['unit_type' => 'pallet', 'carton_qty' => 4, 'pallet_no' => 'P-000778', 'pallet_no_auto' => 1]]], $rcv);
+        $this->assertSame('P-000779', $uc->fresh()->pallet->pallet_no);
+        // The same number typed by hand (no auto flag) is a refusal, as before.
+        try {
+            app(ReceivingService::class)->receiveLine($d, ['received_cartons' => 4, 'units' => [['unit_type' => 'pallet', 'carton_qty' => 4, 'pallet_no' => 'P-000778']]], $rcv);
+            $this->fail('another client\'s pallet was accepted');
+        } catch (RuleViolation $e) {
+            $this->assertSame('warehouse.receiving.errors.pallet_unusable', $e->langKey());
+        }
+        // Bulk rows: the suggested number flows through the packed row too.
+        app(GoodsReceiptService::class)->receiveLines($asn, [['asn_line_id' => $d->id, 'received_cartons' => 4, 'unit_type' => 'pallet', 'unit_count' => 1, 'pallet_no' => 'P-000780', 'pallet_no_auto' => 1]], $rcv, $supervisor->id);
+        $this->assertSame('P-000780', StockUnit::query()->withoutGlobalScopes()->where('asn_line_id', $d->id)->sole()->pallet->pallet_no);
     }
 }

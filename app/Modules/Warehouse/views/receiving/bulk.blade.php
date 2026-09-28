@@ -56,7 +56,7 @@
                         <td class="num"><input type="number" name="rows[{{ $i }}][damaged_cartons]" min="0" value="{{ $old['damaged_cartons'] ?? 0 }}" style="width:5rem"></td>
                         <td><select name="rows[{{ $i }}][unit_type]" style="width:auto">@foreach ($unitTypes as $t)<option value="{{ $t }}" @selected(($old['unit_type'] ?? $defaultUnitType) === $t)>{{ __('warehouse.unit_types.'.$t) }}</option>@endforeach</select></td>
                         <td class="num"><input type="number" name="rows[{{ $i }}][unit_count]" min="1" max="500" value="{{ $old['unit_count'] ?? 1 }}" style="width:5rem"></td>
-                        <td><input type="text" name="rows[{{ $i }}][pallet_no]" class="scan" maxlength="30" value="{{ $old['pallet_no'] ?? '' }}" placeholder="{{ __('warehouse.receiving.pallet_no') }}" title="{{ __('warehouse.receiving.pallet_no_hint') }}" style="width:8rem"></td>
+                        <td><input type="text" name="rows[{{ $i }}][pallet_no]" class="scan" maxlength="30" value="{{ $old['pallet_no'] ?? '' }}" placeholder="{{ __('warehouse.receiving.pallet_no') }}" title="{{ __('warehouse.receiving.pallet_no_hint') }}" style="width:8rem"><input type="hidden" name="rows[{{ $i }}][pallet_no_auto]" value="{{ ! empty($old['pallet_no_auto']) ? 1 : '' }}"></td>
                         <td><select name="rows[{{ $i }}][pallet_source]" class="pallet-source" style="width:auto" aria-label="{{ __('warehouse.receiving.pallet_source') }}">@foreach ($palletSources as $ps)<option value="{{ $ps }}" @selected(($old['pallet_source'] ?? 'warehouse_plain') === $ps)>{{ __('warehouse.pallet_sources.'.$ps) }}</option>@endforeach</select></td>
                         <td class="num"><input type="number" name="rows[{{ $i }}][weight_kg]" min="0" step="0.001" value="{{ $old['weight_kg'] ?? '' }}" placeholder="kg" style="width:6rem"></td>
                         <td><input type="text" name="rows[{{ $i }}][variance_reason]" value="{{ $old['variance_reason'] ?? '' }}" maxlength="255" style="min-width:12rem"></td>
@@ -84,6 +84,23 @@
         });
         setAll('set-all-type', '#bulk-receive select[name$="[unit_type]"]');
         setAll('set-all-source', '#bulk-receive select.pallet-source');
+        // CHANGE_REQUESTS #171: every pallet row (one unit) shows the number it will get — free pallets first, then the next new numbers, in row order;
+        // a typed / scanned number keeps its row out of the sequence; rows that become 散箱 or several units give their suggestion back.
+        const suggestions = @json(array_values(array_merge($freePallets ?? [], $nextPalletNumbers ?? [])));
+        const assignNumbers = () => {
+            let i = 0;
+            document.querySelectorAll('#bulk-receive tbody tr').forEach(tr => {
+                const type = tr.querySelector('select[name$="[unit_type]"]'), count = tr.querySelector('input[name$="[unit_count]"]'), no = tr.querySelector('input[name$="[pallet_no]"]'), flag = tr.querySelector('input[name$="[pallet_no_auto]"]');
+                if (!type || !no || !flag) return;
+                const wantsNumber = type.value === 'pallet' && (Number(count?.value) || 1) === 1;
+                if (flag.value === '1') { no.value = ''; flag.value = ''; }
+                if (wantsNumber && !no.value && i < suggestions.length) { no.value = suggestions[i++]; flag.value = '1'; }
+            });
+        };
+        document.getElementById('bulk-receive')?.addEventListener('change', event => { if (/\[(unit_type|unit_count)\]$/.test(event.target.name || '')) assignNumbers(); });
+        document.getElementById('bulk-receive')?.addEventListener('input', event => { if (/\[pallet_no\]$/.test(event.target.name || '')) { const f = event.target.closest('tr')?.querySelector('input[name$="[pallet_no_auto]"]'); if (f) f.value = ''; } });
+        document.getElementById('set-all-type')?.addEventListener('change', assignNumbers);
+        assignNumbers();
         // CHANGE_REQUESTS #148: a big ASN (286 lines × 9 inputs) exceeds PHP's max_input_vars (1000) and the server would silently drop
         // every row past ~110. On submit the rows are packed into ONE field (rows_json — unticked rows left out, as a browser would) and
         // the row inputs are disabled so they are not posted at all; bulkStore() unpacks the field and validates exactly as before.
