@@ -61,17 +61,18 @@ class PalletSourceCorrectionTest extends TestCase
         [$line] = app(AsnService::class)->addLines($asn, [['description' => 'Fast form', 'expected_cartons' => 10]]);
         $this->actingAs($operator)->post(route('warehouse.receiving.bulk_store', $asn), ['receiving_location_id' => $this->location($warehouse, 'receiving')->id, 'rows' => [['include' => 1, 'asn_line_id' => $line->id, 'received_cartons' => 10, 'unit_type' => 'pallet', 'unit_count' => 1]]])->assertSessionHasNoErrors();
         $unit = StockUnit::query()->withoutGlobalScopes()->where('asn_line_id', $line->id)->sole();
-        $this->assertSame(['client_own', null, null], [$unit->pallet_source, $unit->pallet_class, $unit->length_mm]);
+        // CHANGE_REQUESTS #170: the fast form's pallet is our wooden pallet with the preset footprint / tare, hence a standard class — no longer client-own without dims.
+        $this->assertSame(['warehouse_plain', 'standard', 1165], [$unit->pallet_source, $unit->pallet_class, $unit->length_mm]);
 
-        // A null class reads 未分类(按标准托计费), not POA; the card is for admin / supervisor only.
+        // The preset class reads 标准, not POA; the card is for admin / supervisor only.
         $this->actingAs($supervisor)->get(route('warehouse.stock.show', $unit))->assertOk()
-            ->assertSee(__('warehouse.stock.pallet_class_unclassified'))->assertDontSee(__('billing.rate_cards.poa'))->assertSee(__('warehouse.stock.correct.title'));
+            ->assertSee(__('warehouse.pallet_classes.standard'))->assertDontSee(__('billing.rate_cards.poa'))->assertSee(__('warehouse.stock.correct.title'));
         $this->actingAs($operator)->get(route('warehouse.stock.show', $unit))->assertOk()->assertDontSee(__('warehouse.stock.correct.title'));
         $this->actingAs($operator)->patch(route('warehouse.stock.update', $unit), ['pallet_source' => 'chep', 'reason' => 'x'])->assertForbidden();
 
         // Reason required; nothing to change is refused.
         $this->actingAs($supervisor)->patch(route('warehouse.stock.update', $unit), ['pallet_source' => 'chep'])->assertSessionHasErrors('reason');
-        $this->actingAs($supervisor)->patch(route('warehouse.stock.update', $unit), ['pallet_source' => 'client_own', 'reason' => 'same'])->assertSessionHasErrors(['correct' => __('warehouse.stock.correct.nothing')]);
+        $this->actingAs($supervisor)->patch(route('warehouse.stock.update', $unit), ['pallet_source' => 'warehouse_plain', 'reason' => 'same'])->assertSessionHasErrors(['correct' => __('warehouse.stock.correct.nothing')]);
 
         // Source + dims + weight: the class follows the client's thresholds (1200 × 1200 × 1700 mm → oversize_high on the Edward card), logged with the reason.
         $this->actingAs($supervisor)->patch(route('warehouse.stock.update', $unit), ['pallet_source' => 'chep', 'length_mm' => 1200, 'width_mm' => 1200, 'height_mm' => 1700, 'weight_kg' => 420, 'reason' => '收货时漏填'])
@@ -83,7 +84,7 @@ class PalletSourceCorrectionTest extends TestCase
         $props = json_decode($log->properties, true);
         $this->assertSame('收货时漏填', $props['reason']);
         $this->assertSame('chep', $props['attributes']['pallet_source']);
-        $this->assertSame('client_own', $props['old']['pallet_source']);
+        $this->assertSame('warehouse_plain', $props['old']['pallet_source']);
         $this->assertSame((int) $supervisor->id, (int) $log->causer_id);
 
         // A lower height re-suggests standard; an explicit class overrides the suggestion and keeps the reason on the unit.
