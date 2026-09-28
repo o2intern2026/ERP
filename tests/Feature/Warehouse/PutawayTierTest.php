@@ -44,8 +44,8 @@ class PutawayTierTest extends TestCase
     private function bottomLocations(Warehouse $warehouse): array
     {
         return [
-            Location::query()->create(['warehouse_id' => $warehouse->id, 'full_code' => 'MEL-B-01-01', 'zone' => 'B', 'aisle' => '01', 'bin' => '01', 'type' => 'storage', 'storage_tier' => 'bottom', 'rack_level' => 1, 'active' => true]),
-            Location::query()->create(['warehouse_id' => $warehouse->id, 'full_code' => 'MEL-B-01-02', 'zone' => 'B', 'aisle' => '01', 'bin' => '02', 'type' => 'storage', 'storage_tier' => 'bottom', 'rack_level' => 1, 'active' => true]),
+            Location::query()->create(['warehouse_id' => $warehouse->id, 'full_code' => 'MEL-B-01-01', 'zone' => 'B', 'aisle' => '01', 'bay' => '01', 'type' => 'storage', 'storage_tier' => 'bottom', 'rack_level' => 1, 'active' => true]),
+            Location::query()->create(['warehouse_id' => $warehouse->id, 'full_code' => 'MEL-B-01-02', 'zone' => 'B', 'aisle' => '01', 'bay' => '02', 'type' => 'storage', 'storage_tier' => 'bottom', 'rack_level' => 1, 'active' => true]),
         ];
     }
 

@@ -708,7 +708,7 @@ PRD 写的是给客户看的 6 步:`Received → Confirmed → In warehouse → 
 ```
 warehouses                 仓库:code, name, address, state, active
 
-locations                  四级库位码:warehouse / zone / aisle / bin → full_code
+locations                  库位码 仓库-区-巷道-位[-层-格]:warehouse / zone / aisle / bay [/ rack_level / position] → full_code(CR #164:货架库位六段,如 MEL1-A-01-03-2-1,单数位在巷道左手、双数位右手,格 1 左 2 右;地面区四段)
 └─ type                    receiving | storage | pickface | packing | staging | quarantine(pickface 按占用格数计周费)
 
 asns                       入库主单(挂 Job;收货 / 差异 / 上架 / 库存由它管理;Container 为其下可选对象,只记基础字段)

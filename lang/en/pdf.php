@@ -65,6 +65,10 @@ return [
     // CHANGE_REQUESTS #126: location labels print the rack level and the bottom-level storage tier.
     'location_label' => [
         'level' => 'Level :level',
+        // CHANGE_REQUESTS #164: slot of the bay (1 left / 2 right) and the side of the aisle the bay is on (odd left / even right).
+        'slot' => 'Slot :position (:side)',
+        'aisle_side' => ':side side of aisle',
+        'sides' => ['left' => 'L', 'right' => 'R'],
     ],
 
     // CHANGE_REQUESTS #131: the unit label's small print — where the unit was when the label was printed (the receiving dock, usually).

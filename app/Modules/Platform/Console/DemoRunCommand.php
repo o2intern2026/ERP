@@ -19,7 +19,7 @@ final class DemoRunCommand extends Command
     {
         $this->signature = 'demo:run'
             .' {--client=EDWARD : '.__('demo.options.client').'}'
-            .' {--warehouse=MEL : '.__('demo.options.warehouse').'}'
+            .' {--warehouse=MEL1 : '.__('demo.options.warehouse').'}'
             .' {--lines=6 : '.__('demo.options.lines').'}'
             .' {--orders=4 : '.__('demo.options.orders').'}'
             .' {--tag= : '.__('demo.options.tag').'}'

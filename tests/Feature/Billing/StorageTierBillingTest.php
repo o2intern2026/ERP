@@ -41,7 +41,7 @@ class StorageTierBillingTest extends TestCase
     {
         return Location::query()->firstOrCreate(
             ['warehouse_id' => $warehouse->id, 'full_code' => "{$warehouse->code}-B-01-{$bin}"],
-            ['zone' => 'B', 'aisle' => '01', 'bin' => $bin, 'type' => 'storage', 'storage_tier' => 'bottom', 'rack_level' => 1, 'active' => true],
+            ['zone' => 'B', 'aisle' => '01', 'bay' => $bin, 'type' => 'storage', 'storage_tier' => 'bottom', 'rack_level' => 1, 'active' => true],
         );
     }
 

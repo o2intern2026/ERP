@@ -94,7 +94,7 @@ class DeclaredStorageTierTest extends TestCase
         $this->actingAs($cs)->get(route('warehouse.asns.show', $asn))->assertOk()->assertSee(__('warehouse.line_tier.column'))->assertSee(__('warehouse.line_tier.sources.client'))->assertDontSee('warehouse.line_tier.');
 
         // The portal stock page shows the declared tier per row — no location code, no price.
-        app(PutawayService::class)->putaway($unit->fresh(), Location::query()->create(['warehouse_id' => $warehouse->id, 'full_code' => 'MEL-B-01-01', 'zone' => 'B', 'aisle' => '01', 'bin' => '01', 'type' => 'storage', 'storage_tier' => 'bottom', 'rack_level' => 1, 'active' => true]));
+        app(PutawayService::class)->putaway($unit->fresh(), Location::query()->create(['warehouse_id' => $warehouse->id, 'full_code' => 'MEL-B-01-01', 'zone' => 'B', 'aisle' => '01', 'bay' => '01', 'type' => 'storage', 'storage_tier' => 'bottom', 'rack_level' => 1, 'active' => true]));
         $this->actingAs($user)->get(route('portal.stock.index'))->assertOk()
             ->assertSee(__('portal.stock.fields.storage_tier'))->assertSee(__('portal.stock.storage_tiers.bottom'))
             ->assertDontSee('MEL-B-01-01')->assertDontSee('MEL-RCV')->assertDontSee('WH-STORAGE')->assertDontSee('portal.stock.');

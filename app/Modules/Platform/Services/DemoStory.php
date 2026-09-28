@@ -144,7 +144,7 @@ final class DemoStory
 
         return [
             'client' => trim((string) ($options['client'] ?? 'EDWARD')) ?: 'EDWARD',
-            'warehouse' => trim((string) ($options['warehouse'] ?? 'MEL')) ?: 'MEL',
+            'warehouse' => trim((string) ($options['warehouse'] ?? 'MEL1')) ?: 'MEL1',
             'lines' => $lines,
             'orders' => $orders,
             'tag' => $tag,
