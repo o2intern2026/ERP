@@ -13,7 +13,7 @@ class StockSnapshot extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'snapshot_date', 'warehouse_id', 'client_id', 'job_id', 'stock_unit_id', 'pallet_id', 'asn_line_id', 'unit_type', 'pallet_class',
+        'snapshot_date', 'warehouse_id', 'client_id', 'job_id', 'stock_unit_id', 'pallet_id', 'billing_warehouse_id', 'asn_line_id', 'unit_type', 'pallet_class',
         'pallet_source', 'location_id', 'location_type', 'location_storage_tier', 'required_storage_tier', 'condition', 'qty_on_hand', 'qty_reserved', 'created_at',
     ];
 

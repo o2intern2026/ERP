@@ -94,6 +94,7 @@ return [
         'packing' => 'Packing',
         'staging' => 'Staging',
         'quarantine' => 'Quarantine',
+        'transit' => 'Transit', // CHANGE_REQUESTS #167
     ],
 
     'invoice' => [

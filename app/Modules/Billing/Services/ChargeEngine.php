@@ -467,6 +467,7 @@ final class ChargeEngine
     {
         return match (true) {
             isset($payload['physical_container_id']) => ['type' => 'container', 'id' => (int) $payload['physical_container_id']], // a shared box (#122): source container = physical_containers.id
+            str_starts_with($eventName, 'stock.transfer.') => ['type' => 'transfer', 'id' => $payload['transfer_id'] ?? null], // CHANGE_REQUESTS #167
             str_starts_with($eventName, 'task.') => ['type' => 'task', 'id' => $payload['task_id'] ?? null],
             str_starts_with($eventName, 'asn.') => ['type' => 'asn', 'id' => $payload['asn_id'] ?? null],
             str_starts_with($eventName, 'outbound.') => ['type' => 'order', 'id' => $payload['order_id'] ?? null],

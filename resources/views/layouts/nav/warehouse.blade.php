@@ -22,6 +22,11 @@
         <li><a href="{{ route('warehouse.outbound.index') }}">{{ __('warehouse.nav_outbound') }}</a></li>
         <li><a href="{{ route('warehouse.returns.index') }}">{{ __('warehouse.nav_returns') }}</a></li>
         <li><a href="{{ route('warehouse.stocktakes.index') }}">{{ __('warehouse.nav_stocktakes') }}</a></li>
+    @endrole
+    @role('admin|warehouse_supervisor|warehouse_operator|dispatcher')
+        <li><a href="{{ route('warehouse.transfers.index') }}">{{ __('warehouse.nav_transfers') }}</a></li>
+    @endrole
+    @role('admin|warehouse_supervisor|warehouse_operator')
         <li><a href="{{ route('warehouse.scan.index') }}">{{ __('warehouse.nav_scan') }}</a></li>
         <li><a href="{{ route('warehouse.locations.index') }}">{{ __('warehouse.nav_locations') }}</a></li>
     @endrole
