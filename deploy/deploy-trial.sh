@@ -3,7 +3,7 @@
 #   bash deploy/deploy-trial.sh                # deploy origin/main
 #   HOST=root@1.2.3.4 KEY=~/.ssh/other bash deploy/deploy-trial.sh
 set -euo pipefail
-HOST=${HOST:-root@103.6.171.144}
+HOST=${HOST:-root@45.151.154.246}
 KEY=${KEY:-$HOME/.ssh/erp-oracle}
 BRANCH=${BRANCH:-main}
 

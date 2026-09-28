@@ -605,7 +605,7 @@ return [
         'camera' => '打开相机扫码',
         'camera_close' => '关闭相机', // CHANGE_REQUESTS #150
         'camera_unsupported' => '此浏览器不支持相机识码;请用扫码枪或手动输入。',
-        'camera_https' => '相机识码需要 HTTPS 地址:请用 https://… 打开本页(试用服务器 https://103-6-171-144.sslip.io),或用扫码枪 / 手动输入。',
+        'camera_https' => '相机识码需要 HTTPS 地址:请用 https://… 打开本页(试用服务器 https://45-151-154-246.sslip.io),或用扫码枪 / 手动输入。',
         'camera_error' => '打不开相机:请允许浏览器使用相机(iPhone:设置 → Safari → 相机 → 允许;Android:地址栏的锁形图标 → 权限),或用扫码枪 / 手动输入。',
         'unknown' => '没有找到条码 :code 对应的单元、库位或唛头。',
         'found_unit' => '单元 :label',
