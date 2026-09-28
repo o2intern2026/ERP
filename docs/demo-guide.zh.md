@@ -8,7 +8,7 @@
 |---|---|---|
 | **A. 在这台 Mac 上自己试** | 你自己 | 第 2 节启动,浏览器打开 http://localhost:8000 |
 | **B. 同一 Wi-Fi 的同事试** | 办公室里的人 | 启动时用 `php artisan serve --host=0.0.0.0 --port=8000`,把这台 Mac 的 IP 告诉对方(系统设置 → 网络,例如 `http://192.168.1.23:8000`)。Mac 不能休眠;先按第 6 节改掉默认密码 |
-| **C. 外部人员 / 长期试用(现用)** | 客户、外部同事 | 试用服务器已上线:**https://45-151-154-246.sslip.io**(Kamatera 悉尼,Ubuntu 24.04 + nginx + PHP 8.3 + MySQL 8,cron 每分钟跑调度和队列,无守护进程)。账号密码与第 4 节相同;数据于 2026-09-08 从本机试用库整体搬入。合入 main 后同步服务器:`bash deploy/deploy-trial.sh`(推送 main,服务器执行 `deploy/server/deploy.sh`:拉代码、依赖、增量迁移、重建缓存,不重置数据)。SSH:`ssh -i ~/.ssh/erp-oracle root@45.151.154.246`。PDF 中文字体在服务器 `storage/fonts/cjk.ttf`(git 忽略,换机器要重新放)。Karrio 已装在服务器上(Docker,只监听本机端口,后台不对外开放),第三方运输报价会出现演示承运商 Demo Freight 的三档方案,可订舱、下载测试面单、看轨迹;它不连接任何真实物流公司。 |
+| **C. 外部人员 / 长期试用(现用)** | 客户、外部同事 | 试用服务器已上线:**https://45-151-154-246.sslip.io**(Kamatera 悉尼,Ubuntu 24.04 + nginx + PHP 8.3 + MySQL 8,cron 每分钟跑调度和队列,无守护进程)。账号密码与第 4 节相同;数据于 2026-09-08 从本机试用库整体搬入；2026-09-28 整体迁移到现在的 Kamatera 新机（4 vCPU / 8 GB / 100 GB），旧机 103.6.171.144 已停用。合入 main 后同步服务器:`bash deploy/deploy-trial.sh`(推送 main,服务器执行 `deploy/server/deploy.sh`:拉代码、依赖、增量迁移、重建缓存,不重置数据)。SSH:`ssh -i ~/.ssh/erp-oracle root@45.151.154.246`。PDF 中文字体在服务器 `storage/fonts/cjk.ttf`(git 忽略,换机器要重新放；2026-09-28 迁移时已复制)。Karrio 已装在服务器上(Docker,只监听本机端口,后台不对外开放),第三方运输报价会出现演示承运商 Demo Freight 的三档方案,可订舱、下载测试面单、看轨迹;它不连接任何真实物流公司。 |
 
 ## 2. 每次启动(方式 A / B)
 
@@ -66,7 +66,7 @@ php artisan demo:run --json                            # 汇总以 JSON 输出(�
 
 ## 4. 登录账号
 
-试用服务器地址 **https://45-151-154-246.sslip.io/login**（2026-09-24 起 HTTPS；旧地址 http://45.151.154.246 会自动跳转）(本机开发时为 http://localhost:8000/login)。所有演示账号共用一个密码,由项目负责人另行发送,不写在本文档里(改法见第 6 节)。
+试用服务器地址 **https://45-151-154-246.sslip.io/login**（HTTPS；http://45.151.154.246 会自动跳转到 https；2026-09-28 从旧服务器迁入，旧网址 103-6-171-144.sslip.io 已停用）(本机开发时为 http://localhost:8000/login)。所有演示账号共用一个密码,由项目负责人另行发送,不写在本文档里(改法见第 6 节)。
 
 | 账号 | 角色 | 看什么 |
 |---|---|---|

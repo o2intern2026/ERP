@@ -2,6 +2,10 @@
 
 Laravel 12 + Blade SSR + MySQL 8 · 3PL warehouse / transport / billing system. No npm, no build step, no daemons: the code runs on a plain virtual server with cron (ERP_PLAN §8.1).
 
+## Trial server
+
+Live trial: **https://45-151-154-246.sslip.io** (Kamatera Sydney, 4 vCPU / 8 GB / 100 GB, since 2026-09-28 — the earlier 103.6.171.144 box is retired). After a merge to `main`, sync it with `bash deploy/deploy-trial.sh` (recipe and server notes in `deploy/README.md`). Demo accounts and the walkthrough are in `docs/demo-guide.zh.md`. Encrypted server backups (DB, uploads, `.env`, Karrio, fonts) live in the private repo `o2intern2026/erp-backups`; secrets never go in this repo.
+
 | File | Read it if you are… |
 |---|---|
 | `AGENTS.md` | any seat — the rulebook (Codex reads it automatically; `CLAUDE.md` imports it) |
