@@ -14,6 +14,7 @@ Live trial: **https://45-151-154-246.sslip.io** (Kamatera Sydney, 4 vCPU / 8 GB 
 | `ERP_PLAN.md` | anyone — business rules, data models, task specs (read only your section) |
 | `contracts/` | everyone — enums, events, schema, service signatures, routes, charge codes. **Law.** |
 | `MERGELOG.md` / `HANDOFF.md` | checkpoint merges / covering another seat's branch |
+| `docs/carrier-integration.md` | anyone connecting a carrier API (the `CarrierAdapter` contract, template adapter, contract test) or a client system (the order API) |
 
 ## Local setup (once per machine — COLLAB_PLAN §2.1)
 
