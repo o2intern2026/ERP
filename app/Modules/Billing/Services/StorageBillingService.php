@@ -34,7 +34,7 @@ final class StorageBillingService
         // One row per PALLET (CHANGE_REQUESTS #166: its units' rows grouped by pallet_id — a mixed pallet is one pallet) and one per loose
         // carton unit for the week; the last snapshot of the week describes it (class / source / condition / location). The unique key stays
         // unit:<first unit id>:week — identical to the pre-#166 key for a single-unit pallet, so re-running a billed week adds nothing.
-        $groups = $snapshots->groupBy(fn ($s) => $s->pallet_id !== null ? "pallet:{$s->pallet_id}" : "unit:{$s->stock_unit_id}");
+        $groups = $snapshots->groupBy(fn ($s) => $s->pallet_id !== null ? "pallet:{$s->pallet_id}:job:{$s->job_id}" : "unit:{$s->stock_unit_id}"); // pallet + Job: a pallet reused within the week (CR #169) never merges two Jobs
         foreach ($groups as $rows) {
             $s = $rows->last();
             $unitId = (int) $rows->min('stock_unit_id');

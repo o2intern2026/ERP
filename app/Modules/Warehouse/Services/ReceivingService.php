@@ -79,6 +79,12 @@ final class ReceivingService
             foreach ($data['units'] as $spec) {
                 $seq++;
                 $isPallet = $spec['unit_type'] === 'pallet';
+                if ($isPallet) {
+                    // CHANGE_REQUESTS #170: the source's preset footprint / tare fills what the operator left blank (typed values win).
+                    foreach (PalletService::spec($spec['pallet_source'] ?? 'warehouse_plain') ?? [] as $key => $preset) {
+                        $spec[$key] = ($spec[$key] ?? null) === null || $spec[$key] === '' ? $preset : $spec[$key];
+                    }
+                }
                 $suggested = $isPallet && isset($spec['length_mm'], $spec['width_mm'], $spec['height_mm'], $spec['weight_kg'])
                     ? $this->rates->suggestPalletClass($asn->client_id, (int) $spec['length_mm'], (int) $spec['width_mm'], (int) $spec['height_mm'], (float) $spec['weight_kg'])
                     : null;
@@ -101,11 +107,11 @@ final class ReceivingService
                     'qty_on_hand' => 0,
                     'pallet_class' => $isPallet ? $palletClass : null,
                     'pallet_class_overridden_reason' => ($isPallet && $palletClass !== $suggested) ? ($spec['pallet_class_reason'] ?? 'overridden at receiving') : null,
-                    'length_mm' => $spec['length_mm'] ?? null,
-                    'width_mm' => $spec['width_mm'] ?? null,
-                    'height_mm' => $spec['height_mm'] ?? null,
-                    'weight_kg' => $spec['weight_kg'] ?? null,
-                    'pallet_source' => $isPallet ? ($spec['pallet_source'] ?? 'client_own') : null,
+                    'length_mm' => $spec['length_mm'] ?? ($isPallet ? $pallet?->length_mm : null),
+                    'width_mm' => $spec['width_mm'] ?? ($isPallet ? $pallet?->width_mm : null),
+                    'height_mm' => $spec['height_mm'] ?? ($isPallet ? $pallet?->height_mm : null),
+                    'weight_kg' => $spec['weight_kg'] ?? ($isPallet ? $pallet?->weight_kg : null),
+                    'pallet_source' => $isPallet ? ($pallet?->pallet_source ?? $spec['pallet_source'] ?? 'warehouse_plain') : null, // CHANGE_REQUESTS #170
                     'condition' => 'good',
                     'putaway_completed' => false,
                     'received_at' => now(),
@@ -160,8 +166,13 @@ final class ReceivingService
     private function palletFor(Asn $asn, array $spec, bool $isPallet, ?string $palletClass, ?string $suggested, Location $receivingLocation): ?Pallet
     {
         $palletNo = strtoupper(trim((string) ($spec['pallet_no'] ?? '')));
+        $source = $spec['pallet_source'] ?? 'warehouse_plain'; // CHANGE_REQUESTS #170: our own wooden pallet unless told otherwise
         if ($palletNo !== '') {
             $pallet = Pallet::query()->scanCode($palletNo)->lockForUpdate()->first();
+            // CHANGE_REQUESTS #169: a FREE pallet (emptied, cleared from its slot) is put back to work for these goods.
+            if ($pallet !== null && $pallet->isFree() && $isPallet) {
+                return app(PalletService::class)->reassign($pallet, $asn, $spec + ['pallet_source' => $source], $palletClass, $suggested, $receivingLocation);
+            }
             if ($pallet === null || (int) $pallet->client_id !== (int) $asn->client_id || (int) $pallet->job_id !== (int) $asn->job_id
                 || (int) $pallet->warehouse_id !== (int) $asn->warehouse_id || ! $pallet->isReceivable()) {
                 throw new RuleViolation("Pallet {$palletNo} cannot take more goods (unknown, another client / Job / warehouse, put away or empty).", 'warehouse.receiving.errors.pallet_unusable', ['pallet' => $palletNo]);
@@ -172,6 +183,14 @@ final class ReceivingService
         if (! $isPallet) {
             return null;
         }
+        // CHANGE_REQUESTS #170: no number given → the oldest free pallet of this warehouse and source, else a new number.
+        if ($source !== 'client_own') {
+            $free = Pallet::query()->free($asn->warehouse_id, $source)->lockForUpdate()->first();
+            if ($free !== null) {
+                return app(PalletService::class)->reassign($free, $asn, $spec + ['pallet_source' => $source], $palletClass, $suggested, $receivingLocation);
+            }
+        }
+        $defaults = PalletService::spec($source) ?? [];
 
         return Pallet::query()->create([
             'pallet_no' => Pallet::nextNumber(),
@@ -182,11 +201,11 @@ final class ReceivingService
             'location_id' => $receivingLocation->id,
             'pallet_class' => $palletClass,
             'pallet_class_overridden_reason' => $palletClass !== $suggested ? ($spec['pallet_class_reason'] ?? 'overridden at receiving') : null,
-            'pallet_source' => $spec['pallet_source'] ?? 'client_own',
-            'length_mm' => $spec['length_mm'] ?? null,
-            'width_mm' => $spec['width_mm'] ?? null,
-            'height_mm' => $spec['height_mm'] ?? null,
-            'weight_kg' => $spec['weight_kg'] ?? null,
+            'pallet_source' => $source,
+            'length_mm' => $spec['length_mm'] ?? $defaults['length_mm'] ?? null,
+            'width_mm' => $spec['width_mm'] ?? $defaults['width_mm'] ?? null,
+            'height_mm' => $spec['height_mm'] ?? $defaults['height_mm'] ?? null,
+            'weight_kg' => $spec['weight_kg'] ?? $defaults['weight_kg'] ?? null,
             'status' => 'in_use',
             'putaway_completed' => false,
             'received_at' => now(),

@@ -7,6 +7,7 @@ use App\Modules\MasterData\Models\Client;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\AsnLine;
 use App\Modules\Warehouse\Models\Location;
+use App\Modules\Warehouse\Models\Pallet;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Services\GoodsReceiptService;
 use App\Modules\Warehouse\Services\ReceivingService;
@@ -64,6 +65,9 @@ class ReceivingController extends Controller
             'receivingLocations' => Location::query()->where('warehouse_id', $asn->warehouse_id)->where('type', 'receiving')->where('active', true)->orderBy('full_code')->get(),
             'palletSources' => Enums::PALLET_SOURCES,
             'palletClasses' => Enums::PALLET_CLASSES,
+            // CHANGE_REQUESTS #170: free pallets of the warehouse (oldest first) for the 托盘号 prefill, and the per-source dims / tare presets.
+            'freePallets' => Pallet::query()->free($asn->warehouse_id)->limit(50)->pluck('pallet_no')->all(),
+            'palletSpecs' => (array) config('erp.pallet_specs', []),
         ]);
     }
 

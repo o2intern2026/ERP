@@ -26,7 +26,7 @@
         <div class="meta">{{ $p->client?->name }}@if ($job) · {{ $job->job_no }}@endif</div>
         <div class="barcode">{!! $barcodes[$p->id] !!}</div>
         <div class="big">{{ $p->pallet_no }}</div>
-        <div class="meta">{{ __('pdf.pallet_label.lines', ['lines' => $p->units->count(), 'cartons' => (int) $p->units->sum('qty_on_hand')]) }}@if ($p->pallet_class) · {{ __('pdf.pallet_classes.'.$p->pallet_class) }}@endif@if ($p->length_mm) · {{ $p->length_mm }}×{{ $p->width_mm }}×{{ $p->height_mm }} mm@endif@if ($p->weight_kg !== null) · {{ rtrim(rtrim((string) $p->weight_kg, '0'), '.') }} kg@endif</div>
+        <div class="meta">{{ __('pdf.pallet_label.lines', ['lines' => $p->units->count(), 'cartons' => (int) $p->units->sum('qty_on_hand')]) }}@if ($p->pallet_class) · {{ __('pdf.pallet_classes.'.$p->pallet_class) }}@endif @if ($p->length_mm) · {{ $p->length_mm }}×{{ $p->width_mm }}×{{ $p->height_mm }} mm @endif @if ($p->weight_kg !== null) · {{ rtrim(rtrim((string) $p->weight_kg, '0'), '.') }} kg @endif</div>
         <table>
             @foreach ($p->units->sortBy('id') as $u)
                 @php($description = \App\Modules\Warehouse\Services\LabelService::printableDescription($u->asnLine?->description ?? ''))

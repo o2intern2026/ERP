@@ -366,7 +366,7 @@ final class GoodsReceiptService
                 'unit_type' => $row['unit_type'],
                 'carton_qty' => $base + ($i < $remainder ? 1 : 0),
                 'weight_kg' => $weight,
-                'pallet_source' => $isPallet ? ($row['pallet_source'] ?? 'client_own') : null,
+                'pallet_source' => $isPallet ? ($row['pallet_source'] ?? 'warehouse_plain') : null, // CHANGE_REQUESTS #170
                 'pallet_no' => $count === 1 ? ($row['pallet_no'] ?? null) : null, // CHANGE_REQUESTS #166: a single unit may join an existing pallet
             ];
         }

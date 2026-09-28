@@ -6,6 +6,7 @@ use App\Modules\Warehouse\Http\Controllers\LabelController;
 use App\Modules\Warehouse\Http\Controllers\LocationController;
 use App\Modules\Warehouse\Http\Controllers\MapController;
 use App\Modules\Warehouse\Http\Controllers\OutboundController;
+use App\Modules\Warehouse\Http\Controllers\PalletController;
 use App\Modules\Warehouse\Http\Controllers\PhysicalContainerController;
 use App\Modules\Warehouse\Http\Controllers\PutawayController;
 use App\Modules\Warehouse\Http\Controllers\ReceivingController;
@@ -38,6 +39,8 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::get('/snapshots', [SnapshotController::class, 'index'])->name('snapshots.index');
         Route::get('/stocktakes', [StocktakeController::class, 'index'])->name('stocktakes.index');
         Route::get('/stocktakes/{stocktake}', [StocktakeController::class, 'show'])->name('stocktakes.show')->whereNumber('stocktake');
+        Route::get('/pallets', [PalletController::class, 'index'])->name('pallets.index'); // CHANGE_REQUESTS #169 托盘管理
+        Route::get('/pallets/{pallet}', [PalletController::class, 'show'])->name('pallets.show')->whereNumber('pallet');
         Route::get('/transfers', [StockTransferController::class, 'index'])->name('transfers.index'); // CHANGE_REQUESTS #167 跨仓调拨
         Route::get('/transfers/{transfer}', [StockTransferController::class, 'show'])->name('transfers.show')->whereNumber('transfer');
         Route::get('/scan', [ScanController::class, 'index'])->name('scan.index');
@@ -117,6 +120,9 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/stocktakes/{stocktake}/lines/{line}', [StocktakeController::class, 'count'])->name('stocktakes.count');
         Route::post('/stocktakes/{stocktake}/scan', [StocktakeController::class, 'scan'])->name('stocktakes.scan');
         Route::post('/stocktakes/{stocktake}/close', [StocktakeController::class, 'close'])->name('stocktakes.close');
+        Route::post('/pallets/{pallet}/release', [PalletController::class, 'release'])->name('pallets.release')->whereNumber('pallet'); // CHANGE_REQUESTS #169
+        Route::post('/pallets/{pallet}/repalletise', [PalletController::class, 'repalletise'])->name('pallets.repalletise')->whereNumber('pallet');
+        Route::post('/pallets/{pallet}', [PalletController::class, 'update'])->middleware('role:admin|warehouse_supervisor')->name('pallets.update')->whereNumber('pallet');
         Route::post('/stock/{unit}/move', [StockController::class, 'move'])->name('stock.move');
         Route::post('/stock/{unit}/quarantine', [StockController::class, 'quarantine'])->name('stock.quarantine');
         Route::post('/stock/{unit}/restore', [StockController::class, 'restore'])->name('stock.restore');

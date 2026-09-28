@@ -48,4 +48,12 @@ return [
     // pending is older than this many minutes, admins see a red banner on every page (HealthCheck, cached 60 s) and `erp:health` exits 1.
     'outbox_stale_minutes' => (int) env('OUTBOX_STALE_MINUTES', 10),
 
+    // CHANGE_REQUESTS #170: what the receiving form pre-fills per pallet source — the pallet's footprint and tare (AU standard 1165 × 1165 mm).
+    // The operator corrects the loaded height / weight when they differ; client-own pallets have no preset.
+    'pallet_specs' => [
+        'warehouse_plain' => ['length_mm' => 1165, 'width_mm' => 1165, 'height_mm' => 150, 'weight_kg' => 30],
+        'chep' => ['length_mm' => 1165, 'width_mm' => 1165, 'height_mm' => 150, 'weight_kg' => 35],
+        'loscam' => ['length_mm' => 1165, 'width_mm' => 1165, 'height_mm' => 150, 'weight_kg' => 35],
+    ],
+
 ];
