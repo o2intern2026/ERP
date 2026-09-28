@@ -70,7 +70,7 @@ class LabelBatchTest extends TestCase
         $supervisor = $this->staff('warehouse_supervisor');
         $warehouse = $this->warehouse(); // RCV-01-01, A-01-01, A-01-02, PF-01-01, QA-01-01
         foreach (['02', '03', '10'] as $aisle) {
-            Location::query()->create(['warehouse_id' => $warehouse->id, 'zone' => 'A', 'aisle' => $aisle, 'bin' => '01', 'full_code' => Location::buildFullCode('MEL', 'A', $aisle, '01'), 'type' => 'storage', 'active' => true]);
+            Location::query()->create(['warehouse_id' => $warehouse->id, 'zone' => 'A', 'aisle' => $aisle, 'bay' => '01', 'full_code' => Location::buildFullCode('MEL', 'A', $aisle, '01'), 'type' => 'storage', 'active' => true]);
         }
 
         $this->actingAs($supervisor)->get(route('warehouse.locations.index'))->assertOk()
@@ -88,7 +88,7 @@ class LabelBatchTest extends TestCase
 
         // 41+ locations → the batch page, with the filters repeated in every link.
         foreach (range(1, 40) as $bin) {
-            Location::query()->create(['warehouse_id' => $warehouse->id, 'zone' => 'B', 'aisle' => '01', 'bin' => sprintf('%02d', $bin), 'full_code' => Location::buildFullCode('MEL', 'B', '01', sprintf('%02d', $bin)), 'type' => 'storage', 'active' => true]);
+            Location::query()->create(['warehouse_id' => $warehouse->id, 'zone' => 'B', 'aisle' => '01', 'bay' => sprintf('%02d', $bin), 'full_code' => Location::buildFullCode('MEL', 'B', '01', sprintf('%02d', $bin)), 'type' => 'storage', 'active' => true]);
         }
         $this->actingAs($supervisor)->get(route('warehouse.labels.locations', ['warehouse_id' => $warehouse->id, 'zone' => 'B']))->assertOk()->assertHeader('Content-Type', 'application/pdf');
         $page = $this->actingAs($supervisor)->get(route('warehouse.labels.locations', ['warehouse_id' => $warehouse->id]))->assertOk()->assertHeader('Content-Type', 'text/html; charset=UTF-8');

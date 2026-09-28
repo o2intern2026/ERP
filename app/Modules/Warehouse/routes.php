@@ -103,6 +103,7 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/tasks/{task}/complete', [TaskController::class, 'complete'])->name('tasks.complete');
         Route::post('/tasks/{task}/cancel', [TaskController::class, 'cancel'])->name('tasks.cancel'); // hand-made records only (tester feedback #6)
         Route::post('/config/locations', [LocationController::class, 'store'])->name('locations.store');
+        Route::post('/config/locations/generate', [LocationController::class, 'generate'])->middleware('role:admin|warehouse_supervisor')->name('locations.generate'); // CHANGE_REQUESTS #164
         Route::post('/config/locations/bulk', [LocationController::class, 'bulk'])->middleware('role:admin|warehouse_supervisor')->name('locations.bulk'); // 批量设置层位 / 存储等级 (CHANGE_REQUESTS #126)
         Route::post('/config/warehouses', [WarehouseController::class, 'store'])->name('warehouses.store');
         Route::get('/stocktakes/create', [StocktakeController::class, 'create'])->name('stocktakes.create');

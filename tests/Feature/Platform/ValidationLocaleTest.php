@@ -80,7 +80,7 @@ class ValidationLocaleTest extends TestCase
         $rcv = $this->location($warehouse, 'receiving');
 
         $this->actingAs($supervisor)->from('/warehouse/config/locations')->post('/warehouse/config/locations', [
-            'warehouse_id' => $warehouse->id, 'zone' => 'A 1', 'aisle' => '01', 'bin' => '01', 'type' => 'bulk',
+            'warehouse_id' => $warehouse->id, 'zone' => 'A 1', 'aisle' => '01', 'bay' => '01', 'type' => 'bulk',
         ])->assertRedirect('/warehouse/config/locations')
             ->assertSessionHasErrors(['zone' => '区 只能包含字母和数字。']);
 

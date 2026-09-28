@@ -15,7 +15,7 @@ trait CreatesWarehouse
         foreach ([['RCV', '01', '01', 'receiving'], ['A', '01', '01', 'storage'], ['A', '01', '02', 'storage'], ['PF', '01', '01', 'pickface'], ['QA', '01', '01', 'quarantine']] as [$zone, $aisle, $bin, $type]) {
             Location::query()->firstOrCreate(
                 ['warehouse_id' => $warehouse->id, 'full_code' => Location::buildFullCode($code, $zone, $aisle, $bin)],
-                ['zone' => $zone, 'aisle' => $aisle, 'bin' => $bin, 'type' => $type, 'active' => true],
+                ['zone' => $zone, 'aisle' => $aisle, 'bay' => $bin, 'type' => $type, 'active' => true],
             );
         }
 

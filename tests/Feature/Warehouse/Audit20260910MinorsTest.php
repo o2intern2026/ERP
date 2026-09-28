@@ -155,7 +155,7 @@ class Audit20260910MinorsTest extends TestCase
         $this->actingAs($supervisor)->get(route('warehouse.locations.index'))->assertOk()->assertSee('value="Melbourne DC 2"', false)->assertSee('value="Laverton"', false)->assertSee('value="3026"', false);
 
         // 新建库位 with a hyphenated zone: zone / aisle / bin and the chosen type survive.
-        $this->actingAs($supervisor)->post(route('warehouse.locations.store'), ['warehouse_id' => $warehouse->id, 'zone' => 'A-1', 'aisle' => '01', 'bin' => '05', 'type' => 'pickface'])->assertSessionHasErrors('zone');
+        $this->actingAs($supervisor)->post(route('warehouse.locations.store'), ['warehouse_id' => $warehouse->id, 'zone' => 'A-1', 'aisle' => '01', 'bay' => '05', 'type' => 'pickface'])->assertSessionHasErrors('zone');
         $this->actingAs($supervisor)->get(route('warehouse.locations.index'))->assertOk()->assertSee('value="A-1"', false)->assertSee('<option value="pickface" selected>', false);
 
         // Stock move to an unknown code: the code and the reason stay in the 移库 card.
