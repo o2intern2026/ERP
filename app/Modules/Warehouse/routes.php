@@ -4,6 +4,7 @@ use App\Modules\Warehouse\Http\Controllers\AsnController;
 use App\Modules\Warehouse\Http\Controllers\GoodsReceiptController;
 use App\Modules\Warehouse\Http\Controllers\LabelController;
 use App\Modules\Warehouse\Http\Controllers\LocationController;
+use App\Modules\Warehouse\Http\Controllers\MapController;
 use App\Modules\Warehouse\Http\Controllers\OutboundController;
 use App\Modules\Warehouse\Http\Controllers\PhysicalContainerController;
 use App\Modules\Warehouse\Http\Controllers\PutawayController;
@@ -32,6 +33,7 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::get('/returns', [ReturnController::class, 'index'])->name('returns.index');
         Route::get('/returns/{receipt}', [ReturnController::class, 'show'])->name('returns.show')->whereNumber('receipt');
         Route::get('/config/locations', [LocationController::class, 'index'])->name('locations.index');
+        Route::get('/map', [MapController::class, 'index'])->name('map.index'); // CHANGE_REQUESTS #165 库位图
         Route::get('/snapshots', [SnapshotController::class, 'index'])->name('snapshots.index');
         Route::get('/stocktakes', [StocktakeController::class, 'index'])->name('stocktakes.index');
         Route::get('/stocktakes/{stocktake}', [StocktakeController::class, 'show'])->name('stocktakes.show')->whereNumber('stocktake');

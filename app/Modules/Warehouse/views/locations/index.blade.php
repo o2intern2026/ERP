@@ -3,7 +3,7 @@
 @section('title', __('warehouse.locations.title'))
 
 @section('content')
-    <h1>{{ __('warehouse.locations.title') }}</h1>
+    <h1>{{ __('warehouse.locations.title') }} <small><a href="{{ route('warehouse.map.index') }}">{{ __('warehouse.map.link') }}</a></small></h1>
     <p class="text-muted"><small>{{ __('warehouse.locations.hint') }}</small></p>
     {{-- CHANGE_REQUESTS #164: the six-part code explained once, above every form. --}}
     <p class="text-muted"><small>{{ __('warehouse.locations.code_hint') }}</small></p>

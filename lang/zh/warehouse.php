@@ -14,6 +14,7 @@ return [
     'nav_outbound' => '出库',
     'nav_returns' => '退货',
     'nav_locations' => '库位配置',
+    'nav_map' => '库位图', // CHANGE_REQUESTS #165
     'placeholder' => '模块占位页 —— 功能在后续检查点交付。',
 
     'stock' => [
@@ -555,6 +556,34 @@ return [
 
     // CHANGE_REQUESTS #126: locations.storage_tier / stock_units.required_storage_tier.
     'storage_tiers' => ['standard' => '标准', 'bottom' => '底层'],
+
+    // CHANGE_REQUESTS #165 库位图: the rack map of one zone.
+    'map' => [
+        'title' => '库位图',
+        'link' => '库位图 →',
+        'hint' => '每条巷道两张图：左手货架（单数位）和右手货架（双数位），横向是位（沿巷道行走方向），纵向是层（上层在上），每个位每层两格（左 1 / 右 2）。颜色表示格里的货，格中数字是箱数；金色粗边 = 底层库位。点击一格跳到该库位的库存列表。地面区（收货 / 暂存 / 打包 / 隔离 / 地堆）在下方按区块列出。',
+        'show' => '显示',
+        'no_warehouse' => '还没有启用的仓库。',
+        'no_racks' => '「:zone」区还没有带层和格的货架库位。',
+        'generate_link' => '去库位配置批量生成 →',
+        'zone_option' => ':zone 区 · :occupied / :slots 格已占（:percent%）',
+        'zone_label' => ':zone 区',
+        'zone_occupancy' => ':occupied / :slots 格 · :percent%',
+        'total' => '全仓货架：:occupied / :slots 格已占',
+        'aisle' => ':aisle 巷道',
+        'side_left' => '左手货架',
+        'side_right' => '右手货架',
+        'side_hint_left' => '单数位',
+        'side_hint_right' => '双数位',
+        'bay' => ':bay 位',
+        'level' => ':level 层',
+        'tooltip' => ':units 个单元 · :cartons 箱 · :client',
+        'reserved' => '已预留 :cartons 箱',
+        'clients' => ':count 个客户',
+        'states' => ['empty' => '空', 'occupied' => '有货', 'reserved' => '有预留', 'flagged' => '隔离 / 破损', 'inactive' => '停用'],
+        'floor_title' => '地面区',
+        'floor_empty' => '没有地面区库位。',
+    ],
     // CHANGE_REQUESTS #126: the declared tier of an ASN goods line.
     'line_tier' => [
         'column' => '存储等级',
