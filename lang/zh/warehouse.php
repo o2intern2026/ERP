@@ -758,6 +758,12 @@ return [
         'packages_hint' => '每种包裹一行:同规格的多件填「件数」,系统按件生成箱标(PKG-…-01、02…),运输按件报价;不够行点「添加包裹」;空行忽略;每件打印一张出库箱标。',
         'qty' => '件数',
         'add_package' => '添加包裹',
+        // CHANGE_REQUESTS #162: the pack form opens prefilled from the picked units.
+        'prefill_hint' => '重量和尺寸已按拣货单元自动带出（整托 = 收货实测，散箱 = 预报单申报的单件重量和尺寸），请核对，与实际不符的直接改；标红的行缺少数据，请称量后手填。',
+        'prefill_source' => '来源',
+        'prefill_sources' => ['unit' => '收货实测', 'asn_line' => '预报单申报'],
+        'prefill_missing_row' => '缺少数据，请手填',
+        'prefill_missing' => '以下单元缺少收货重量或尺寸，已留空待填：:units',
         'to_dispatch' => '待发运(已打包)',
         'dispatch' => '发运交接',
         'dispatched' => '已发运::packages 个包裹,:pallets 托装车。',

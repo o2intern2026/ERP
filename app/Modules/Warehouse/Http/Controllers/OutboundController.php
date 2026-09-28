@@ -237,7 +237,7 @@ class OutboundController extends Controller
         return back()->with('status', __('warehouse.outbound.task_closed', ['task_no' => $task->task_no]));
     }
 
-    public function packForm(int $fulfilment): View|RedirectResponse
+    public function packForm(int $fulfilment, OutboundService $outbound): View|RedirectResponse
     {
         $task = WarehouseTask::query()->where('task_type', 'pick')->where('fulfilment_id', $fulfilment)->with('lines.stockUnit.asnLine')->firstOrFail();
         // Not a 409 page any more (tester feedback #9): say why in Chinese and go back to the board.
@@ -248,7 +248,10 @@ class OutboundController extends Controller
             return redirect()->route('warehouse.outbound.waves.show', $task->wave_id)->withErrors(['pack' => __('warehouse.outbound.pack_after_pick', ['id' => $fulfilment])]);
         }
 
-        return view('warehouse::outbound.pack', ['task' => $task, 'order' => DB::table('orders')->where('id', $task->order_id)->first(), 'packageTypes' => Enums::PACKAGE_TYPES]);
+        // CHANGE_REQUESTS #162: the form opens prefilled from the picked units (autoPackages rows); a unit without data is a red row to fill by hand.
+        $auto = $outbound->autoPackages($task);
+
+        return view('warehouse::outbound.pack', ['task' => $task, 'order' => DB::table('orders')->where('id', $task->order_id)->first(), 'packageTypes' => Enums::PACKAGE_TYPES, 'prefill' => $auto['rows'], 'missing' => $auto['missing']]);
     }
 
     /**
