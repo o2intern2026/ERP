@@ -94,6 +94,7 @@ class ReceivingController extends Controller
             'units.*.pallet_source' => ['nullable', Rule::in(Enums::PALLET_SOURCES)],
             'units.*.pallet_class' => ['nullable', Rule::in(Enums::PALLET_CLASSES)],
             'units.*.pallet_class_reason' => ['nullable', 'string', 'max:255'],
+            'units.*.pallet_no' => ['nullable', 'string', 'max:30'], // CHANGE_REQUESTS #166: stack on an existing pallet
         ]);
         // Audit 2026-09-22 INBOUND-04 (CR #141): the 入库单 figure and the stock must agree — Σ unit 箱数 = 实收箱数 — and the variance reason
         // the label already called 必填 is enforced with the bulk form's rule (received + damaged ≠ expected, or any damage).
@@ -172,6 +173,7 @@ class ReceivingController extends Controller
             'rows.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
             'rows.*.pallet_source' => ['nullable', Rule::in(Enums::PALLET_SOURCES)], // 托盘来源 per row (audit 2026-09-22 INBOUND-05, CR #141) — pallet rental / purchase bill from it
             'rows.*.variance_reason' => ['nullable', 'string', 'max:255'],
+            'rows.*.pallet_no' => ['nullable', 'string', 'max:30'], // CHANGE_REQUESTS #166 (one unit per row only)
         ], ['rows.required' => __('warehouse.receiving.bulk.rows_required'), 'rows.min' => __('warehouse.receiving.bulk.rows_required')]);
         $validator->after(function ($v) use ($request, $asn) {
             $expected = $asn->lines()->pluck('expected_cartons', 'id');

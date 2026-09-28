@@ -5,6 +5,7 @@ namespace App\Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\Location;
+use App\Modules\Warehouse\Models\Pallet;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Modules\Warehouse\Models\Warehouse;
 use App\Modules\Warehouse\Services\LabelService;
@@ -30,6 +31,17 @@ class LabelController extends Controller
 
         return $this->batched($units, $data['batch'] ?? null, __('warehouse.labels.units'), ['ids' => $data['ids']], 'warehouse.labels.units',
             fn (Collection $slice) => $this->pdf($labels->unitLabels($slice), 'unit-labels.pdf'));
+    }
+
+    /** CHANGE_REQUESTS #166: pallet labels — the P<id> barcode, the pallet number and what sits on it (goods lines · cartons). */
+    public function pallets(Request $request, LabelService $labels): Response|View
+    {
+        $data = $request->validate(['ids' => ['required', 'array', 'min:1'], 'ids.*' => ['integer'], 'batch' => ['nullable', 'integer', 'min:1']]);
+        $pallets = Pallet::query()->whereIn('id', $data['ids'])->orderBy('id')->get();
+        abort_if($pallets->isEmpty(), 404);
+
+        return $this->batched($pallets, $data['batch'] ?? null, __('warehouse.labels.pallets'), ['ids' => $data['ids']], 'warehouse.labels.pallets',
+            fn (Collection $slice) => $this->pdf($labels->palletLabels($slice), 'pallet-labels.pdf'));
     }
 
     public function asn(Request $request, Asn $asn, LabelService $labels): Response|View

@@ -89,8 +89,8 @@ order_id, order_line_id (nullable), job_id, client_id, qty, reason, reservation_
 ```
 asn_id, asn_no, job_id, client_id, warehouse_id, inbound_type,
 container: {container_id, container_no, size, unpack_mode, gross_weight_kg, line_count} | null,
-pallet_count,                                              # → WH-PUTAWAY-PLT qty
-pallets: [{stock_unit_id, pallet_source, pallet_class, length_mm, width_mm, height_mm, weight_kg, carton_qty}],   # pallet_source → pallet purchase / rental
+pallet_count,                                              # → WH-PUTAWAY-PLT qty — DISTINCT pallets (CHANGE_REQUESTS #166: a mixed pallet counts once)
+pallets: [{pallet_id, pallet_no, stock_unit_id (first unit on it), stock_unit_ids: [int], pallet_source, pallet_class, length_mm, width_mm, height_mm, weight_kg}],   # one entry per pallet; pallet_source → pallet purchase / rental
 carton_unit_count, label_count,                            # label_count → WH-LABEL-IN qty
 lines: [{asn_line_id, expected_cartons, received_cartons, damaged_cartons}],
 completed_by, completed_at

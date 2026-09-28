@@ -104,6 +104,7 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 | `stock_units.unit_type` | `pallet` \| `carton` |
 | `stock_units.pallet_class` | `standard` \| `oversize_wide` \| `oversize_high` \| `overweight` \| `pickface` |
 | `stock_units.pallet_source` | `client_own` \| `warehouse_plain` \| `chep` \| `loscam` |
+| `pallets.status` | `in_use` \| `empty` (every unit on it has 0 cartons on hand; back to `in_use` when stock reappears) — CHANGE_REQUESTS #166 (`Enums::PALLET_STATUSES`) |
 | `stock_units.condition` | `good` \| `quarantine` \| `damaged` |
 | `warehouse_tasks.task_type` | `receiving` \| `putaway` \| `move` \| `pick` \| `pack` \| `load` \| `count` \| `return_inspection` \| `devanning` \| `wrap` \| `scanning` \| `labour` \| `waste` \| `vas_other` |
 | hand-made task types (`Enums::VAS_TASK_TYPES`) | `devanning` \| `wrap` \| `scanning` \| `labour` \| `waste` \| `vas_other` — the only types a person creates on 作业登记; `receiving` (unload), `pick`, `pack`, `load`, `return_inspection` are written by their operations, `putaway` / `move` / `count` are no longer created at all (tester feedback #6, CHANGE_REQUESTS #95) |

@@ -4,6 +4,7 @@ namespace App\Modules\Warehouse\Services;
 
 use App\Modules\Warehouse\Models\AsnLine;
 use App\Modules\Warehouse\Models\Location;
+use App\Modules\Warehouse\Models\Pallet;
 use App\Modules\Warehouse\Models\StockUnit;
 
 /**
@@ -21,6 +22,12 @@ final class ScanResolver
             return null;
         }
 
+        // CHANGE_REQUESTS #166: a pallet label (P<id> / P-000123) → its putaway row while at the dock, else the stock list filtered on it.
+        if ($pallet = Pallet::query()->scanCode($code)->first()) {
+            $first = StockUnit::query()->where('pallet_id', $pallet->id)->orderBy('id')->first();
+
+            return ['type' => 'pallet', 'id' => $pallet->id, 'url' => $pallet->putaway_completed || $first === null ? route('warehouse.index', ['pallet' => $pallet->pallet_no]) : route('warehouse.putaway.index', ['highlight' => $first->id]), 'label' => $pallet->pallet_no];
+        }
         // CHANGE_REQUESTS #131: the label barcode carries U<id> / L<id>; the full label_code / full_code still resolves.
         if ($unit = StockUnit::query()->scanCode($code)->first()) {
             return ['type' => 'unit', 'id' => $unit->id, 'url' => $unit->putaway_completed ? route('warehouse.stock.show', $unit) : route('warehouse.putaway.index', ['highlight' => $unit->id]), 'label' => $unit->label_code];

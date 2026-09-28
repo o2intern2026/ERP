@@ -88,7 +88,7 @@ class MapController extends Controller
             ->where('warehouse_id', $warehouseId)
             ->whereNotNull('location_id')
             ->where(fn ($q) => $q->where('qty_on_hand', '>', 0)->orWhere('qty_reserved', '>', 0))
-            ->selectRaw("location_id, count(*) as units, sum(qty_on_hand) as cartons, sum(qty_reserved) as reserved, sum(`condition` <> 'good') as flagged, count(distinct client_id) as clients, min(client_id) as client_id")
+            ->selectRaw("location_id, count(*) as units, sum(qty_on_hand) as cartons, sum(qty_reserved) as reserved, sum(`condition` <> 'good') as flagged, count(distinct client_id) as clients, min(client_id) as client_id, count(distinct pallet_id) as pallets")
             ->groupBy('location_id')
             ->get()
             ->keyBy('location_id');

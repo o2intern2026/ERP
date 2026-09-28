@@ -81,7 +81,8 @@ final class GoodsReceiptService
             'damaged_cartons' => (int) $line->damaged_cartons,
             'variance_reason' => $line->variance_reason,
             'unit_count' => $units->count(),
-            'pallet_count' => $units->where('unit_type', 'pallet')->count(),
+            // CHANGE_REQUESTS #166: pallets this line brought in — a unit stacked on another line's pallet is not a new pallet to unload / put away.
+            'pallet_count' => $units->filter(fn ($u) => $u->pallet_id !== null && (int) StockUnit::query()->withoutGlobalScopes()->where('pallet_id', $u->pallet_id)->min('id') === (int) $u->id)->count(),
             'received_at' => now(),
             'received_by' => $userId,
         ]);
@@ -366,6 +367,7 @@ final class GoodsReceiptService
                 'carton_qty' => $base + ($i < $remainder ? 1 : 0),
                 'weight_kg' => $weight,
                 'pallet_source' => $isPallet ? ($row['pallet_source'] ?? 'client_own') : null,
+                'pallet_no' => $count === 1 ? ($row['pallet_no'] ?? null) : null, // CHANGE_REQUESTS #166: a single unit may join an existing pallet
             ];
         }
 

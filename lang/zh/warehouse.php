@@ -21,6 +21,9 @@ return [
         'order_line_ref' => '订单 #:order · 行 #:line',
         'title' => '库存查询',
         'label_code' => '单元条码',
+        // CHANGE_REQUESTS #166 托盘牌号 (the 'pallet' label itself already exists below)
+        'pallet_filter' => '托盘号 / 托盘条码',
+        'pallet_mates' => '同托盘其它单元',
         'client' => '客户',
         'job' => 'Job',
         'mark' => '唛头',
@@ -360,7 +363,10 @@ return [
         'date_from' => '开始日期从',
         'date_to' => '开始日期到',
         'empty' => '没有入库单。',
+        'pallet_no' => '托盘号',
+        'pallet_no_hint' => '留空 = 新托盘；填已有托盘号或扫托盘条码（P…）= 把这行货放到该托盘上（同客户、同 Job、托盘仍在收货区）。',
         'errors' => [
+            'pallet_unusable' => '托盘 :pallet 不能再放货：不存在，或不是本客户 / 本 Job / 本仓库的托盘，或已上架 / 已空。',
             'not_open' => '入库单 :no 已完成,不能重复完成。',
             'no_lines' => '入库单 :no 还没有收货行,不能完成。',
             'no_cjk_font' => '未配置中文 PDF 字体(:path 不存在),入库单 PDF 里的中文会是空白,已拒绝完成。请把一个中文 TrueType 字体复制到 storage/fonts/cjk.ttf,或在 .env 里用 PDF_CJK_FONT 指向项目内的字体文件,然后重试。',
@@ -406,6 +412,7 @@ return [
     ],
 
     'putaway' => [
+        'pallet' => '托盘', // CHANGE_REQUESTS #166: one tick puts the whole pallet away
         'title' => '上架',
         'pending' => '待上架单元',
         'location_code' => '目标库位(可扫码)',
@@ -556,6 +563,8 @@ return [
 
     // CHANGE_REQUESTS #126: locations.storage_tier / stock_units.required_storage_tier.
     'storage_tiers' => ['standard' => '标准', 'bottom' => '底层'],
+    // CHANGE_REQUESTS #166: pallets.status.
+    'pallet_statuses' => ['in_use' => '使用中', 'empty' => '已空'],
 
     // CHANGE_REQUESTS #165 库位图: the rack map of one zone.
     'map' => [
@@ -580,6 +589,7 @@ return [
         'tooltip' => ':units 个单元 · :cartons 箱 · :client',
         'reserved' => '已预留 :cartons 箱',
         'clients' => ':count 个客户',
+        'pallets' => ':count 托',
         'states' => ['empty' => '空', 'occupied' => '有货', 'reserved' => '有预留', 'flagged' => '隔离 / 破损', 'inactive' => '停用'],
         'floor_title' => '地面区',
         'floor_empty' => '没有地面区库位。',
@@ -662,6 +672,7 @@ return [
         'found_asn_line' => '唛头 :label 的预报单',
     ],
     'labels' => [
+        'pallets' => '托盘标签', // CHANGE_REQUESTS #166
         'units' => '打印箱标 / 托标 (PDF)',
         'locations' => '打印库位标签 (PDF)',
         // Audit 2026-09-22 CRAWL-01 (CR #141)

@@ -72,6 +72,12 @@ return [
     ],
 
     // CHANGE_REQUESTS #131: the unit label's small print — where the unit was when the label was printed (the receiving dock, usually).
+    // CHANGE_REQUESTS #166: pallet (licence plate) labels.
+    'pallet_label' => [
+        'title' => 'PALLET',
+        'lines' => ':lines lines · :cartons cartons',
+    ],
+    'pallet_classes' => ['standard' => 'Standard pallet', 'oversize_wide' => 'Oversize (wide)', 'oversize_high' => 'Oversize (high)', 'overweight' => 'Overweight', 'pickface' => 'Pickface'],
     'unit_label' => [
         'received_at' => 'Received at',
     ],

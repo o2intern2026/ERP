@@ -42,6 +42,7 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::get('/labels/units', [LabelController::class, 'units'])->name('labels.units');
         Route::get('/labels/asn/{asn}', [LabelController::class, 'asn'])->name('labels.asn');
         Route::get('/labels/locations', [LabelController::class, 'locations'])->name('labels.locations');
+        Route::get('/labels/pallets', [LabelController::class, 'pallets'])->name('labels.pallets'); // CHANGE_REQUESTS #166
         Route::post('/switch', [WarehouseController::class, 'switch'])->name('switch');
     });
 

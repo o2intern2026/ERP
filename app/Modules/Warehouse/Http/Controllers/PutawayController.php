@@ -23,7 +23,7 @@ class PutawayController extends Controller
         // CHANGE_REQUESTS #151: one search box over the pending units — 品名 / 唛头 / 预报单号 / 柜号 / 客户 / 单元条码 — so a big backlog is
         // narrowed to the goods in hand, then 全选 + 批量上架 puts the whole result away in one click.
         $q = trim((string) $request->query('q', ''));
-        $units = StockUnit::query()->with(['asnLine.asn.client', 'location', 'warehouse'])->where('putaway_completed', false)
+        $units = StockUnit::query()->with(['asnLine.asn.client', 'location', 'warehouse', 'pallet'])->where('putaway_completed', false)
             ->when(WarehouseContext::currentId(), fn ($query, $v) => $query->where('warehouse_id', $v))
             ->when($q !== '', fn ($query) => $query->where(fn ($w) => $w
                 ->where('label_code', 'like', "%{$q}%")

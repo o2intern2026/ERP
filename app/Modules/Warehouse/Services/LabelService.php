@@ -3,6 +3,7 @@
 namespace App\Modules\Warehouse\Services;
 
 use App\Modules\Warehouse\Models\Location;
+use App\Modules\Warehouse\Models\Pallet;
 use App\Modules\Warehouse\Models\StockUnit;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Collection;
@@ -41,6 +42,15 @@ final class LabelService
         return Pdf::loadView('warehouse::labels.units', [
             'units' => $units->load(['asnLine.asn.client', 'asnLine.asn.job', 'location']),
             'barcodes' => $units->mapWithKeys(fn (StockUnit $u) => [$u->id => $this->barcode(ScanCodes::unit($u->id))]),
+        ])->setPaper(self::PAGE_100x150_PT)->output();
+    }
+
+    /** CHANGE_REQUESTS #166: one 100 × 150 label per pallet — P<id> barcode, pallet_no, client · job, the goods lines on it. */
+    public function palletLabels(Collection $pallets): string
+    {
+        return Pdf::loadView('warehouse::labels.pallets', [
+            'pallets' => $pallets->load(['client', 'location', 'units.asnLine.asn.job']),
+            'barcodes' => $pallets->mapWithKeys(fn (Pallet $p) => [$p->id => $this->barcode(ScanCodes::pallet($p->id))]),
         ])->setPaper(self::PAGE_100x150_PT)->output();
     }
 

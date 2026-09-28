@@ -5,9 +5,11 @@ namespace App\Modules\Warehouse\Services;
 use App\Modules\Warehouse\Events\AsnPutawayCompleted;
 use App\Modules\Warehouse\Models\Asn;
 use App\Modules\Warehouse\Models\Location;
+use App\Modules\Warehouse\Models\Pallet;
 use App\Modules\Warehouse\Models\StockUnit;
 use App\Support\Exceptions\RuleViolation;
 use App\Support\Outbox\OutboxPublisher;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -27,29 +29,43 @@ final class PutawayService
     public function putaway(StockUnit $unit, Location $location, ?string $reason = null): StockUnit
     {
         return DB::transaction(function () use ($unit, $location, $reason): StockUnit {
-            $asn = $unit->asnLine->asn;
-            if ($asn->unplanned && ! $asn->unplanned_confirmed) {
-                throw new RuleViolation('Unplanned arrivals must be confirmed by a coordinator before putaway.', 'warehouse.putaway.errors.unplanned_unconfirmed');
+            // CHANGE_REQUESTS #166: a unit on a pallet is put away WITH its pallet — every unit on it moves and the pallet takes the location.
+            // A pallet-mate an earlier tick already put away (批量上架) is a no-op, not a second ledger line.
+            $current = StockUnit::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($unit->id); // the caller's copy may predate a pallet-mate's putaway
+            if ($current->putaway_completed && (int) $current->location_id === (int) $location->id) {
+                return $current;
             }
-            if (! $location->active || $location->warehouse_id !== $unit->warehouse_id || ! in_array($location->type, ['storage', 'pickface', 'quarantine'], true)) {
-                throw new RuleViolation("Location {$location->full_code} is not a valid putaway target for {$unit->label_code}.", 'warehouse.putaway.errors.invalid_target', ['code' => $location->full_code, 'label' => $unit->label_code]);
-            }
-            if ($unit->condition !== 'good' && $location->type !== 'quarantine') {
-                throw new RuleViolation('Damaged / quarantined stock must be put away into a quarantine location.', 'warehouse.putaway.errors.held_needs_quarantine');
-            }
-
-            $override = [];
-            if (self::tierMismatch($unit, $location)) {
-                if (! filled($reason)) {
-                    throw new RuleViolation("{$unit->label_code} is declared bottom-level; {$location->full_code} is not a bottom-level location.", 'warehouse.putaway.errors.tier_mismatch', ['label' => $unit->label_code, 'code' => $location->full_code]);
+            $units = $unit->pallet_id !== null
+                ? StockUnit::query()->withoutGlobalScopes()->where('pallet_id', $unit->pallet_id)->lockForUpdate()->orderBy('id')->get()
+                : collect([$unit]);
+            $asns = [];
+            foreach ($units as $each) {
+                $asn = $each->asnLine->asn;
+                $asns[$asn->id] = $asn;
+                if ($asn->unplanned && ! $asn->unplanned_confirmed) {
+                    throw new RuleViolation('Unplanned arrivals must be confirmed by a coordinator before putaway.', 'warehouse.putaway.errors.unplanned_unconfirmed');
                 }
-                $override = ['storage_tier_override_reason' => mb_substr(trim((string) $reason), 0, 255)];
+                if (! $location->active || $location->warehouse_id !== $each->warehouse_id || ! in_array($location->type, ['storage', 'pickface', 'quarantine'], true)) {
+                    throw new RuleViolation("Location {$location->full_code} is not a valid putaway target for {$each->label_code}.", 'warehouse.putaway.errors.invalid_target', ['code' => $location->full_code, 'label' => $each->label_code]);
+                }
+                if ($each->condition !== 'good' && $location->type !== 'quarantine') {
+                    throw new RuleViolation('Damaged / quarantined stock must be put away into a quarantine location.', 'warehouse.putaway.errors.held_needs_quarantine');
+                }
+                if (self::tierMismatch($each, $location) && ! filled($reason)) {
+                    throw new RuleViolation("{$each->label_code} is declared bottom-level; {$location->full_code} is not a bottom-level location.", 'warehouse.putaway.errors.tier_mismatch', ['label' => $each->label_code, 'code' => $location->full_code]);
+                }
             }
-
-            $this->ledger->record($unit, 'putaway', 0, ['from_location_id' => $unit->location_id, 'to_location_id' => $location->id, 'source_type' => 'asn', 'source_id' => $asn->id]);
-            $unit->update(['putaway_completed' => true, 'pallet_class' => $location->type === 'pickface' ? 'pickface' : $unit->pallet_class] + $override);
-
-            $this->completeIfDone($asn->fresh());
+            foreach ($units as $each) {
+                $override = self::tierMismatch($each, $location) ? ['storage_tier_override_reason' => mb_substr(trim((string) $reason), 0, 255)] : [];
+                $this->ledger->record($each, 'putaway', 0, ['from_location_id' => $each->location_id, 'to_location_id' => $location->id, 'source_type' => 'asn', 'source_id' => $each->asnLine->asn_id]);
+                $each->update(['putaway_completed' => true, 'pallet_class' => $location->type === 'pickface' ? 'pickface' : $each->pallet_class] + $override);
+            }
+            if ($unit->pallet_id !== null) {
+                Pallet::query()->whereKey($unit->pallet_id)->first()?->update(['location_id' => $location->id, 'putaway_completed' => true] + ($location->type === 'pickface' ? ['pallet_class' => 'pickface'] : []));
+            }
+            foreach ($asns as $asn) {
+                $this->completeIfDone($asn->fresh());
+            }
 
             return $unit->fresh();
         });
@@ -97,7 +113,20 @@ final class PutawayService
 
         $asn->update(['status' => 'putaway', 'putaway_completed_at' => now()]);
         $container = $asn->containers()->first();
-        $pallets = $units->where('unit_type', 'pallet');
+        // CHANGE_REQUESTS #166: pallets are counted as PALLETS — a mixed pallet (several goods lines) is one pallet to put away and one to buy.
+        $palletRows = $units->filter(fn (StockUnit $u) => $u->pallet_id !== null)->groupBy('pallet_id')->map(function (Collection $group): array {
+            $first = $group->sortBy('id')->first();
+            $pallet = $first->pallet;
+
+            return [
+                'pallet_id' => $pallet?->id, 'pallet_no' => $pallet?->pallet_no, 'stock_unit_id' => $first->id, 'stock_unit_ids' => $group->pluck('id')->sort()->values()->all(),
+                'pallet_source' => $pallet?->pallet_source ?? $first->pallet_source, 'pallet_class' => $pallet?->pallet_class ?? $first->pallet_class,
+                'length_mm' => $pallet?->length_mm ?? $first->length_mm, 'width_mm' => $pallet?->width_mm ?? $first->width_mm, 'height_mm' => $pallet?->height_mm ?? $first->height_mm, 'weight_kg' => $pallet?->weight_kg ?? $first->weight_kg,
+            ];
+        })->values()->concat($units->where('unit_type', 'pallet')->whereNull('pallet_id')->map(fn (StockUnit $u) => [
+            'pallet_id' => null, 'pallet_no' => null, 'stock_unit_id' => $u->id, 'stock_unit_ids' => [$u->id], 'pallet_source' => $u->pallet_source, 'pallet_class' => $u->pallet_class,
+            'length_mm' => $u->length_mm, 'width_mm' => $u->width_mm, 'height_mm' => $u->height_mm, 'weight_kg' => $u->weight_kg,
+        ]))->values();
 
         $this->outbox->publish(new AsnPutawayCompleted([
             'asn_id' => $asn->id,
@@ -107,8 +136,8 @@ final class PutawayService
             'warehouse_id' => $asn->warehouse_id,
             'inbound_type' => $asn->inbound_type,
             'container' => $container ? ['container_id' => $container->id, 'container_no' => $container->container_no, 'size' => $container->size, 'unpack_mode' => $container->unpack_mode, 'gross_weight_kg' => $container->gross_weight_kg !== null ? (float) $container->gross_weight_kg : null, 'line_count' => $container->line_count] : null,
-            'pallet_count' => $pallets->count(),
-            'pallets' => $pallets->map(fn (StockUnit $u) => ['stock_unit_id' => $u->id, 'pallet_source' => $u->pallet_source, 'pallet_class' => $u->pallet_class, 'length_mm' => $u->length_mm, 'width_mm' => $u->width_mm, 'height_mm' => $u->height_mm, 'weight_kg' => $u->weight_kg !== null ? (float) $u->weight_kg : null, 'carton_qty' => $u->qty_on_hand])->values()->all(),
+            'pallet_count' => $palletRows->count(),
+            'pallets' => $palletRows->all(),
             'carton_unit_count' => $units->where('unit_type', 'carton')->count(),
             'label_count' => $units->count(),
             'lines' => $asn->lines()->get()->map(fn ($l) => ['asn_line_id' => $l->id, 'expected_cartons' => $l->expected_cartons, 'received_cartons' => $l->received_cartons, 'damaged_cartons' => $l->damaged_cartons])->all(),

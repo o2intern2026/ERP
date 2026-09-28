@@ -30,13 +30,18 @@ final class StorageBillingService
         $snapshots = StockSnapshot::query()->withoutGlobalScopes()->whereBetween('snapshot_date', [$start->toDateString(), $end->toDateString()])->orderBy('snapshot_date')->get();
         $charges = [];
 
-        // One row per unit for the week: the last snapshot of the week describes it (class / source / condition).
-        foreach ($snapshots->groupBy('stock_unit_id') as $unitId => $rows) {
+        // One row per PALLET (CHANGE_REQUESTS #166: its units' rows grouped by pallet_id — a mixed pallet is one pallet) and one per loose
+        // carton unit for the week; the last snapshot of the week describes it (class / source / condition / location). The unique key stays
+        // unit:<first unit id>:week — identical to the pre-#166 key for a single-unit pallet, so re-running a billed week adds nothing.
+        $groups = $snapshots->groupBy(fn ($s) => $s->pallet_id !== null ? "pallet:{$s->pallet_id}" : "unit:{$s->stock_unit_id}");
+        foreach ($groups as $rows) {
             $s = $rows->last();
+            $unitId = (int) $rows->min('stock_unit_id');
             $key = "unit:{$unitId}:week:{$week}";
-            $source = ['type' => 'snapshot', 'id' => (int) $unitId];
+            $source = ['type' => 'snapshot', 'id' => $unitId];
+            $declaredBottom = $rows->contains(fn ($r) => $r->required_storage_tier === 'bottom');
 
-            if ($s->unit_type === 'pallet') {
+            if ($s->pallet_id !== null || $s->unit_type === 'pallet') {
                 if ($s->location_type === 'pickface') {
                     // billed per slot below, not per pallet
                 } elseif ($s->condition !== 'good') {
@@ -52,7 +57,7 @@ final class StorageBillingService
                     // location AND the pallet was declared bottom (lead answer 2). A percent of THIS pallet's base storage charge; a missing or
                     // POA base passes no base_cents, so RateService flags the surcharge POA / needs review — never a $0 line. Partly picked
                     // pallets pay it in full (answer 6), no proration or mid-week check (answer 8). Pre-#126 snapshot rows carry NULL tiers.
-                    if (isset($codes['WH-STORAGE-TIER-PLT-WK']) && $s->location_type === 'storage' && $s->location_storage_tier === 'bottom' && $s->required_storage_tier === 'bottom') {
+                    if (isset($codes['WH-STORAGE-TIER-PLT-WK']) && $s->location_type === 'storage' && $s->location_storage_tier === 'bottom' && $declaredBottom) {
                         $context = ['storage_tier' => 'bottom', 'warehouse_id' => (int) $s->warehouse_id];
                         if ($base !== null && $base->status !== 'needs_review') {
                             $context['base_cents'] = (int) $base->amount_cents;

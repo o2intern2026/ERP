@@ -123,6 +123,7 @@ final class OutboundService
             if ($pickedQty > 0) {
                 $unit->qty_reserved = max(0, $unit->qty_reserved - $pickedQty);
                 $this->ledger->record($unit, 'pick', -$pickedQty, ['from_location_id' => $unit->location_id, 'source_type' => 'task', 'source_id' => $task->id, 'operator_id' => $userId]);
+                $unit->pallet?->refreshStatus(); // CHANGE_REQUESTS #166: the pallet is 'empty' once its last carton is picked
             }
             $stocktake = null;
             if ($reservation !== null) {

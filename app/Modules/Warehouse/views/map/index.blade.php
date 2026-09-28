@@ -13,6 +13,7 @@
         $row = $occupancy[$slot->id] ?? null;
         $text = $slot->full_code;
         if ($row !== null) {
+            if ((int) $row->pallets > 0) $text .= ' · '.__('warehouse.map.pallets', ['count' => (int) $row->pallets]);
             $text .= ' · '.__('warehouse.map.tooltip', ['units' => $row->units, 'cartons' => (int) $row->cartons, 'client' => $row->client_name ?? '—']);
             if ((int) $row->reserved > 0) $text .= ' · '.__('warehouse.map.reserved', ['cartons' => (int) $row->reserved]);
             if ((int) $row->clients > 1) $text .= ' · '.__('warehouse.map.clients', ['count' => $row->clients]);

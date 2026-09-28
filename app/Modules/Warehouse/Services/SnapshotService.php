@@ -21,17 +21,18 @@ final class SnapshotService
         return DB::transaction(function () use ($date): int {
             StockSnapshot::query()->withoutGlobalScopes()->where('snapshot_date', $date)->delete();
 
-            $rows = StockUnit::query()->withoutGlobalScopes()->with('location')->where('qty_on_hand', '>', 0)->get()
+            $rows = StockUnit::query()->withoutGlobalScopes()->with(['location', 'pallet'])->where('qty_on_hand', '>', 0)->get()
                 ->map(fn (StockUnit $u) => [
                     'snapshot_date' => $date,
                     'warehouse_id' => $u->warehouse_id,
                     'client_id' => $u->client_id,
                     'job_id' => $u->job_id,
                     'stock_unit_id' => $u->id,
+                    'pallet_id' => $u->pallet_id, // CHANGE_REQUESTS #166: storage is billed per pallet
                     'asn_line_id' => $u->asn_line_id,
                     'unit_type' => $u->unit_type,
-                    'pallet_class' => $u->pallet_class,
-                    'pallet_source' => $u->pallet_source,
+                    'pallet_class' => $u->pallet?->pallet_class ?? $u->pallet_class,
+                    'pallet_source' => $u->pallet?->pallet_source ?? $u->pallet_source,
                     'location_id' => $u->location_id,
                     'location_type' => $u->location?->type,
                     'location_storage_tier' => $u->location?->storage_tier, // CHANGE_REQUESTS #126: the weekly bottom surcharge reads both tiers
@@ -60,7 +61,8 @@ final class SnapshotService
         return StockSnapshot::query()->where('snapshot_date', $date->toDateString())->get()
             ->groupBy(fn (StockSnapshot $s) => $s->client_id.'-'.$s->warehouse_id)
             ->map(function (Collection $rows) {
-                $pallets = $rows->where('unit_type', 'pallet');
+                // CHANGE_REQUESTS #166: one pallet = one row here, however many goods lines sit on it.
+                $pallets = $rows->filter(fn ($s) => $s->pallet_id !== null || $s->unit_type === 'pallet')->unique(fn ($s) => $s->pallet_id !== null ? 'p'.$s->pallet_id : 'u'.$s->stock_unit_id)->values();
 
                 return [
                     'client_id' => (int) $rows->first()->client_id,
@@ -68,7 +70,7 @@ final class SnapshotService
                     'pallets' => $pallets->count(),
                     'pallets_by_class' => $pallets->groupBy(fn ($s) => $s->pallet_class ?? 'poa')->map->count()->all(),
                     'pallets_by_source' => $pallets->groupBy(fn ($s) => $s->pallet_source ?? 'unknown')->map->count()->all(),
-                    'carton_units' => $rows->where('unit_type', 'carton')->count(),
+                    'carton_units' => $rows->where('unit_type', 'carton')->whereNull('pallet_id')->count(),
                     'cartons' => (int) $rows->sum('qty_on_hand'),
                     'pickface_slots' => $rows->where('location_type', 'pickface')->pluck('location_id')->unique()->count(),
                     'damaged_units' => $rows->where('condition', '!=', 'good')->count(),
