@@ -258,6 +258,8 @@ return [
         'unloaded_pallets' => '卸货托盘数(卡车散货,计卸货费)',
         'units_title' => '库存单元(每托 / 每组散箱一行)',
         'unit_type' => '单元类型',
+        'pallet_no' => '托盘号',
+        'pallet_no_hint' => '留空 = 新托盘；填已有托盘号或扫托盘条码（P…）= 把这行货放到该托盘上（同客户、同 Job、托盘仍在收货区）。',
         'carton_qty' => '箱数',
         'length' => '长 (mm)',
         'width' => '宽 (mm)',
@@ -323,6 +325,9 @@ return [
             'row_min' => '第 :row 行:实收 + 破损至少 1 箱。',
             'bad_location' => '收货库位必须是所选仓库的收货区库位。',
         ],
+        'errors' => [
+            'pallet_unusable' => '托盘 :pallet 不能再放货：不存在，或不是本客户 / 本 Job / 本仓库的托盘，或已上架 / 已空。',
+        ],
     ],
 
     'receipts' => [
@@ -363,10 +368,7 @@ return [
         'date_from' => '开始日期从',
         'date_to' => '开始日期到',
         'empty' => '没有入库单。',
-        'pallet_no' => '托盘号',
-        'pallet_no_hint' => '留空 = 新托盘；填已有托盘号或扫托盘条码（P…）= 把这行货放到该托盘上（同客户、同 Job、托盘仍在收货区）。',
         'errors' => [
-            'pallet_unusable' => '托盘 :pallet 不能再放货：不存在，或不是本客户 / 本 Job / 本仓库的托盘，或已上架 / 已空。',
             'not_open' => '入库单 :no 已完成,不能重复完成。',
             'no_lines' => '入库单 :no 还没有收货行,不能完成。',
             'no_cjk_font' => '未配置中文 PDF 字体(:path 不存在),入库单 PDF 里的中文会是空白,已拒绝完成。请把一个中文 TrueType 字体复制到 storage/fonts/cjk.ttf,或在 .env 里用 PDF_CJK_FONT 指向项目内的字体文件,然后重试。',
