@@ -14,6 +14,7 @@ use App\Modules\Warehouse\Http\Controllers\ScanController;
 use App\Modules\Warehouse\Http\Controllers\SnapshotController;
 use App\Modules\Warehouse\Http\Controllers\StockController;
 use App\Modules\Warehouse\Http\Controllers\StocktakeController;
+use App\Modules\Warehouse\Http\Controllers\StockTransferController;
 use App\Modules\Warehouse\Http\Controllers\TaskController;
 use App\Modules\Warehouse\Http\Controllers\UnplannedReceivingController;
 use App\Modules\Warehouse\Http\Controllers\WarehouseController;
@@ -37,6 +38,8 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::get('/snapshots', [SnapshotController::class, 'index'])->name('snapshots.index');
         Route::get('/stocktakes', [StocktakeController::class, 'index'])->name('stocktakes.index');
         Route::get('/stocktakes/{stocktake}', [StocktakeController::class, 'show'])->name('stocktakes.show')->whereNumber('stocktake');
+        Route::get('/transfers', [StockTransferController::class, 'index'])->name('transfers.index'); // CHANGE_REQUESTS #167 跨仓调拨
+        Route::get('/transfers/{transfer}', [StockTransferController::class, 'show'])->name('transfers.show')->whereNumber('transfer');
         Route::get('/scan', [ScanController::class, 'index'])->name('scan.index');
         Route::get('/scan/resolve', [ScanController::class, 'resolve'])->name('scan.resolve');
         Route::get('/labels/units', [LabelController::class, 'units'])->name('labels.units');
@@ -133,4 +136,12 @@ Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::post('/returns/{receipt}/lines/{line}/inspect', [ReturnController::class, 'inspect'])->name('returns.inspect');
         Route::post('/returns/{receipt}/complete-inspection', [ReturnController::class, 'completeInspection'])->name('returns.complete_inspection');
     });
+
+    // CHANGE_REQUESTS #167 跨仓调拨: planners (admin / supervisor / dispatcher) create, dispatch and cancel; the destination's warehouse staff receive.
+    Route::middleware('role:admin|warehouse_supervisor|dispatcher')->group(function () {
+        Route::post('/transfers', [StockTransferController::class, 'store'])->name('transfers.store');
+        Route::post('/transfers/{transfer}/dispatch', [StockTransferController::class, 'dispatch'])->whereNumber('transfer')->name('transfers.dispatch');
+        Route::post('/transfers/{transfer}/cancel', [StockTransferController::class, 'cancel'])->whereNumber('transfer')->name('transfers.cancel');
+    });
+    Route::post('/transfers/{transfer}/receive', [StockTransferController::class, 'receive'])->middleware('role:admin|warehouse_supervisor|warehouse_operator')->whereNumber('transfer')->name('transfers.receive');
 });

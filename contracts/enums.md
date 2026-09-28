@@ -104,6 +104,9 @@ Rules: only Orders writes `orders.*_status`; WMS / TMS notify through events. Ch
 | `stock_units.unit_type` | `pallet` \| `carton` |
 | `stock_units.pallet_class` | `standard` \| `oversize_wide` \| `oversize_high` \| `overweight` \| `pickface` |
 | `stock_units.pallet_source` | `client_own` \| `warehouse_plain` \| `chep` \| `loscam` |
+| `locations.type` addition (CHANGE_REQUESTS #167) | `transit` — the origin warehouse's 调拨在途 area (`WH-TRN-01-01`, created on first dispatch); goods there are not allocatable |
+| `stock_transfers.status` | `draft` \| `dispatched` \| `received` \| `cancelled` (`Enums::TRANSFER_STATUSES`, CHANGE_REQUESTS #167) |
+| `stock_transfers.charge_to` | `internal` \| `client` (`Enums::TRANSFER_CHARGE_TO`) — who bears a transfer; the planner's choice on the form, never inferred |
 | `pallets.status` | `in_use` \| `empty` (every unit on it has 0 cartons on hand; back to `in_use` when stock reappears) — CHANGE_REQUESTS #166 (`Enums::PALLET_STATUSES`) |
 | `stock_units.condition` | `good` \| `quarantine` \| `damaged` |
 | `warehouse_tasks.task_type` | `receiving` \| `putaway` \| `move` \| `pick` \| `pack` \| `load` \| `count` \| `return_inspection` \| `devanning` \| `wrap` \| `scanning` \| `labour` \| `waste` \| `vas_other` |

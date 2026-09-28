@@ -78,7 +78,7 @@ final class Enums
 
     public const UNPACK_MODES = ['pallet', 'loose', 'mixed'];
 
-    public const LOCATION_TYPES = ['receiving', 'storage', 'pickface', 'packing', 'staging', 'quarantine'];
+    public const LOCATION_TYPES = ['receiving', 'storage', 'pickface', 'packing', 'staging', 'quarantine', 'transit']; // transit: goods on a transfer between warehouses (CHANGE_REQUESTS #167)
 
     /**
      * locations.storage_tier / asn_lines.storage_tier / order_lines.storage_tier / stock_units.required_storage_tier (CHANGE_REQUESTS #126):
@@ -98,6 +98,11 @@ final class Enums
 
     /** CHANGE_REQUESTS #166: `pallets.status` — in use, or empty once every unit on it has 0 cartons on hand. */
     public const PALLET_STATUSES = ['in_use', 'empty'];
+
+    /** CHANGE_REQUESTS #167 调拨单. */
+    public const TRANSFER_STATUSES = ['draft', 'dispatched', 'received', 'cancelled'];
+
+    public const TRANSFER_CHARGE_TO = ['internal', 'client'];
 
     public const CONDITIONS = ['good', 'quarantine', 'damaged'];
 

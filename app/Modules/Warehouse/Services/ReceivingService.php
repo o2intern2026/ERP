@@ -93,6 +93,7 @@ final class ReceivingService
                     'job_id' => $asn->job_id,
                     'asn_line_id' => $line->id,
                     'warehouse_id' => $asn->warehouse_id,
+                    'billing_warehouse_id' => $pallet?->billing_warehouse_id ?? $asn->warehouse_id, // CHANGE_REQUESTS #167: the warehouse the client booked
                     'unit_type' => $spec['unit_type'],
                     'label_code' => sprintf('%s-L%d-%02d', $asn->asn_no, $line->id, $seq),
                     'location_id' => $pallet?->location_id ?? $receivingLocation->id,
@@ -119,7 +120,7 @@ final class ReceivingService
                 // Damaged cartons still count as received stock but are quarantined, not available (§4.3 rule 1; §4.8 storage still billed).
                 $damaged = StockUnit::query()->create([
                     'client_id' => $asn->client_id, 'job_id' => $asn->job_id, 'asn_line_id' => $line->id, 'warehouse_id' => $asn->warehouse_id,
-                    'unit_type' => 'carton', 'label_code' => sprintf('%s-L%d-DMG', $asn->asn_no, $line->id), 'location_id' => $receivingLocation->id,
+                    'billing_warehouse_id' => $asn->warehouse_id, 'unit_type' => 'carton', 'label_code' => sprintf('%s-L%d-DMG', $asn->asn_no, $line->id), 'location_id' => $receivingLocation->id,
                     'qty_on_hand' => 0, 'condition' => 'damaged', 'putaway_completed' => false, 'received_at' => now(), 'required_storage_tier' => $line->storage_tier ?: 'standard',
                 ]);
                 $this->ledger->record($damaged, 'receipt', (int) $data['damaged_cartons'], ['to_location_id' => $receivingLocation->id, 'source_type' => 'asn', 'source_id' => $asn->id]);
@@ -175,6 +176,7 @@ final class ReceivingService
         return Pallet::query()->create([
             'pallet_no' => Pallet::nextNumber(),
             'warehouse_id' => $asn->warehouse_id,
+            'billing_warehouse_id' => $asn->warehouse_id,
             'client_id' => $asn->client_id,
             'job_id' => $asn->job_id,
             'location_id' => $receivingLocation->id,

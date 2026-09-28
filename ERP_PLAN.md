@@ -746,7 +746,8 @@ asn_lines                  货物行(库存的身份来源)
 └─ weight, dims, cbm
 
 pallets                    托盘牌号 (LPN, CR #166):pallet_no(P-000123,条码 P<id>)、客户 + Job(一托一客户一 Job,可混放多行货)、库位、托盘分类 / 来源 / 尺寸重量、status in_use | empty;上架 / 移库 / 整托拣货按托盘;仓储费与托盘租赁按托盘计
-stock_units                库存单元 = 客户 + 货物行 + 包装单元 + 库位(+ pallet_id:所在托盘,散箱为空)
+stock_units                库存单元 = 客户 + 货物行 + 包装单元 + 库位(+ pallet_id:所在托盘,散箱为空;+ billing_warehouse_id:计费仓库,CR #167)
+stock_transfers            跨仓调拨单 (CR #167):transfer_no、客户 + Job、起运仓 / 目的仓、charge_to internal | client、status draft | dispatched | received | cancelled;lines = 单元(托盘整托)
 ├─ client_id, job_id, asn_line_id     货物行即身份(无 SKU 主档)
 ├─ unit_type               pallet | carton
 ├─ label_code              系统箱标 / 托标条码(扫码对象)
@@ -875,7 +876,7 @@ VAS:   拆柜 / 缠膜打带(进库 / 出库)/ 序列号扫描(逐个存 scan_re
 | 打包 | 录包裹类型、重量、长宽高;每个包裹打一张箱标(出库 label & despatch 费按此计);需缠膜 / 打带时加 wrap 任务;生成 packing list(含扫描的序列号) | **WMS-3** + **WMS-10 打包** — 包裹尺寸重量是运费与尾板判定的输入 |
 | 发运交接 | packed(可发)→ dispatched(已离仓),记录交接时间与人、装车托盘数(装车费) | **WMS-10 发运** — 货物离开仓库的时点必须被记录 |
 | 盘点 | 发起、录实数、看差异、提交调整(必填原因) | **WMS-4 库存核对** — "corrections, always with a reason recorded" |
-| 移库 | 库位间/仓库间移动,每次记录 | **WMS-7 移库与多仓** |
+| 移库 | 库位间/仓库间移动,每次记录;跨仓调拨走调拨单(CR #167:建单 → 发出在途 → 目的仓收货 → 正常上架;内部 / 客户要求二选一,仓储费按计费仓库) | **WMS-7 移库与多仓** |
 | 损坏隔离 | 标记损坏、填原因、传照片,移出可用 | **WMS-8 损坏库存** — "quarantine status with a reason (and photos)" |
 | 扫码作业 | 扫码枪与手机摄像头两种输入:收货扫箱标、上架扫库位、拣货校验、盘点 | **WMS-5 条码扫描** — 确认拿对了货,替代纸单;**核心范围** |
 | VAS 任务 | 拆柜 / 缠膜打带(进库、出库分 code)/ 序列号扫描(逐个存序列号)/ 人工时(班内、班外分开填)/ 废弃物(CBM)的任务下发与完成确认 | **WMS-2 / WMS-10** 的作业执行部分;真实价目表的 VAS 收费项以此为凭证 |

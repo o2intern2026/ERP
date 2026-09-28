@@ -21,7 +21,7 @@ class Pallet extends Model
     public const STATUSES = ['in_use', 'empty'];
 
     protected $fillable = [
-        'pallet_no', 'warehouse_id', 'client_id', 'job_id', 'location_id', 'pallet_class', 'pallet_class_overridden_reason', 'pallet_source',
+        'pallet_no', 'warehouse_id', 'billing_warehouse_id', 'client_id', 'job_id', 'location_id', 'pallet_class', 'pallet_class_overridden_reason', 'pallet_source',
         'length_mm', 'width_mm', 'height_mm', 'weight_kg', 'status', 'putaway_completed', 'received_at',
     ];
 

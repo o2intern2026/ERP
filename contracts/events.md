@@ -30,6 +30,8 @@ Every state change another module reacts to travels as an event through the tran
 | `stock.reserved` | Warehouse (C) | Orders (→ `allocated`) |
 | `stock.reservation_failed` | Warehouse (C) | Orders (OMS-7/8: warn, split fulfilment, backorder) |
 | `stock.released` | Warehouse (C) | Orders (status / hold bookkeeping) |
+| `stock.transfer.dispatched` | Warehouse (C) | Billing (client-requested only: WH-TRANSFER-OUT-PLT, TR-TRANSFER-PLT per pallet) — CHANGE_REQUESTS #167 |
+| `stock.transfer.received` | Warehouse (C) | Billing (client-requested only: WH-TRANSFER-IN-PLT per pallet) — CHANGE_REQUESTS #167 |
 | `asn.putaway_completed` | Warehouse (C) | Billing (putaway, inbound label, pallet purchase), Orders (A14 batch link), Platform (Job `in_stock`) |
 | `task.completed` | Warehouse (C) | Billing (devanning, unload, load-out, wrap, scan, labour, waste), Orders (pick / pack progress), Platform. A box-level devanning (source_type `physical_container`, CHANGE_REQUESTS #122) has **no job / client on the envelope** — `members[]` carries the split |
 | `physical_container.arrived` | Warehouse (C) | Billing (cartage TR-CARTAGE-20/40 when `cartage_by_us`, TR-SIDELOADER when `sideloader_required` — allocated over `members[]`) — added 2026-09-14, CHANGE_REQUESTS #122; envelope job / client null |
@@ -251,3 +253,14 @@ subtotal_cents, gst_cents, total_cents, issued_at, due_date
 
 ## Outbound webhooks (A23, shipped M6-prep)
 Every outbox event is also offered to the endpoints registered at `/admin/webhooks` (admin). Body = the envelope above as JSON (`event_id`, `event_name`, `event_version`, `correlation_id`, `job_id`, `client_id`, `occurred_at`, `payload`); headers `X-ERP-Event`, `X-ERP-Event-Id`, `X-ERP-Signature: sha256=<HMAC-SHA256(body, endpoint secret)>`. A non-2xx reply marks that endpoint's delivery `failed`; `webhooks:retry` (every five minutes) re-sends it after 1 m → 5 m → 30 m → 2 h → 12 h and marks it `dead` after five attempts — independent of the outbox, so one slow endpoint never delays the event for the others. Endpoints that already received an event are never posted again. No inbound webhooks in phase 1.
+
+### `stock.transfer.dispatched` / `stock.transfer.received` — 跨仓调拨 (CHANGE_REQUESTS #167)
+```
+transfer_id, transfer_no, client_id, job_id, from_warehouse_id, to_warehouse_id,
+charge_to,                              # internal | client — Billing rules match `client` only; internal transfers never bill
+pallet_count,                           # distinct pallets on the transfer → the per-pallet transfer charges' qty
+loose_unit_count, unit_count, carton_count,
+lines: [{stock_unit_id, pallet_id, asn_line_id, qty}],
+dispatched_by, dispatched_at            # dispatched: goods sit in the origin's transit location, not allocatable
+received_by, received_at, receiving_location_id   # received: goods at the destination dock, putaway_completed = false; billing warehouse = destination when charge_to = client
+```

@@ -25,6 +25,7 @@ final class SnapshotService
                 ->map(fn (StockUnit $u) => [
                     'snapshot_date' => $date,
                     'warehouse_id' => $u->warehouse_id,
+                    'billing_warehouse_id' => $u->pallet?->billing_warehouse_id ?? $u->billing_warehouse_id ?? $u->warehouse_id, // CHANGE_REQUESTS #167: rates of the warehouse the client booked
                     'client_id' => $u->client_id,
                     'job_id' => $u->job_id,
                     'stock_unit_id' => $u->id,

@@ -27,6 +27,10 @@ class BillingSeeder extends Seeder
         'WH-DEVAN-40-MIXED' => ['warehouse', 'container_40', 'Container unpack 40ft – mixed', 'POA ($450 subject to container)'],
         'WH-UNLOAD-PLT' => ['warehouse', 'pallet', 'Truck unload (LCL) – pallet', null],
         'WH-PUTAWAY-PLT' => ['warehouse', 'pallet', 'Putaway – pallet', null],
+        // CHANGE_REQUESTS #167 跨仓调拨 (client-requested only; no Edward row → Missing Rate until finance prices them)
+        'WH-TRANSFER-OUT-PLT' => ['warehouse', 'pallet', 'Inter-warehouse transfer – dispatch (pick + load) per pallet', null],
+        'WH-TRANSFER-IN-PLT' => ['warehouse', 'pallet', 'Inter-warehouse transfer – receive (unload + putaway) per pallet', null],
+        'TR-TRANSFER-PLT' => ['transport', 'pallet', 'Inter-warehouse transfer – transport per pallet', null],
         'WH-WRAP-IN-PLT' => ['vas', 'pallet', 'Shrink wrap / strap (inbound)', null],
         'WH-LABEL-IN' => ['warehouse', 'label', 'Label (inbound)', null],
         'WH-STORAGE-PLT-WK' => ['storage', 'pallet_week', 'Storage – standard pallet', '≤ 1200 × 1200 × 1400 mm, < 800 kg'],
@@ -100,6 +104,9 @@ class BillingSeeder extends Seeder
         ['TR-SIDELOADER', 'physical_container.arrived', ['sideloader_required' => true], 'allocated', 'sideloader:{physical_container_id}'],
         ['WH-UNLOAD-PLT', 'task.completed', ['task_type' => 'receiving', 'asn.inbound_type' => 'loose_truck'], 'billable_qty', 'task:{task_id}'], // charge-codes.md #9: LCL trucks only
         ['WH-PUTAWAY-PLT', 'asn.putaway_completed', null, 'pallets', 'asn:{asn_id}'],
+        ['WH-TRANSFER-OUT-PLT', 'stock.transfer.dispatched', ['charge_to' => 'client'], 'pallets', 'transfer:{transfer_id}:out'], // CHANGE_REQUESTS #167
+        ['TR-TRANSFER-PLT', 'stock.transfer.dispatched', ['charge_to' => 'client'], 'pallets', 'transfer:{transfer_id}:transport'],
+        ['WH-TRANSFER-IN-PLT', 'stock.transfer.received', ['charge_to' => 'client'], 'pallets', 'transfer:{transfer_id}:in'],
         ['WH-WRAP-IN-PLT', 'task.completed', ['task_type' => 'wrap', 'source_type' => ['asn', 'container']], 'billable_qty', 'task:{task_id}'],
         ['WH-LABEL-IN', 'asn.putaway_completed', null, 'labels', 'asn:{asn_id}'],
         ['WH-STORAGE-PLT-WK', 'snapshot.weekly', ['unit_type' => 'pallet', 'pallet_class' => 'standard', 'condition' => 'good'], 'weeks', 'unit:{stock_unit_id}:week:{week}'],

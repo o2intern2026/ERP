@@ -83,6 +83,16 @@ No seed rate: priced only if a client card carries them, otherwise **Missing Rat
 
 ※ = code name assigned by C in M0 (the plan requires the charge but does not name it).
 
+CHANGE_REQUESTS #167 跨仓调拨 (client-requested transfers only — `charge_to = client`; internal transfers bill nothing; no Edward row, so the first use raises a Missing Rate exception for finance to price):
+
+| Code | Category | UOM | Trigger | Quantity source | Activity key |
+|---|---|---|---|---|---|
+| `WH-TRANSFER-OUT-PLT` | warehouse | pallet | `stock.transfer.dispatched` (cond charge_to = client) | pallet_count (distinct pallets) | `transfer:{transfer_id}:out` |
+| `TR-TRANSFER-PLT` | transport | pallet | `stock.transfer.dispatched` (cond charge_to = client) | pallet_count | `transfer:{transfer_id}:transport` |
+| `WH-TRANSFER-IN-PLT` | warehouse | pallet | `stock.transfer.received` (cond charge_to = client) | pallet_count | `transfer:{transfer_id}:in` |
+
+Storage after a transfer: the weekly storage / rental rows price the **billing warehouse** of the goods (`stock_snapshots.billing_warehouse_id`) — unchanged by an internal transfer, the destination from the receipt of a client-requested one.
+
 ## 7. `threshold_json` key catalogue
 The only keys code may read; values always come from the rate item, defaults below are the Edward seed.
 | Key | Used by | Meaning (Edward default) |
