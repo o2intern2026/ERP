@@ -27,10 +27,10 @@
             <input type="text" name="zone" placeholder="{{ __('warehouse.locations.zone') }}" maxlength="10" value="{{ old('zone') }}" required>
             <input type="text" name="aisle" placeholder="{{ __('warehouse.locations.aisle') }}" maxlength="10" value="{{ old('aisle') }}" required>
             <input type="text" name="bay" placeholder="{{ __('warehouse.locations.bay') }}" maxlength="10" value="{{ old('bay') }}" required>
-            <select name="type">@foreach ($types as $t)<option value="{{ $t }}" @selected(old('type', 'storage') === $t)>{{ __('warehouse.location_types.'.$t) }}</option>@endforeach</select>
-            <input type="number" name="rack_level" min="1" max="99" placeholder="{{ __('warehouse.locations.rack_level') }}" value="{{ old('rack_level') }}">
+            <input type="number" name="rack_level" id="location-level" min="1" max="99" placeholder="{{ __('warehouse.locations.rack_level') }}" value="{{ old('rack_level') }}">
             <select name="position" aria-label="{{ __('warehouse.locations.position') }}"><option value="">{{ __('warehouse.locations.position_none') }}</option>@foreach ($positions as $p)<option value="{{ $p }}" @selected((string) old('position') === (string) $p)>{{ __('warehouse.locations.position_option', ['position' => $p, 'side' => __('warehouse.locations.sides.'.($p === 1 ? 'left' : 'right'))]) }}</option>@endforeach</select>
-            <select name="storage_tier" aria-label="{{ __('warehouse.locations.storage_tier') }}">@foreach ($tiers as $tier)<option value="{{ $tier }}" @selected(old('storage_tier', 'standard') === $tier)>{{ __('warehouse.storage_tiers.'.$tier) }}</option>@endforeach</select>
+            <select name="type" id="location-type">@foreach ($types as $t)<option value="{{ $t }}" @selected(old('type', 'storage') === $t)>{{ __('warehouse.location_types.'.$t) }}</option>@endforeach</select>
+            <select name="storage_tier" id="location-tier" aria-label="{{ __('warehouse.locations.storage_tier') }}">@foreach ($tiers as $tier)<option value="{{ $tier }}" @selected(old('storage_tier', 'standard') === $tier)>{{ __('warehouse.storage_tiers.'.$tier) }}</option>@endforeach</select>
             <button type="submit" class="secondary">{{ __('warehouse.locations.create') }}</button>
         </form>
         <p class="text-muted"><small>{{ __('warehouse.locations.tier_hint') }}</small></p>
@@ -54,7 +54,7 @@
                     <label>{{ __('warehouse.locations.generate.levels') }}<input type="number" name="levels" min="1" max="9" value="{{ old('levels', 3) }}" required></label>
                     <label>{{ __('warehouse.locations.generate.positions') }}<select name="positions">@foreach ($positions as $p)<option value="{{ $p }}" @selected((int) old('positions', 2) === $p)>{{ $p }}</option>@endforeach</select></label>
                     <label>{{ __('warehouse.locations.type') }}<select name="type">@foreach (['storage', 'pickface'] as $t)<option value="{{ $t }}" @selected(old('type', 'storage') === $t)>{{ __('warehouse.location_types.'.$t) }}</option>@endforeach</select></label>
-                    <label><input type="checkbox" name="bottom_level_one" value="1" @checked(old('bottom_level_one'))> {{ __('warehouse.locations.generate.bottom_level_one') }}</label>
+                    <label><input type="checkbox" name="bottom_level_one" value="1" @checked(old('bottom_level_one', old('zone') === null ? true : false))> {{ __('warehouse.locations.generate.bottom_level_one') }}</label>
                     <label>&nbsp;<button type="submit" class="secondary">{{ __('warehouse.locations.generate.submit') }}</button></label>
                 </div>
             </form>
@@ -100,8 +100,22 @@
             <p><mark>{{ __('warehouse.locations.no_receiving', ['code' => $w->code]) }}</mark></p>
         @endif
         <div class="overflow-auto"><table class="dense">
-            <thead><tr><th>{{ __('warehouse.locations.full_code') }}</th><th>{{ __('warehouse.locations.zone') }}</th><th>{{ __('warehouse.locations.aisle') }}</th><th>{{ __('warehouse.locations.bay') }}</th><th>{{ __('warehouse.locations.position') }}</th><th>{{ __('warehouse.locations.type') }}</th><th class="num">{{ __('warehouse.locations.rack_level') }}</th><th>{{ __('warehouse.locations.storage_tier') }}</th><th>{{ __('warehouse.locations.active') }}</th></tr></thead>
-            <tbody>@foreach ($w->locations as $l)<tr><td><code>{{ $l->full_code }}</code></td><td>{{ $l->zone }}</td><td>{{ $l->aisle }}</td><td>{{ $l->bay }}@if ($l->side()) <small class="text-muted">{{ __('warehouse.locations.sides.'.$l->side()) }}</small>@endif</td><td>{{ $l->position === null ? '—' : __('warehouse.locations.position_option', ['position' => $l->position, 'side' => __('warehouse.locations.sides.'.($l->position === 1 ? 'left' : 'right'))]) }}</td><td>{{ __('warehouse.location_types.'.$l->type) }}</td><td class="num">{{ $l->rack_level ?? '—' }}</td><td>@if ($l->type === 'storage')<span class="badge" data-tone="{{ $l->storage_tier === 'bottom' ? 'warn' : 'muted' }}">{{ __('warehouse.storage_tiers.'.$l->storage_tier) }}</span>@else — @endif</td><td>{{ $l->active ? __('platform.common.yes') : __('platform.common.no') }}</td></tr>@endforeach</tbody>
+            <thead><tr><th>{{ __('warehouse.locations.full_code') }}</th><th>{{ __('warehouse.locations.zone') }}</th><th>{{ __('warehouse.locations.aisle') }}</th><th>{{ __('warehouse.locations.bay') }}</th><th class="num">{{ __('warehouse.locations.rack_level') }}</th><th>{{ __('warehouse.locations.position') }}</th><th>{{ __('warehouse.locations.type') }}</th><th>{{ __('warehouse.locations.storage_tier') }}</th><th>{{ __('warehouse.locations.active') }}</th></tr></thead>
+            <tbody>@foreach ($w->locations as $l)<tr><td><code>{{ $l->full_code }}</code></td><td>{{ $l->zone }}</td><td>{{ $l->aisle }}</td><td>{{ $l->bay }}@if ($l->side()) <small class="text-muted">{{ __('warehouse.locations.sides.'.$l->side()) }}</small>@endif</td><td class="num">{{ $l->rack_level ?? '—' }}</td><td>{{ $l->position === null ? '—' : __('warehouse.locations.position_option', ['position' => $l->position, 'side' => __('warehouse.locations.sides.'.($l->position === 1 ? 'left' : 'right'))]) }}</td><td>{{ __('warehouse.location_types.'.$l->type) }}</td><td>@if ($l->type === 'storage')<span class="badge" data-tone="{{ $l->storage_tier === 'bottom' ? 'warn' : 'muted' }}">{{ __('warehouse.storage_tiers.'.$l->storage_tier) }}</span>@else — @endif</td><td>{{ $l->active ? __('platform.common.yes') : __('platform.common.no') }}</td></tr>@endforeach</tbody>
         </table></div>
     @endforeach
 @endsection
+
+@push('scripts')
+<script>
+    (() => {
+        // CHANGE_REQUESTS #168: the storage tier follows the level — 1 = 底层, anything else = 标准 — until the supervisor picks one by hand.
+        const level = document.getElementById('location-level'), tier = document.getElementById('location-tier'), type = document.getElementById('location-type');
+        if (!level || !tier) return;
+        let touched = false;
+        tier.addEventListener('change', () => { touched = true; });
+        const follow = () => { if (touched) return; tier.value = (type?.value === 'storage' && level.value === '1') ? 'bottom' : 'standard'; };
+        level.addEventListener('input', follow); type?.addEventListener('change', follow);
+    })();
+</script>
+@endpush

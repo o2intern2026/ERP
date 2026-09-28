@@ -65,6 +65,9 @@ class LocationCodeTest extends TestCase
         $slot = Location::query()->where('full_code', 'MEL-C-01-07-2-2')->sole();
         $this->assertSame([2, 2, 'left'], [$slot->rack_level, $slot->position, $slot->side()], 'bay 07 is odd → left side; slot 2 = the right slot of that bay');
 
+        $this->actingAs($supervisor)->post(route('warehouse.locations.store'), ['bay' => '08', 'rack_level' => 1, 'position' => 1] + $base)->assertSessionHasNoErrors();
+        $this->assertSame('bottom', Location::query()->where('full_code', 'MEL-C-01-08-1-1')->value('storage_tier'), 'CR #168: level 1 without an explicit tier is the bottom tier');
+        $this->assertSame('standard', Location::query()->where('full_code', 'MEL-C-01-07-2-2')->value('storage_tier'));
         $this->actingAs($supervisor)->post(route('warehouse.locations.store'), ['warehouse_id' => $warehouse->id, 'zone' => 'STG', 'aisle' => '01', 'bay' => '02', 'type' => 'staging'])
             ->assertSessionHas('status', __('warehouse.locations.created', ['code' => 'MEL-STG-01-02']));
         $floor = Location::query()->where('full_code', 'MEL-STG-01-02')->sole();
