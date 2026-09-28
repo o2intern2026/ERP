@@ -18,6 +18,7 @@
     <li><a href="{{ route('warehouse.map.index') }}">{{ __('warehouse.nav_map') }}</a></li>
     @role('admin|warehouse_supervisor|warehouse_operator')
         <li><a href="{{ route('warehouse.putaway.index') }}">{{ __('warehouse.nav_putaway') }}</a></li>
+        <li><a href="{{ route('warehouse.pallets.index') }}">{{ __('warehouse.nav_pallets') }}</a></li>
         <li><a href="{{ route('warehouse.tasks.index') }}">{{ __('warehouse.nav_tasks') }}</a></li>
         <li><a href="{{ route('warehouse.outbound.index') }}">{{ __('warehouse.nav_outbound') }}</a></li>
         <li><a href="{{ route('warehouse.returns.index') }}">{{ __('warehouse.nav_returns') }}</a></li>

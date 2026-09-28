@@ -22,12 +22,12 @@ class Pallet extends Model
 
     protected $fillable = [
         'pallet_no', 'warehouse_id', 'billing_warehouse_id', 'client_id', 'job_id', 'location_id', 'pallet_class', 'pallet_class_overridden_reason', 'pallet_source',
-        'length_mm', 'width_mm', 'height_mm', 'weight_kg', 'status', 'putaway_completed', 'received_at',
+        'length_mm', 'width_mm', 'height_mm', 'weight_kg', 'status', 'putaway_completed', 'received_at', 'released_at', 'reuse_count',
     ];
 
     protected function casts(): array
     {
-        return ['weight_kg' => 'decimal:3', 'putaway_completed' => 'boolean', 'received_at' => 'datetime'];
+        return ['weight_kg' => 'decimal:3', 'putaway_completed' => 'boolean', 'received_at' => 'datetime', 'released_at' => 'datetime', 'reuse_count' => 'integer'];
     }
 
     public function units(): HasMany
@@ -54,6 +54,21 @@ class Pallet extends Model
     public function scopeScanCode(Builder $query, string $code): Builder
     {
         return ScanCodes::wherePallet($query, $code);
+    }
+
+    /** In the free pool (CHANGE_REQUESTS #169): emptied and cleared from its slot — receiving may take it before printing a new number. */
+    public function isFree(): bool
+    {
+        return $this->status === 'empty' && $this->location_id === null;
+    }
+
+    /** Free pallets of a warehouse, oldest release first; a source narrows it (a client-own pallet never goes back into the pool for others). */
+    public function scopeFree(Builder $query, int $warehouseId, ?string $source = null): Builder
+    {
+        return $query->where('warehouse_id', $warehouseId)->where('status', 'empty')->whereNull('location_id')
+            ->when($source !== null, fn (Builder $q) => $q->where('pallet_source', $source))
+            ->where('pallet_source', '!=', 'client_own')
+            ->orderBy('released_at')->orderBy('id');
     }
 
     /** Still at the dock and in use: more goods of the same client + Job may be stacked on it. */

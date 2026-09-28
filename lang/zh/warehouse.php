@@ -568,6 +568,50 @@ return [
     // CHANGE_REQUESTS #166: pallets.status.
     'pallet_statuses' => ['in_use' => '使用中', 'empty' => '已空'],
 
+    // CHANGE_REQUESTS #169 托盘管理 + #170 receiving defaults.
+    'pallets' => [
+        'title' => '托盘管理',
+        'one' => '托盘 :no',
+        'hint' => '每个托盘一条记录：使用中 = 上面有货；已空 = 货拣完了但实体托盘还占着格；空闲 = 已从库位清走、可在收货时重复使用（收货表会自动填入最早空闲的托盘号）。',
+        'free_count' => '空闲 :count 个',
+        'free' => '空闲',
+        'free_only' => '只看空闲',
+        'search' => '托盘号 / 客户',
+        'status' => '状态',
+        'number' => '托盘号',
+        'lines' => '货物行',
+        'cartons' => '箱数',
+        'dims' => '尺寸 (mm) · 重量',
+        'received_at' => '启用时间',
+        'released_at' => '清走时间',
+        'reused' => '第 :count 次复用',
+        'empty' => '没有托盘。',
+        'units_title' => '托盘上的货',
+        'units_summary' => ':units 个单元 · :cartons 箱',
+        'no_units' => '托盘上没有货。',
+        'repalletise' => '拆托 / 并托',
+        'target' => '目标托盘号',
+        'target_placeholder' => '目标托盘号（留空 = 拆下成散箱）',
+        'repalletise_submit' => '移动',
+        'repalletise_hint' => '填目标托盘号 = 把这一行货并到那个托盘（同客户同 Job；空闲托盘会被拿来用）；留空 = 从托盘上拆下，作为散箱留在原库位。',
+        'moved_to' => ':label 已并到托盘 :no。',
+        'taken_off' => ':label 已从托盘 :no 拆下（散箱）。',
+        'release_submit' => '清走空托盘',
+        'release_hint' => '实体托盘从库位搬走，格真正空出来，托盘进入空闲池，下次收货可复用。',
+        'released' => '托盘 :no 已清走，进入空闲池。',
+        'edit_title' => '修改托盘信息',
+        'edit_submit' => '保存',
+        'class_reason' => '托盘类型改动原因',
+        'updated' => '托盘 :no 已更新。',
+        'errors' => [
+            'not_empty' => '托盘 :no 上还有货或预留，不能清走。',
+            'unit_empty' => ':label 没有箱数，不能移动。',
+            'other_owner' => '托盘 :no 不是同一客户 / Job / 仓库的托盘。',
+            'unit_not_here' => ':label 不在这个托盘上。',
+            'unknown_pallet' => '找不到托盘 :no。',
+        ],
+    ],
+
     // CHANGE_REQUESTS #167 跨仓调拨 + 计费仓库.
     'transfers' => [
         'title' => '跨仓调拨',
@@ -787,6 +831,7 @@ return [
     ],
     'nav_stocktakes' => '盘点',
     'nav_transfers' => '跨仓调拨', // CHANGE_REQUESTS #167
+    'nav_pallets' => '托盘', // CHANGE_REQUESTS #169
     'nav_snapshots' => '快照',
     'nav_scan' => '扫码',
 

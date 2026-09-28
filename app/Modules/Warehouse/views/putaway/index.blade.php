@@ -81,7 +81,7 @@
         @foreach ($locations as $warehouseId => $list)
             <datalist id="locations-{{ $warehouseId }}">@foreach ($list as $loc)<option value="{{ $loc->full_code }}">{{ __('warehouse.location_types.'.$loc->type) }}</option>@endforeach</datalist>
         @endforeach
-        <datalist id="locations-all">@foreach ($locations as $list)@foreach ($list as $loc)<option value="{{ $loc->full_code }}">{{ __('warehouse.location_types.'.$loc->type) }}</option>@endforeach @endforeach</datalist>
+        <datalist id="locations-all">@foreach ($locations as $list) @foreach ($list as $loc)<option value="{{ $loc->full_code }}">{{ __('warehouse.location_types.'.$loc->type) }}</option>@endforeach @endforeach</datalist>
         {{ $units->links() }}
     @endif
 @endsection
