@@ -90,6 +90,12 @@ class PalletTest extends TestCase
             $this->assertSame('warehouse.receiving.errors.pallet_unusable', $e->langKey());
         }
 
+        // The receiving forms label the box 托盘号 (a raw key showed until the fix): the per-line form and the whole-ASN form.
+        [$asn2, [$d]] = $this->asn($client, $warehouse, [2]);
+        $form = $this->get(route('warehouse.receiving.form', [$asn2, $d]))->assertOk()->assertSee(__('warehouse.receiving.pallet_no'))->assertSee('[pallet_no]', false);
+        $this->assertDoesNotMatchRegularExpression('/warehouse\.receiving\./', $form->getContent());
+        $bulk = $this->get(route('warehouse.receiving.bulk_form', $asn2))->assertOk()->assertSee(__('warehouse.receiving.pallet_no'))->assertSee('[pallet_no]', false);
+        $this->assertDoesNotMatchRegularExpression('/warehouse\.receiving\./', $bulk->getContent());
         // The pallet label (P<id> barcode) prints in English; the token and the printed number both resolve on the scan page.
         $this->get(route('warehouse.labels.pallets', ['ids' => [$pallet->id]]))->assertOk()->assertHeader('Content-Type', 'application/pdf');
         $this->get('/warehouse/scan/resolve?code=p'.$pallet->id)->assertRedirect(route('warehouse.index', ['pallet' => $pallet->pallet_no]));
